@@ -29,6 +29,13 @@ on:
 permissions:
   contents: read
 
+# Go caches: the Makefile builds in .tmp/gocache, so setup-go's own cache, of
+# the default location, stays empty. The jobs that compile restore .tmp/gocache
+# and the modules instead, and only the test job, which compiles the most,
+# saves them. It does not save on a pull request, whose cache would serve only
+# that pull request. kind-e2e builds inside Docker, so it restores nothing. The
+# key follows the Go dependencies, so a new entry appears about weekly, and
+# restore-keys starts it from the previous one.
 # A new push to a pull request cancels its older run. Runs on master are never
 # cancelled: a release checks the run of its tagged commit.
 concurrency:
@@ -38,7 +45,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       db_collector: ${{ steps.detect.outputs.db_collector }}
@@ -91,7 +98,7 @@ jobs:
           cat flags.txt
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,9 +107,22 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - name: Run Go tests
-        run: make test
-      - name: Run race checks
+          cache: false
+      - id: go-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            .tmp/gocache
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Check generated code is current
+        run: make generate-check
+      # -count=1 so a restored cache cannot replay a test result: it only saves
+      # compiling.
+      - name: Run Go tests with the race detector
+        env:
+          GOFLAGS: -count=1
         run: make test-race
       - name: Run Go static checks
         run: make vet
@@ -114,12 +134,20 @@ jobs:
         run: make docs-site
       - name: Run isolated PostgreSQL and Valkey integration tests
         run: make test-integration
+      - name: Save the Go caches
+        if: github.event_name != 'pull_request' && steps.go-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            .tmp/gocache
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
   sqlserver:
     name: SQL Server probes
     needs: changes
     if: needs.changes.outputs.db_collector == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,6 +156,15 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
+      - id: go-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            .tmp/gocache
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
       - name: Run every SQL Server probe and PatientZero's live test against a disposable SQL Server
         run: make test-sqlserver
 
@@ -135,7 +172,7 @@ jobs:
     name: Helm chart
     needs: changes
     if: needs.changes.outputs.chart == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -144,6 +181,15 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
+      - id: go-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            .tmp/gocache
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
       - name: Install pinned kind, kubectl, Helm 4 and Helm 3
         run: |
           make install-tools
@@ -157,12 +203,11 @@ jobs:
 
   kind-e2e:
     name: kind end-to-end
-    needs: [changes, chart]
-    # Runs after the chart checks pass, or without them when the chart did not
-    # change. A job whose dependency was skipped is skipped too unless its
-    # condition calls a status function, hence !cancelled().
-    if: ${{ !cancelled() && needs.changes.outputs.kind_e2e == 'true' && (needs.chart.result == 'success' || needs.chart.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    needs: changes
+    # Alongside the chart checks, not after them: ci-ok requires both, and they
+    # rarely fail, so waiting for them would delay every run to save a few.
+    if: needs.changes.outputs.kind_e2e == 'true'
+    runs-on: ubuntu-26.04
     # 10-19 minutes in October 2026 (ADR 0003). A job that grows past this
     # trims its checks rather than raising the timeout.
     timeout-minutes: 25
@@ -173,6 +218,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
       - name: Install pinned kind, kubectl and Helm
         run: |
           make install-tools
@@ -199,7 +245,7 @@ jobs:
     # always(), not !cancelled(): a gate skipped on failure or cancellation
     # would count as passed.
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

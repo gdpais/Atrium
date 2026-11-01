@@ -1,0 +1,13 @@
+# kind cluster for make kind-e2e. Unlike cluster.yaml it maps no host ports, so
+# a run cannot clash with the developer cluster or another run.
+#
+# The kubelet writes a changed ConfigMap or Secret into a pod's volume only when
+# it next syncs that pod. At its default of 1m the checks spent about 6 of their
+# 17 minutes waiting for that. They test that a change is applied without a
+# restart, not how long it takes: a real cluster, on the default, takes longer.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+  - |
+    kind: KubeletConfiguration
+    syncFrequency: 10s

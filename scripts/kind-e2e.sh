@@ -34,7 +34,7 @@ if $own_cluster; then
 	# A private kubeconfig and no host port mappings, so this run cannot clash
 	# with the developer cluster or another run.
 	export KUBECONFIG=$WORK/kubeconfig
-	export KIND_CONFIG=${E2E_KIND_CONFIG-}
+	export KIND_CONFIG=${E2E_KIND_CONFIG-infra/kind/e2e.yaml}
 fi
 
 port_forward_pid=
@@ -511,8 +511,9 @@ pass "Loki answers through kubectl port-forward"
 # ignores the SIGTERM it would send. The pod in this namespace also tries
 # Prometheus's and Alertmanager's NodePorts on the node, which kind.yaml opens
 # to every source outside the pod subnet: the policy must still see the pod.
+# Every URL is tried at once, so the pod waits one timeout, not one per URL.
 blocked="db-collector-headless:8082/healthz loki:3100/ready prometheus:9090/-/ready alertmanager:9093/-/ready otel-collector:4318/v1/logs"
-probe_script='for url in "$@"; do timeout 10 wget -q -T 30 -O /dev/null "$url"; echo "$url $?"; done'
+probe_script='for url in "$@"; do (timeout 10 wget -q -T 30 -O /dev/null "$url"; echo "$url $?") & done; wait'
 node_ip=$(k get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 k create namespace "$other_ns" --dry-run=client -o yaml | k apply -f - >/dev/null
 # A pod is rejected until the namespace's default ServiceAccount exists.
@@ -533,7 +534,7 @@ wait_for 180 "probe pod in $other_ns finished" pod_done np-probe "$other_ns"
 results=$({
 	k -n "$NAMESPACE" logs np-probe
 	k -n "$other_ns" logs np-probe
-} 2>&1 | grep '^http' || true)
+} 2>&1 | grep '^http' | sort || true)
 k delete namespace "$other_ns" --wait=false >/dev/null
 k -n "$NAMESPACE" delete pod np-probe --wait=false >/dev/null
 printf '%s\n' "$results" | sed 's/^/      /'
@@ -556,13 +557,13 @@ pass "unlisted pods time out on the collector, Loki, Prometheus, Alertmanager an
 # has no shell, hence the Prometheus image. Reaching SQL Server is what the
 # collector's targets being up already shows. An ephemeral container stays in
 # the pod until the pod is replaced, so each run names its own.
-egress_script='for url in "$@"; do out=$(timeout 10 wget -q -T 30 -O /dev/null "$url" 2>&1); echo "$url $? $out"; done'
+egress_script='for url in "$@"; do (out=$(timeout 10 wget -q -T 30 -O /dev/null "$url" 2>&1); echo "$url $? $out") & done; wait'
 egress_probe=egress-probe-$(date +%s)
 k -n "$NAMESPACE" debug db-collector-0 --profile=restricted --image="$prom_image" --container="$egress_probe" \
 	-- sh -c "$egress_script" sh http://otel-collector:4318/v1/logs http://grafana:3000/api/health \
 	http://loki:3100/ready http://prometheus:9090/-/ready >/dev/null
 wait_for 180 "egress probe finished" ephemeral_done db-collector-0 "$egress_probe"
-results=$(k -n "$NAMESPACE" logs db-collector-0 -c "$egress_probe" 2>&1 | grep '^http' || true)
+results=$(k -n "$NAMESPACE" logs db-collector-0 -c "$egress_probe" 2>&1 | grep '^http' | sort || true)
 printf '%s\n' "$results" | sed 's/^/      /'
 [ "$(printf '%s\n' "$results" | grep -c .)" = 4 ] || fail "expected 4 egress probe results"
 printf '%s\n' "$results" | while read -r url code rest; do
