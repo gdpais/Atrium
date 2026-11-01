@@ -2,7 +2,7 @@
 # No host ports or durable volumes: never share the developer database.
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.11@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
     environment:
       POSTGRES_DB: heartbeat
       POSTGRES_USER: heartbeat
