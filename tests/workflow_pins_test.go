@@ -15,8 +15,8 @@ import (
 // with its exact version as a trailing comment (`owner/repo@<sha> # v1.2.3`).
 // A tag can be moved to other code; a commit SHA cannot. Renovate
 // (helpers:pinGitHubActionDigestsToSemver in renovate.json) keeps the SHA and
-// the comment current. This test runs in `make test`, so CI's test job, and
-// through it ci-ok, fails on an unpinned action.
+// the comment current. This test runs in `make test` and `make test-race`, so
+// CI's test job, and through it ci-ok, fails on an unpinned action.
 func TestWorkflowActionsArePinnedBySHA(t *testing.T) {
 	root := repoRoot(t)
 	var files []string

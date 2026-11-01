@@ -307,8 +307,8 @@ After editing it, regenerate the server types and commit them with the spec:
 make generate   # writes apps/api/internal/openapi/openapi.gen.go
 ```
 
-`make test`, and so CI, fails when the committed code differs from what the
-spec generates. The generator, oapi-codegen, is pinned in the Makefile
+`make test` and CI, through `make generate-check`, fail when the committed
+code differs from what the spec generates. The generator, oapi-codegen, is pinned in the Makefile
 (`OAPI_CODEGEN_VERSION`) and fetched by `go run`, so there is nothing to
 install. The handlers in `apps/api/internal/httpapi` implement the generated
 `StrictServerInterface`: a new operation does not compile until it has one,
