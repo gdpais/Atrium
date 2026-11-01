@@ -15,6 +15,7 @@ explains what is deployed and how to work with it.
 | `infra/helm/heartbeat/files/` | Prometheus rules (and their promtool tests) and Grafana dashboards, shipped as ConfigMaps |
 | `infra/helm/values/` | Environment values: `kind.yaml`, `minimal.yaml`, `sqlserver-dev.yaml`, `production.example.yaml`, and `external-platform.example.yaml` (no bundled engines; the OTel Collector sends everything as OTLP to another platform, [ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) |
 | `infra/kind/cluster.yaml` | kind cluster: one node, host port mappings on 127.0.0.1 |
+| `infra/kind/e2e.yaml` | The temporary cluster of `make kind-e2e`: no host ports, and a 10 s kubelet sync so changed ConfigMaps and Secrets arrive sooner |
 | `scripts/kind.sh` | Cluster, image and deploy workflow behind the `make kind-*` targets |
 | `scripts/kind-e2e.sh` | Acceptance checks on an isolated, temporary cluster (`make kind-e2e`) |
 
