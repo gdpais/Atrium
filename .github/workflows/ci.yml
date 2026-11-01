@@ -35,7 +35,12 @@ permissions:
 # saves them. It does not save on a pull request, whose cache would serve only
 # that pull request. kind-e2e builds inside Docker, so it restores nothing. The
 # key follows the Go dependencies, so a new entry appears about weekly, and
-# restore-keys starts it from the previous one.
+# restore-keys starts it from the previous one. Go deletes build cache files not
+# used for 5 days, going by their modification time, which a restore keeps, and
+# its first build would empty an entry of that age. So an exact hit is touched.
+# A restore from an older key is not, so what no build uses still leaves the
+# entry saved from it, and the cache does not grow forever.
+
 # A new push to a pull request cancels its older run. Runs on master are never
 # cancelled: a release checks the run of its tagged commit.
 concurrency:
@@ -116,6 +121,9 @@ jobs:
             .tmp/gocache
           key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
           restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Keep Go from trimming the restored cache
+        if: steps.go-cache.outputs.cache-hit == 'true'
+        run: find .tmp/gocache -type f -exec touch {} +
       - name: Check generated code is current
         run: make generate-check
       # -count=1 so a restored cache cannot replay a test result: it only saves
@@ -165,6 +173,9 @@ jobs:
             .tmp/gocache
           key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
           restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Keep Go from trimming the restored cache
+        if: steps.go-cache.outputs.cache-hit == 'true'
+        run: find .tmp/gocache -type f -exec touch {} +
       - name: Run every SQL Server probe and PatientZero's live test against a disposable SQL Server
         run: make test-sqlserver
 
@@ -190,6 +201,9 @@ jobs:
             .tmp/gocache
           key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'tools/*/go.mod', 'tools/*/go.sum') }}
           restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Keep Go from trimming the restored cache
+        if: steps.go-cache.outputs.cache-hit == 'true'
+        run: find .tmp/gocache -type f -exec touch {} +
       - name: Install pinned kind, kubectl, Helm 4 and Helm 3
         run: |
           make install-tools
