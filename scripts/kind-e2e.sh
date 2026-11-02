@@ -50,6 +50,10 @@ cleanup() {
 		echo "--- diagnostics"
 		kubectl --context "$CONTEXT" -n "$NAMESPACE" get pods -o wide || true
 		kubectl --context "$CONTEXT" -n "$NAMESPACE" logs statefulset/db-collector --tail 50 || true
+		echo "--- API, its migrations and its dependencies"
+		kubectl --context "$CONTEXT" -n "$NAMESPACE" logs deployment/api -c migrate --tail 20 || true
+		kubectl --context "$CONTEXT" -n "$NAMESPACE" logs deployment/api -c api --tail 30 || true
+		kubectl --context "$CONTEXT" -n "$NAMESPACE" logs statefulset/postgresql --tail 20 || true
 		# Where log rows went: the Collector's export attempts and errors, its
 		# logs exporter's queue and counts, and the rows Loki discarded.
 		echo "--- OTel Collector"
@@ -234,6 +238,23 @@ otel_replacement_ready() {
 		[ "$(k -n "$NAMESPACE" get pod otel-collector-0 -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')" = True ]
 }
 
+# The API's pod (one replica on kind), its readiness, and psql in the bundled
+# PostgreSQL as the database's owner, over the pod's Unix socket.
+api_pod() { k -n "$NAMESPACE" get pod -l app.kubernetes.io/name=api -o jsonpath='{.items[0].metadata.name}'; }
+api_ready_is() { [ "$(k -n "$NAMESPACE" get pod "$(api_pod)" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')" = "$1" ]; }
+psql_() { k -n "$NAMESPACE" exec postgresql-0 -- psql -U heartbeat -d heartbeat -Atc "$1"; }
+schema_version() { psql_ "SELECT version || CASE WHEN dirty THEN ' (dirty)' ELSE '' END FROM schema_migrations"; }
+schema_version_is() { [ "$(schema_version)" = "$1" ]; }
+# The newest migration in db/migrations, as golang-migrate numbers it.
+newest_migration() { ls db/migrations | sed -n 's/^0*\([0-9][0-9]*\)_.*\.up\.sql$/\1/p' | sort -n | tail -n 1; }
+# A trace of the API's in Tempo, from the last ten minutes, rooted at the
+# span of an unrouted request: nothing else asks the API for one.
+api_trace() {
+	query='{resource.service.name="api" && name="GET unmatched"}'
+	svc_get tempo:3200 "/api/search?limit=1&start=$(($(date +%s) - 600))&end=$(($(date +%s) + 60))&q=$(printf '%s' "$query" | jq -sRr @uri)" |
+		jq -er '.traces[0].traceID'
+}
+
 # ----------------------------------------------------------------------------
 step "cluster $CLUSTER, images, SQL Server target"
 scripts/kind.sh cluster
@@ -291,6 +312,46 @@ case "$running" in
 *"heartbeat/db-collector:$DB_COLLECTOR_TAG") pass "db-collector runs $DB_COLLECTOR_TAG (content-derived tag, node arch $arch)" ;;
 *) fail "db-collector runs $running, expected tag $DB_COLLECTOR_TAG" ;;
 esac
+for image in $(k -n "$NAMESPACE" get pod "$(api_pod)" -o jsonpath='{.status.containerStatuses[0].image} {.status.initContainerStatuses[0].image}'); do
+	case "$image" in
+	*"heartbeat/api:$API_TAG") ;;
+	*) fail "the API or its migrate init container runs $image, expected tag $API_TAG" ;;
+	esac
+done
+pass "the API and its migrations run $API_TAG"
+
+# ----------------------------------------------------------------------------
+step "the API is Ready only after its migrations, at the newest schema"
+# The init container applied every migration before the API started, and
+# the database is at the newest one this checkout has, not dirty.
+newest=$(newest_migration)
+[ -n "$newest" ] || fail "no migrations in db/migrations"
+pod=$(api_pod)
+migrate_status() { k -n "$NAMESPACE" get pod "$pod" -o jsonpath="{.status.initContainerStatuses[0].$1}"; }
+[ "$(migrate_status state.terminated.exitCode)" = 0 ] ||
+	fail "the migrate init container exited with [$(migrate_status state.terminated.exitCode)]"
+migrate_done=$(migrate_status state.terminated.finishedAt)
+migrate_restarts=$(migrate_status restartCount)
+api_started=$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.containerStatuses[0].state.running.startedAt}')
+ready_at=$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.conditions[?(@.type=="Ready")].lastTransitionTime}')
+# RFC 3339 times in UTC sort as text.
+[ "$(printf '%s\n%s\n' "$migrate_done" "$api_started" | sort | head -n 1)" = "$migrate_done" ] ||
+	fail "the API started at $api_started, before its migrations ended at $migrate_done"
+k -n "$NAMESPACE" logs "$pod" -c migrate | grep '"msg":"migrate: schema up to date"' | jq -e --argjson v "$newest" '.to == $v' >/dev/null ||
+	fail "the migrate init container did not bring the schema to version $newest: $(k -n "$NAMESPACE" logs "$pod" -c migrate)"
+[ "$(schema_version)" = "$newest" ] || fail "schema_migrations is at [$(schema_version)], want $newest"
+svc_get api:8081 /readyz | jq -e '.status == "ready"' >/dev/null || fail "the API's /readyz is not ready"
+pass "migrations to version $newest ended $migrate_done ($migrate_restarts restarts while PostgreSQL started); API started $api_started, Ready $ready_at"
+# Readiness follows the schema: one version behind, the pod leaves the
+# Service; restored, it returns, without a restart.
+restarts_before=$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.containerStatuses[0].restartCount}')
+psql_ "UPDATE schema_migrations SET version = version - 1" >/dev/null
+wait_for 60 "the API unready on an older schema" api_ready_is False
+psql_ "UPDATE schema_migrations SET version = $newest" >/dev/null
+wait_for 60 "the API ready again" api_ready_is True
+[ "$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.containerStatuses[0].restartCount}')" = "$restarts_before" ] ||
+	fail "the API restarted while its schema was behind; liveness must not depend on PostgreSQL"
+pass "on schema $((newest - 1)) the API left its Service and came back at $newest, same container"
 
 # ----------------------------------------------------------------------------
 step "SQL Server target is collected and visible"
@@ -479,6 +540,21 @@ trace_has_cycle() {
 }
 wait_for 180 "a warning's trace ID leads to its collection cycle in Tempo" trace_has_cycle
 pass "own logs in Loki under service_namespace=heartbeat; trace $trace_id holds the cycle, target and probe spans"
+# The API's, wired the same way (ADR 0018).
+api_logs='{service_namespace="heartbeat",service_name="api",deployment_environment_name="local"}'
+wait_for 120 "the API's own logs in Loki" log_found "$api_logs |= \"readiness changed\""
+wait_for 60 "Prometheus scrapes the API" value_is 'up{job="api"}' 1
+[ "$(prom_value 'heartbeat_service_info{service="api",environment="local"}')" = 1 ] ||
+	fail "no heartbeat_service_info for the API"
+[ -n "$(prom_value 'sum(heartbeat_api_http_requests_total{route="/readyz"})')" ] ||
+	fail "no heartbeat_api_http_requests_total for the API's readiness probes"
+# Health and readiness requests are not traced, and the API has no other
+# route yet [4.2], so an unrouted request makes the trace. From Prometheus,
+# the one pod the API's NetworkPolicy admits; the 404 is expected.
+k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- \
+	wget -q -T 5 -O /dev/null "http://api:8081/api/v1/kind-e2e-$run_id" >/dev/null 2>&1 || true
+wait_for 120 "the API's request trace in Tempo" api_trace
+pass "the API's logs in Loki, up{job=\"api\"} 1 with its request metrics, and its request trace $(api_trace) in Tempo"
 
 # ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"
@@ -501,14 +577,14 @@ step "NetworkPolicies admit only the components that use each service"
 collector_url=http://db-collector-headless:8082/healthz
 k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- wget -q -T 5 -O /dev/null "$collector_url" ||
 	fail "Prometheus cannot reach the collector's port 8082"
-for job in db-collector otel-collector loki alertmanager tempo; do
+for job in db-collector api otel-collector loki alertmanager tempo; do
 	wait_for 60 "Prometheus scrapes $job" value_is "up{job=\"$job\"}" 1
 done
 svc_get grafana:3000 /api/datasources/proxy/uid/loki/loki/api/v1/labels | jq -e '.status == "success"' >/dev/null ||
 	fail "Grafana's Loki datasource cannot reach Loki"
 svc_get grafana:3000 /api/datasources/proxy/uid/tempo/ready >/dev/null ||
 	fail "Grafana's Tempo datasource cannot reach Tempo"
-pass "Prometheus scrapes the collector, the OTel Collector, Loki, Tempo and Alertmanager; Grafana queries Loki and Tempo"
+pass "Prometheus scrapes the collector, the API, the OTel Collector, Loki, Tempo and Alertmanager; Grafana queries Loki and Tempo"
 # Operators reach Loki through kubectl port-forward, which NetworkPolicy does
 # not filter. kubectl runs directly, as in admin_forward.
 kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward svc/loki :3100 >"$WORK/loki-forward.log" 2>&1 &
@@ -533,7 +609,9 @@ pass "Loki answers through kubectl port-forward"
 # Prometheus's and Alertmanager's NodePorts on the node, which kind.yaml opens
 # to every source outside the pod subnet: the policy must still see the pod.
 # Every URL is tried at once, so the pod waits one timeout, not one per URL.
-blocked="db-collector-headless:8082/healthz loki:3100/ready tempo:3200/ready prometheus:9090/-/ready alertmanager:9093/-/ready otel-collector:4318/v1/logs"
+# PostgreSQL and Valkey do not speak HTTP: reached, wget fails at once
+# (exit 1) instead of timing out.
+blocked="db-collector-headless:8082/healthz api:8081/healthz postgresql:5432/ valkey:6379/ loki:3100/ready tempo:3200/ready prometheus:9090/-/ready alertmanager:9093/-/ready otel-collector:4318/v1/logs"
 probe_script='for url in "$@"; do (timeout 10 wget -q -T 30 -O /dev/null "$url"; echo "$url $?") & done; wait'
 node_ip=$(k get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 k create namespace "$other_ns" --dry-run=client -o yaml | k apply -f - >/dev/null
@@ -559,7 +637,7 @@ results=$({
 k delete namespace "$other_ns" --wait=false >/dev/null
 k -n "$NAMESPACE" delete pod np-probe --wait=false >/dev/null
 printf '%s\n' "$results" | sed 's/^/      /'
-[ "$(printf '%s\n' "$results" | grep -c .)" = 16 ] || fail "expected 16 probe results"
+[ "$(printf '%s\n' "$results" | grep -c .)" = 22 ] || fail "expected 22 probe results"
 printf '%s\n' "$results" | while read -r url code; do
 	case "$url:$code" in
 	*grafana*:0) ;;
@@ -568,7 +646,7 @@ printf '%s\n' "$results" | while read -r url code; do
 	*) fail "$url from a pod the policies do not list: exit $code, not a connection timeout" ;;
 	esac
 done
-pass "unlisted pods time out on the collector, Loki, Tempo, Prometheus, Alertmanager and the OTel Collector, NodePorts included"
+pass "unlisted pods time out on the collector, the API, PostgreSQL, Valkey, Loki, Tempo, Prometheus, Alertmanager and the OTel Collector, NodePorts included"
 # The collector's egress (kind.yaml limits it), from an ephemeral container in
 # db-collector-0, which shares the pod's network and so its policy: it
 # resolves names and reaches the OTel Collector, which answers its GET with a
@@ -797,6 +875,19 @@ gt "$lowest_after" "$lowest" &&
 svc_get alertmanager:9093 /api/v2/silences | jq -e --arg id "$silence_id" 'any(.[]; .id == $id)' >/dev/null ||
 	fail "Alertmanager lost its silence on restart"
 pass "Prometheus TSDB and Alertmanager silences survived pod replacement"
+# PostgreSQL's data is on its claim: a new pod finds the schema, and the API,
+# unready meanwhile, is ready again without a restart of its own.
+pod=$(api_pod)
+restarts_before=$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.containerStatuses[0].restartCount}')
+uid_before=$(k -n "$NAMESPACE" get pod postgresql-0 -o jsonpath='{.metadata.uid}')
+k -n "$NAMESPACE" delete pod postgresql-0 --wait=true >/dev/null
+k -n "$NAMESPACE" rollout status statefulset/postgresql --timeout 3m >/dev/null
+[ "$(k -n "$NAMESPACE" get pod postgresql-0 -o jsonpath='{.metadata.uid}')" != "$uid_before" ] || fail "postgresql-0 was not replaced"
+wait_for 60 "schema still at version $newest" schema_version_is "$newest"
+wait_for 60 "the API ready again" api_ready_is True
+[ "$(k -n "$NAMESPACE" get pod "$pod" -o jsonpath='{.status.containerStatuses[0].restartCount}')" = "$restarts_before" ] ||
+	fail "the API restarted with PostgreSQL"
+pass "PostgreSQL's schema survived pod replacement; the API reconnected without a restart"
 
 # ----------------------------------------------------------------------------
 step "a Collector restart during a log backlog loses no rows"
