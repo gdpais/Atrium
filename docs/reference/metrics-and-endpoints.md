@@ -409,8 +409,10 @@ and `audit: delivery resumed`. A request the Collector accepts while refusing
 some of its records (OTLP partial success) is not sent again: those records
 are counted in `heartbeat_otlp_export_rejected_records_total{client="audit"}`
 and `HeartbeatOTLPRecordsRejected` fires. Without `HEARTBEAT_API_AUDIT_ENDPOINT`, nothing
-is sent and records wait. A round that finds records is traced: `audit.drain`
-→ `audit.export` and the `db.query` of the delete.
+is sent and records wait; the chart sets it to the bundled OTel Collector's
+`4318` while the Collector is on, so in the `minimal` profile records wait.
+A round that finds records is traced: `audit.drain` → `audit.export` and the
+`db.query` of the delete.
 
 Each record is an OTLP log record: severity INFO, the record's time, the
 record as compact JSON in the body

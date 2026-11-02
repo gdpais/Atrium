@@ -202,9 +202,32 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 		}
 	}
 	for name := range migrateEnv {
-		if strings.HasPrefix(name, "OTEL_") || strings.HasPrefix(name, "HEARTBEAT_API_REDIS_") {
+		if strings.HasPrefix(name, "OTEL_") || strings.HasPrefix(name, "HEARTBEAT_API_REDIS_") || name == "HEARTBEAT_API_AUDIT_ENDPOINT" {
 			t.Errorf("migrate sets %s; `api migrate up` reads only PostgreSQL's settings and sends no telemetry", name)
 		}
+	}
+	// Audit records go to the OTel Collector's OTLP/HTTP receiver, the logs
+	// pipeline with the queue on disk (ADR 0016), whenever the Collector is
+	// on, telemetry or not; never to the 4319 receiver of the API's own logs.
+	wantAudit := ""
+	if config, ok := collectorRelay(t, objects); ok {
+		var relay struct {
+			Receivers struct {
+				OTLP struct {
+					Protocols struct {
+						HTTP struct {
+							Endpoint string `yaml:"endpoint"`
+						} `yaml:"http"`
+					} `yaml:"protocols"`
+				} `yaml:"otlp"`
+			} `yaml:"receivers"`
+		}
+		mustUnmarshal(t, config, &relay)
+		_, port, _ := strings.Cut(relay.Receivers.OTLP.Protocols.HTTP.Endpoint, "}:")
+		wantAudit = "http://otel-collector:" + port
+	}
+	if got := apiEnv["HEARTBEAT_API_AUDIT_ENDPOINT"]; got != wantAudit {
+		t.Errorf("HEARTBEAT_API_AUDIT_ENDPOINT = %q, want %q: the Collector's OTLP/HTTP logs receiver while it is on", got, wantAudit)
 	}
 	got := apiDependencies{
 		postgresHost: apiEnv["HEARTBEAT_API_POSTGRES_HOST"], postgresPort: apiEnv["HEARTBEAT_API_POSTGRES_PORT"],

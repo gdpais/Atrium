@@ -74,7 +74,7 @@ and PostgreSQL's and Valkey's their own `networkPolicy`.
 | `api` | 8081 | Prometheus, `api.networkPolicy.peers` | Scrape; the API's clients when they exist (the Web UI [5]) |
 | `postgresql` | 5432 | API | Its database; the workers join when they exist |
 | `valkey` | 6379 | API | Sessions, jobs, locks; the workers join when they exist |
-| `otel-collector` | 4318 | db-collector, API | OTLP/HTTP: logs from `outsystems_logs` collectors, and both services' spans |
+| `otel-collector` | 4318 | db-collector, API | OTLP/HTTP: logs from `outsystems_logs` collectors, the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)), and both services' spans |
 | `otel-collector` | 4319 | db-collector, API, while `telemetry.enabled` | OTLP/HTTP: the services' own logs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | | 8889 | Prometheus | Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP) |
 | `prometheus` | 9090 | Grafana | Prometheus datasource |

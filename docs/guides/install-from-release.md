@@ -164,6 +164,19 @@ Then open http://localhost:3000 and log in with the `grafana-admin` Secret's
 user and password. The *Heartbeat* folder holds the dashboards. They show
 data once a SQL Server target is added (next step).
 
+The API has no default user. Create the first admin in an API pod, with the
+password on standard input, so it never reaches a command line or the shell
+history ([`api users create-admin`](../reference/configuration.md#api)):
+
+```bash
+read -rs PASSWORD && printf '%s\n' "$PASSWORD" | kubectl -n heartbeat exec -i deployment/api -c api -- \
+  /app/api users create-admin --email admin@example.com; unset PASSWORD
+```
+
+It logs the user's ID and its audit record's ID. The record reaches Loki
+through the OTel Collector within seconds; in Grafana's Explore:
+`{service_name="heartbeat-api"} | event_name="heartbeat.audit"`.
+
 `/readyz` says whether the collector itself works, not the databases: it
 stays ready while every SQL Server target fails
 ([endpoints](../reference/metrics-and-endpoints.md#db-collector-8082)).

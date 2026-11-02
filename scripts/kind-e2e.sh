@@ -245,6 +245,7 @@ api_ready_is() { [ "$(k -n "$NAMESPACE" get pod "$(api_pod)" -o jsonpath='{.stat
 psql_() { k -n "$NAMESPACE" exec postgresql-0 -- psql -U heartbeat -d heartbeat -Atc "$1"; }
 schema_version() { psql_ "SELECT version || CASE WHEN dirty THEN ' (dirty)' ELSE '' END FROM schema_migrations"; }
 schema_version_is() { [ "$(schema_version)" = "$1" ]; }
+outbox_empty() { [ "$(psql_ 'SELECT count(*) FROM audit_outbox')" = 0 ]; }
 # The newest migration in db/migrations, as golang-migrate numbers it.
 newest_migration() { ls db/migrations | sed -n 's/^0*\([0-9][0-9]*\)_.*\.up\.sql$/\1/p' | sort -n | tail -n 1; }
 # A trace of the API's in Tempo, from the last ten minutes, rooted at the
@@ -555,6 +556,25 @@ k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- \
 	wget -q -T 5 -O /dev/null "http://api:8081/api/v1/kind-e2e-$run_id" >/dev/null 2>&1 || true
 wait_for 120 "the API's request trace in Tempo" api_trace
 pass "the API's logs in Loki, up{job=\"api\"} 1 with its request metrics, and its request trace $(api_trace) in Tempo"
+
+# ----------------------------------------------------------------------------
+step "an audit record reaches Loki through the Collector's logs pipeline"
+# The first admin, made the documented way: the password on the standard
+# input of `kubectl exec -i`, never on a command line. The command logs its
+# audit record's id; the API's drainer sends the record to the Collector's
+# 4318, the pipeline whose queue is on disk (ADR 0016), and Loki keeps it
+# under service_name heartbeat-api, outside Heartbeat's own logs.
+created=$(openssl rand -hex 16 | k -n "$NAMESPACE" exec -i "$(api_pod)" -c api -- \
+	/app/api users create-admin --email kind-e2e-admin@example.com 2>&1) ||
+	fail "api users create-admin failed: $created"
+record_id=$(printf '%s\n' "$created" | sed -n 's/.*"audit_record_id":"\([^"]*\)".*/\1/p' | head -n 1)
+[ -n "$record_id" ] || fail "api users create-admin logged no audit_record_id: $created"
+audit_query="{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" | log_record_uid=\"$record_id\""
+wait_for 120 "audit record $record_id in Loki" log_found "$audit_query"
+loki_query "$audit_query" | jq -e '[.data.result[].values[][1] | fromjson | select(.entity_type == "user" and .action == "create")] | length > 0' >/dev/null ||
+	fail "the audit record in Loki is not the user's creation: $(loki_query "$audit_query" | jq -c '.data.result[0].values[0][1]')"
+wait_for 60 "the audit outbox empty" outbox_empty
+pass "audit record $record_id (user create) in Loki under service_name=heartbeat-api; the outbox is empty"
 
 # ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"

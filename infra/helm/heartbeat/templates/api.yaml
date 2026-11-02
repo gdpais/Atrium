@@ -87,6 +87,15 @@ spec:
               value: {{ $deps.redisAddr | quote }}
             - name: HEARTBEAT_API_REDIS_TLS
               value: {{ $deps.redisTLS | quote }}
+            {{- if .Values.otelCollector.enabled }}
+            # Audit records go to the Collector's OTLP/HTTP receiver, the logs
+            # pipeline whose queue is on disk (ADR 0016), never 4319: they
+            # are records, not the API's own telemetry, so telemetry.enabled
+            # does not turn them off. Without the Collector they wait in the
+            # outbox, and HeartbeatAuditDeliveryStalled says so.
+            - name: HEARTBEAT_API_AUDIT_ENDPOINT
+              value: http://{{ .Values.otelCollector.fullnameOverride }}:{{ dig "otlp-http" "servicePort" 4318 (.Values.otelCollector.ports | default dict) }}
+            {{- end }}
             {{- with $a.goMemLimit | default (include "heartbeat.goMemLimit" (dict "limit" (dig "limits" "memory" "" $a.resources) "name" "api")) }}
             # Go's soft memory limit, below the container limit.
             - name: GOMEMLIMIT

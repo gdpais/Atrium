@@ -369,8 +369,7 @@ and collector contracts are prerequisites, and its decisions are recorded
 (ADRs 0013–0017). Deep links [4.9] need YAML templates and datasources [8.1,
 9.3], which exist.
 
-Remaining work, in order, one pull request each: audit output [4.10], so
-every later mutation is audited → login and sessions [4.2] → users and roles [4.2] →
+Remaining work, in order, one pull request each: login and sessions [4.2] → users and roles [4.2] →
 inventory [4.3] → telemetry sources [4.4] → database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
 applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
@@ -469,7 +468,7 @@ Built with the reporting worker [7, 14], not in stage 3.
 - [x] Include request ID, actor, entity type/id, before/after, config version when relevant
 - [x] Ensure secrets never enter audit records: a test changes each audited entity and fails on a password, hash, session ID or token (`auditedChanges` in `apps/api/internal/audit`; it fails while an entity type has no change listed, so each later slice adds its own)
 - [x] Export the outbox's row count and oldest age; alert when delivery stalls (`HeartbeatAuditDeliveryStalled`)
-- [ ] With the chart's API [4.1]: set `HEARTBEAT_API_AUDIT_ENDPOINT` to the Collector's 4318 (the logs pipeline with the persistent queue), admit the API to 4318 in the Collector's NetworkPolicy, and check in kind-e2e that a record from `api users create-admin` reaches Loki (`{service_name="heartbeat-api"} | event_name="heartbeat.audit"`)
+- [x] With the chart's API [4.1]: set `HEARTBEAT_API_AUDIT_ENDPOINT` to the Collector's 4318 (the logs pipeline with the persistent queue), admit the API to 4318 in the Collector's NetworkPolicy, and check in kind-e2e that a record from `api users create-admin` reaches Loki (`{service_name="heartbeat-api"} | event_name="heartbeat.audit"`)
 
 ---
 

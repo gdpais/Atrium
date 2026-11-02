@@ -11,7 +11,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02 except the 48 hour backfill: the nightly run of every scenario has been green since 2026-10-28. Left: the backfill checked again in that run, the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; next audit output [4.10], then login and sessions [4.2]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; next login and sessions [4.2]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Web UI | Not started |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
@@ -209,7 +209,7 @@ In order, one pull request each:
 
 - Bootstrap, PostgreSQL and Redis connectivity, migrations, and the API,
   PostgreSQL and Valkey in the chart [4.1] (done)
-- Audit output, first, so every later change is audited [4.10]
+- Audit output, first, so every later change is audited [4.10] (done)
 - Local auth with minimal roles: login, sessions, users and roles [4.2]
 - Environments, applications, components, telemetry sources, database targets,
   probe definitions and assignments; approved assignments become
