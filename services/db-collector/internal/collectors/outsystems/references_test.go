@@ -1,6 +1,7 @@
 package outsystems
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,7 +45,9 @@ func registeredMetrics(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metrics.initCollector(collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true})
+	metrics.initCollector(collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true, Targets: []collectorconfig.TargetRuntimeConfig{
+		{Name: "t", Probes: []collectorconfig.ProbeRuntimeConfig{{Name: "screen"}}},
+	}})
 	item := collectormetadata.ScheduledProbe{CollectorID: "c", Definition: collectormetadata.ProbeDefinition{Name: "screen"}}
 	metrics.addRows(item, 1)
 	metrics.setLag(item, time.Second)
@@ -55,6 +58,8 @@ func registeredMetrics(t *testing.T) map[string]bool {
 	metrics.recounted(item, 1, 1)
 	metrics.recountRan(item)
 	metrics.recountFailed(item)
+	_, done := metrics.stage(context.Background(), item, stageRead)
+	done(nil)
 	observe := func(logType string, columns []string, row ...any) {
 		batch := Batch{Rows: [][]any{row}}
 		for _, name := range columns {
@@ -90,10 +95,10 @@ func registeredMetrics(t *testing.T) map[string]bool {
 func TestEveryDeclaredMetricIsExported(t *testing.T) {
 	names := registeredMetrics(t)
 	for _, name := range []string{
-		MetricRows, MetricLag, MetricExportFailures, MetricStuckBatches, MetricLogDelay, MetricExportBlocked,
+		MetricRows, MetricLag, MetricLagSetting, MetricExportFailures, MetricStuckBatches, MetricLogDelay, MetricExportBlocked,
 		MetricOperationDuration, MetricOperations, MetricOperationSeconds, MetricIntegrationDuration,
 		MetricErrors, MetricSlowEvents, MetricTimerDelay, MetricScreenState, MetricFrontEndOperations,
-		MetricDerivedSeries, MetricDerivedSeriesOverflow,
+		MetricDerivedSeries, MetricDerivedSeriesOverflow, MetricStageDuration, MetricHeldBytes,
 	} {
 		if !names[name] {
 			t.Errorf("%s is declared but not exported", name)

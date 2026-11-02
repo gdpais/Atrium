@@ -28,6 +28,10 @@ dependencies:
     version: 18.17.1
     repository: https://grafana-community.github.io/helm-charts
     condition: loki.enabled
+  - name: tempo
+    version: 3.2.1
+    repository: https://grafana-community.github.io/helm-charts
+    condition: tempo.enabled
   - name: opentelemetry-collector
     alias: otelCollector
     version: 0.178.1

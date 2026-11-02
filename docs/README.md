@@ -15,7 +15,9 @@ which is not committed.
 1. [Product overview](product/overview.md): what Heartbeat is, who it is for,
    MVP scope, current status
 2. [Roadmap](product/roadmap.md): phases and what is done
-3. [Architecture overview](architecture/overview.md): diagrams of the current
+3. [How we work](product/operating-model.md): phase outcomes, who decides
+   what, scope, reversals and the measures the scorecard watches
+4. [Architecture overview](architecture/overview.md): diagrams of the current
    runtime and the target platform
 
 **Developers**
@@ -58,7 +60,7 @@ which is not committed.
 
 | Folder | Contents |
 | --- | --- |
-| [`product/`](product/) | [Overview](product/overview.md), [roadmap](product/roadmap.md) |
+| [`product/`](product/) | [Overview](product/overview.md), [roadmap](product/roadmap.md), [how we work](product/operating-model.md) |
 | [`architecture/`](architecture/) | [Overview](architecture/overview.md), [data model](architecture/data-model.md), [database observability](architecture/database-observability.md), [application observability](architecture/application-observability.md), [operator workflows](architecture/workflows.md), [decisions](architecture/decisions/README.md) |
 | [`guides/`](guides/) | Task-oriented how-tos |
 | [`reference/`](reference/) | Lookup tables for configuration, metrics and endpoints |

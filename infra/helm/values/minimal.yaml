@@ -1,8 +1,11 @@
 # Minimal profile: DB collector, Prometheus, Alertmanager and Grafana. Drops
-# Loki and the OpenTelemetry Collector to save CPU and RAM.
+# Loki, Tempo and the OpenTelemetry Collector to save CPU and RAM.
 # Layer after kind.yaml.
 
 loki:
+  enabled: false
+
+tempo:
   enabled: false
 
 otelCollector:
@@ -13,6 +16,8 @@ prometheus:
     otel-collector:
       enabled: false
     loki:
+      enabled: false
+    tempo:
       enabled: false
 
 grafana:

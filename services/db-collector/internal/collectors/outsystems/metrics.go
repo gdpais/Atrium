@@ -1,13 +1,19 @@
 package outsystems
 
 import (
+	"context"
 	"fmt"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	collectorconfig "heartbeat/internal/config"
+	"heartbeat/internal/telemetry"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 )
 
@@ -20,6 +26,10 @@ const (
 	// MetricLag is how far the watermark trails now: rows newer than it are
 	// not extracted yet.  At rest it is about lag plus the poll interval.
 	MetricLag = "heartbeat_outsystems_extract_lag_seconds"
+	// MetricLagSetting is the lag the log type is configured with: its own,
+	// or the collector's.  MetricLag never goes below it, so an objective on
+	// the lag is set relative to it.
+	MetricLagSetting = "heartbeat_outsystems_extract_lag_setting_seconds"
 	// MetricExportFailures counts batches the OTel Collector did not accept
 	// after retries; the watermark stays and the batch is read again.
 	MetricExportFailures = "heartbeat_outsystems_export_failures_total"
@@ -48,7 +58,33 @@ const (
 	// MetricRecountFailures counts recounts that failed; meanwhile late and
 	// duplicate rows go uncounted.
 	MetricRecountFailures = "heartbeat_outsystems_recount_failures_total"
+	// MetricStageDuration is the time of one step of a batch (see
+	// [batchStages]).  Labels: collector, log_type, stage.  Without target,
+	// since each series is a histogram and a step's cost hardly differs
+	// between the targets of a collector.
+	MetricStageDuration = "heartbeat_outsystems_stage_duration_seconds"
+	// MetricHeldBytes is the row data held in memory now, read, being
+	// exported or pending, against [Executor.MaxHeldBytes].  No labels.
+	MetricHeldBytes = "heartbeat_outsystems_held_bytes"
 )
+
+// Values of the stage label of [MetricStageDuration].
+const (
+	// stageRead is the query on the logging database.
+	stageRead = "read"
+	// stageBuild is turning rows into OTLP log records.
+	stageBuild = "build"
+	// stageExport is until the OTel Collector accepted the batch, retries
+	// and waiting for Loki included.
+	stageExport = "export"
+	// stageDerive is updating the derived metrics from the delivered rows.
+	stageDerive = "derive"
+	// stageWatermark is saving the watermark to disk.
+	stageWatermark = "watermark"
+)
+
+// stageDurationBuckets reach far: an export waits for as long as Loki is down.
+var stageDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 30, 300}
 
 // metricLabels are the label names of every extraction metric.
 var metricLabels = []string{"collector", "environment", "target", "log_type"}
@@ -63,6 +99,7 @@ var metricLabels = []string{"collector", "environment", "target", "log_type"}
 type Metrics struct {
 	rows            *prometheus.CounterVec
 	lag             *prometheus.GaugeVec
+	lagSetting      *prometheus.GaugeVec
 	exportFailures  *prometheus.CounterVec
 	stuck           *prometheus.CounterVec
 	logDelay        *prometheus.GaugeVec
@@ -71,7 +108,10 @@ type Metrics struct {
 	recounts        *prometheus.CounterVec
 	recountFailures *prometheus.CounterVec
 	exportBlocked   *prometheus.GaugeVec
-	derived         *derived
+	stages          *prometheus.HistogramVec
+	// heldBytes is the executor's, once it exists; see [MetricHeldBytes].
+	heldBytes atomic.Pointer[func() int64]
+	derived   *derived
 }
 
 // NewMetrics creates the extraction metrics and the derived metrics and
@@ -85,6 +125,10 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 		lag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: MetricLag,
 			Help: "Seconds the OutSystems log extraction watermark trails now; about lag plus the poll interval when caught up.",
+		}, metricLabels),
+		lagSetting: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: MetricLagSetting,
+			Help: "Seconds behind now the OutSystems log type's reads stop, as configured; the extraction lag never goes below it.",
 		}, metricLabels),
 		exportFailures: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: MetricExportFailures,
@@ -118,9 +162,23 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 			Name: MetricRecountFailures,
 			Help: "OutSystems log recounts that failed; late and duplicate rows are not counted meanwhile.",
 		}, metricLabels),
+		stages: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    MetricStageDuration,
+			Help:    "Time of one step of an OutSystems log batch in seconds: read, build, export, derive or watermark.",
+			Buckets: stageDurationBuckets,
+		}, []string{"collector", "log_type", "stage"}),
 		derived: newDerived(),
 	}
-	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures}, m.derived.collectors()...) {
+	held := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: MetricHeldBytes,
+		Help: "OutSystems log row data held in memory now: read, being exported or pending.",
+	}, func() float64 {
+		if read := m.heldBytes.Load(); read != nil {
+			return float64((*read)())
+		}
+		return 0
+	})
+	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.lagSetting, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures, m.stages, held}, m.derived.collectors()...) {
 		if err := reg.Register(collector); err != nil {
 			return nil, fmt.Errorf("register outsystems metrics: %w", err)
 		}
@@ -134,8 +192,8 @@ func labelValues(item collectormetadata.ScheduledProbe) []string {
 }
 
 // initCollector creates the counters of every log type collector extracts at
-// 0, so increase() sees the first row and the first failure, and its
-// export-blocked gauge at 0.  It also sets the collector's series budget
+// 0, so increase() sees the first row and the first failure, its
+// export-blocked gauge at 0, and its lag setting.  It also sets the collector's series budget
 // for the derived metrics and creates its budget series.
 func (m *Metrics) initCollector(collector collectorconfig.CollectorRuntimeConfig) {
 	if m == nil || !collector.Enabled {
@@ -152,6 +210,13 @@ func (m *Metrics) initCollector(collector collectorconfig.CollectorRuntimeConfig
 				_, _ = vec.GetMetricWithLabelValues(values...)
 			}
 			_, _ = m.exportBlocked.GetMetricWithLabelValues(values...)
+			lag := collector.OutSystemsLogs.Lag
+			if probe.Lag > 0 {
+				lag = probe.Lag
+			}
+			if gauge, err := m.lagSetting.GetMetricWithLabelValues(values...); err == nil {
+				gauge.Set(lag.Seconds())
+			}
 		}
 	}
 }
@@ -164,6 +229,7 @@ func (m *Metrics) forgetCollector(collectorID string) {
 	labels := prometheus.Labels{"collector": collectorID}
 	m.rows.DeletePartialMatch(labels)
 	m.lag.DeletePartialMatch(labels)
+	m.lagSetting.DeletePartialMatch(labels)
 	m.exportFailures.DeletePartialMatch(labels)
 	m.stuck.DeletePartialMatch(labels)
 	m.logDelay.DeletePartialMatch(labels)
@@ -172,7 +238,37 @@ func (m *Metrics) forgetCollector(collectorID string) {
 	m.duplicateRows.DeletePartialMatch(labels)
 	m.recounts.DeletePartialMatch(labels)
 	m.recountFailures.DeletePartialMatch(labels)
+	m.stages.DeletePartialMatch(labels)
 	m.derived.forget(collectorID)
+}
+
+// tracer starts the spans of a batch's steps.
+var tracer = telemetry.Tracer("heartbeat/outsystems")
+
+// stage starts one step of a batch, as a span and for [MetricStageDuration].
+// The function it returns ends it, with err marking a failed one.  A nil
+// *Metrics still traces.
+func (m *Metrics) stage(ctx context.Context, item collectormetadata.ScheduledProbe, stage string) (context.Context, func(err error)) {
+	began := time.Now()
+	ctx, span := tracer.Start(ctx, "outsystems."+stage, trace.WithAttributes(attribute.String("heartbeat.log_type", item.Definition.Name)))
+	return ctx, func(err error) {
+		if err != nil {
+			// Not the error's text, which can name the host and the login.
+			span.SetStatus(codes.Error, stage+" failed")
+		}
+		span.End()
+		m.observeStage(item, stage, began)
+	}
+}
+
+// observeStage records the time of one step since began.
+func (m *Metrics) observeStage(item collectormetadata.ScheduledProbe, stage string, began time.Time) {
+	if m == nil {
+		return
+	}
+	if observer, err := m.stages.GetMetricWithLabelValues(item.CollectorID, item.Definition.Name, stage); err == nil {
+		observer.Observe(time.Since(began).Seconds())
+	}
 }
 
 func (m *Metrics) addRows(item collectormetadata.ScheduledProbe, n int) {

@@ -29,6 +29,17 @@ func newRegistry() (*prometheus.Registry, *collectors.ProbeMetrics, error) {
 	return registry, probeMetrics, nil
 }
 
+// HTTP request metrics of the collector's own endpoints, for every request
+// they serve, /metrics and the health endpoints included.
+const (
+	// MetricHTTPRequests counts requests by their response's status code.
+	// Labels: method, route, code.
+	MetricHTTPRequests = "heartbeat_collector_http_requests_total"
+	// MetricHTTPRequestDuration is the time from receiving a request to its
+	// handler returning. Labels: method, route.
+	MetricHTTPRequestDuration = "heartbeat_collector_http_request_duration_seconds"
+)
+
 // Config load and reload metrics, maintained by [configMetrics].  The startup
 // load counts as the first reload: the collector exits when it fails, so a
 // running collector always starts with a successful one.

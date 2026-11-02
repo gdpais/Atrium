@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
@@ -322,9 +325,19 @@ func TestRunWithDependenciesDown(t *testing.T) {
 		Redis:          redis.Config{Addr: closedAddr(t).String(), CredentialRef: "secret/api-redis"},
 		CredentialsDir: t.TempDir(),
 	}
-	checks, closeDeps, err := connect(cfg, logger)
+	registry := prometheus.NewRegistry()
+	checks, closeDeps, err := connect(cfg, logger, registry)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The pools answer at a scrape even before either dependency is reachable.
+	for name, want := range map[string]int{
+		MetricDBConnections: 3, MetricDBConnectionsMax: 1, MetricDBConnectionWaits: 1, MetricDBConnectionWaitSeconds: 1,
+		MetricRedisConnections: 2, MetricRedisConnectionTimeouts: 1,
+	} {
+		if got, err := testutil.GatherAndCount(registry, name); err != nil || got != want {
+			t.Errorf("%s has %d series (%v), want %d", name, got, err, want)
+		}
 	}
 	if len(checks) != 2 || checks[0].Name != checkPostgreSQL || checks[1].Name != checkRedis {
 		t.Fatalf("checks = %v, want postgresql and redis", checks)

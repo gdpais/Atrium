@@ -1,0 +1,175 @@
+# Heartbeat's own objectives and health (ADR 0018), apart from the OutSystems
+# and SQL Server rules. The objectives are defaults to tune against what the
+# services measure, not promises. Only the bundled job names are matched: a
+# shared Prometheus that names its jobs otherwise needs its own copy.
+groups:
+  - name: heartbeat-self-recording
+    rules:
+      # Cycles that did not finish within their interval. A slow monitored
+      # database can cause them as well as Heartbeat, so the alerts below are
+      # warnings: either way, that collector's data arrives late.
+      - record: heartbeat:collector_cycles_late:ratio_rate5m
+        expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[5m])) / sum by (collector) (rate(heartbeat_collector_cycles_total[5m]))
+      - record: heartbeat:collector_cycles_late:ratio_rate30m
+        expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[30m])) / sum by (collector) (rate(heartbeat_collector_cycles_total[30m]))
+      - record: heartbeat:collector_cycles_late:ratio_rate1h
+        expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[1h])) / sum by (collector) (rate(heartbeat_collector_cycles_total[1h]))
+      - record: heartbeat:collector_cycles_late:ratio_rate6h
+        expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[6h])) / sum by (collector) (rate(heartbeat_collector_cycles_total[6h]))
+      # The share of the window a log type's extraction lag stayed within 5
+      # minutes of its configured lag, below which it never goes, sampled once a
+      # minute. A target that is down counts as behind, since its lag gauge
+      # keeps the value of the last batch read; minutes without the series (the
+      # collector down) are not counted, and HeartbeatServiceDown covers them.
+      - record: heartbeat:outsystems_extract_fresh:ratio_avg5m
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[5m:1m])
+      - record: heartbeat:outsystems_extract_fresh:ratio_avg30m
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[30m:1m])
+      - record: heartbeat:outsystems_extract_fresh:ratio_avg1h
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[1h:1m])
+      - record: heartbeat:outsystems_extract_fresh:ratio_avg6h
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[6h:1m])
+      # The API's requests, without /metrics and the health endpoints: scrapes
+      # and probes are not users, and /readyz answers 503 on purpose while a
+      # dependency is down.
+      - record: heartbeat:api_request_errors:ratio_rate5m
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[5m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[5m]))
+      - record: heartbeat:api_request_errors:ratio_rate30m
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[30m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[30m]))
+      - record: heartbeat:api_request_errors:ratio_rate1h
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[1h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h]))
+      - record: heartbeat:api_request_errors:ratio_rate6h
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[6h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[6h]))
+      # The share of the API's requests slower than 250 ms.
+      - record: heartbeat:api_request_slow:ratio_rate5m
+        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/metrics|/healthz|/readyz",le="0.25"}[5m])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/metrics|/healthz|/readyz"}[5m]))
+      - record: heartbeat:api_request_slow:ratio_rate1h
+        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/metrics|/healthz|/readyz",le="0.25"}[1h])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/metrics|/healthz|/readyz"}[1h]))
+  - name: heartbeat-self-alerts
+    rules:
+      # 99.5% of cycles on time: a 0.5% budget, burnt 14.4 times over 1h and
+      # 5m, or 6 times over 6h and 30m.
+      # At least 30 cycles an hour, an interval of 2 minutes or less: with
+      # fewer, one late cycle is already more than the fast burn.
+      - alert: HeartbeatCollectorCyclesLateFast
+        expr: >-
+          heartbeat:collector_cycles_late:ratio_rate1h > (14.4 * 0.005)
+          and heartbeat:collector_cycles_late:ratio_rate5m > (14.4 * 0.005)
+          and sum by (collector) (rate(heartbeat_collector_cycles_total[1h])) * 3600 >= 30
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The {{ $labels.collector }} collector's cycles run late"
+          description: "{{ $value | humanizePercentage }} of its cycles over the last hour used their whole interval or panicked, more than 14.4 times the 0.5% budget, so its metrics arrive late or with gaps. See heartbeat_collector_probe_duration_seconds for the probe that takes the time: often a slow monitored database. A panic is in the service's log."
+      - alert: HeartbeatCollectorCyclesLate
+        expr: >-
+          heartbeat:collector_cycles_late:ratio_rate6h > (6 * 0.005)
+          and heartbeat:collector_cycles_late:ratio_rate30m > (6 * 0.005)
+          and sum by (collector) (rate(heartbeat_collector_cycles_total[6h])) * 3600 >= 30
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The {{ $labels.collector }} collector's cycles often run late"
+          description: "{{ $value | humanizePercentage }} of its cycles over the last 6 hours used their whole interval or panicked, more than 6 times the 0.5% budget."
+      # Within 5 minutes of the configured lag 99% of the time.
+      # OutSystemsLogExtractionBehind fires later, on a lag above 30 minutes;
+      # this one sees repeated smaller delays.
+      - alert: HeartbeatExtractionFreshnessBurn
+        expr: >-
+          heartbeat:outsystems_extract_fresh:ratio_avg1h < (1 - 14.4 * 0.01)
+          and heartbeat:outsystems_extract_fresh:ratio_avg5m < (1 - 14.4 * 0.01)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems log type {{ $labels.log_type }} of {{ $labels.target }} is often behind"
+          description: "Its extraction lag was within 5 minutes of its setting for only {{ $value | humanizePercentage }} of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+      - alert: HeartbeatExtractionFreshnessBurnSlow
+        expr: >-
+          heartbeat:outsystems_extract_fresh:ratio_avg6h < (1 - 6 * 0.01)
+          and heartbeat:outsystems_extract_fresh:ratio_avg30m < (1 - 6 * 0.01)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems log type {{ $labels.log_type }} of {{ $labels.target }} is behind too often"
+          description: "Its extraction lag was within 5 minutes of its setting for only {{ $value | humanizePercentage }} of the last 6 hours, burning the 99% objective more than 6 times too fast."
+      # 99.9% of the API's requests succeed, and 95% answer within 250 ms.
+      # Traffic gates as in the OutSystems alerts: a few failures must not page.
+      - alert: HeartbeatAPIErrorBudgetBurnFast
+        expr: >-
+          heartbeat:api_request_errors:ratio_rate1h > (14.4 * 0.001)
+          and heartbeat:api_request_errors:ratio_rate5m > (14.4 * 0.001)
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h])) > 5/60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "The Heartbeat API is burning its error budget fast"
+          description: "{{ $value | humanizePercentage }} of API requests failed over the last hour, more than 14.4 times the 0.1% budget."
+      - alert: HeartbeatAPIErrorBudgetBurnSlow
+        expr: >-
+          heartbeat:api_request_errors:ratio_rate6h > (6 * 0.001)
+          and heartbeat:api_request_errors:ratio_rate30m > (6 * 0.001)
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[6h])) > 5/60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The Heartbeat API is burning its error budget"
+          description: "{{ $value | humanizePercentage }} of API requests failed over the last 6 hours, more than 6 times the 0.1% budget."
+      - alert: HeartbeatAPISlow
+        expr: >-
+          heartbeat:api_request_slow:ratio_rate1h > (14.4 * 0.05)
+          and heartbeat:api_request_slow:ratio_rate5m > (14.4 * 0.05)
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h])) > 1/60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The Heartbeat API is slow"
+          description: "{{ $value | humanizePercentage }} of API requests took more than 250 ms over the last hour; the objective is at most 5%."
+      # kube-state-metrics is off, so a restart shows as a new start time. A
+      # scrape can miss a short-lived process, so this undercounts a fast crash
+      # loop; HeartbeatServiceDown covers a process that stays down.
+      - alert: HeartbeatServiceRestarting
+        expr: changes(process_start_time_seconds{job=~"db-collector|api"}[1h]) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} {{ $labels.instance }} restarted {{ $value }} times in an hour"
+          description: "The process keeps restarting: an out-of-memory kill, a panic or a failing liveness probe. `kubectl describe pod` gives the reason, and `kubectl logs --previous` holds what it wrote last, which never reached Loki."
+      # The chart sets GOMEMLIMIT to 80% of the container's limit, and without
+      # one the gauge is huge and this stays quiet.
+      - alert: HeartbeatServiceMemoryHigh
+        expr: process_resident_memory_bytes{job=~"db-collector|api"} > go_gc_gomemlimit_bytes{job=~"db-collector|api"}
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} {{ $labels.instance }} uses more memory than its GOMEMLIMIT"
+          description: "Resident memory has stayed above the soft limit, so the garbage collector works hard and an out-of-memory kill may follow. Take a heap profile through HEARTBEAT_PPROF_ADDR, or raise the memory limit."
+      - alert: HeartbeatGoroutinesGrowing
+        expr: deriv(go_goroutines{job=~"db-collector|api"}[6h]) * 3600 > 20 and go_goroutines{job=~"db-collector|api"} > 200
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} {{ $labels.instance }} keeps adding goroutines"
+          description: "More than 20 goroutines an hour over the last 6 hours, without having stopped: a likely leak. Take a goroutine profile through HEARTBEAT_PPROF_ADDR."
+      - alert: HeartbeatOwnLogsDropped
+        expr: sum by (job, instance) (increase(heartbeat_telemetry_log_records_total{outcome=~"dropped_.*"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} {{ $labels.instance }} dropped about {{ $value | printf \"%.0f\" }} of its own log records"
+          description: "They did not reach the OTel Collector, which is down or slow, or the service logs faster than it sends. They are still in `kubectl logs` until the pod goes. The Export attempts panel of Heartbeat Service says how they end."
+      - alert: HeartbeatOTLPExportRejected
+        expr: sum by (job, instance, client) (increase(heartbeat_otlp_export_attempts_total{outcome="rejected"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "The OTel Collector rejected {{ $labels.client }} requests from {{ $labels.job }}"
+          description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again. The status is in the service's log."

@@ -1,6 +1,6 @@
 # 0011. Keep the observability platform replaceable; bundle the Grafana stack
 
-- Status: Accepted
+- Status: Accepted; the platform review before production is closed by [ADR 0019](0019-keep-grafana-and-share-telemetry-as-otlp.md)
 - Date: 2026-10-19
 
 ## Context

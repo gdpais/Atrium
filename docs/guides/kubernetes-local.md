@@ -70,6 +70,8 @@ collector's is `dbCollector.networkPolicy`.
 | | 8889 | Prometheus | Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP) |
 | `prometheus` | 9090 | Grafana | Prometheus datasource |
 | `alertmanager` | 9093 | Prometheus | Alerts, and the `alertmanager` scrape job |
+| `tempo` | 4318 | OTel Collector | OTLP/HTTP traces |
+| | 3200 | Grafana, Prometheus | Tempo datasource; scrape |
 | `loki` | 3100 | OTel Collector | OTLP log pushes |
 | | 3100 | Grafana | Loki datasource |
 | | 3100 | Prometheus | The `loki` scrape job |
@@ -96,7 +98,7 @@ Not covered, by design:
 - **Kubelet probes** come from the pod's node, which NetworkPolicy does not
   filter: the collector's `:8082`, the Collector's `:13133`, Prometheus's
   `:9090` and its reloader's `:8080`, Alertmanager's `:9093` and its
-  reloader's `:8080`, Loki's `:3100` and Grafana's `:3000`.
+  reloader's `:8080`, Loki's `:3100`, Tempo's `:3200` and Grafana's `:3000`.
 - **`kubectl port-forward`** connects from inside the pod, so NetworkPolicy
   never sees it. It is how operators reach Loki, and the others outside kind:
   `kubectl -n heartbeat port-forward svc/loki 3100`.
@@ -138,7 +140,7 @@ because kind binds it to `127.0.0.1`.
 
 `backendNetworkPolicies.<engine>.extraPeers` admits more NetworkPolicyPeers
 to an engine's ports (the Collector: 4317, 4318, 4319, and 8889 while its exporter
-is on; Prometheus 9090; Alertmanager 9093; Loki 3100), such as a shared
+is on; Prometheus 9090; Alertmanager 9093; Loki 3100; Tempo 3200 and 4318), such as a shared
 Grafana or Prometheus in another namespace (a `namespaceSelector` and a
 `podSelector` in one peer) or an operator range. `kind.yaml` adds every
 source outside the pod subnet to Prometheus, Alertmanager and the Collector,

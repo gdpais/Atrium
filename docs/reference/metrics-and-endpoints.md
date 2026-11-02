@@ -17,6 +17,7 @@ maps fixed NodePorts to these ports on 127.0.0.1 only.
 | Alertmanager | 9093 | |
 | OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile. Heartbeat's own logs use a third port, 4319, in-cluster only |
 | Loki | none | In-cluster only (`loki:3100`); query it through Grafana, or `kubectl port-forward svc/loki 3100` |
+| Tempo | none | In-cluster only (`tempo:3200`, OTLP on `tempo:4318`); query it through Grafana, or `kubectl port-forward svc/tempo 3200`. `full` profile |
 | SQL Server (dev target only) | 127.0.0.1:11433 | Loopback-bound Docker container; see the [local development guide](../guides/local-development.md#sql-server-sandbox) |
 
 Inside the cluster every component keeps its Compose-era name and port
@@ -211,6 +212,13 @@ a failing `blocking` probe reads as 0. The catalog lives in
 | `heartbeat_collector_target_consecutive_failures` | gauge | `collector`, `environment`, `target` | Failed cycles in a row; a `degraded` cycle is not one |
 | `heartbeat_collector_target_last_success_timestamp_seconds` | gauge | `collector`, `environment`, `target` | Unix time of the last cycle that did not fail the target (`ok`, `blocked` or `degraded`); use it for freshness alerts, and `heartbeat_collector_probe_up` for a single probe |
 | `heartbeat_collector_cycle_duration_seconds` | gauge | `collector` | Duration of the last collection cycle |
+| `heartbeat_collector_cycle_seconds` | histogram | `collector` | Duration of every collection cycle; buckets 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
+| `heartbeat_collector_cycles_total` | counter | `collector`, `outcome` | Cycles by outcome: `on_time` (finished within its interval), `late` (used the whole interval: the deadline ended what was still running, and the next cycle starts late) or `panic`. Created at 0. A cycle ended by the collector stopping is not counted |
+| `heartbeat_collector_cycle_start_delay_seconds` | histogram | `collector` | How much later than the interval after the previous start a cycle started; buckets 10ms, 100ms, 500ms, 1s, 5s, 15s, 60s |
+| `heartbeat_collector_db_connections` | gauge | `environment`, `target`, `state` | Connections to a monitored database, `in_use` or `idle`. Read at each scrape, so a target's series go with its last connection pool. Targets on one server and database with one credential share a pool, reported under the first of them, in name order, used in the last 15 minutes; a renamed target takes its series over within 15 minutes |
+| `heartbeat_collector_db_connection_waits_total`, `heartbeat_collector_db_connection_wait_seconds_total` | counter | `environment`, `target` | Waits for a free connection, and the time spent in them, including those of the target's pools closed since, as after a credential rotation |
+| `heartbeat_collector_http_requests_total` | counter | `method`, `route`, `code` | Requests to the collector's own endpoints, as [the API's](#api-requests) |
+| `heartbeat_collector_http_request_duration_seconds` | histogram | `method`, `route` | Time to serve them |
 | `heartbeat_collector_target_login_sysadmin` | gauge | `collector`, `environment`, `target` | 1 if the collector's login for the target is sysadmin-equivalent: a member of `sysadmin`, or holding `CONTROL SERVER` (it should be 0; see [login permissions](../guides/database-targets.md#collector-login-permissions)). Checked when the collector first connects to the target and about every 10 minutes after; absent until the first check, and while SQL Server cannot tell |
 | `heartbeat_collector_probe_duration_seconds` | histogram | `collector`, `environment`, `target`, `probe` | Probe execution time, failed and timed-out executions included (an abandoned probe is observed at the time it was abandoned); buckets 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
 | `heartbeat_collector_probe_errors_total` | counter | `collector`, `environment`, `target`, `probe`, `reason` | Failed probe executions. `reason` is one of `timeout` (probe timeout or cycle deadline reached while running, including a probe abandoned because it did not stop within 2s, or a database read or write that timed out), `error` (connection, login, query or decoding error, or more rows than the probe's `max_rows`), `not_started` (cycle deadline passed before the probe could start, or an abandoned probe of the target is still running), `panic`. Probes interrupted because the collector is stopping (shutdown or reload) are not counted |
@@ -275,6 +283,7 @@ the target as before.
 | --- | --- | --- |
 | `heartbeat_outsystems_extract_rows_total` | counter | Rows extracted and accepted by the OTel Collector |
 | `heartbeat_outsystems_extract_lag_seconds` | gauge | How far the watermark trails now, in real time: about the lag (the collector's, or the log type's own) plus the poll interval when extraction keeps up; it grows while extraction fails or falls behind |
+| `heartbeat_outsystems_extract_lag_setting_seconds` | gauge | The lag the log type is configured with, its own or the collector's: `heartbeat_outsystems_extract_lag_seconds` never goes below it. Set when the collector starts |
 | `heartbeat_outsystems_export_failures_total` | counter | Batches the OTel Collector rejected for good (a 4xx status other than 429). Network errors, timeouts, 429 and 5xx are retried with backoff (up to 5 s apart, 10 s per attempt) until the Collector accepts the batch. The watermark stays, so the rows are read again |
 | `heartbeat_outsystems_export_blocked` | gauge | 1 while the log type waits for the OTel Collector to accept a batch, past the probe execution that read it: its extraction is paused, but its target is up. 0 otherwise. `OutSystemsLogExportBlocked` fires once it has been 1 for 2 minutes; meanwhile the lag grows, and `OutSystemsLogExtractionBehind` fires once it has been above 30 minutes for 10 |
 | `heartbeat_outsystems_extract_stuck_batches_total` | counter | Cycles that failed because every row of a full batch had the same `Instant`. The log type does not move until `batch_limit` is raised |
@@ -283,6 +292,14 @@ the target as before.
 | `heartbeat_outsystems_duplicate_rows_total` | counter | Rows the recount found delivered more often than the logging database holds them: read twice by the extraction, a defect, or deleted from the database after they were sent. It does not count a batch sent again after the OTel Collector had taken it (its answer lost, or a restart before the watermark was saved), which delivery at least once allows ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), so 0 does not mean Loki holds no row twice. `OutSystemsDuplicateLogRows` fires on any |
 | `heartbeat_outsystems_recounts_total` | counter | Recounts run, failed ones included: one in each minute that has a poll |
 | `heartbeat_outsystems_recount_failures_total` | counter | Recounts that failed (query error, more than 1,000,000 rows in the window). Late and duplicate rows are not counted meanwhile; extraction goes on |
+
+Two more have other labels. `heartbeat_outsystems_stage_duration_seconds`
+(histogram; `collector`, `log_type`, `stage`) is the time of one step of a batch:
+`read` (the query), `build` (rows to OTLP records), `export` (until the OTel
+Collector accepted it, waiting for Loki included), `derive` (the derived metrics)
+and `watermark` (the save to disk); buckets 10ms to 300s, at most 440 series per
+collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the row data
+held in memory now, read, being exported or pending, against the 64 MiB allowed.
 
 **The recount.** Once a minute (in each minute that has a poll), each log type counts again, per minute of
 `Instant`, the rows its query returns in the `recount_window` (default 10
@@ -349,6 +366,11 @@ included. Not scraped yet: the API is not deployed.
 | --- | --- | --- | --- |
 | `heartbeat_api_http_requests_total` | counter | `method`, `route`, `code` | Requests served, by status code |
 | `heartbeat_api_http_request_duration_seconds` | histogram | `method`, `route` | Time from receiving a request to its handler returning; the Prometheus client's default buckets, 5ms to 10s |
+| `heartbeat_api_db_connections` | gauge | `state` | PostgreSQL pool connections: `in_use`, `idle` or `constructing` |
+| `heartbeat_api_db_connections_max` | gauge | none | The most connections the pool opens |
+| `heartbeat_api_db_connection_waits_total`, `heartbeat_api_db_connection_wait_seconds_total` | counter | none | Acquires that found no idle connection, and the time they waited |
+| `heartbeat_api_redis_connections` | gauge | `state` | Redis pool connections: `in_use` or `idle` |
+| `heartbeat_api_redis_connection_timeouts_total` | counter | none | Commands that gave up waiting for a connection from the pool |
 
 `route` is the pattern that served the request, without the method
 (`/readyz`; later `/api/v1/applications/{id}`, never the ID itself), or
@@ -366,6 +388,10 @@ Both services expose these
 | --- | --- | --- | --- |
 | `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
 | `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
+| `heartbeat_telemetry_trace_errors_total` | counter | none | Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest |
+| `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, or `outsystems` on the collector; `self-logs` exists only while the service has a logs endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
+| `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
+| `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
 
 The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 `service_name` (`db-collector`, `api`) and `deployment_environment_name`:
@@ -374,12 +400,42 @@ The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 {service_namespace="heartbeat", service_name="db-collector"} | detected_level="error"
 ```
 
+Traces are in Tempo. A collection cycle is one trace, `collector.cycle` →
+`collector.target` → `collector.probe` → `db.query` or the `outsystems.read`,
+`outsystems.build`, `outsystems.export`, `outsystems.derive` and
+`outsystems.watermark` steps of a batch. An API request is `<method> <route>` →
+`db.query` and `redis.<command>`. `/metrics` and the health endpoints make none.
+A client's `traceparent` is linked, not continued. Spans name what ran, never
+query values, command arguments or error text, which can name a host and a
+login; a log line in a span has its `trace_id`, and Grafana links the two ways.
+
+#### What the telemetry costs
+
+Measured on kind on 2026-11-02 under `make patientzero-load LOAD=steady`, the
+same way as the [memory budget](../guides/local-development.md#daily-loop),
+against the build before it (`2844ec1`), each on a freshly restarted node:
+
+| | Before | With it | Budget |
+| --- | --- | --- | --- |
+| Full profile in the kind node, peak less PatientZero | 1.44 GiB | 1.79 GiB (Tempo about 210 MiB of it) | 2.5 GiB |
+| db-collector resident memory, peak | 24.6 MiB | 32.9 MiB | 20 MiB more at most |
+| db-collector CPU | 2.7 millicores | 2.9 millicores | within run-to-run noise (1.8 to 2.7) |
+| Collector `/metrics` series; scrape time, mean and max | 1,015; 7.5 and 12.5 ms | 1,697; 7.8 and 10.7 ms | under 100 ms |
+| Probe p95 | 35 ms | 30 ms | no regression |
+| Rows extracted a second; extraction lag, max | 9.5; 61 s | 9.7; 60 s | no regression |
+
+Tempo kept every trace (`telemetry.traces.sampleRatio: 1` on kind), about 5.6
+spans a second, and its memory moved between 140 and 210 MiB against its
+256 MiB limit without growing. A log call costs about 1.4 µs and 18
+allocations with the OTLP export on, 0.45 µs and none with it off; a request
+that is not sampled about 1.7 µs in the tracing middleware.
+
 ### Prometheus scrape jobs and rules
 
 Scrape jobs (`prometheus.scrapeConfigs` in the chart's
 [`values.yaml`](../../infra/helm/heartbeat/values.yaml)): `prometheus`,
-`otel-collector`, `db-collector`, `alertmanager`, `loki`; the `minimal`
-profile drops `otel-collector` and `loki`, which it does not deploy. `db-collector` uses
+`otel-collector`, `db-collector`, `alertmanager`, `loki`, `tempo`; the `minimal`
+profile drops `otel-collector`, `loki` and `tempo`, which it does not deploy. `db-collector` uses
 DNS discovery on the headless `db-collector-headless` Service, which lists the
 pod even while it is unready, so the collector's failure metrics are still
 scraped. Prometheus sends alerts to `alertmanager:9093`.
@@ -388,7 +444,9 @@ Rules ([`heartbeat.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules
 [`heartbeat-config-reload.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-config-reload.rules.yml)
 for the config reload alert, and
 [`heartbeat-collector-missing.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-collector-missing.rules.yml)
-for a db-collector with no pod):
+for a db-collector with no pod, and
+[`heartbeat-self.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-self.rules.yml)
+for Heartbeat's own objectives):
 
 | Rule | Type |
 | --- | --- |
@@ -407,10 +465,19 @@ for a db-collector with no pod):
 | `OutSystemsDuplicateLogRows` | Alert (warning): `heartbeat_outsystems_duplicate_rows_total` grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent |
 | `OutSystemsDerivedSeriesOverflow` | Alert (warning): `heartbeat_outsystems_derived_series_overflow_total` grew in the last 15 minutes, per collector: its derived series reached `max_derived_series`, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise `max_derived_series` if the collector's memory allows |
 | `OutSystemsLogRecountFailing` | Alert (warning): more than half of a log type's recounts failed in the last 15 minutes, of three or more, whatever the poll interval; the reason is in the collector's log |
-| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the OTel Collector or Loki; and no `up` series at all for the DB collector, whose DNS discovery finds no target while it has no pod (`absent(up{job="db-collector"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
+| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector, whose DNS discovery finds no target while it has no pod (`absent(up{job="db-collector"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
 | `LokiDiscardingLogs` | Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (`loki_discarded_samples_total`); those rows are lost |
 | `HeartbeatCollectorLoginElevated` | Alert (warning): `heartbeat_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
 | `HeartbeatCollectorConfigReloadFailed` | Alert (warning): `heartbeat_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |
+| `heartbeat:collector_cycles_late:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}`, `heartbeat:api_request_errors:ratio_rate{5m,30m,1h,6h}`, `heartbeat:api_request_slow:ratio_rate{5m,1h}` | Recording: Heartbeat's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without `/metrics` and the health endpoints |
+| `HeartbeatCollectorCyclesLateFast`, `HeartbeatCollectorCyclesLate` | Alert (warning): 14.4× over 1h and 5m, and 6× over 6h and 30m, burn of the objective of 99.5% of cycles on time, for collectors with at least 30 cycles an hour. A slow monitored database can cause it as well as Heartbeat, so it stays a warning |
+| `HeartbeatExtractionFreshnessBurn`, `HeartbeatExtractionFreshnessBurnSlow` | Alert (warning): the same burn rates against an extraction lag within 5 minutes of its configured lag 99% of the time |
+| `HeartbeatAPIErrorBudgetBurnFast` (critical), `HeartbeatAPIErrorBudgetBurnSlow` (warning), `HeartbeatAPISlow` (warning) | Alert: 99.9% of the API's requests succeed and 95% answer within 250 ms, with at least five (errors) or one (latency) requests a minute |
+| `HeartbeatServiceRestarting` | Alert (warning): more than 3 process starts in an hour, from `process_start_time_seconds` |
+| `HeartbeatServiceMemoryHigh` | Alert (warning): resident memory above `GOMEMLIMIT`, 80% of the container's limit under the chart, for 15m |
+| `HeartbeatGoroutinesGrowing` | Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h |
+| `HeartbeatOwnLogsDropped` | Alert (warning): `heartbeat_telemetry_log_records_total` counted drops in the last 15 minutes |
+| `HeartbeatOTLPExportRejected` | Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes |
 | `Watchdog` | Alert: always firing. Alertmanager routes it to the `deadmans-switch` receiver (healthchecks.io in production, ADR 0005), which notifies when it stops arriving |
 
 `files/prometheus/rules/generated/` (in the chart) is loaded but empty; it is

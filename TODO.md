@@ -28,6 +28,7 @@ Alloy coverage check [21] → final Alloy comparison [22].
 - [x] Design current-runtime and target-architecture diagrams, link them from the README, and verify them against source/configuration
 - [x] Reorganize docs by audience; record key decisions as ADRs; archive superseded plans
 - [x] Reorder delivery: collector → gateway → API → Web; production delivery after the Web UI; Oracle after fallback ingestion and gated by an Alloy coverage check; Alloy comparison last
+- [x] Operating model: phase outcomes in the roadmap, owner actions marked **Owner** in this list, scope triage, a reversal log ([how we work](docs/product/operating-model.md))
 - [x] Keep the observability platform replaceable: services emit only OTLP and Prometheus exposition, neutral integrations config, an external-platform values example ([ADR 0011](docs/architecture/decisions/0011-platform-agnostic-telemetry-boundary.md))
 - [x] Freeze subsystem boundaries, responsibilities, and interfaces ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md))
 - [x] Freeze ownership rules ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)):
@@ -88,10 +89,10 @@ the rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Change-based CI: slow jobs run only when a change can affect them, every job on `master`; one required check, `ci-ok` ([ADR 0007](docs/architecture/decisions/0007-change-based-ci-with-one-required-check.md))
 - [x] Switch the `master` ruleset's required checks from `test`, `Helm chart` and `kind end-to-end` to `ci-ok`
 - [x] Pin GitHub Actions by commit SHA, kept current by Renovate; `make test` fails on an unpinned `uses:` ([CONTRIBUTING.md](CONTRIBUTING.md#ci))
-- [ ] At the end of phase 2: create the release GitHub App; set `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY` ([setup](CONTRIBUTING.md#releases)). Until then the release-please job is skipped and no releases are cut, not even by hand; the first release pull request then covers every Conventional Commit since `v0.1.0`
+- [ ] **Owner** (needed since 2026-10-05): create the release GitHub App; set `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY` ([setup](CONTRIBUTING.md#releases)). Until then the release-please job is skipped and no releases are cut, not even by hand; the first release pull request then covers every Conventional Commit since `v0.1.0`
 - [ ] At `1.0.0`, the first production release: remove `"prerelease": true` from `release-please-config.json`
 - [x] Tag ruleset on all tags (not only `v*`, so later component tags are covered): no updates or deletions
-- [ ] Right after the release app exists: add a second tag ruleset on all tags, `Heartbeat-tag-creation`, with only *Restrict creations* and the release app in its bypass list, so the app can create tags but not move or delete them ([setup](CONTRIBUTING.md#releases))
+- [ ] **Owner**, right after the release app exists: add a second tag ruleset on all tags, `Heartbeat-tag-creation`, with only *Restrict creations* and the release app in its bypass list, so the app can create tags but not move or delete them ([setup](CONTRIBUTING.md#releases))
 - [x] First release, `v0.1.0`: tag the phase 1 merge commit `64ac1b6`, run the `release` workflow by hand for it, check the release notes list three digests
 - [x] Make the GHCR packages public: `heartbeat/db-collector`, `charts/heartbeat`, and `heartbeat/otel-gateway`, which only `v0.1.0` uses. Checked 2026-10-23 without credentials: an anonymous token from `ghcr.io/token` pulls each `0.1.0` manifest (HTTP 200; 403 for a package that does not exist)
 - [x] Make the published release installable (usability test of `v0.1.0`, 2026-10-22): the chart defaults to the GHCR image, kept in step with `release.yml` by a test; `NOTES.txt` names the Secrets the chart needs and how to check the install; a chart README for `helm show readme`; the [install guide](docs/guides/install-from-release.md) covers the Secrets, image digests, SQL Server targets through `helm upgrade`, upgrades and what `helm uninstall` leaves behind; T-SQL for the collector login
@@ -105,10 +106,10 @@ Heartbeat measured itself before the API and Web work continued ([ADR 0018](docs
 - [x] Decide the approach: metrics on `/metrics`; logs over OTLP on their own receiver and pipeline; traces through the OTel SDK into Tempo; opt-in loopback pprof
 - [x] `internal/telemetry`: identity, `heartbeat_service_info`, version at build time, a log handler that writes to stderr and a bounded OTLP queue, loopback pprof; wired into the db-collector and the API. The OTLP client moved to `internal/otlp`
 - [x] Chart: `telemetry` values, the Collector's `otlp/self` receiver and `logs/self` pipeline, NetworkPolicies, and the external-platform example
-- [ ] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
-- [ ] *Heartbeat Service* dashboard, SLOs and alerts with promtool tests
-- [ ] Traces: SDK setup, spans for HTTP, PostgreSQL, Redis, collector cycles and OutSystems extraction, logs correlated with traces
-- [ ] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Loki, Tempo or the Collector down; a 30-minute soak
+- [x] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
+- [x] *Heartbeat Service* dashboard, SLOs and alerts with promtool tests
+- [x] Traces: SDK setup, spans for HTTP, PostgreSQL, Redis, collector cycles and OutSystems extraction, logs correlated with traces
+- [x] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Tempo down, and `otel-outage` expects dropped own logs; a 30-minute soak ([what the telemetry costs](docs/reference/metrics-and-endpoints.md#what-the-telemetry-costs))
 
 ---
 
@@ -343,19 +344,18 @@ Design: [request traces](docs/architecture/application-observability.md#request-
 ### 3.6 OTLP trace ingest
 
 Heartbeat accepts all three OpenTelemetry signals, so any source that sends
-OTLP traces has somewhere to store them, and step B [3.5] reuses the store. No
-real source sends traces yet, so the tests use generated ones (`telemetrygen`).
-Not part of the phase 2 exit (decided 2026-10-21): OutSystems 11 self-managed
-sends no traces, and the request timeline [3.5] already answers "what happened
-in this request" from logs. Build this together with step B [3.5], as one
-request-traces feature, once something consumes it: the first OTLP trace
-source (OutSystems Cloud or ODC) or the phase 7 investigation timeline.
+OTLP traces has somewhere to store them, and step B [3.5] reuses the store. Not
+part of the phase 2 exit: OutSystems 11 self-managed sends no traces, and the
+request timeline [3.5] already answers "what happened in this request" from
+logs. Heartbeat's own traces became the first source, so this came before the
+rest of 4.1 ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md)).
 
-- [ ] Decide trace storage and retention (ADR; Grafana Tempo in single-binary mode is the natural fit next to Loki)
-- [ ] Tempo as a pinned chart dependency with persistence and retention, off in the `minimal` profile; storage settings in the production example values
-- [ ] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
-- [ ] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
-- [ ] Validate: kind-e2e sends traces and logs sharing a trace ID with `telemetrygen`, finds the trace in Tempo and follows the link from the log; record the full profile's added memory [16.2]
+- [x] Decide trace storage and retention: Tempo in single-binary mode, 7 days ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md))
+- [x] Tempo as a pinned chart dependency with persistence and retention, off in the `minimal` profile; storage settings in the production example values
+- [x] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
+- [x] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
+- [x] Validate: kind-e2e finds a trace of the collector's in Tempo and follows the link from a log with its trace ID
+- [x] Record the full profile's added memory [0.6, 16.2]: 1.44 GiB to 1.79 GiB peak under `LOAD=steady`, Tempo about 210 MiB of it ([what the telemetry costs](docs/reference/metrics-and-endpoints.md#what-the-telemetry-costs))
 
 ---
 
@@ -628,7 +628,7 @@ Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
 - [x] Keep user, session and request IDs and client IP as structured metadata: the Collector no longer deletes them; Loki indexes only service.name, service.namespace, deployment.environment.name and outsystems.log_type
 - [x] Decide how user IDs, session IDs and client IPs are kept in Loki: raw, with access to Loki and Grafana restricted [9.6] ([ADR 0012](docs/architecture/decisions/0012-personal-data-in-telemetry.md))
 - [x] Loki deletes logs after 30 days by default (`loki.loki.limits_config.retention_period`, compactor retention with its delete requests in the chunks' store); `make chart-check` checks it in every profile ([application observability](docs/architecture/application-observability.md))
-- [ ] Compliance sign-off on raw identifiers, Loki retention (30 days by default) and Grafana access before the first production deploy [18] ([ADR 0012](docs/architecture/decisions/0012-personal-data-in-telemetry.md))
+- [ ] **Owner**: compliance sign-off on raw identifiers, Loki retention (30 days by default) and Grafana access before the first production deploy [18] ([ADR 0012](docs/architecture/decisions/0012-personal-data-in-telemetry.md))
 
 ### 9.3 Grafana
 - [x] Provision datasources as code
@@ -645,6 +645,7 @@ Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
 - [x] Provision collector config
 - [x] Route metrics/logs correctly to Prometheus/Loki paths
 - [x] Prefer collector processors/config before custom service code
+- [ ] Share telemetry with other applications as OTLP ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)): optional role-named exporters per signal set in values, endpoint and credentials from a Secret; when metrics are shared, the Collector scrapes the db-collector's `/metrics` with Prometheus' job, in a pipeline of its own that exports only to the shared exporter (not the `prometheus` exporter Prometheus scrapes, or it stores the series twice); `make chart-check` renders it, and `make kind-e2e` checks a test receiver gets metrics and logs, and traces once the traces pipeline exists [3.6]
 
 ### 9.6 Network access to the bundled backends
 - [x] NetworkPolicies for the OTel Collector, Prometheus, Alertmanager and Loki: only the components that use each one reach it (`backendNetworkPolicies`; Grafana stays open to whatever serves its UI, behind its login)
@@ -889,7 +890,7 @@ production with the defaults in
 It follows the Web UI so the first production deploy carries a usable product;
 pull it forward if a production SQL Server must be monitored sooner.
 
-- [ ] First: review the observability platform, the organization's ELK stack (Elastic Cloud) against the bundled Grafana stack, on the same data (the Collector sends to both); compare search, investigation queries, alerting, cost and operations; record the choice in an ADR ([ADR 0011](docs/architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)). If ELK wins: its content pack (Kibana dashboards, rules, index templates and ILM) and log/metric query adapters
+- [x] Choose the observability platform: the Grafana stack stays; the ELK review is closed, and other applications receive Heartbeat's telemetry as OTLP from the Collector ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md))
 - [ ] `heartbeat-deploy` config repository with Argo CD Applications and per-environment values; CI that renders each environment and loads it with the Go loader; branch protection
 - [ ] GitHub App for the API on `heartbeat-deploy` only (contents and pull requests: read and write), private key in Secrets Manager through External Secrets, so approved assignments open pull requests ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [ ] RDS for PostgreSQL and ElastiCache for Valkey in the infrastructure code; production values point the API at them ([ADR 0015](docs/architecture/decisions/0015-postgresql-and-redis-delivery.md))

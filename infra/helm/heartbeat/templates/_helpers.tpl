@@ -125,6 +125,9 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 {{- else if eq .engine "loki" }}
 app.kubernetes.io/name: {{ $v.loki.nameOverride | default "loki" | trunc 63 | trimSuffix "-" }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
+{{- else if eq .engine "tempo" }}
+app.kubernetes.io/name: {{ $v.tempo.nameOverride | default "tempo" | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/instance: {{ .root.Release.Name }}
 {{- else if eq .engine "otelCollector" }}
 app.kubernetes.io/name: {{ $v.otelCollector.nameOverride | default "otelCollector" | trunc 63 | trimSuffix "-" }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}

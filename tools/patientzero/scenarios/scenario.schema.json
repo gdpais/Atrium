@@ -175,7 +175,7 @@
                 "additionalProperties": false,
                 "required": ["workload"],
                 "properties": {
-                  "workload": { "enum": ["db-collector", "loki", "otel-collector", "sqlserver"], "description": "The Heartbeat StatefulSet of that name, or SQL Server's container. A cluster fault: the host agent of the run applies it." }
+                  "workload": { "enum": ["db-collector", "loki", "otel-collector", "sqlserver", "tempo"], "description": "The Heartbeat StatefulSet of that name, or SQL Server's container. A cluster fault: the host agent of the run applies it." }
                 }
               }
             },

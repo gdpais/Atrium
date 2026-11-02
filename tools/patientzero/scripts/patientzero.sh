@@ -103,7 +103,7 @@ SCENARIO_DIR=.tmp/patientzero-scenarios
 # late-commits last, as its OutSystemsLateLogRows alert keeps firing for the
 # 15 minutes it looks back, which restarts checks is quiet. A scenario file
 # missing here fails the scenarios package's tests.
-SCENARIO_ORDER="bad-deploy slow-sql checkout-errors orderlist-latency restarts rotation log-backlog log-growth loki-outage otel-outage collector-outage sqlserver-outage late-commits"
+SCENARIO_ORDER="bad-deploy slow-sql checkout-errors orderlist-latency restarts rotation log-backlog log-growth loki-outage otel-outage tempo-outage collector-outage sqlserver-outage late-commits"
 # Renovate keeps this pin current (renovate.json).
 K6_IMAGE=grafana/k6:1.8.2@sha256:00fdcebafbc86cb0137d429529b1caa401a02e09025f02fc74866fa6e2b004d8
 
@@ -705,7 +705,7 @@ end_outage() {
 # (stop) a cluster fault; on failure it prints why.
 cluster_fault() {
 	case $3 in
-	db-collector | otel-collector | loki) pod=$3-0 ;;
+	db-collector | otel-collector | loki | tempo) pod=$3-0 ;;
 	sqlserver) pod= ;;
 	*) echo "unknown workload $3"; return 1 ;;
 	esac

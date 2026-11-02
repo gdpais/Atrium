@@ -228,7 +228,7 @@ groups:
       # target at all while its pod is gone:
       # heartbeat-collector-missing.rules.yml covers that.
       - alert: HeartbeatServiceDown
-        expr: up{job=~"db-collector|otel-collector|loki"} == 0
+        expr: up{job=~"db-collector|otel-collector|loki|tempo"} == 0
         for: 2m
         labels:
           severity: warning

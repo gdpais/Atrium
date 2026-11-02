@@ -16,6 +16,22 @@
 telemetry:
   environment: production
 
+# Traces on S3, in the same way as Loki's chunks. The WAL keeps its volume, as
+# Loki's does: the root filesystem is read-only.
+tempo:
+  persistence:
+    storageClassName: gp3
+  tempo:
+    storage:
+      trace:
+        backend: s3
+        s3:
+          bucket: <heartbeat-traces-bucket>
+          endpoint: s3.<region>.amazonaws.com
+          region: <region>
+        wal:
+          path: /var/tempo/wal
+
 dbCollector:
   image:
     repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/db-collector
@@ -53,7 +69,7 @@ integrations:
     base_url: https://grafana.heartbeat.example.internal
     dashboard_templates:
       sqlserver-overview: /d/sqlserver-overview
-      heartbeat-overview: /d/heartbeat-overview
+      heartbeat-service: /d/heartbeat-service
       outsystems-overview: /d/outsystems-overview
     deep_link_templates:
       logs-explore: /explore?orgId=1&left=${logs_query}

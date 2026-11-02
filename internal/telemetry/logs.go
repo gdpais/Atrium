@@ -56,6 +56,8 @@ const (
 	maxValueBytes = 4 << 10
 	// warnInterval limits the warnings a failing export writes to stderr.
 	warnInterval = time.Minute
+	// selfLogsClient is the client label of the export's OTLP metrics.
+	selfLogsClient = "self-logs"
 	// scopeName is the instrumentation scope of the records.
 	scopeName = "heartbeat/internal/telemetry"
 )
@@ -224,16 +226,17 @@ type logQueue struct {
 	lastWarn time.Time
 }
 
-func newLogQueue(endpoint string, identity Identity, records *prometheus.CounterVec, diagnostics *slog.Logger) *logQueue {
+func newLogQueue(endpoint string, identity Identity, records *prometheus.CounterVec, metrics *otlp.ClientMetrics, diagnostics *slog.Logger) *logQueue {
 	client := otlp.NewClient()
 	client.HTTP = &http.Client{Timeout: exportTimeout}
 	client.MaxAttempts = exportAttempts
 	client.Logger = diagnostics
+	client.Metrics = metrics
 	ctx, cancel := context.WithCancel(context.Background())
 	return &logQueue{
 		client:      client,
 		endpoint:    endpoint,
-		resource:    resource(identity),
+		resource:    logResource(identity),
 		scope:       &commonpb.InstrumentationScope{Name: scopeName},
 		records:     records,
 		diagnostics: diagnostics,
@@ -245,9 +248,9 @@ func newLogQueue(endpoint string, identity Identity, records *prometheus.Counter
 	}
 }
 
-// resource returns the OTLP resource of identity. A value that is unknown is
+// logResource returns the OTLP resource of identity. A value that is unknown is
 // left out rather than sent empty.
-func resource(identity Identity) *resourcepb.Resource {
+func logResource(identity Identity) *resourcepb.Resource {
 	var attrs []*commonpb.KeyValue
 	for _, attr := range []struct{ key, value string }{
 		{"service.namespace", Namespace},
