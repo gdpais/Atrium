@@ -8,11 +8,17 @@ no source checkout. Each release publishes:
 | --- | --- |
 | Helm chart | `oci://ghcr.io/gdpais/charts/heartbeat`, version `X.Y.Z` |
 | DB collector image | `ghcr.io/gdpais/heartbeat/db-collector:X.Y.Z`, for `linux/amd64` and `linux/arm64` |
+| API image | `ghcr.io/gdpais/heartbeat/api:X.Y.Z`, for `linux/amd64` and `linux/arm64` |
 
-Both are public: no registry login is needed. The release notes list each
+All are public: no registry login is needed. The release notes list each
 artifact's digest. The chart also installs pinned Prometheus, Alertmanager,
-Grafana, Loki and OpenTelemetry Collector from their own registries
-([what the chart deploys](kubernetes-local.md#what-the-chart-deploys)).
+Grafana, Loki, Tempo and OpenTelemetry Collector from their own registries,
+and the API's PostgreSQL and Valkey from their official images
+([what the chart deploys](kubernetes-local.md#what-the-chart-deploys)). Those
+two are for trying Heartbeat out: one replica each and no backups. Production
+points the API at managed services instead
+([production example](../../infra/helm/values/production.example.yaml),
+[ADR 0015](../architecture/decisions/0015-postgresql-and-redis-delivery.md)).
 
 To work on Heartbeat itself, use [local development](local-development.md)
 instead. Production deploys the same chart from ECR through Argo CD
@@ -23,10 +29,10 @@ instead. Production deploys the same chart from ECR through Argo CD
 - A Kubernetes cluster. CI tests Kubernetes 1.36 on kind.
 - Helm 4.2 and kubectl. The chart also renders with Helm 3, but installs are
   tested with Helm 4.
-- A default StorageClass. The release asks for five volumes, 20.25 GiB in all
-  (listed under [Uninstall](#uninstall)).
-- Memory: the pods request about 0.8 GiB, and their limits add up to about
-  3.3 GiB.
+- A default StorageClass. The release asks for seven volumes, 23.25 GiB in
+  all (listed under [Uninstall](#uninstall)).
+- Memory: the pods request about 1.0 GiB, and their limits add up to about
+  4.1 GiB.
 - A CNI that enforces NetworkPolicy (kindnet, Calico, Cilium, Amazon VPC CNI
   with network policy on). Without one the chart's policies are accepted and
   drop nothing. To limit where the collector connects, set
@@ -46,8 +52,8 @@ VERSION=X.Y.Z   # the release to install, without the v
 
 The chart never creates Secrets
 ([ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md)),
-so create these two first. Without them the collector and Grafana pods wait in
-`CreateContainerConfigError`.
+so create these first. Without them the collector, API, PostgreSQL, Valkey and
+Grafana pods wait in `CreateContainerConfigError` or `ContainerCreating`.
 
 ```bash
 kubectl create namespace heartbeat
@@ -57,7 +63,20 @@ kubectl -n heartbeat create secret generic heartbeat-runtime \
 # Grafana's admin login.
 kubectl -n heartbeat create secret generic grafana-admin \
   --from-env-file=<(printf 'admin-user=admin\nadmin-password=%s\n' "$(openssl rand -base64 24)")
+# The bundled PostgreSQL's and Valkey's passwords (letters and digits), and
+# the API's logins to both, as username:password.
+POSTGRES_PASSWORD=$(openssl rand -hex 24) VALKEY_PASSWORD=$(openssl rand -hex 24)
+kubectl -n heartbeat create secret generic heartbeat-postgresql \
+  --from-env-file=<(printf 'password=%s\n' "$POSTGRES_PASSWORD")
+kubectl -n heartbeat create secret generic heartbeat-valkey \
+  --from-env-file=<(printf 'password=%s\n' "$VALKEY_PASSWORD")
+kubectl -n heartbeat create secret generic heartbeat-api-credentials \
+  --from-env-file=<(printf 'HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES=heartbeat:%s\nHEARTBEAT_CREDENTIAL_SECRET_API_REDIS=default:%s\n' "$POSTGRES_PASSWORD" "$VALKEY_PASSWORD")
+unset POSTGRES_PASSWORD VALKEY_PASSWORD
 ```
+
+PostgreSQL reads its password once, when it creates the database on its
+volume; changing it later takes an `ALTER ROLE` as well as both Secrets.
 
 The values reach `kubectl` through a pipe, not its command line. To read one
 back: `kubectl -n heartbeat get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d`.
@@ -76,11 +95,15 @@ dbCollector:
   image:
     # The sha256 after the @ in the db-collector row of the release notes.
     digest: sha256:<digest>
+api:
+  image:
+    # The sha256 in the api row.
+    digest: sha256:<digest>
 ```
 
-Without it the chart runs `ghcr.io/gdpais/heartbeat/db-collector:X.Y.Z`, the
-image of its own version. The digest names exactly the build the release
-lists; a digest wins over a tag.
+Without them the chart runs `ghcr.io/gdpais/heartbeat/db-collector:X.Y.Z` and
+`ghcr.io/gdpais/heartbeat/api:X.Y.Z`, the images of its own version. A digest
+names exactly the build the release lists; a digest wins over a tag.
 
 ## 3. Install
 
@@ -117,6 +140,8 @@ printf 'Authorization: Bearer %s\n' "$HEARTBEAT_ADMIN_TOKEN" | curl -s -H @- loc
   jq '{version, status: .readiness.status, warnings}'
 kubectl -n heartbeat port-forward svc/grafana 3000:3000 &
 # later: kill %1 %2 stops both port-forwards
+kubectl -n heartbeat logs deployment/api -c migrate   # "migrate: schema up to date"
+kubectl -n heartbeat rollout status deployment/api    # Ready: PostgreSQL migrated, Valkey answers
 ```
 
 The admin call prints `version`, the SHA-256 of the active config, the
@@ -145,9 +170,11 @@ stays ready while every SQL Server target fails
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `CreateContainerConfigError` on `db-collector-0` or the Grafana pod | A Secret from step 1 is missing or lacks a key; `kubectl -n heartbeat describe pod <pod>` names it. Create it; the pod then starts by itself |
+| `CreateContainerConfigError` on `db-collector-0`, `valkey-0` or the Grafana pod | A Secret from step 1 is missing or lacks a key; `kubectl -n heartbeat describe pod <pod>` names it. Create it; the pod then starts by itself |
+| The API pod in `Init:Error` or `Init:CrashLoopBackOff` | Its `migrate` init container could not apply the migrations. On a first install it fails a few times, about a minute in all, until PostgreSQL accepts connections, then succeeds by itself. Otherwise `kubectl -n heartbeat logs deployment/api -c migrate` says why, for example a password that does not match `heartbeat-postgresql` |
+| The API pod `Running` but not ready | `kubectl -n heartbeat logs deployment/api -c api` has a `readiness changed` line naming the check that fails: PostgreSQL, the schema version, or Redis (Valkey) |
 | `db-collector-0` stays `ContainerCreating` with a `FailedMount` event | The Secret named in `dbCollector.credentials.existingSecret` is missing. Create it ([step 5](#5-add-a-sql-server-target)); the pod then starts by itself |
-| `ImagePullBackOff` or `ErrImagePull` | The digest in `heartbeat.yaml` is wrong, or the cluster cannot reach `ghcr.io` (or Docker Hub, `quay.io` for the engines) |
+| `ImagePullBackOff` or `ErrImagePull` | A digest in `heartbeat.yaml` is wrong, or the cluster cannot reach `ghcr.io` (or Docker Hub, `quay.io` for the engines) |
 | Pods `Pending` with an unbound claim | No default StorageClass. Make one the default, or name a class for each claim in the values |
 | `values don't meet the specifications of the schema` | A value is misspelt or out of range; the message gives its path. Unknown keys are rejected too, at the top level and inside `dbCollector`, the security contexts and the chart's other own components |
 
@@ -284,20 +311,22 @@ yourself:
 | Left behind | Size | Holds |
 | --- | --- | --- |
 | `PersistentVolumeClaim/storage-loki-0` | 10 GiB | The logs in Loki |
+| `PersistentVolumeClaim/storage-tempo-0` | 2 GiB | The traces in Tempo |
 | `PersistentVolumeClaim/storage-alertmanager-0` | 1 GiB | Alertmanager's silences and notification log |
-| `Secret/heartbeat-runtime`, `Secret/grafana-admin` and your credentials Secret | | Step 1 and step 5 |
+| The step 1 Secrets and your credentials Secret | | Step 1 and step 5 |
 | `Namespace/heartbeat` | | |
 
 The other claims are deleted with the release, and their data with them:
-`prometheus` (8 GiB, the metric history), `db-collector-state` (256 MiB, the
-`outsystems_logs` watermarks) and `otel-collector-queue` (1 GiB). A new
-install in the same namespace reuses the two claims left behind, so Loki and
-Alertmanager start with their old data.
+`prometheus` (8 GiB, the metric history), `postgresql-data` (1 GiB, the API's
+database), `db-collector-state` (256 MiB, the `outsystems_logs` watermarks)
+and `otel-collector-queue` (1 GiB). A new install in the same namespace
+reuses the three claims left behind, so Loki, Tempo and Alertmanager start
+with their old data.
 
 To remove everything:
 
 ```bash
-kubectl -n heartbeat delete pvc storage-loki-0 storage-alertmanager-0
+kubectl -n heartbeat delete pvc storage-loki-0 storage-tempo-0 storage-alertmanager-0
 kubectl delete namespace heartbeat   # the Secrets and anything else left in it
 ```
 

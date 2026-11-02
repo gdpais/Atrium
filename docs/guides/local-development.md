@@ -46,13 +46,11 @@ make kind-down     # delete the cluster
 
 | Profile | Deploys |
 | --- | --- |
-| `full` (default) | DB collector, Prometheus, Alertmanager, Grafana, Loki, OpenTelemetry Collector |
-| `minimal` | DB collector, Prometheus, Alertmanager, Grafana |
+| `full` (default) | DB collector, the API with its PostgreSQL and Valkey (Redis), Prometheus, Alertmanager, Grafana, Loki, Tempo, OpenTelemetry Collector |
+| `minimal` | DB collector, the API with its PostgreSQL and Valkey, Prometheus, Alertmanager, Grafana |
 
 Choose one with `PROFILE=minimal make kind-up` (or `make kind-deploy`).
-PostgreSQL and Valkey (Redis) are not deployed yet: the chart adds them with
-the API [4.1]. To run the API against them on your machine, see
-[run the API](#run-the-api).
+The API migrates its database before it starts; see [run the API](#run-the-api).
 
 Services keep the ports Compose used, on 127.0.0.1 only: Grafana
 http://localhost:3001 (`admin`/`admin`), Prometheus :9090, Alertmanager :9093,
@@ -71,7 +69,7 @@ How the chart, images and cluster fit together, and how to debug them:
 
 | You changed | Run |
 | --- | --- |
-| Go code in a service | `make kind-images kind-deploy` |
+| Go code in a service, or a migration | `make kind-images kind-deploy`; the API's pod applies new migrations before it starts |
 | Chart templates or values | `make kind-deploy` |
 | Prometheus rules or dashboards (`infra/helm/heartbeat/files/`) | `make kind-deploy` (rules reload in place; run `make rules-check` first) |
 | The API's contract (`apps/api/openapi.yaml`) | `make generate`, and commit the regenerated code with it ([below](#change-the-api-contract)) |
@@ -164,7 +162,7 @@ make patientzero-down       # remove it, its databases and its login
 | `make vet` | Go static checks | Go |
 | `make vulncheck` | `govulncheck` on all three Go modules; fails on a known vulnerability the code can reach, standard library included | Go, network access |
 | `make rules-check` | promtool rule validation and unit tests | Docker |
-| `make test-integration` | PostgreSQL migration and index tests; then the API against PostgreSQL and Valkey: golang-migrate applies `db/migrations` (again, concurrently, over a newer schema), the readiness check reads the schema version, credentials rotate, and `/readyz` follows each dependency going away and coming back (`-tags=integration`) | Docker (`postgres:17`, `valkey/valkey`) |
+| `make test-integration` | PostgreSQL migration and index tests; then the API against PostgreSQL and Valkey: golang-migrate applies `db/migrations` (again, concurrently, over a newer schema), the readiness check reads the schema version, credentials rotate, and `/readyz` follows each dependency going away and coming back (`-tags=integration`) | Docker (`postgres:18`, `valkey/valkey`) |
 | `make test-sqlserver` | Every built-in probe against a disposable SQL Server, as a login with only the documented grants; fails on duplicate series or padded label values; checks the session settings and the sysadmin-equivalence flag for that login, `sa` and a `CONTROL SERVER` login. Every OutSystems log query against its fixture tables, views and rows, as a login with only `SELECT` on them, returning every row of the current and the previous week; and the extraction of `oslog_Error` to a fake OTel Collector across cycles, a restart and a weekly log table rotation, each row exactly once (`-tags=sqlserver`). Then PatientZero's live tests (`TestLive*`) as `sa`: its entry points write `oslog_*` rows that the collector's own queries read back, and a small production-shaped log (`make patientzero-scale`'s generator) loads, matches its known answers and is measured | Docker (SQL Server 2022) |
 | `make chart-check` | `helm lint`, then renders every values profile and checks it (below); then lints and renders PatientZero's chart and checks that its NetworkPolicies admit port 8080 only from the load Job and its Service stays ClusterIP | Helm, `make chart-deps` |
 | `make kind-e2e` | Acceptance checks on a temporary kind cluster (below) | Docker, kind, kubectl, Helm, jq |
@@ -266,14 +264,36 @@ about a minute. See the [configuration reference](../reference/configuration.md#
 
 ## Run the API
 
-The API is not deployed yet [4.1]. Run it on your machine against a
-PostgreSQL and a Valkey container of your own. Host ports 55432 and 56379,
-on 127.0.0.1 only, stay clear of a local PostgreSQL or Redis:
+`make kind-up` deploys it with the chart's PostgreSQL and Valkey and their
+Secrets, which `scripts/kind.sh` generates once per cluster. Its pods run
+`api migrate up` in an init container first. It has no NodePort: reach it
+through `kubectl port-forward`, which its NetworkPolicy does not filter, and
+the database through `kubectl exec`:
+
+```bash
+kubectl --context kind-heartbeat -n heartbeat logs deployment/api -c migrate   # the migrations applied
+kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &
+curl localhost:8081/readyz                                                      # {"status":"ready"}
+kubectl --context kind-heartbeat -n heartbeat exec -it postgresql-0 -- psql -U heartbeat
+```
+
+On a new cluster the `migrate` init container fails a few times, about a
+minute in all, until PostgreSQL accepts connections; Kubernetes retries it.
+To start again from an empty database, delete the `postgresql-data` claim
+and `postgresql-0`, then `make kind-deploy`; the same goes for a new
+PostgreSQL major, which the chart does not upgrade
+([ADR 0015](../architecture/decisions/0015-postgresql-and-redis-delivery.md)).
+
+### Outside the cluster
+
+For a faster loop with `go run`, run it on your machine against a PostgreSQL
+and a Valkey container of your own. Host ports 55432 and 56379, on 127.0.0.1
+only, stay clear of a local PostgreSQL or Redis:
 
 ```bash
 export DEV_PASSWORD=$(openssl rand -hex 16)
 POSTGRES_PASSWORD=$DEV_PASSWORD docker run -d --name heartbeat-api-dev-postgres \
-  -p 127.0.0.1:55432:5432 -e POSTGRES_USER=heartbeat -e POSTGRES_DB=heartbeat -e POSTGRES_PASSWORD postgres:17
+  -p 127.0.0.1:55432:5432 -e POSTGRES_USER=heartbeat -e POSTGRES_DB=heartbeat -e POSTGRES_PASSWORD postgres:18.6
 VALKEY_EXTRA_FLAGS="--requirepass $DEV_PASSWORD" docker run -d --name heartbeat-api-dev-valkey \
   -p 127.0.0.1:56379:6379 -e VALKEY_EXTRA_FLAGS valkey/valkey:9.1.3
 until docker exec heartbeat-api-dev-postgres pg_isready -qh 127.0.0.1; do sleep 1; done

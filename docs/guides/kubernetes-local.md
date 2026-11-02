@@ -29,7 +29,12 @@ Heartbeat's own objects (fixed names; one release per namespace):
 | `Service/db-collector-headless` | Headless, `publishNotReadyAddresses`; Prometheus discovers the collector through it even while it is unready |
 | `Service/db-collector` | Operator access (health, admin endpoints); ready pods only. kind: NodePort with `externalTrafficPolicy: Local`, so the NetworkPolicy sees the host's address |
 | `NetworkPolicy/db-collector` | Ingress to port 8082 only from the bundled Prometheus and the `dbCollector.networkPolicy.scrapers` (a shared Prometheus or another platform's scraper) and `.operators` peers; no peers means deny all. kind adds every source outside the pod subnet `10.244.0.0/16` (the host through the loopback NodePort, and containers on the Docker `kind` network); the production example adds a VPN range. Kubelet probes and `kubectl port-forward` are not affected. Needs a CNI that enforces NetworkPolicy (kind's kindnet does) |
-| `NetworkPolicy/otel-collector`, `/prometheus`, `/alertmanager`, `/loki` | Ingress to each bundled engine only from the components that use it, on their ports; see [network access](#network-access). Rendered only for an engine that is on |
+| `Deployment/api` | The API ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)), `api.replicas` pods. Its init container `migrate` runs `api migrate up` from the same image before the API starts, so a new image applies its migrations first; golang-migrate's advisory lock lets replicas start together. No Helm or Argo CD hook. Liveness `/healthz` (process only), readiness `/readyz`: PostgreSQL at the newest migration the image embeds, and Redis. Logins from the `api.credentials` Secret, mounted as files |
+| `Service/api-headless`, `Service/api` | As the collector's: the headless one for Prometheus, ready or not; `api` (8081, `ClusterIP` only: the API has no authentication yet) for clients |
+| `StatefulSet/postgresql`, `Service/postgresql`, `PersistentVolumeClaim/postgresql-data` | The API's PostgreSQL on the `postgres` image ([ADR 0015](../architecture/decisions/0015-postgresql-and-redis-delivery.md)): one replica, data on a 1 GiB claim that a pod restart keeps, readiness `pg_isready`, user 999, read-only root filesystem. For kind and CI: no backups, replicas or major-version upgrades; production turns it off (`postgresql.enabled`) for Amazon RDS |
+| `StatefulSet/valkey`, `Service/valkey` | Redis, run as Valkey on `valkey/valkey`: one replica, an emptyDir (`valkey.persistence` puts an append-only file on a claim), `noeviction` below its memory limit, readiness `valkey-cli ping`. Its password reaches it on standard input, never a command line. Production turns it off for Amazon ElastiCache |
+| `NetworkPolicy/api`, `/postgresql`, `/valkey` | The API's 8081 from Prometheus and `api.networkPolicy.peers`; PostgreSQL's 5432 and Valkey's 6379 from the API and their `extraPeers` only |
+| `NetworkPolicy/otel-collector`, `/prometheus`, `/alertmanager`, `/loki`, `/tempo` | Ingress to each bundled engine only from the components that use it, on their ports; see [network access](#network-access). Rendered only for an engine that is on |
 | `ConfigMap/heartbeat-integrations` | `integrations.yaml`, rendered from the `integrations` values, with the `managedCollectors` list appended to its collectors ([collectors rendered by the API](../reference/configuration.md#collectors-rendered-by-the-api)) |
 | `ConfigMap/heartbeat-prometheus-rules` | Rule files; Prometheus mounts them at `/etc/prometheus-rules` and its config reloader reloads on change. `prometheusRules.configReloadAlert.enabled: false` leaves out the config reload alert ([rules](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules)) |
 | `ConfigMap/heartbeat-dashboards` | Dashboards; label `grafana_dashboard: "1"` for shared Grafanas with a dashboard sidecar |
@@ -60,13 +65,17 @@ the chart lists. Loki holds raw user IDs, session IDs and client IPs, so who
 reaches it is part of their protection
 ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)).
 The engine policies are `backendNetworkPolicies` in the values; the
-collector's is `dbCollector.networkPolicy`.
+collector's is `dbCollector.networkPolicy`, the API's `api.networkPolicy`,
+and PostgreSQL's and Valkey's their own `networkPolicy`.
 
 | Policy | Port | Admitted from | Why |
 | --- | --- | --- | --- |
 | `db-collector` | 8082 | Prometheus | Scrape |
-| `otel-collector` | 4318 | db-collector | OTLP/HTTP logs from `outsystems_logs` collectors |
-| `otel-collector` | 4319 | db-collector, while `telemetry.enabled` | OTLP/HTTP: the service's own logs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
+| `api` | 8081 | Prometheus, `api.networkPolicy.peers` | Scrape; the API's clients when they exist (the Web UI [5]) |
+| `postgresql` | 5432 | API | Its database; the workers join when they exist |
+| `valkey` | 6379 | API | Sessions, jobs, locks; the workers join when they exist |
+| `otel-collector` | 4318 | db-collector, API | OTLP/HTTP: logs from `outsystems_logs` collectors, and both services' spans |
+| `otel-collector` | 4319 | db-collector, API, while `telemetry.enabled` | OTLP/HTTP: the services' own logs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | | 8889 | Prometheus | Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP) |
 | `prometheus` | 9090 | Grafana | Prometheus datasource |
 | `alertmanager` | 9093 | Prometheus | Alerts, and the `alertmanager` scrape job |
@@ -96,12 +105,14 @@ Not covered, by design:
   Alertmanager datasource and Prometheus does not scrape Grafana, so neither
   flow is admitted anywhere.
 - **Kubelet probes** come from the pod's node, which NetworkPolicy does not
-  filter: the collector's `:8082`, the Collector's `:13133`, Prometheus's
+  filter: the collector's `:8082`, the API's `:8081`, the Collector's `:13133`, Prometheus's
   `:9090` and its reloader's `:8080`, Alertmanager's `:9093` and its
   reloader's `:8080`, Loki's `:3100`, Tempo's `:3200` and Grafana's `:3000`.
 - **`kubectl port-forward`** connects from inside the pod, so NetworkPolicy
   never sees it. It is how operators reach Loki, and the others outside kind:
-  `kubectl -n heartbeat port-forward svc/loki 3100`.
+  `kubectl -n heartbeat port-forward svc/loki 3100`. `kubectl exec` into
+  `postgresql-0` (`psql -U heartbeat`) is the operator's way into the
+  database, unfiltered for the same reason.
 - **PatientZero** sends nothing to the engines: it writes its logs to SQL
   Server, and the db-collector reads them.
 
@@ -153,8 +164,8 @@ also comes from the node, so it is not filtered either; in a cluster whose
 control plane runs elsewhere it is. kind's kindnet enforces NetworkPolicy,
 and `make kind-e2e` checks it: pods the policies do not list, in the
 namespace and in another one with Grafana's labels, time out on the
-collector, Loki, Prometheus, Alertmanager and the Collector, while the
-flows above keep working. A cluster whose CNI does not enforce NetworkPolicy
+collector, the API, PostgreSQL, Valkey, Loki, Tempo, Prometheus, Alertmanager
+and the Collector, while the flows above keep working. A cluster whose CNI does not enforce NetworkPolicy
 accepts the objects and drops nothing.
 
 ## Secrets
@@ -166,25 +177,32 @@ an install from a release creates its own
 | Secret | Keys | kind value | Production |
 | --- | --- | --- | --- |
 | `heartbeat-runtime` | `admin-token` | `local-admin-token` | External Secrets Operator |
+| `heartbeat-postgresql` | `password` | Random, generated once per cluster and then kept: PostgreSQL reads it only when it creates its database | Not used: RDS |
+| `heartbeat-valkey` | `password` | Random, generated once per cluster and then kept | Not used: ElastiCache |
+| `heartbeat-api-credentials` | `HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES`, `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS` | `heartbeat:` and `default:` with the two passwords above, rewritten on every deploy | External Secrets Operator: the RDS login and the ElastiCache user |
 | `grafana-admin` | `admin-user`, `admin-password` | `admin` / `admin` | Generated, External Secrets Operator |
 | `heartbeat-sqlserver-dev-credentials` | `HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV` | From `.env.sqlserver-dev` | Per-environment credential Secret |
 
 ## Images
 
-The chart's default image is the release's,
-`ghcr.io/gdpais/heartbeat/db-collector` at the chart's `appVersion`. On kind,
-`kind.yaml` points it at the local `heartbeat/db-collector` instead:
-`make kind-images` builds it for the node's CPU architecture (it refuses a
-mismatch), tags it `dev-<first 12 hex of the image ID>` and loads it with
-`kind load`. Pods use `imagePullPolicy: Never`, so the cluster can only run
+The chart's default images are the release's,
+`ghcr.io/gdpais/heartbeat/db-collector` and `ghcr.io/gdpais/heartbeat/api` at
+the chart's `appVersion`. On kind, `kind.yaml` points them at the local
+`heartbeat/db-collector` and `heartbeat/api` instead: `make kind-images`
+builds each for the node's CPU architecture (it refuses a mismatch), tags it
+`dev-<first 12 hex of the image ID>` and loads it with `kind load`. The API's
+image embeds `db/migrations`, so its own `apps/api/Dockerfile.dockerignore`
+keeps them in the build context that the root `.dockerignore` leaves them out
+of. Pods use `imagePullPolicy: Never`, so the cluster can only run
 what was loaded. The tag changes whenever the binary changes, so a code change
 always produces a new pod. Production references ECR images by digest
 (`image.digest`).
 
 The tags are kept in `.tmp/kind/<cluster>/images.env`. `make kind-deploy`, and
 everything that deploys through it (`make sqlserver-dev-up`, PatientZero),
-rebuilds first when a file under `services/` or `internal/`, `go.mod` or
-`go.sum` is newer than that file, so a pull or a branch switch never leaves the
+rebuilds first when a file under `services/`, `apps/`, `db/` or `internal/`,
+`go.mod` or `go.sum` is newer than that file, or when it has no tag for an
+image, so a pull or a branch switch never leaves the
 current chart running an image built from older code. Unchanged code builds
 from cache to the same tag, and nothing rolls out.
 
@@ -222,6 +240,7 @@ Production values live in the `heartbeat-deploy` config repository and Argo CD
 renders the chart from them (ADR 0005).
 [`production.example.yaml`](../../infra/helm/values/production.example.yaml)
 shows the shape (ECR digests, External Secrets, gp3 volumes, S3 for Loki,
+the API on Amazon RDS and ElastiCache over TLS with the RDS CA bundle mounted,
 internal ALB for Grafana, Slack/Teams/WhatsApp and healthchecks.io receivers)
 and is rendered in CI so it stays valid. kind does not test cloud storage,
 networking, identity, ingress or TLS; those need testing in the target

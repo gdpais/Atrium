@@ -22,11 +22,12 @@ maps fixed NodePorts to these ports on 127.0.0.1 only.
 
 Inside the cluster every component keeps its Compose-era name and port
 (`prometheus:9090`, `alertmanager:9093`, `loki:3100`, `otel-collector:4318`,
-`db-collector:8082`), and NetworkPolicies admit only the components that use
-each one ([network access](../guides/kubernetes-local.md#network-access)): a
-pod of your own times out on them, so reach them through the host ports above,
-Grafana or `kubectl port-forward`. PostgreSQL and Redis are not deployed
-until a service uses them (ADR 0003).
+`db-collector:8082`), beside the API (`api:8081`), its PostgreSQL
+(`postgresql:5432`) and Valkey (`valkey:6379`). NetworkPolicies admit only
+the components that use each one
+([network access](../guides/kubernetes-local.md#network-access)): a pod of
+your own times out on them, so reach them through the host ports above,
+Grafana or `kubectl port-forward`; the API has no host port.
 
 ## DB collector (`:8082`)
 
@@ -74,9 +75,10 @@ NetworkPolicy does not apply to, or from a listed peer such as a VPN range.
 
 The control plane
 ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)).
-Not deployed yet: the chart adds it with PostgreSQL and Valkey [4.1]. Its
-contract is [`apps/api/openapi.yaml`](../../apps/api/openapi.yaml); `/metrics`
-is served beside it.
+The chart deploys it as `Deployment/api` behind `Service/api` (ClusterIP);
+reach it with `kubectl -n heartbeat port-forward svc/api 8081`. Its contract
+is [`apps/api/openapi.yaml`](../../apps/api/openapi.yaml); `/metrics` is
+served beside it.
 
 | Endpoint | Auth | Behavior |
 | --- | --- | --- |
@@ -360,7 +362,7 @@ collector starts, and deleted when it stops.
 ### API requests
 
 The API records every request it serves, `/metrics` and the health endpoints
-included. Not scraped yet: the API is not deployed.
+included. Prometheus scrapes it as job `api`.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
@@ -434,17 +436,20 @@ that is not sampled about 1.7 µs in the tracing middleware.
 
 Scrape jobs (`prometheus.scrapeConfigs` in the chart's
 [`values.yaml`](../../infra/helm/heartbeat/values.yaml)): `prometheus`,
-`otel-collector`, `db-collector`, `alertmanager`, `loki`, `tempo`; the `minimal`
-profile drops `otel-collector`, `loki` and `tempo`, which it does not deploy. `db-collector` uses
-DNS discovery on the headless `db-collector-headless` Service, which lists the
-pod even while it is unready, so the collector's failure metrics are still
-scraped. Prometheus sends alerts to `alertmanager:9093`.
+`otel-collector`, `db-collector`, `api`, `alertmanager`, `loki`, `tempo`; the `minimal`
+profile drops `otel-collector`, `loki` and `tempo`, which it does not deploy. `db-collector` and `api` use
+DNS discovery on the headless `db-collector-headless` and `api-headless`
+Services, which list the pods even while they are unready, so their failure
+metrics are still scraped. With `api.enabled: false`, turn the `api` job off
+too. Prometheus sends alerts to `alertmanager:9093`.
 
 Rules ([`heartbeat.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml),
 [`heartbeat-config-reload.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-config-reload.rules.yml)
 for the config reload alert, and
 [`heartbeat-collector-missing.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-collector-missing.rules.yml)
-for a db-collector with no pod, and
+for a db-collector with no pod,
+[`heartbeat-api-missing.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-api-missing.rules.yml)
+for an API with no pod, and
 [`heartbeat-self.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-self.rules.yml)
 for Heartbeat's own objectives):
 
@@ -465,7 +470,7 @@ for Heartbeat's own objectives):
 | `OutSystemsDuplicateLogRows` | Alert (warning): `heartbeat_outsystems_duplicate_rows_total` grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent |
 | `OutSystemsDerivedSeriesOverflow` | Alert (warning): `heartbeat_outsystems_derived_series_overflow_total` grew in the last 15 minutes, per collector: its derived series reached `max_derived_series`, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise `max_derived_series` if the collector's memory allows |
 | `OutSystemsLogRecountFailing` | Alert (warning): more than half of a log type's recounts failed in the last 15 minutes, of three or more, whatever the poll interval; the reason is in the collector's log |
-| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector, whose DNS discovery finds no target while it has no pod (`absent(up{job="db-collector"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
+| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the API, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector or the API, whose DNS discovery finds no target while they have no pod (`absent(up{job="db-collector"})`, `absent(up{job="api"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
 | `LokiDiscardingLogs` | Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (`loki_discarded_samples_total`); those rows are lost |
 | `HeartbeatCollectorLoginElevated` | Alert (warning): `heartbeat_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
 | `HeartbeatCollectorConfigReloadFailed` | Alert (warning): `heartbeat_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |

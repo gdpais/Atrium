@@ -99,3 +99,9 @@ answer: services emit only OTLP and Prometheus exposition.
   ([`external-platform.example.yaml`](../../../infra/helm/values/external-platform.example.yaml)).
 - The API has this wiring but is not deployed yet. The chart's API pull request
   [4.1] sets its environment variables and adds its scrape job.
+
+Update 2026-11-02: the chart deploys the API with the db-collector's
+variables, the `api` scrape job, and admission to the Collector's 4319 for
+its logs and 4318 for its spans, which take the OTLP/HTTP receiver like the
+collector's (point 4); `make kind-e2e` finds its logs in Loki, its metrics in
+Prometheus and a request's trace in Tempo.
