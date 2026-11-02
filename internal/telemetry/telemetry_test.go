@@ -174,7 +174,7 @@ func TestLogsCarryTheTraceContext(t *testing.T) {
 func TestStringsAreCutAndValidUTF8(t *testing.T) {
 	r := newReceiver(t)
 	tel, stderr := start(t, r.URL)
-	tel.Logger.Info("bad \xff text", "long", strings.Repeat("x", 2*maxValueBytes))
+	tel.Logger.Info("bad \xff text", "long", strings.Repeat("x", 2*maxValueBytes), "bad\xffkey", 1)
 	shutdown(t, tel)
 
 	records := r.records()
@@ -186,6 +186,9 @@ func TestStringsAreCutAndValidUTF8(t *testing.T) {
 	}
 	if got := len(attribute(records[0].Attributes, "long").GetStringValue()); got != maxValueBytes {
 		t.Errorf("long is %d bytes, want %d", got, maxValueBytes)
+	}
+	if got := attribute(records[0].Attributes, "bad�key").GetIntValue(); got != 1 {
+		t.Errorf("bad�key = %d, want 1", got)
 	}
 	if !strings.Contains(stderr.String(), strings.Repeat("x", 2*maxValueBytes)) {
 		t.Error("stderr must keep the full text")
@@ -247,15 +250,18 @@ func TestAStuckCollectorDropsInsteadOfBlocking(t *testing.T) {
 func TestAQueueOverItsBytesDrops(t *testing.T) {
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "c"}, []string{"outcome"})
 	q := newLogQueue("http://localhost:1", Identity{}, counter, slog.New(slog.DiscardHandler))
-	big := &logspb.LogRecord{Body: stringValue(strings.Repeat("x", maxValueBytes))}
-	for range maxQueuedBytes/maxValueBytes + 10 {
-		q.add(proto.Clone(big).(*logspb.LogRecord))
+	// Three values at their limit: the bytes run out before the channel's places.
+	value := stringValue(strings.Repeat("x", maxValueBytes))
+	big := &logspb.LogRecord{Attributes: []*commonpb.KeyValue{{Key: "a", Value: value}, {Key: "b", Value: value}, {Key: "c", Value: value}}}
+	for range maxQueuedRecords {
+		q.add(big)
 	}
 	if got := q.queuedBytes.Load(); got > maxQueuedBytes {
 		t.Errorf("queued %d bytes, above the bound", got)
 	}
-	// The channel's own limit is reached first at this record size, so either
-	// bound may have fired; the point is that one did.
+	if got := len(q.pending); got >= maxQueuedRecords {
+		t.Errorf("%d records queued: the bytes bound never fired", got)
+	}
 	if got := testutil.ToFloat64(counter.WithLabelValues(outcomeDroppedQueueFull)); got == 0 {
 		t.Error("nothing counted as dropped")
 	}
@@ -278,6 +284,35 @@ func TestAFailedExportIsCountedAndNotLoggedToItself(t *testing.T) {
 	}
 	if got := testutil.ToFloat64(tel.records.WithLabelValues(outcomeExported)); got != 0 {
 		t.Errorf("exported = %v, want 0", got)
+	}
+}
+
+// A CPU profile holds the pprof listener for its whole duration; a shutdown
+// during one must still send the last logs.
+func TestABusyPprofListenerDoesNotCostTheLastLogs(t *testing.T) {
+	r := newReceiver(t)
+	tel, _ := start(t, r.URL)
+	started, release := make(chan struct{}), make(chan struct{})
+	busy := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		close(started)
+		<-release
+	}))
+	defer busy.Close()
+	defer close(release)
+	tel.pprof = busy.Config
+	go func() {
+		if resp, err := http.Get(busy.URL); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	<-started
+
+	tel.Logger.Info("last words")
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	tel.Shutdown(ctx)
+	if got := len(r.records()); got != 1 {
+		t.Errorf("got %d records, want 1", got)
 	}
 }
 

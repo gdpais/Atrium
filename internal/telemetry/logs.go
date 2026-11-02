@@ -146,7 +146,8 @@ func appendAttrs(out []*commonpb.KeyValue, prefix string, attrs []slog.Attr) []*
 }
 
 // appendAttr follows [slog.Handler]'s rules: an empty attribute and a group
-// with no attributes are left out, and a group with no key is inlined.
+// with no attributes are left out, and a group with no key is inlined. The key
+// must be valid UTF-8 like a value: one bad key fails its whole batch.
 func appendAttr(out []*commonpb.KeyValue, prefix string, a slog.Attr) []*commonpb.KeyValue {
 	a.Value = a.Value.Resolve()
 	if a.Equal(slog.Attr{}) {
@@ -158,7 +159,7 @@ func appendAttr(out []*commonpb.KeyValue, prefix string, a slog.Attr) []*commonp
 		}
 		return appendAttrs(out, prefix, a.Value.Group())
 	}
-	return append(out, &commonpb.KeyValue{Key: prefix + a.Key, Value: anyValue(a.Value)})
+	return append(out, &commonpb.KeyValue{Key: strings.ToValidUTF8(prefix+a.Key, "�"), Value: anyValue(a.Value)})
 }
 
 // anyValue converts a resolved, non-group value.

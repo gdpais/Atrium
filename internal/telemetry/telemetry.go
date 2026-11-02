@@ -134,15 +134,17 @@ func (t *Telemetry) Register(registerer prometheus.Registerer) error {
 
 // Shutdown sends the logs still queued and stops the pprof listener, waiting
 // until ctx ends at most. Records that do not make it are counted as dropped.
+// The logs go first: a CPU profile in flight holds the listener for its whole
+// duration, and would spend all of ctx.
 func (t *Telemetry) Shutdown(ctx context.Context) {
 	if t == nil {
 		return
 	}
-	if t.pprof != nil {
-		_ = t.pprof.Shutdown(ctx)
-	}
 	if t.logs != nil {
 		t.logs.shutdown(ctx)
+	}
+	if t.pprof != nil {
+		_ = t.pprof.Shutdown(ctx)
 	}
 }
 
