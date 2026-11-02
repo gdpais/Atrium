@@ -137,6 +137,7 @@ func TestWriteRejectsChangesItCannotRecord(t *testing.T) {
 		"state not object":   func(c *audit.Change) { c.After = []string{"admin"} },
 		"no actor":           func(c *audit.Change) { c.Actor = audit.Actor{} },
 		"user without email": func(c *audit.Change) { c.Actor = audit.UserActor("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", "") },
+		"user ID not a UUID": func(c *audit.Change) { c.Actor = audit.UserActor("42", "operator@example.com") },
 		"cli without command": func(c *audit.Change) {
 			c.Actor = audit.CLIActor("", "host")
 		},

@@ -81,6 +81,9 @@ func TestAuditRecordsHoldNoSecrets(t *testing.T) {
 				records = append(records, record)
 			}
 			rows.Close()
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
 			if len(records) == 0 {
 				t.Fatal("the change wrote no audit record")
 			}

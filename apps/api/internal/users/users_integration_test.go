@@ -40,6 +40,9 @@ func outbox(t *testing.T, pool *pgxpool.Pool) []string {
 		}
 		records = append(records, record)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	return records
 }
 

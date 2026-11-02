@@ -74,10 +74,10 @@ func CLIActor(command, host string) Actor {
 
 func (a Actor) validate() error {
 	switch {
-	case a.Type == ActorUser && a.UserID != "" && a.Email != "" && a.Command == "" && a.Host == "":
+	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "":
 	case a.Type == ActorCLI && a.Command != "" && a.UserID == "" && a.Email == "":
 	default:
-		return fmt.Errorf("actor %+v: want a user with an ID and an email, or a command", a)
+		return fmt.Errorf("actor %+v: want a user with a UUID and an email, or a command", a)
 	}
 	return nil
 }
@@ -118,6 +118,10 @@ type Record struct {
 
 // name matches an action or an entity type.
 var name = regexp.MustCompile(`^[a-z][a-z_]*$`)
+
+// uuid matches a user actor's ID in the hyphenated form the schema's uuid
+// format asserts.
+var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // Write records change in the outbox through q, which must run in the
 // transaction that makes the change, and returns the record. It fails on a
