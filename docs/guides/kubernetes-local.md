@@ -66,6 +66,7 @@ collector's is `dbCollector.networkPolicy`.
 | --- | --- | --- | --- |
 | `db-collector` | 8082 | Prometheus | Scrape |
 | `otel-collector` | 4318 | db-collector | OTLP/HTTP logs from `outsystems_logs` collectors |
+| `otel-collector` | 4319 | db-collector, while `telemetry.enabled` | OTLP/HTTP: the service's own logs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | | 8889 | Prometheus | Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP) |
 | `prometheus` | 9090 | Grafana | Prometheus datasource |
 | `alertmanager` | 9093 | Prometheus | Alerts, and the `alertmanager` scrape job |
@@ -109,7 +110,7 @@ connects, off by default and on in `kind.yaml` and the production example:
 | Destination | Ports | Why |
 | --- | --- | --- |
 | `egress.dns` (kube-dns in `kube-system` by default) | UDP and TCP 53 | Name resolution |
-| The bundled OTel Collector, while it is on | its OTLP/HTTP container port, 4318 by default | OTLP/HTTP logs |
+| The bundled OTel Collector, while it is on | its OTLP/HTTP container ports, 4318 and, while `telemetry.enabled`, 4319 by default | OTLP/HTTP logs: OutSystems rows, and the service's own |
 | `egress.targets` | each `port` of the enabled collectors' targets (1433 while there are none) | The monitored SQL Servers and logging databases |
 | `egress.extraRules` | as given | An OTel Collector outside the chart, a proxy |
 
@@ -136,7 +137,7 @@ its peers no longer tell sources apart. `kind.yaml` uses a NodePort only
 because kind binds it to `127.0.0.1`.
 
 `backendNetworkPolicies.<engine>.extraPeers` admits more NetworkPolicyPeers
-to an engine's ports (the Collector: 4317, 4318, and 8889 while its exporter
+to an engine's ports (the Collector: 4317, 4318, 4319, and 8889 while its exporter
 is on; Prometheus 9090; Alertmanager 9093; Loki 3100), such as a shared
 Grafana or Prometheus in another namespace (a `namespaceSelector` and a
 `podSelector` in one peer) or an operator range. `kind.yaml` adds every

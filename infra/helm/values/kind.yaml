@@ -6,6 +6,9 @@
 # Services are NodePorts that infra/kind/cluster.yaml maps to the same
 # 127.0.0.1 ports the Compose stack used.
 
+telemetry:
+  environment: local
+
 dbCollector:
   image:
     # The image scripts/kind.sh builds, not the release image the chart
@@ -118,3 +121,7 @@ otelCollector:
       nodePort: 30317
     otlp-http:
       nodePort: 30318
+    # Not mapped to the host, so a fixed port only keeps it out of the other
+    # NodePorts' way: it would get a random one otherwise.
+    otlp-self:
+      nodePort: 30319

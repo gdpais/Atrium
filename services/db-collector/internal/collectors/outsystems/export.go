@@ -11,8 +11,8 @@ import (
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
 	collectorconfig "heartbeat/internal/config"
+	"heartbeat/internal/otlp"
 	"heartbeat/services/db-collector/internal/collectors"
-	"heartbeat/services/db-collector/internal/export/otlp"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 )
 

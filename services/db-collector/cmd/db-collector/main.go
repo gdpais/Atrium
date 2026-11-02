@@ -20,6 +20,8 @@
 //	                                    environment (default unset)
 //	HEARTBEAT_CREDENTIAL_<REF>          Credential for a credential_ref, as
 //	                                    username:password
+//
+// Its own telemetry reads the variables package telemetry lists.
 package main
 
 import (
@@ -30,11 +32,16 @@ import (
 	"syscall"
 	"time"
 
+	"heartbeat/internal/telemetry"
 	"heartbeat/services/db-collector/internal/app"
 )
 
+// telemetryFlush bounds sending the last logs when the process stops.
+const telemetryFlush = 3 * time.Second
+
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	tel := telemetry.Start("db-collector", os.Stderr)
+	logger := tel.Logger
 	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	cfg := app.Config{
@@ -46,11 +53,18 @@ func main() {
 		WatchInterval:                   durationEnv("HEARTBEAT_CONFIG_WATCH_INTERVAL", 0),
 		SQLServerTrustServerCertificate: boolEnv("HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE", false),
 		Logger:                          logger,
+		Telemetry:                       tel,
 	}
 	err := app.Run(ctx, cfg)
 	stop()
 	if err != nil {
 		logger.Error("db-collector exited with error", "error", err)
+	}
+	flush, cancel := context.WithTimeout(context.Background(), telemetryFlush)
+	defer cancel()
+	tel.Shutdown(flush)
+	if err != nil {
+		cancel()
 		os.Exit(1)
 	}
 }

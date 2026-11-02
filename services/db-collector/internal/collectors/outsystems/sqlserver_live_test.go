@@ -28,9 +28,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	collectorconfig "heartbeat/internal/config"
+	"heartbeat/internal/otlp"
 	"heartbeat/services/db-collector/internal/collectors"
 	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	"heartbeat/services/db-collector/internal/export/otlp"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
 )

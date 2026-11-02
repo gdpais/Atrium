@@ -273,7 +273,7 @@ self-metrics as SQL Server probes.
   (`Store`, one file per collector, target and log type under
   `HEARTBEAT_STATE_DIR`). A full batch leaves its last `Instant` for the
   next batch, read at once up to 10 times per call.
-- `internal/export/otlp` posts the records to
+- `internal/otlp` posts the records to
   `<opentelemetry.endpoint>/v1/logs` (protobuf, gzip, retries).
 
 Settings: [configuration reference](../../docs/reference/configuration.md#outsystems_logs-collectors).

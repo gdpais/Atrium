@@ -64,6 +64,9 @@ type chartProfile struct {
 	// collectorReceivers are the OTel Collector's receivers; none means only
 	// otlp.
 	collectorReceivers []string
+	// selfLogsOff means telemetry.enabled is false: the collector must send
+	// its own logs nowhere.
+	selfLogsOff bool
 	// stateEmptyDir means the collector's state is an emptyDir instead of the
 	// db-collector-state claim (dbCollector.persistence.enabled=false).
 	stateEmptyDir bool
@@ -109,14 +112,14 @@ const (
 // the OTel Collector and, on SQL Server's port, everything but the pods.
 var kindCollectorEgress = []string{
 	"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer,
-	"TCP/4318 -> " + otelCollectorPeer,
+	"TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer,
 	"TCP/1433 -> " + kindHostPeer,
 }
 
 // defaultBackendPolicies are the engine policies with every component on:
 // each engine admits only the components that use it, on their ports.
 var defaultBackendPolicies = map[string][]string{
-	"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
+	"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
 	"prometheus":     {"TCP/9090 <- " + grafanaPeer},
 	"alertmanager":   {"TCP/9093 <- " + bundledPrometheusPeer},
 	"loki": {
@@ -128,7 +131,7 @@ var defaultBackendPolicies = map[string][]string{
 // kindBackendPolicies adds the kind values' operator access to the engines
 // with a loopback NodePort; Loki has none.
 var kindBackendPolicies = withPairs(defaultBackendPolicies, map[string][]string{
-	"otel-collector": {"TCP/4317 <- " + kindHostPeer, "TCP/4318 <- " + kindHostPeer, "TCP/8889 <- " + kindHostPeer},
+	"otel-collector": {"TCP/4317 <- " + kindHostPeer, "TCP/4318 <- " + kindHostPeer, "TCP/4319 <- " + kindHostPeer, "TCP/8889 <- " + kindHostPeer},
 	"prometheus":     {"TCP/9090 <- " + kindHostPeer},
 	"alertmanager":   {"TCP/9093 <- " + kindHostPeer},
 })
@@ -215,7 +218,7 @@ var chartProfiles = []chartProfile{
 		values:            []string{"production.example.yaml"},
 		present:           []string{"StatefulSet/db-collector", "Ingress/grafana", "NetworkPolicy/db-collector"},
 		collectorPeers:    []string{bundledPrometheusPeer, "ip 10.100.0.0/16"},
-		collectorEgress:   []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16"},
+		collectorEgress:   []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16"},
 		backendPolicies:   defaultBackendPolicies,
 		credentialsSecret: "heartbeat-sqlserver-credentials",
 	},
@@ -245,9 +248,9 @@ var chartProfiles = []chartProfile{
 		present:            []string{"StatefulSet/db-collector", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"},
 		absent:             []string{"Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "ConfigMap/heartbeat-prometheus-rules", "ConfigMap/heartbeat-dashboards"},
 		collectorPeers:     []string{"pods{app.kubernetes.io/name=otelCollector,component=statefulset-collector}"},
-		collectorReceivers: []string{"otlp", "prometheus"},
+		collectorReceivers: []string{"otlp", "otlp/self", "prometheus"},
 		// Only the db-collector sends to the Collector; nothing scrapes it.
-		backendPolicies: map[string][]string{"otel-collector": {"TCP/4318 <- " + dbCollectorPeer}},
+		backendPolicies: map[string][]string{"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer}},
 	},
 	{
 		// No peer at all must deny all ingress, never render an empty `from`
@@ -265,7 +268,7 @@ var chartProfiles = []chartProfile{
 		present:        []string{"Deployment/prometheus", "NetworkPolicy/db-collector"},
 		collectorPeers: []string{"pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
 		backendPolicies: map[string][]string{
-			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
+			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer, "TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
 			"prometheus":     {"TCP/9090 <- " + grafanaPeer},
 			"alertmanager":   {"TCP/9093 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
 			"loki": {
@@ -307,6 +310,7 @@ var chartProfiles = []chartProfile{
 			"otel-collector": {
 				"TCP/4317 <- ns{kubernetes.io/metadata.name=apps} pods{app=sender}",
 				"TCP/4318 <- ns{kubernetes.io/metadata.name=apps} pods{app=sender}",
+				"TCP/4319 <- ns{kubernetes.io/metadata.name=apps} pods{app=sender}",
 				"TCP/8889 <- ns{kubernetes.io/metadata.name=apps} pods{app=sender}",
 			},
 			"prometheus":   {"TCP/9090 <- ns{kubernetes.io/metadata.name=monitoring} pods{app.kubernetes.io/name=grafana}"},
@@ -331,7 +335,7 @@ var chartProfiles = []chartProfile{
 		},
 		collectorPeers: []string{bundledPrometheusPeer},
 		backendPolicies: map[string][]string{
-			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer},
+			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer},
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["loki"],
@@ -484,7 +488,7 @@ var chartProfiles = []chartProfile{
 		present:        []string{"NetworkPolicy/db-collector"},
 		collectorPeers: []string{bundledPrometheusPeer},
 		collectorEgress: []string{
-			"TCP/4318 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16", "TCP/14330 -> ip 10.20.0.0/16",
+			"TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16", "TCP/14330 -> ip 10.20.0.0/16",
 			"TCP/3128 -> ip 10.30.0.1/32", "any -> ip 10.30.0.2/32",
 		},
 	},
@@ -507,7 +511,23 @@ var chartProfiles = []chartProfile{
 			"          - {name: d, host: d.example.internal, port: 1433, database_name: master, credential_ref: env/a}\n",
 		present:         []string{"NetworkPolicy/db-collector"},
 		collectorPeers:  []string{bundledPrometheusPeer},
-		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/14318 -> " + otelCollectorPeer},
+		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/14318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer},
+	},
+	{
+		// Without its own logs the db-collector has no use for 4319, in either
+		// direction.
+		name:            "telemetry-off",
+		inline:          "telemetry: {enabled: false}\ndbCollector: {networkPolicy: {egress: {enabled: true}}}\n",
+		present:         []string{"NetworkPolicy/db-collector"},
+		collectorPeers:  []string{bundledPrometheusPeer},
+		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer},
+		backendPolicies: map[string][]string{
+			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
+			"prometheus":     defaultBackendPolicies["prometheus"],
+			"alertmanager":   defaultBackendPolicies["alertmanager"],
+			"loki":           defaultBackendPolicies["loki"],
+		},
+		selfLogsOff: true,
 	},
 	{
 		// A misspelt port key would be dropped, widening the rule to every port.
@@ -652,7 +672,7 @@ var chartProfiles = []chartProfile{
 		collectorIDs:   []string{"sqlserver-default", "api-finance-prod-60s", "api-hr-prod-300s"},
 		collectorPeers: []string{bundledPrometheusPeer},
 		collectorEgress: []string{
-			"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer,
+			"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer,
 			"TCP/1433 -> ip 10.20.0.0/16", "TCP/14331 -> ip 10.20.0.0/16",
 		},
 		notesAbsent: []string{"No SQL Server target"},
@@ -927,6 +947,7 @@ func TestChartProfiles(t *testing.T) {
 			checkCollectorCredentials(t, objects, profile.credentialsSecret)
 			checkCollectorPipelines(t, objects, profile.collectorReceivers)
 			checkLogDelivery(t, objects)
+			checkSelfLogs(t, objects, profile.selfLogsOff)
 			checkExportQueue(t, objects, profile.queueEmptyDir)
 			checkLogIdentifiers(t, objects)
 			checkLokiLabelPolicy(t, objects)
@@ -1392,14 +1413,14 @@ func checkInClusterEndpoints(t *testing.T, objects map[string]object) {
 }
 
 // The OTel Collector runs exactly Heartbeat's config in every profile: only
-// the profile's receivers (the OTLP receiver unless it says otherwise), and
-// logs and metrics pipelines. Values merged over the
+// the profile's receivers (the two OTLP receivers unless it says otherwise),
+// and the logs, Heartbeat's own logs and metrics pipelines. Values merged over the
 // subchart's defaults once brought back its other receivers and a traces
 // pipeline in profiles that did not set otelCollector keys.
 func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers []string) {
 	t.Helper()
 	if receivers == nil {
-		receivers = []string{"otlp"}
+		receivers = []string{"otlp", "otlp/self"}
 	}
 	config, ok := collectorRelay(t, objects)
 	if !ok {
@@ -1415,9 +1436,97 @@ func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers 
 	if got := slices.Sorted(maps.Keys(relay.Receivers)); !slices.Equal(got, receivers) {
 		t.Errorf("OTel Collector receivers = %v, want %v", got, receivers)
 	}
-	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "metrics"}) {
-		t.Errorf("OTel Collector pipelines = %v, want [logs metrics]", got)
+	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "logs/self", "metrics"}) {
+		t.Errorf("OTel Collector pipelines = %v, want [logs logs/self metrics]", got)
 	}
+}
+
+// Heartbeat's own logs stay off the OutSystems delivery path: their own
+// receiver, exporter and memory queue, so they neither wait for that path's
+// one-request queue nor take a place in it (ADR 0018). The services send them
+// to that receiver's port, never 4318, and the platform that gets the OutSystems
+// logs gets these too: an example that repoints one exporter must repoint both.
+func checkSelfLogs(t *testing.T, objects map[string]object, off bool) {
+	t.Helper()
+	endpoint, hasEndpoint := collectorEnv(t, objects, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")
+	config, ok := collectorRelay(t, objects)
+	if !ok {
+		if hasEndpoint {
+			t.Errorf("no OTel Collector, yet the collector sends its logs to %s", endpoint)
+		}
+		return
+	}
+	want := "http://otel-collector:4319/v1/logs"
+	if off {
+		want = ""
+	}
+	if endpoint != want {
+		t.Errorf("collector OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = %q, want %q", endpoint, want)
+	}
+	var relay struct {
+		Exporters map[string]struct {
+			Endpoint     string `yaml:"endpoint"`
+			SendingQueue struct {
+				Storage         string `yaml:"storage"`
+				BlockOnOverflow bool   `yaml:"block_on_overflow"`
+			} `yaml:"sending_queue"`
+		} `yaml:"exporters"`
+		Service struct {
+			Pipelines map[string]struct {
+				Receivers []string `yaml:"receivers"`
+				Exporters []string `yaml:"exporters"`
+			} `yaml:"pipelines"`
+		} `yaml:"service"`
+	}
+	mustUnmarshal(t, config, &relay)
+	if self, logs := relay.Exporters["otlp_http/self-logs"].Endpoint, relay.Exporters["otlp_http/logs"].Endpoint; self != logs {
+		t.Errorf("otlp_http/self-logs goes to %q, otlp_http/logs to %q", self, logs)
+	}
+	self, logs := relay.Service.Pipelines["logs/self"], relay.Service.Pipelines["logs"]
+	if !slices.Equal(self.Receivers, []string{"otlp/self"}) {
+		t.Errorf("logs/self receivers = %v, want [otlp/self]", self.Receivers)
+	}
+	if slices.Contains(logs.Receivers, "otlp/self") {
+		t.Errorf("logs receivers = %v, must not include otlp/self", logs.Receivers)
+	}
+	for _, name := range self.Exporters {
+		if slices.Contains(logs.Exporters, name) {
+			t.Errorf("exporter %s serves both logs pipelines", name)
+		}
+		if q := relay.Exporters[name].SendingQueue; q.Storage != "" || q.BlockOnOverflow {
+			t.Errorf("%s sending_queue storage %q, block_on_overflow %t; want a queue in memory that never waits", name, q.Storage, q.BlockOnOverflow)
+		}
+	}
+}
+
+// collectorEnv returns a variable of the db-collector container, if it is set.
+func collectorEnv(t *testing.T, objects map[string]object, name string) (string, bool) {
+	t.Helper()
+	sts, ok := objects["StatefulSet/db-collector"]
+	if !ok {
+		return "", false
+	}
+	var spec struct {
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					Env []struct {
+						Name  string `yaml:"name"`
+						Value string `yaml:"value"`
+					} `yaml:"env"`
+				} `yaml:"containers"`
+			} `yaml:"spec"`
+		} `yaml:"template"`
+	}
+	if err := sts.Spec.Decode(&spec); err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range spec.Template.Spec.Containers[0].Env {
+		if env.Name == name {
+			return env.Value, true
+		}
+	}
+	return "", false
 }
 
 // lokiIngestionBurst is Loki's default ingestion_burst_size_mb, in bytes:

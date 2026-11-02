@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	collectorconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/export/otlp"
+	"heartbeat/internal/otlp"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 )
 

@@ -24,6 +24,9 @@
 //	HEARTBEAT_API_REDIS_CREDENTIAL_REF     credential reference of the login (default "secret/api-redis")
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
+//
+// Its own telemetry reads the variables package telemetry lists; the migrate
+// commands send none.
 package main
 
 import (
@@ -39,12 +42,17 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"heartbeat/apps/api/internal/app"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
+	"heartbeat/internal/telemetry"
 )
+
+// telemetryFlush bounds sending the last logs when the process stops.
+const telemetryFlush = 3 * time.Second
 
 // Environment variables.
 const (
@@ -88,8 +96,16 @@ func execute(ctx context.Context, args []string, logger *slog.Logger, stdout io.
 		if err != nil {
 			return fmt.Errorf("invalid configuration: %w", err)
 		}
-		cfg.Logger = logger
-		redis.SetLogger(logger)
+		tel := telemetry.Start("api", os.Stderr)
+		defer func() {
+			flush, cancel := context.WithTimeout(context.Background(), telemetryFlush)
+			defer cancel()
+			tel.Shutdown(flush)
+		}()
+		slog.SetDefault(tel.Logger)
+		cfg.Logger = tel.Logger
+		cfg.Telemetry = tel
+		redis.SetLogger(tel.Logger)
 		return app.Run(ctx, cfg)
 	case slices.Equal(args, []string{"migrate", "up"}):
 		cfg, resolver, err := loadMigrateConfig()

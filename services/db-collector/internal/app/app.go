@@ -27,11 +27,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	heartbeatconfig "heartbeat/internal/config"
+	"heartbeat/internal/otlp"
+	"heartbeat/internal/telemetry"
 	"heartbeat/services/db-collector/internal/collectors"
 	"heartbeat/services/db-collector/internal/collectors/outsystems"
 	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
 	collectorexport "heartbeat/services/db-collector/internal/export"
-	"heartbeat/services/db-collector/internal/export/otlp"
 	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
 	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
 )
@@ -80,6 +81,8 @@ type Config struct {
 	// Logger receives structured service logs. When nil, Run logs JSON to
 	// stderr.
 	Logger *slog.Logger
+	// Telemetry, when set, adds its metrics to the service's registry.
+	Telemetry *telemetry.Telemetry
 }
 
 // timeouts bounds every blocking step of reloads and shutdown.
@@ -150,6 +153,9 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	}
 	registry, probeMetrics, err := newRegistry()
 	if err != nil {
+		return runDeps{}, err
+	}
+	if err := cfg.Telemetry.Register(registry); err != nil {
 		return runDeps{}, err
 	}
 	configMetrics, err := newConfigMetrics(registry, configManager.Snapshot)

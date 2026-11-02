@@ -53,7 +53,8 @@ dbCollector:
     size: 256Mi
     # Empty uses the cluster's default StorageClass.
     storageClassName: ""
-  # Covers the bounded shutdown: HTTP drain 10s + poller stop 20s + 5s.
+  # Covers the bounded shutdown: HTTP drain 10s + poller stop 20s + 5s, and 3s
+  # to send the service's last logs.
   terminationGracePeriodSeconds: 45
   service:
     # Keep ClusterIP in production. /metrics is unauthenticated and names the
@@ -137,6 +138,18 @@ dbCollector:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# Heartbeat's own telemetry (ADR 0018). Metrics are always on /metrics; with
+# the bundled OTel Collector on, the services also send it their logs, on
+# their own port and pipeline (otelCollector.ports.otlp-self). With it off they
+# log to stderr only; an external Collector takes
+# OTEL_EXPORTER_OTLP_LOGS_ENDPOINT through extraEnv.
+telemetry:
+  enabled: true
+  # The environment Heartbeat itself runs in: deployment.environment.name, a
+  # Loki label, and the environment label of heartbeat_service_info. Empty
+  # leaves it out.
+  environment: ""
 
 # Pod and container hardening for the Heartbeat workloads. The images
 # are distroless and run as the nonroot user. fsGroup makes the collector's
@@ -237,8 +250,9 @@ grafanaDashboards:
 # is on: otel-collector, prometheus, alertmanager and loki. Only the
 # components that use an engine may connect, on the ports they use; every
 # other pod, in this namespace or another, is dropped:
-#   otel-collector  4318 (OTLP/HTTP) from the db-collector; 8889 (its
-#                   Prometheus exporter) from Prometheus
+#   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (its
+#                   own logs) from the db-collector; 8889 (its Prometheus
+#                   exporter) from Prometheus
 #   prometheus      9090 from Grafana (datasource)
 #   alertmanager    9093 from Prometheus (alerts and its scrape)
 #   loki            3100 from the OTel Collector (OTLP), Grafana (datasource)
@@ -610,6 +624,13 @@ otelCollector:
       containerPort: 8889
       servicePort: 8889
       protocol: TCP
+    # Heartbeat's own logs, kept apart from the OutSystems delivery path: see
+    # the logs/self pipeline.
+    otlp-self:
+      enabled: true
+      containerPort: 4319
+      servicePort: 4319
+      protocol: TCP
   # The complete Collector config, used as is. Not `config`: as a subchart,
   # Helm drops `null` overrides of the chart's defaults whenever another values
   # file sets otelCollector keys, which brought back the jaeger, zipkin and
@@ -634,6 +655,11 @@ otelCollector:
             endpoint: ${env:MY_POD_IP}:4317
           http:
             endpoint: ${env:MY_POD_IP}:4318
+      # Heartbeat's own logs (ADR 0018).
+      otlp/self:
+        protocols:
+          http:
+            endpoint: ${env:MY_POD_IP}:4319
     processors:
       # A percentage of resources.limits.memory.
       memory_limiter:
@@ -695,6 +721,13 @@ otelCollector:
             max_size: 4194304
         retry_on_failure:
           max_elapsed_time: 0s
+      # Heartbeat's own logs, with none of the guarantees above: a queue in
+      # memory, and rows given up on after the default retry time. They are on
+      # stderr too, and they must keep flowing while the OutSystems queue waits.
+      otlp_http/self-logs:
+        endpoint: http://loki:3100/otlp
+        sending_queue:
+          queue_size: 64
     service:
       extensions: [health_check, file_storage/export-queue]
       pipelines:
@@ -711,6 +744,13 @@ otelCollector:
           receivers: [otlp]
           processors: [memory_limiter, resource]
           exporters: [otlp_http/logs, debug]
+        # Never joins the logs pipeline above: its queue holds one request and
+        # the receiver waits for it, so Heartbeat's logs would stall during
+        # the very backlog they should explain, and slow its drain (ADR 0018).
+        logs/self:
+          receivers: [otlp/self]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp_http/self-logs]
       telemetry:
         metrics:
           readers:

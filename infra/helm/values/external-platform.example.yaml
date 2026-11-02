@@ -100,6 +100,11 @@ otelCollector:
         endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
         headers:
           Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}
+      # Heartbeat's own logs; the chart's logs/self pipeline stays as it is.
+      otlp_http/self-logs:
+        endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
+        headers:
+          Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}
     service:
       # A list replaces the chart's, so it names the export queue's storage
       # too: otlp_http/logs keeps the chart's on-disk sending queue.

@@ -93,6 +93,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REF }}
+          build-args: |
+            VERSION=${{ needs.verify.outputs.version }}
+            REVISION=${{ needs.verify.outputs.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.verify.outputs.version }}

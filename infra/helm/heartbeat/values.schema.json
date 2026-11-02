@@ -293,6 +293,21 @@
         }
       }
     },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Send the services' own logs to the bundled OTel Collector, when it is on."
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]*$",
+          "description": "The environment Heartbeat itself runs in (deployment.environment.name). Empty leaves it out."
+        }
+      }
+    },
     "backendNetworkPolicies": {
       "description": "Ingress NetworkPolicies for the bundled OTel Collector, Prometheus, Alertmanager and Loki. Each admits the bundled components that use the engine, on their ports, plus its extraPeers (NetworkPolicyPeer objects).",
       "type": "object",
