@@ -3,6 +3,7 @@ rule_files:
   - ../heartbeat.rules.yml
   - ../heartbeat-config-reload.rules.yml
   - ../heartbeat-collector-missing.rules.yml
+  - ../heartbeat-api-missing.rules.yml
   - ../heartbeat-self.rules.yml
 
 evaluation_interval: 1m
@@ -332,6 +333,8 @@ tests:
         values: '1x6'
       - series: 'up{job="db-collector",instance="10.0.0.1:8082"}'
         values: '1x6'
+      - series: 'up{job="api",instance="10.0.0.2:8081"}'
+        values: '1x6'
     alert_rule_test:
       - alertname: HeartbeatServiceDown
         eval_time: 2m
@@ -359,6 +362,8 @@ tests:
         values: '1 1 stale _x3 1x4'
       - series: 'up{job="otel-collector",instance="otel-collector:8889"}'
         values: '1x10'
+      - series: 'up{job="api",instance="10.0.0.2:8081"}'
+        values: '1x10'
     alert_rule_test:
       - alertname: HeartbeatServiceDown
         eval_time: 3m
@@ -372,6 +377,56 @@ tests:
             exp_annotations:
               summary: "Heartbeat service db-collector is down"
               description: "Prometheus has found no db-collector pod to scrape for at least 2 minutes: its StatefulSet runs no pod. Nothing is collected from SQL Server or the OutSystems logging databases meanwhile; once it is back, the OutSystems log types resume from their saved watermarks."
+      - alertname: HeartbeatServiceDown
+        eval_time: 7m
+        exp_alerts: []
+
+  - name: Heartbeat service down fires for an API that does not answer
+    interval: 1m
+    input_series:
+      - series: 'up{job="api",instance="10.0.0.2:8081"}'
+        values: '1 0 0 0 0 1 1'
+      - series: 'up{job="db-collector",instance="10.0.0.1:8082"}'
+        values: '1x6'
+    alert_rule_test:
+      - alertname: HeartbeatServiceDown
+        eval_time: 2m
+        exp_alerts: []
+      - alertname: HeartbeatServiceDown
+        eval_time: 4m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: api
+              instance: 10.0.0.2:8081
+            exp_annotations:
+              summary: "Heartbeat service api is down"
+              description: "Prometheus has not scraped api successfully for at least 2 minutes."
+      - alertname: HeartbeatServiceDown
+        eval_time: 6m
+        exp_alerts: []
+
+  - name: Heartbeat service down fires for an API with no pod to scrape
+    interval: 1m
+    input_series:
+      # The pod is gone from 2m to 5m: DNS discovery drops its target.
+      - series: 'up{job="api",instance="10.0.0.2:8081"}'
+        values: '1 1 stale _x3 1x4'
+      - series: 'up{job="db-collector",instance="10.0.0.1:8082"}'
+        values: '1x10'
+    alert_rule_test:
+      - alertname: HeartbeatServiceDown
+        eval_time: 3m
+        exp_alerts: []
+      - alertname: HeartbeatServiceDown
+        eval_time: 5m
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: api
+            exp_annotations:
+              summary: "Heartbeat service api is down"
+              description: "Prometheus has found no API pod to scrape for at least 2 minutes: its Deployment runs no pod. Nothing can be read or changed through the API meanwhile; collection goes on."
       - alertname: HeartbeatServiceDown
         eval_time: 7m
         exp_alerts: []
