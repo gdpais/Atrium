@@ -158,19 +158,21 @@ func (t *Telemetry) OTLPClient(name string) *otlp.ClientMetrics {
 	return t.otlp.Client(name)
 }
 
-// Shutdown sends the spans and logs still queued and stops the pprof listener,
+// Shutdown sends the logs and spans still queued and stops the pprof listener,
 // waiting until ctx ends at most. Records that do not make it are counted as
-// dropped. These go first: a CPU profile in flight holds the listener for its whole
-// duration, and would spend all of ctx.
+// dropped. The logs go first, then the spans, which may be lost: spans the
+// Collector does not take are retried until ctx ends. Both go before the
+// listener: a CPU profile in flight holds it for its whole duration, and would
+// spend all of ctx.
 func (t *Telemetry) Shutdown(ctx context.Context) {
 	if t == nil {
 		return
 	}
-	if t.stopTraces != nil {
-		t.stopTraces(ctx)
-	}
 	if t.logs != nil {
 		t.logs.shutdown(ctx)
+	}
+	if t.stopTraces != nil {
+		t.stopTraces(ctx)
 	}
 	if t.pprof != nil {
 		_ = t.pprof.Shutdown(ctx)
