@@ -4,14 +4,14 @@ PostgreSQL is Heartbeat's durable system of record for **product metadata**:
 inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
-The schema is defined in
-[`db/migrations/0001_foundations.up.sql`](../../db/migrations/0001_foundations.up.sql),
-which is authoritative. If this page and the migration disagree, the migration
-wins; please fix this page.
+The schema is defined by the migrations in [`db/migrations`](../../db/migrations)
+(`0001_foundations`, then `0002_audit_outbox`), which are authoritative. If this
+page and the migrations disagree, the migrations win; please fix this page.
 
-> **Status:** the schema is migrated and covered by tests, but no service
-> reads or writes it yet. The planned API (`apps/api`) will be the first
-> consumer. The DB collector takes its targets from YAML, not these tables
+> **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
+> writes `users`, `user_roles` and `audit_outbox` so far, through
+> `api users create-admin`; the other tables wait for its later endpoints. The
+> DB collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
 ## What PostgreSQL does not store
@@ -94,6 +94,7 @@ erDiagram
     text email UK
     text display_name
     text status "active | disabled"
+    text password_hash "argon2id PHC, nullable"
     timestamptz last_login_at
   }
   roles {
@@ -286,6 +287,12 @@ erDiagram
     timestamptz started_at
     timestamptz finished_at
   }
+  audit_outbox {
+    bigint seq PK
+    uuid id UK
+    timestamptz created_at
+    jsonb record
+  }
 ```
 
 ## Domains
@@ -296,6 +303,25 @@ erDiagram
 SRE/admin-style user is acceptable, with no permission tables, SSO tables or
 environment-scoped RBAC yet. Disable users (`status = 'disabled'`) rather than
 deleting them; foreign keys restrict deletion.
+
+`users.password_hash` is the argon2id hash of a local login's password, in the
+PHC string format with its parameters; null for a user without one
+([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)). Emails are
+stored in lower case, and `users_email_lower_uq` (`unique (lower(email))`) keeps
+one user per address in any case, whoever writes the row. Migration `0002` adds the `admin` role, which
+`api users create-admin` grants; the others come with the code that checks
+them [4.2].
+
+### Audit outbox
+
+`audit_outbox` is a queue, not a store
+([ADR 0016](decisions/0016-audit-records-through-an-outbox.md)): each change the
+API makes inserts its audit record (`record`, valid against
+[`audit_record.schema.json`](../../packages/telemetry-contracts/src/audit_record.schema.json))
+in the change's transaction, and the API's drainer deletes it once the OTel
+Collector has accepted it, normally within seconds. `seq` orders delivery,
+`id` is the record's id, and `created_at` gives the age of the oldest row.
+Nothing reads a row after delivery; audit records are searched in Loki.
 
 ### Environment and inventory
 

@@ -66,6 +66,7 @@ func TestNilMetricsRecordNothing(t *testing.T) {
 		t.Fatal("a nil Metrics must give a nil ClientMetrics")
 	}
 	client.observe(nil, time.Second, 1)
+	client.rejectRecords(1)
 }
 
 func TestClientMetricsStartAtZero(t *testing.T) {
@@ -73,6 +74,9 @@ func TestClientMetricsStartAtZero(t *testing.T) {
 	metrics.Client("c")
 	if got := testutil.CollectAndCount(metrics.attempts); got != len(exportOutcomes) {
 		t.Errorf("%d attempt series, want one per outcome at 0", got)
+	}
+	if got := testutil.CollectAndCount(metrics.rejected); got != 1 {
+		t.Errorf("%d rejected-record series, want one at 0", got)
 	}
 }
 

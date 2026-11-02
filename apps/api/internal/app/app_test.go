@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
@@ -326,10 +327,11 @@ func TestRunWithDependenciesDown(t *testing.T) {
 		CredentialsDir: t.TempDir(),
 	}
 	registry := prometheus.NewRegistry()
-	checks, closeDeps, err := connect(cfg, logger, registry)
+	deps, err := connect(cfg, logger, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
+	checks, closeDeps := deps.checks, deps.close
 	// The pools answer at a scrape even before either dependency is reachable.
 	for name, want := range map[string]int{
 		MetricDBConnections: 3, MetricDBConnectionsMax: 1, MetricDBConnectionWaits: 1, MetricDBConnectionWaitSeconds: 1,
@@ -339,8 +341,20 @@ func TestRunWithDependenciesDown(t *testing.T) {
 			t.Errorf("%s has %d series (%v), want %d", name, got, err, want)
 		}
 	}
+	// The outbox's gauges need the database: absent while it is down, and
+	// the scrape still succeeds.
+	for name, want := range map[string]int{
+		audit.MetricRecordsDelivered: 1, audit.MetricOutboxRows: 0, audit.MetricOutboxOldestAge: 0,
+	} {
+		if got, err := testutil.GatherAndCount(registry, name); err != nil || got != want {
+			t.Errorf("%s has %d series (%v), want %d", name, got, err, want)
+		}
+	}
 	if len(checks) != 2 || checks[0].Name != checkPostgreSQL || checks[1].Name != checkRedis {
 		t.Fatalf("checks = %v, want postgresql and redis", checks)
+	}
+	if deps.drain != nil || !strings.Contains(logs.String(), "audit delivery off") {
+		t.Fatalf("without an audit endpoint: drain set %v, logs:\n%s", deps.drain != nil, logs.String())
 	}
 	var f *runFixture
 	closed := make(chan bool, 1)

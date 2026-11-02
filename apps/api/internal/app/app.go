@@ -3,8 +3,9 @@
 //
 // Run is the entry point. It connects to PostgreSQL (package store) and Redis
 // (package redis), serves the operations of the API's contract (package
-// httpapi) and the Prometheus metrics, and drains in-flight requests on
-// shutdown before closing the connections.
+// httpapi) and the Prometheus metrics, delivers audit records from the
+// outbox (package audit), and drains in-flight requests on shutdown before
+// closing the connections.
 package app
 
 import (
@@ -19,10 +20,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
+	"heartbeat/internal/otlp"
 	"heartbeat/internal/telemetry"
 )
 
@@ -35,6 +38,10 @@ type Config struct {
 	Postgres store.Config
 	// Redis says where Redis (Valkey) is.
 	Redis redis.Config
+	// AuditEndpoint is the OTLP/HTTP base URL audit records go to, the OTel
+	// Collector's logs receiver with the persistent queue, such as
+	// http://otel-collector:4318. Empty leaves them in the outbox.
+	AuditEndpoint string
 	// CredentialsDir holds one file per credential reference, normally the
 	// mounted credentials Secret, read on every new connection; references
 	// without a file come from the environment ([credentials.Files]).
@@ -95,7 +102,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	if err := cfg.Telemetry.Register(registry); err != nil {
 		return runDeps{}, err
 	}
-	checks, closeDeps, err := connect(cfg, logger, registry)
+	deps, err := connect(cfg, logger, registry)
 	if err != nil {
 		return runDeps{}, err
 	}
@@ -104,8 +111,9 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		logger:         logger,
 		registry:       registry,
 		requestMetrics: requestMetrics,
-		checks:         checks,
-		closeDeps:      closeDeps,
+		checks:         deps.checks,
+		drain:          deps.drain,
+		closeDeps:      deps.close,
 		timeouts:       defaultTimeouts(),
 	}, nil
 }
@@ -116,33 +124,52 @@ const (
 	checkRedis      = "redis"
 )
 
+// connected is what connect sets up.
+type connected struct {
+	// checks are the readiness checks of PostgreSQL and Redis.
+	checks []httpapi.Check
+	// drain delivers audit records until its context ends; nil without an
+	// audit endpoint.
+	drain func(context.Context)
+	// close closes both connections.
+	close func()
+}
+
 // connect creates the PostgreSQL pool and the Redis client, without
-// connecting, registers their pool metrics, and returns their readiness checks
-// and a function that closes both.
+// connecting, registers their pool metrics and the audit outbox's, and
+// returns their readiness checks, the audit drainer, and a function that
+// closes both.
 //
 // The PostgreSQL check passes when a query reaches the database and its
 // schema is at least the newest migration this build embeds, so a replica
 // started before `api migrate up` has run stays out of its Service. The
 // Redis check is a PING.
-func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) ([]httpapi.Check, func(), error) {
+func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) (connected, error) {
 	resolver := credentials.Files{Dir: cfg.CredentialsDir, Fallback: credentials.Env{}}
 	want, err := store.LatestVersion()
 	if err != nil {
-		return nil, nil, err
+		return connected{}, err
 	}
 	pool, err := store.NewPool(cfg.Postgres, resolver)
 	if err != nil {
-		return nil, nil, fmt.Errorf("postgresql: %w", err)
+		return connected{}, fmt.Errorf("postgresql: %w", err)
 	}
 	client, err := redis.New(cfg.Redis, resolver)
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("redis: %w", err)
+		return connected{}, fmt.Errorf("redis: %w", err)
 	}
-	if err := registerer.Register(poolCollector{postgres: pool.Stat, redis: client.PoolStats}); err != nil {
-		pool.Close()
-		_ = client.Close()
-		return nil, nil, err
+	delivered := audit.NewDeliveredCounter()
+	for _, collector := range []prometheus.Collector{
+		poolCollector{postgres: pool.Stat, redis: client.PoolStats},
+		audit.OutboxCollector{Queries: store.New(pool)},
+		delivered,
+	} {
+		if err := registerer.Register(collector); err != nil {
+			pool.Close()
+			_ = client.Close()
+			return connected{}, err
+		}
 	}
 	logger.Info("dependencies configured",
 		"postgresql_host", cfg.Postgres.Host, "postgresql_port", cfg.Postgres.Port,
@@ -150,17 +177,34 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		"postgresql_schema_version", want,
 		"redis_addr", cfg.Redis.Addr, "redis_tls", cfg.Redis.TLS)
 	schema := store.SchemaChecker{Queries: store.New(pool), Want: want}
-	checks := []httpapi.Check{
-		{Name: checkPostgreSQL, Run: schema.Check},
-		{Name: checkRedis, Run: func(ctx context.Context) error { return redis.Ping(ctx, client) }},
+	result := connected{
+		checks: []httpapi.Check{
+			{Name: checkPostgreSQL, Run: schema.Check},
+			{Name: checkRedis, Run: func(ctx context.Context) error { return redis.Ping(ctx, client) }},
+		},
+		close: func() {
+			pool.Close()
+			if err := client.Close(); err != nil {
+				logger.Warn("shutdown: close redis client", "error", err)
+			}
+		},
 	}
-	closeDeps := func() {
-		pool.Close()
-		if err := client.Close(); err != nil {
-			logger.Warn("shutdown: close redis client", "error", err)
-		}
+	if cfg.AuditEndpoint == "" {
+		logger.Warn("audit delivery off: no endpoint is set, so audit records stay in the outbox")
+		return result, nil
 	}
-	return checks, closeDeps, nil
+	exporter := otlp.NewClient()
+	exporter.Logger = logger
+	exporter.Metrics = cfg.Telemetry.OTLPClient(audit.OTLPClient)
+	var identity telemetry.Identity
+	if cfg.Telemetry != nil {
+		identity = cfg.Telemetry.Identity
+	}
+	drainer := audit.NewDrainer(audit.Outbox{DB: pool}, exporter, cfg.AuditEndpoint, identity, logger)
+	drainer.Delivered = delivered
+	result.drain = drainer.Run
+	logger.Info("audit delivery on", "endpoint", cfg.AuditEndpoint)
+	return result, nil
 }
 
 // runDeps are the collaborators of run, injectable for tests.
@@ -173,6 +217,9 @@ type runDeps struct {
 	// checks are the readiness checks GET /readyz runs: PostgreSQL and
 	// Redis in production.
 	checks []httpapi.Check
+	// drain, when set, runs beside the HTTP server until shutdown: the
+	// audit drainer in production.
+	drain func(context.Context)
 	// closeDeps, when set, closes the PostgreSQL and Redis connections once
 	// the HTTP server has drained.
 	closeDeps func()
@@ -196,6 +243,21 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.onListen != nil {
 		deps.onListen(listener.Addr())
+	}
+	// The drainer stops when shutdown begins and is waited for before the
+	// connections close: records written by the requests still draining
+	// wait in the outbox for the next replica.
+	if deps.drain != nil {
+		drainCtx, stopDrain := context.WithCancel(ctx)
+		drained := make(chan struct{})
+		go func() {
+			defer close(drained)
+			deps.drain(drainCtx)
+		}()
+		defer func() {
+			stopDrain()
+			<-drained
+		}()
 	}
 
 	api := httpapi.NewServer(logger, deps.checks, deps.timeouts.readiness)

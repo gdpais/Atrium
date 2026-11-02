@@ -147,6 +147,23 @@ func NewPool(cfg Config, resolver credentials.Resolver) (*pgxpool.Pool, error) {
 	return pgxpool.NewWithConfig(context.Background(), poolConfig)
 }
 
+// Connect opens one connection for cfg, for a command that runs a few
+// queries and exits. The caller closes it.
+func Connect(ctx context.Context, cfg Config, resolver credentials.Resolver) (*pgx.Conn, error) {
+	connConfig, err := cfg.connConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := beforeConnect(resolver, cfg.CredentialRef)(ctx, connConfig); err != nil {
+		return nil, err
+	}
+	conn, err := pgx.ConnectConfig(ctx, connConfig)
+	if err != nil {
+		return nil, fmt.Errorf("connect to postgresql: %w", err)
+	}
+	return conn, nil
+}
+
 // SchemaChecker tells whether the database is reachable and its schema is
 // at least the version this build of the API was made for.
 type SchemaChecker struct {

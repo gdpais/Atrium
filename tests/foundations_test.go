@@ -70,8 +70,11 @@ func TestRequiredFoundationFilesExist(t *testing.T) {
 		"packages/telemetry-contracts/src/session_investigation.schema.json",
 		"packages/telemetry-contracts/src/alert_evidence.schema.json",
 		"packages/telemetry-contracts/src/report_payload.schema.json",
+		"packages/telemetry-contracts/src/audit_record.schema.json",
 		"db/migrations/0001_foundations.up.sql",
 		"db/migrations/0001_foundations.down.sql",
+		"db/migrations/0002_audit_outbox.up.sql",
+		"db/migrations/0002_audit_outbox.down.sql",
 	}
 
 	for _, rel := range required {
@@ -117,6 +120,7 @@ func TestSchemaContractsAreValidJSON(t *testing.T) {
 		"packages/telemetry-contracts/src/session_investigation.schema.json",
 		"packages/telemetry-contracts/src/alert_evidence.schema.json",
 		"packages/telemetry-contracts/src/report_payload.schema.json",
+		"packages/telemetry-contracts/src/audit_record.schema.json",
 	}
 
 	for _, rel := range schemas {
@@ -216,6 +220,8 @@ func TestMigrationFilesUseSQLExtension(t *testing.T) {
 	for _, rel := range []string{
 		"db/migrations/0001_foundations.up.sql",
 		"db/migrations/0001_foundations.down.sql",
+		"db/migrations/0002_audit_outbox.up.sql",
+		"db/migrations/0002_audit_outbox.down.sql",
 	} {
 		if filepath.Ext(rel) != ".sql" {
 			t.Fatalf("expected .sql file extension for %s", rel)

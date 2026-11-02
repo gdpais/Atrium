@@ -307,7 +307,16 @@ export HEARTBEAT_API_POSTGRES_HOST=127.0.0.1 HEARTBEAT_API_POSTGRES_PORT=55432 \
 go run ./apps/api/cmd/api migrate up   # apply db/migrations
 go run ./apps/api/cmd/api              # serve on :8081
 curl localhost:8081/readyz             # {"status":"ready"}
+
+# The first admin, with the password on standard input
+printf '%s\n' "$DEV_PASSWORD" | go run ./apps/api/cmd/api users create-admin --email admin@example.com
 ```
+
+Without `HEARTBEAT_API_AUDIT_ENDPOINT` the audit records stay in the outbox,
+where `docker exec heartbeat-api-dev-postgres psql -U heartbeat -c 'select record from audit_outbox'`
+shows them. To see them delivered, point it at an OTLP/HTTP logs receiver,
+such as `kubectl --context kind-heartbeat -n heartbeat port-forward svc/otel-collector 4318` on kind, with
+`HEARTBEAT_API_AUDIT_ENDPOINT=http://127.0.0.1:4318`.
 
 The defaults expect TLS on both (`verify-full` and `HEARTBEAT_API_REDIS_TLS=true`),
 which local containers don't have, hence the two overrides. The API starts

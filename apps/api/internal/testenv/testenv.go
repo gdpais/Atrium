@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -23,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/yaml.v3"
 
 	"heartbeat/apps/api/internal/redis"
@@ -98,6 +100,23 @@ func Postgres(t *testing.T) (Container, store.Config) {
 	return c, store.Config{
 		Host: host, Port: port, Database: "heartbeat", SSLMode: "disable", CredentialRef: PostgresRef,
 	}
+}
+
+// MigratedPostgres starts PostgreSQL as [Postgres] does, applies every
+// migration, and returns a pool on it that is closed when the test ends.
+func MigratedPostgres(t *testing.T) (Container, store.Config, *pgxpool.Pool) {
+	t.Helper()
+	c, cfg := Postgres(t)
+	resolver := Resolver{PostgresRef: c.Credential}
+	if _, err := store.MigrateUp(context.Background(), cfg, resolver, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := store.NewPool(cfg, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return c, cfg, pool
 }
 
 // Valkey starts Valkey with a password (the "default" user's) and returns

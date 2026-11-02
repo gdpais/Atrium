@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbeat.local/schemas/audit_record.schema.json",
+  "title": "Heartbeat Audit Record",
+  "description": "One admin or operator change (ADR 0016): the body of an OTLP log record with service.name heartbeat-api and event.name heartbeat.audit. Secrets never appear in it: before and after hold credential references, never passwords, password hashes, session IDs or tokens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "time", "request_id", "actor", "action", "entity_type", "entity_id", "before", "after"],
+  "properties": {
+    "id": {
+      "description": "Unique per record; a record delivered twice has the same id (also the log record's log.record.uid attribute).",
+      "type": "string",
+      "format": "uuid"
+    },
+    "time": {
+      "description": "When the change was made, in UTC.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "request_id": {
+      "description": "The request, or the command run, that made the change.",
+      "type": "string",
+      "minLength": 1
+    },
+    "actor": {
+      "description": "Who made the change: a logged-in user, or an administrative command run in an API container.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "user_id", "email"],
+          "properties": {
+            "type": {"const": "user"},
+            "user_id": {"type": "string", "format": "uuid"},
+            "email": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "command"],
+          "properties": {
+            "type": {"const": "cli"},
+            "command": {"type": "string", "minLength": 1},
+            "host": {"description": "The host the command ran on: the pod's name.", "type": "string"}
+          }
+        }
+      ]
+    },
+    "action": {
+      "description": "What was done, such as create.",
+      "type": "string",
+      "pattern": "^[a-z][a-z_]*$"
+    },
+    "entity_type": {
+      "description": "What the change is about, such as user.",
+      "type": "string",
+      "pattern": "^[a-z][a-z_]*$"
+    },
+    "entity_id": {
+      "description": "Which one.",
+      "type": "string",
+      "minLength": 1
+    },
+    "before": {
+      "description": "The entity before the change; null when it was created.",
+      "type": ["object", "null"]
+    },
+    "after": {
+      "description": "The entity after the change; null when it was deleted.",
+      "type": ["object", "null"]
+    },
+    "config_version": {
+      "description": "The runtime config version the change concerns, when it concerns runtime config.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "not": {
+    "properties": {"before": {"type": "null"}, "after": {"type": "null"}}
+  }
+}

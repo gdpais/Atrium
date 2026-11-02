@@ -3,12 +3,13 @@
 //
 // Usage:
 //
-//	api                  serve the HTTP API until SIGINT or SIGTERM
-//	api migrate up       apply the migrations in db/migrations, then exit
-//	api migrate version  print the database's schema version, then exit
+//	api                                          serve the HTTP API until SIGINT or SIGTERM
+//	api migrate up                               apply the migrations in db/migrations, then exit
+//	api migrate version                          print the database's schema version, then exit
+//	api users create-admin --email A [--name N]  create an admin with the password on standard input
 //
 // `api migrate up` is what the API's init container runs before the API
-// starts; it needs only the PostgreSQL settings.
+// starts. The migrate and users commands need only the PostgreSQL settings.
 //
 // Environment variables:
 //
@@ -22,11 +23,13 @@
 //	HEARTBEAT_API_REDIS_ADDR               Redis (Valkey) host:port (required)
 //	HEARTBEAT_API_REDIS_TLS                true or false (default true)
 //	HEARTBEAT_API_REDIS_CREDENTIAL_REF     credential reference of the login (default "secret/api-redis")
+//	HEARTBEAT_API_AUDIT_ENDPOINT           OTLP/HTTP base URL audit records are sent to, such as
+//	                                       http://otel-collector:4318 (default: none; they wait in the outbox)
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
 // Its own telemetry reads the variables package telemetry lists; the migrate
-// commands send none.
+// and users commands send none.
 package main
 
 import (
@@ -36,6 +39,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"slices"
@@ -66,17 +70,18 @@ const (
 	envRedisAddr             = "HEARTBEAT_API_REDIS_ADDR"
 	envRedisTLS              = "HEARTBEAT_API_REDIS_TLS"
 	envRedisCredentialRef    = "HEARTBEAT_API_REDIS_CREDENTIAL_REF"
+	envAuditEndpoint         = "HEARTBEAT_API_AUDIT_ENDPOINT"
 	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
 )
 
 // errUsage marks a command line that names no command.
-var errUsage = errors.New(`usage: api | api migrate up | api migrate version`)
+var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password`)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	err := execute(ctx, os.Args[1:], logger, os.Stdout)
+	err := execute(ctx, os.Args[1:], logger, os.Stdin, os.Stdout)
 	stop()
 	switch {
 	case errors.Is(err, errUsage):
@@ -89,7 +94,7 @@ func main() {
 }
 
 // execute runs the command args name.
-func execute(ctx context.Context, args []string, logger *slog.Logger, stdout io.Writer) error {
+func execute(ctx context.Context, args []string, logger *slog.Logger, stdin io.Reader, stdout io.Writer) error {
 	switch {
 	case len(args) == 0:
 		cfg, err := loadConfig()
@@ -137,6 +142,8 @@ func execute(ctx context.Context, args []string, logger *slog.Logger, stdout io.
 		}
 		_, err = fmt.Fprintf(stdout, "%d\n", version)
 		return err
+	case len(args) >= 2 && args[0] == "users" && args[1] == "create-admin":
+		return createAdmin(ctx, args[2:], logger, stdin)
 	}
 	return errUsage
 }
@@ -160,7 +167,23 @@ func loadConfig() (app.Config, error) {
 	if cfg.Redis, err = loadRedisConfig(); err != nil {
 		return app.Config{}, err
 	}
+	if cfg.AuditEndpoint, err = auditEndpoint(os.Getenv(envAuditEndpoint)); err != nil {
+		return app.Config{}, fmt.Errorf("%s: %w", envAuditEndpoint, err)
+	}
 	return cfg, nil
+}
+
+// auditEndpoint checks an OTLP/HTTP base URL, and drops a /v1/logs the
+// value may end with, since the client adds it. Empty stays empty.
+func auditEndpoint(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	u, err := url.Parse(value)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("%q: want an http or https URL such as http://otel-collector:4318, without credentials or a query", value)
+	}
+	return strings.TrimSuffix(strings.TrimRight(value, "/"), "/v1/logs"), nil
 }
 
 // loadMigrateConfig reads what `api migrate` needs: the PostgreSQL settings
