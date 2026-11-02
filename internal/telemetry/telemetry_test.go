@@ -153,13 +153,17 @@ func TestLogsCarryTheTraceContext(t *testing.T) {
 	ctx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled,
 	}))
+	unsampled := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{7, 8, 9}, SpanID: trace.SpanID{1, 1, 1},
+	}))
 	tel.Logger.InfoContext(ctx, "in a span")
 	tel.Logger.Info("outside a span")
+	tel.Logger.InfoContext(unsampled, "in a span Tempo never gets")
 	shutdown(t, tel)
 
 	records := r.records()
-	if len(records) != 2 {
-		t.Fatalf("got %d records, want 2", len(records))
+	if len(records) != 3 {
+		t.Fatalf("got %d records, want 3", len(records))
 	}
 	if !bytes.Equal(records[0].TraceId, traceID[:]) || !bytes.Equal(records[0].SpanId, spanID[:]) {
 		t.Errorf("trace = %x span = %x", records[0].TraceId, records[0].SpanId)
@@ -167,8 +171,12 @@ func TestLogsCarryTheTraceContext(t *testing.T) {
 	if records[1].TraceId != nil {
 		t.Errorf("record outside a span has trace ID %x", records[1].TraceId)
 	}
+	// Its trace is not stored, so Grafana's link from the log would find nothing.
+	if records[2].TraceId != nil {
+		t.Errorf("record in an unsampled span has trace ID %x", records[2].TraceId)
+	}
 	lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
-	if !strings.Contains(lines[0], `"trace_id":"`+traceID.String()+`"`) || strings.Contains(lines[1], "trace_id") {
+	if !strings.Contains(lines[0], `"trace_id":"`+traceID.String()+`"`) || strings.Contains(lines[1], "trace_id") || strings.Contains(lines[2], "trace_id") {
 		t.Errorf("stderr = %q", lines)
 	}
 }
