@@ -23,6 +23,7 @@ import (
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
+	"heartbeat/internal/telemetry"
 )
 
 // Config holds the top-level runtime parameters for the API service.
@@ -41,6 +42,8 @@ type Config struct {
 	// Logger receives structured service logs. When nil, Run logs JSON to
 	// stderr.
 	Logger *slog.Logger
+	// Telemetry, when set, adds its metrics to the service's registry.
+	Telemetry *telemetry.Telemetry
 }
 
 // timeouts bounds every blocking step of serving and shutdown.
@@ -87,6 +90,9 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	}
 	registry, requestMetrics, err := newRegistry()
 	if err != nil {
+		return runDeps{}, err
+	}
+	if err := cfg.Telemetry.Register(registry); err != nil {
 		return runDeps{}, err
 	}
 	checks, closeDeps, err := connect(cfg, logger)
