@@ -38,7 +38,7 @@ func TestPostgresFixtureIsDisposable(t *testing.T) {
 	if pg.ContainerName != "" || pg.NetworkMode != "" || len(pg.Ports) != 0 {
 		t.Fatal("test PostgreSQL must not use globally named containers or host networking/ports")
 	}
-	if len(pg.Tmpfs) != 1 || pg.Tmpfs[0] != "/var/lib/postgresql/data" {
+	if len(pg.Tmpfs) != 1 || pg.Tmpfs[0] != "/var/lib/postgresql" {
 		t.Fatal("test database storage must be disposable tmpfs")
 	}
 	if len(pg.Volumes) != 1 || pg.Volumes[0] != "../db/migrations:/migrations:ro" {
