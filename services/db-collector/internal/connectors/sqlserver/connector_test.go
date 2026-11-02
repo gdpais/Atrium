@@ -919,10 +919,12 @@ func secretForms(password string) []string {
 	}
 }
 
-// go-mssqldb parses the DSN when it connects, and its parse errors quote the
-// whole DSN.  A host that already carries a port makes the parse fail before
-// any dial, so the real driver reproduces the leak without a server.  Quotes
-// and backslashes in the host or login change how url.Error quotes the DSN.
+// go-mssqldb parses the DSN when it connects.  Before v1.11 its parse errors
+// were the *url.Error, quoting the whole DSN; since then they are a fixed
+// message, and this guards against a driver that leaks again.  A host that
+// already carries a port makes the parse fail before any dial, so the real
+// driver is exercised without a server.  Quotes and backslashes in the host
+// or login change how url.Error quotes the DSN.
 func TestOpenErrorsNeverContainCredentials(t *testing.T) {
 	for _, tc := range []struct {
 		name, host string
@@ -962,10 +964,7 @@ func TestOpenErrorsNeverContainCredentials(t *testing.T) {
 					}
 				}
 				var urlErr *url.Error
-				if !errors.As(err, &urlErr) {
-					t.Fatalf("error chain lost the *url.Error: %v", err)
-				}
-				if strings.Contains(urlErr.URL, "@") {
+				if errors.As(err, &urlErr) && strings.Contains(urlErr.URL, "@") {
 					t.Fatalf("url.Error.URL keeps userinfo: %q", urlErr.URL)
 				}
 			})

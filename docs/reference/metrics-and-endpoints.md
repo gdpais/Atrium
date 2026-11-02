@@ -451,7 +451,9 @@ Traces are in Tempo. A collection cycle is one trace, `collector.cycle` →
 `db.query` and `redis.<command>`. `/metrics` and the health endpoints make none.
 A client's `traceparent` is linked, not continued. Spans name what ran, never
 query values, command arguments or error text, which can name a host and a
-login; a log line in a span has its `trace_id`, and Grafana links the two ways.
+login. A log line in a sampled span has its `trace_id`, and Grafana links the
+two ways; a line in a span that was not sampled has none, since Tempo never
+gets that trace.
 
 #### What the telemetry costs
 
