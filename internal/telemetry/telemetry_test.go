@@ -176,6 +176,9 @@ func TestLogsCarryTheTraceContext(t *testing.T) {
 		t.Errorf("record in an unsampled span has trace ID %x", records[2].TraceId)
 	}
 	lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("stderr = %q, want 3 lines", lines)
+	}
 	if !strings.Contains(lines[0], `"trace_id":"`+traceID.String()+`"`) || strings.Contains(lines[1], "trace_id") || strings.Contains(lines[2], "trace_id") {
 		t.Errorf("stderr = %q", lines)
 	}
