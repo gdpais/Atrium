@@ -544,6 +544,9 @@ type pool struct {
 	// latest maps a target key (a pool key without the credential hash) to
 	// the most recently used initialised entry for that target.
 	latest map[poolKey]*poolEntry
+	// retired holds the wait counters of the handles each owner has closed,
+	// so its counters do not fall when a rotated credential's old handle goes.
+	retired map[poolOwner]sql.DBStats
 }
 
 // poolEntry is one handle, possibly still being initialised.  ready is closed
@@ -554,8 +557,10 @@ type poolEntry struct {
 	ready chan struct{}
 	db    *sql.DB
 	err   error
-	// owner is the target that opened the handle; it labels the pool metrics.
-	owner poolOwner
+	// owners are the targets that used the handle, with when each last did;
+	// one of them labels the pool metrics (see reportedOwner).  Guarded by
+	// pool.mu.
+	owners map[poolOwner]time.Time
 
 	// refs, lastUsed, login, checkedAt and rechecking are guarded by pool.mu.
 	refs     int
@@ -575,6 +580,7 @@ func newPool() *pool {
 		checkInterval: defaultLoginCheckInterval,
 		entries:       make(map[poolKey]*poolEntry),
 		latest:        make(map[poolKey]*poolEntry),
+		retired:       make(map[poolOwner]sql.DBStats),
 	}
 	if _, err := rand.Read(p.secret[:]); err != nil {
 		// crypto/rand.Read does not fail on supported platforms.
@@ -690,7 +696,7 @@ func (p *pool) acquire(ctx context.Context, key poolKey, owner poolOwner, create
 		stale := p.sweepLocked()
 		entry, ok := p.entries[key]
 		if !ok {
-			entry = &poolEntry{ready: make(chan struct{}), owner: owner}
+			entry = &poolEntry{ready: make(chan struct{}), owners: map[poolOwner]time.Time{owner: p.now()}}
 			p.entries[key] = entry
 			p.mu.Unlock()
 			closeHandles(stale)
@@ -699,6 +705,7 @@ func (p *pool) acquire(ctx context.Context, key poolKey, owner poolOwner, create
 		select {
 		case <-entry.ready:
 			p.useLocked(key, entry)
+			entry.owners[owner] = p.now()
 			due := p.claimRecheckLocked(entry)
 			previous := entry.login
 			p.mu.Unlock()
@@ -772,6 +779,7 @@ func (p *pool) sweepLocked() []*sql.DB {
 	var stale []*sql.DB
 	for key, entry := range p.entries {
 		if entry.db != nil && entry.refs == 0 && now.Sub(entry.lastUsed) >= p.idleTTL {
+			p.retireLocked(entry, now)
 			p.removeLocked(key, entry)
 			stale = append(stale, entry.db)
 		}

@@ -1,6 +1,7 @@
 package otlp
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -95,9 +96,11 @@ type ClientMetrics struct {
 	bytes                         prometheus.Counter
 }
 
-// observe records one attempt that sent size bytes and ended with err.
+// observe records one attempt that sent size bytes and ended with err.  An
+// attempt the caller cancelled, as at shutdown, says nothing about the
+// receiver and is not recorded.
 func (c *ClientMetrics) observe(err error, elapsed time.Duration, size int) {
-	if c == nil {
+	if c == nil || errors.Is(err, context.Canceled) {
 		return
 	}
 	c.duration.Observe(elapsed.Seconds())

@@ -2,6 +2,7 @@ package otlp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -72,5 +73,20 @@ func TestClientMetricsStartAtZero(t *testing.T) {
 	metrics.Client("c")
 	if got := testutil.CollectAndCount(metrics.attempts); got != len(exportOutcomes) {
 		t.Errorf("%d attempt series, want one per outcome at 0", got)
+	}
+}
+
+// Shutdown cancels the attempts in flight; that is not the receiver's doing.
+func TestCancelledAttemptsAreNotCounted(t *testing.T) {
+	metrics := NewMetrics()
+	client := metrics.Client("c")
+	client.observe(context.Canceled, time.Second, 10)
+	client.observe(fmt.Errorf("post: %w", context.Canceled), time.Second, 10)
+	if got := testutil.ToFloat64(metrics.attempts.WithLabelValues("c", outcomeRetryable)); got != 0 {
+		t.Errorf("retryable = %v, want 0", got)
+	}
+	client.observe(context.DeadlineExceeded, time.Second, 10)
+	if got := testutil.ToFloat64(metrics.attempts.WithLabelValues("c", outcomeRetryable)); got != 1 {
+		t.Errorf("a timed-out attempt is retryable: got %v", got)
 	}
 }
