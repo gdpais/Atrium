@@ -10,8 +10,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	collectorconfig "heartbeat/internal/config"
+	"heartbeat/internal/telemetry"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 )
+
+// tracer starts the spans of collection cycles.
+var tracer = telemetry.Tracer("heartbeat/collectors")
 
 // Per-probe self-observability metrics, maintained by [ProbeMetrics].
 const (

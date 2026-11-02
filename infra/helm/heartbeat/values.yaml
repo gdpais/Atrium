@@ -150,6 +150,13 @@ telemetry:
   # Loki label, and the environment label of heartbeat_service_info. Empty
   # leaves it out.
   environment: ""
+  # Spans go to the Collector's OTLP port, and on to Tempo.
+  traces:
+    enabled: true
+    # The share of traces kept, decided when a cycle or a request starts: each
+    # cycle or request is a whole trace or none. A span costs far less than the
+    # work it times, so this is about what Tempo stores.
+    sampleRatio: 0.1
 
 # Pod and container hardening for the Heartbeat workloads. The images
 # are distroless and run as the nonroot user. fsGroup makes the collector's

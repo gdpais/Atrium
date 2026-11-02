@@ -305,6 +305,22 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9_.-]*$",
           "description": "The environment Heartbeat itself runs in (deployment.environment.name). Empty leaves it out."
+        },
+        "traces": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Send the services' spans to the bundled OTel Collector, when it is on."
+            },
+            "sampleRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "The share of traces kept."
+            }
+          }
         }
       }
     },

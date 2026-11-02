@@ -261,7 +261,7 @@ func run(ctx context.Context, deps runDeps) error {
 	svc := newService(deps.configManager, lifecycle, logger, deps.cfg.AdminToken, deps.timeouts)
 	svc.warnings = startupWarnings(deps.cfg, logger)
 	svc.configMetrics = deps.configMetrics
-	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: deps.httpMetrics.Instrument(routes(deps.registry, svc)), ReadHeaderTimeout: 10 * time.Second}
+	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: telemetry.Traced(deps.httpMetrics.Instrument(routes(deps.registry, svc))), ReadHeaderTimeout: 10 * time.Second}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- server.Serve(listener) }()
 	logger.Info("http server listening", "addr", listener.Addr().String())

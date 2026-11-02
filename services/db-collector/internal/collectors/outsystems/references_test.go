@@ -1,6 +1,7 @@
 package outsystems
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,7 +56,8 @@ func registeredMetrics(t *testing.T) map[string]bool {
 	metrics.recounted(item, 1, 1)
 	metrics.recountRan(item)
 	metrics.recountFailed(item)
-	metrics.observeStage(item, stageRead, time.Now())
+	_, done := metrics.stage(context.Background(), item, stageRead)
+	done(nil)
 	observe := func(logType string, columns []string, row ...any) {
 		batch := Batch{Rows: [][]any{row}}
 		for _, name := range columns {

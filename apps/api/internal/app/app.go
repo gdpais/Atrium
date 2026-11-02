@@ -244,5 +244,5 @@ func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	api.Register(mux)
-	return metrics.Instrument(mux)
+	return telemetry.Traced(metrics.Instrument(mux))
 }

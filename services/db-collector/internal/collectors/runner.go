@@ -62,6 +62,10 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	collectorconfig "heartbeat/internal/config"
 	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
 	collectorexport "heartbeat/services/db-collector/internal/export"
@@ -452,7 +456,9 @@ func (r Runner) runCycle(ctx context.Context, collector collectorconfig.Collecto
 		result.Finished = started
 		return result
 	}
-	cycleCtx, cancel := cycleContext(ctx, collector.ScrapeInterval)
+	spanCtx, span := tracer.Start(ctx, "collector.cycle", trace.WithAttributes(attribute.String("heartbeat.collector", collector.ID), attribute.String("heartbeat.collector.kind", string(collector.Kind))))
+	defer span.End()
+	cycleCtx, cancel := cycleContext(spanCtx, collector.ScrapeInterval)
 	defer cancel()
 	groups := groupByTarget(scheduledProbes(collector))
 	result.Targets = make([]TargetResult, len(groups))
@@ -529,7 +535,15 @@ type probeRun struct {
 // probe that failed while others of the target succeeded backs off on its
 // own and does not run until its backoff ends, unless every probe of the
 // target is backing off, when they all run.  It never panics.
-func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, sem chan struct{}) TargetResult {
+func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, sem chan struct{}) (result TargetResult) {
+	ctx, span := tracer.Start(ctx, "collector.target", trace.WithAttributes(attribute.String("heartbeat.target", group.name)))
+	defer func() {
+		span.SetAttributes(attribute.String("heartbeat.target.state", string(result.State)))
+		if result.State == TargetFailed {
+			span.SetStatus(codes.Error, "target failed")
+		}
+		span.End()
+	}()
 	if acquire(ctx, sem) {
 		defer func() { <-sem }()
 	}
@@ -562,7 +576,7 @@ func (r Runner) runTarget(ctx context.Context, collector collectorconfig.Collect
 		evidence = append(evidence, items...)
 	}
 	r.publish(collector.ID, group.name, evidence)
-	return r.finishTarget(collector, group, tracker, cycleStart, runs, errors.Join(blocked...))
+	return r.finishTarget(ctx, collector, group, tracker, cycleStart, runs, errors.Join(blocked...))
 }
 
 // acquire takes a concurrency slot, giving up when ctx is done.
@@ -586,9 +600,12 @@ func acquire(ctx context.Context, sem chan struct{}) bool {
 // starts and ends.
 func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, item collectormetadata.ScheduledProbe) ([]collectormetadata.Evidence, error) {
 	scope := collectorexport.Scope{Collector: collector.ID, Target: item.Target.Name, Probe: item.Definition.Name}
+	ctx, span := tracer.Start(ctx, "collector.probe", trace.WithAttributes(attribute.String("heartbeat.probe", item.Definition.Name)))
+	defer span.End()
 	samples, evidence, err := r.executeProbe(ctx, item, collector.ScrapeInterval)
 	if errors.Is(err, ErrBlocked) {
-		r.log().Debug("probe blocked",
+		span.SetAttributes(attribute.Bool("heartbeat.probe.blocked", true))
+		r.log().DebugContext(ctx, "probe blocked",
 			"collector", scope.Collector,
 			"target", scope.Target,
 			"probe", scope.Probe,
@@ -597,6 +614,9 @@ func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.Co
 		return evidence, err
 	}
 	if err != nil {
+		// Not the error's text, which can name the host and the login. The log
+		// line of the same trace has it.
+		span.SetStatus(codes.Error, "probe failed")
 		r.clearScope(scope)
 		return nil, err
 	}
@@ -879,7 +899,7 @@ func (c *probeCalls) finish(item collectormetadata.ScheduledProbe, call *probeCa
 // target [TargetBlocked].  The target fails only when every probe that ran
 // failed; otherwise its failing probes back off on their own and it is
 // [TargetDegraded], a success of the target.
-func (r Runner) finishTarget(collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, runs []probeRun, blocked error) TargetResult {
+func (r Runner) finishTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, runs []probeRun, blocked error) TargetResult {
 	var errs []error
 	ran, failed := 0, 0
 	for _, run := range runs {
@@ -896,7 +916,7 @@ func (r Runner) finishTarget(collector collectorconfig.CollectorRuntimeConfig, g
 	// others' backoffs, and they all run on the target's next attempt.
 	if failed > 0 && failed == ran {
 		tracker.resetProbes(group.name)
-		return r.failTarget(collector, group, tracker, cycleStart, runs, errors.Join(errs...))
+		return r.failTarget(ctx, collector, group, tracker, cycleStart, runs, errors.Join(errs...))
 	}
 	var probes []ProbeResult
 	for _, run := range runs {
@@ -908,7 +928,7 @@ func (r Runner) finishTarget(collector collectorconfig.CollectorRuntimeConfig, g
 			errs = append(errs, run.waiting.lastErr)
 		case run.err != nil:
 			state, backoff := tracker.probeFail(group.name, name, cycleStart, collector.ScrapeInterval, run.err)
-			r.logProbeFailure(collector.ID, run, state.consecutiveFailures,
+			r.logProbeFailure(ctx, collector.ID, run, state.consecutiveFailures,
 				"target_state", TargetDegraded,
 				"backoff", backoff.String(),
 				"next_attempt", state.nextAttempt)
@@ -946,8 +966,8 @@ func (r Runner) finishTarget(collector collectorconfig.CollectorRuntimeConfig, g
 // logProbeFailure logs a probe that failed in this cycle with the failure
 // count that applies to it: its target's when the target failed, its own
 // when it backs off on its own.  attrs say which.
-func (r Runner) logProbeFailure(collectorID string, run probeRun, failures int, attrs ...any) {
-	r.log().Warn("probe failed", append([]any{
+func (r Runner) logProbeFailure(ctx context.Context, collectorID string, run probeRun, failures int, attrs ...any) {
+	r.log().WarnContext(ctx, "probe failed", append([]any{
 		"collector", collectorID,
 		"target", run.item.Target.Name,
 		"probe", run.item.Definition.Name,
@@ -958,14 +978,14 @@ func (r Runner) logProbeFailure(collectorID string, run probeRun, failures int, 
 
 // failTarget records a cycle in which every probe of the target that ran
 // failed: it logs each failure, and the target backs off as a whole.
-func (r Runner) failTarget(collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, runs []probeRun, err error) TargetResult {
+func (r Runner) failTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, runs []probeRun, err error) TargetResult {
 	state, backoff := tracker.fail(group.name, cycleStart, collector.ScrapeInterval, err)
 	for _, run := range runs {
 		if run.err != nil {
-			r.logProbeFailure(collector.ID, run, state.consecutiveFailures, "target_state", TargetFailed)
+			r.logProbeFailure(ctx, collector.ID, run, state.consecutiveFailures, "target_state", TargetFailed)
 		}
 	}
-	r.log().Warn("target failed",
+	r.log().WarnContext(ctx, "target failed",
 		"collector", collector.ID,
 		"target", group.name,
 		"consecutive_failures", state.consecutiveFailures,
@@ -1224,8 +1244,12 @@ func (e SQLExecutor) RunProbe(ctx context.Context, item collectormetadata.Schedu
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, timeoutFor(item))
 	defer cancel()
+	probeCtx, span := tracer.Start(probeCtx, "db.query", trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(
+		attribute.String("db.system.name", "microsoft.sql_server"), attribute.String("db.query.summary", item.Definition.Name)))
+	defer span.End()
 	rows, err := db.QueryContext(probeCtx, probeQuery(item, probe))
 	if err != nil {
+		span.SetStatus(codes.Error, "query failed")
 		return nil, nil, fmt.Errorf("query probe: %w", err)
 	}
 	// Closing rows early cancels the query: the driver tells the server to
@@ -1233,8 +1257,10 @@ func (e SQLExecutor) RunProbe(ctx context.Context, item collectormetadata.Schedu
 	defer rows.Close()
 	maps, err := readRows(rows, maxRowsFor(item))
 	if err != nil {
+		span.SetStatus(codes.Error, "reading rows failed")
 		return nil, nil, err
 	}
+	span.SetAttributes(attribute.Int("db.response.returned_rows", len(maps)))
 	return decodeRows(item, probe, maps), buildEvidence(item, probe, maps), nil
 }
 

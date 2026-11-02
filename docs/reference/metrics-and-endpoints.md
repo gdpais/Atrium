@@ -387,6 +387,7 @@ Both services expose these
 | --- | --- | --- | --- |
 | `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
 | `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
+| `heartbeat_telemetry_trace_errors_total` | counter | none | Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest |
 | `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, or `outsystems` on the collector. Created at 0 |
 | `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
 | `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
@@ -397,6 +398,15 @@ The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 ```logql
 {service_namespace="heartbeat", service_name="db-collector"} | detected_level="error"
 ```
+
+Traces are in Tempo. A collection cycle is one trace, `collector.cycle` →
+`collector.target` → `collector.probe` → `db.query` or the `outsystems.read`,
+`outsystems.build`, `outsystems.export`, `outsystems.derive` and
+`outsystems.watermark` steps of a batch. An API request is `<method> <route>` →
+`db.query` and `redis.<command>`. `/metrics` and the health endpoints make none.
+A client's `traceparent` is linked, not continued. Spans name what ran, never
+query values, command arguments or error text, which can name a host and a
+login; a log line in a span has its `trace_id`, and Grafana links the two ways.
 
 ### Prometheus scrape jobs and rules
 

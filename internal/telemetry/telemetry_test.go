@@ -92,7 +92,7 @@ func shutdown(t *testing.T, tel *Telemetry) {
 	tel.Shutdown(ctx)
 }
 
-func attribute(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
+func recordAttr(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
 	for _, a := range attrs {
 		if a.Key == key {
 			return a.Value
@@ -118,13 +118,13 @@ func TestLogsReachStderrAndTheCollector(t *testing.T) {
 	if record.Body.GetStringValue() != "hello" || record.SeverityNumber != logspb.SeverityNumber_SEVERITY_NUMBER_WARN || record.TimeUnixNano == 0 {
 		t.Errorf("record = %v", record)
 	}
-	if got := attribute(record.Attributes, "a").GetIntValue(); got != 1 {
+	if got := recordAttr(record.Attributes, "a").GetIntValue(); got != 1 {
 		t.Errorf("a = %d, want 1", got)
 	}
-	if got := attribute(record.Attributes, "g.b").GetStringValue(); got != "two" {
+	if got := recordAttr(record.Attributes, "g.b").GetStringValue(); got != "two" {
 		t.Errorf("g.b = %q, want two", got)
 	}
-	if got := attribute(record.Attributes, "g.d").GetStringValue(); got != "3s" {
+	if got := recordAttr(record.Attributes, "g.d").GetStringValue(); got != "3s" {
 		t.Errorf("g.d = %q, want 3s", got)
 	}
 	res := r.logs[0].Resource.Attributes
@@ -134,7 +134,7 @@ func TestLogsReachStderrAndTheCollector(t *testing.T) {
 		"service.version":             "dev",
 		"deployment.environment.name": "test",
 	} {
-		if got := attribute(res, key).GetStringValue(); got != want {
+		if got := recordAttr(res, key).GetStringValue(); got != want {
 			t.Errorf("resource %s = %q, want %q", key, got, want)
 		}
 	}
@@ -184,10 +184,10 @@ func TestStringsAreCutAndValidUTF8(t *testing.T) {
 	if body := records[0].Body.GetStringValue(); !utf8.ValidString(body) {
 		t.Errorf("body %q is not valid UTF-8", body)
 	}
-	if got := len(attribute(records[0].Attributes, "long").GetStringValue()); got != maxValueBytes {
+	if got := len(recordAttr(records[0].Attributes, "long").GetStringValue()); got != maxValueBytes {
 		t.Errorf("long is %d bytes, want %d", got, maxValueBytes)
 	}
-	if got := attribute(records[0].Attributes, "bad�key").GetIntValue(); got != 1 {
+	if got := recordAttr(records[0].Attributes, "bad�key").GetIntValue(); got != 1 {
 		t.Errorf("bad�key = %d, want 1", got)
 	}
 	if !strings.Contains(stderr.String(), strings.Repeat("x", 2*maxValueBytes)) {

@@ -1,7 +1,7 @@
 // Package telemetry is what every Heartbeat service does about its own
 // observability (ADR 0018): one identity for its signals, a build-info metric,
-// its logs sent over OTLP as well as written to stderr, and an optional pprof
-// listener.
+// its logs sent over OTLP as well as written to stderr, its traces, and an
+// optional pprof listener.
 //
 // Metrics stay on each service's Prometheus registry; [Telemetry.Register]
 // adds this package's series to it. Nothing here may stop a service from
@@ -18,6 +18,7 @@
 //	                                  logs pipeline is the OutSystems delivery
 //	                                  path, which a service's own logs must not
 //	                                  share
+//	OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  where spans go; see [EnvTracesEndpoint]
 //	OTEL_RESOURCE_ATTRIBUTES          deployment.environment.name is read from it
 //	OTEL_SDK_DISABLED                 true turns the OTLP export off
 //	HEARTBEAT_PPROF_ADDR              loopback address of the pprof listener; unset
@@ -95,6 +96,9 @@ type Telemetry struct {
 	records *prometheus.CounterVec
 	otlp    *otlp.Metrics
 	pprof   *http.Server
+
+	traceErrors prometheus.Counter
+	stopTraces  func(context.Context)
 }
 
 // Start builds the service's logger from the environment and starts what it
@@ -110,6 +114,10 @@ func Start(service string, stderr io.Writer) *Telemetry {
 			Name: MetricLogRecords,
 			Help: "Log records the service tried to send over OTLP, by outcome.",
 		}, []string{"outcome"}),
+		traceErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricTraceExportErrors,
+			Help: "Errors the tracing SDK reported, mostly batches of spans it could not send.",
+		}),
 	}
 	for _, outcome := range logOutcomes {
 		t.records.WithLabelValues(outcome)
@@ -118,6 +126,7 @@ func Start(service string, stderr io.Writer) *Telemetry {
 		t.logs = newLogQueue(endpoint, t.Identity, t.records, t.otlp.Client(selfLogsClient), diagnostics)
 		go t.logs.run()
 	}
+	t.stopTraces = startTraces(t.Identity, t.traceErrors, diagnostics)
 	t.Logger = slog.New(&handler{base: base, queue: t.logs})
 	t.pprof = startPprof(os.Getenv(EnvPprofAddr), diagnostics)
 	return t
@@ -133,7 +142,7 @@ func (t *Telemetry) Register(registerer prometheus.Registerer) error {
 		Help: "Always 1: the service, version, revision and environment that are running.",
 	}, []string{"service", "version", "revision", "environment"})
 	info.WithLabelValues(t.Identity.Service, t.Identity.Version, t.Identity.Revision, t.Identity.Environment).Set(1)
-	errs := []error{registerer.Register(info), registerer.Register(t.records)}
+	errs := []error{registerer.Register(info), registerer.Register(t.records), registerer.Register(t.traceErrors)}
 	for _, collector := range t.otlp.Collectors() {
 		errs = append(errs, registerer.Register(collector))
 	}
@@ -149,13 +158,16 @@ func (t *Telemetry) OTLPClient(name string) *otlp.ClientMetrics {
 	return t.otlp.Client(name)
 }
 
-// Shutdown sends the logs still queued and stops the pprof listener, waiting
-// until ctx ends at most. Records that do not make it are counted as dropped.
-// The logs go first: a CPU profile in flight holds the listener for its whole
+// Shutdown sends the spans and logs still queued and stops the pprof listener,
+// waiting until ctx ends at most. Records that do not make it are counted as
+// dropped. These go first: a CPU profile in flight holds the listener for its whole
 // duration, and would spend all of ctx.
 func (t *Telemetry) Shutdown(ctx context.Context) {
 	if t == nil {
 		return
+	}
+	if t.stopTraces != nil {
+		t.stopTraces(ctx)
 	}
 	if t.logs != nil {
 		t.logs.shutdown(ctx)

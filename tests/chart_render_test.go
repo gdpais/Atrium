@@ -1470,6 +1470,16 @@ func checkSelfLogs(t *testing.T, objects map[string]object, off bool) {
 	if endpoint != want {
 		t.Errorf("collector OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = %q, want %q", endpoint, want)
 	}
+	wantTraces := "http://otel-collector:4318/v1/traces"
+	if off {
+		wantTraces = ""
+	}
+	if got, _ := collectorEnv(t, objects, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); got != wantTraces {
+		t.Errorf("collector OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = %q, want %q", got, wantTraces)
+	}
+	if got, _ := collectorEnv(t, objects, "OTEL_TRACES_SAMPLER"); !off && got != "parentbased_traceidratio" {
+		t.Errorf("collector OTEL_TRACES_SAMPLER = %q, want parentbased_traceidratio", got)
+	}
 	var relay struct {
 		Exporters map[string]struct {
 			Endpoint     string `yaml:"endpoint"`

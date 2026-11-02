@@ -55,8 +55,8 @@ answer: services emit only OTLP and Prometheus exposition.
    the collector's binary from 21.1 MB to 26.8 MB and brings gRPC into the build,
    which the OTLP logs client had kept out. That is accepted: a hand-written span
    exporter is more code to own for a binary size that costs nothing at run time.
-   Sampling is parent-based by ratio: everything on kind, 10% in the production
-   example.
+   Sampling is parent-based by ratio, set by `telemetry.traces.sampleRatio`: 10%
+   by default, everything on kind.
 
 5. **Tempo stores traces,** in single-binary mode, in the `full` profile and off
    in `minimal`. Heartbeat is the first trace source, so TODO 3.6 comes before

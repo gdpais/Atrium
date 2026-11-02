@@ -1,14 +1,19 @@
 package outsystems
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	collectorconfig "heartbeat/internal/config"
+	"heartbeat/internal/telemetry"
 	collectormetadata "heartbeat/services/db-collector/internal/metadata"
 )
 
@@ -220,6 +225,26 @@ func (m *Metrics) forgetCollector(collectorID string) {
 	m.derived.forget(collectorID)
 }
 
+// tracer starts the spans of a batch's steps.
+var tracer = telemetry.Tracer("heartbeat/outsystems")
+
+// stage starts one step of a batch, as a span and for [MetricStageDuration].
+// The function it returns ends it, with err marking a failed one.  A nil
+// *Metrics still traces.
+func (m *Metrics) stage(ctx context.Context, item collectormetadata.ScheduledProbe, stage string) (context.Context, func(err error)) {
+	began := time.Now()
+	ctx, span := tracer.Start(ctx, "outsystems."+stage, trace.WithAttributes(attribute.String("heartbeat.log_type", item.Definition.Name)))
+	return ctx, func(err error) {
+		if err != nil {
+			// Not the error's text, which can name the host and the login.
+			span.SetStatus(codes.Error, stage+" failed")
+		}
+		span.End()
+		m.observeStage(item, stage, began)
+	}
+}
+
+// observeStage records the time of one step since began.
 func (m *Metrics) observeStage(item collectormetadata.ScheduledProbe, stage string, began time.Time) {
 	if m == nil {
 		return

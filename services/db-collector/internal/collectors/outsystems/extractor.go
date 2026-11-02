@@ -232,12 +232,12 @@ func (e *Executor) extractBatch(ctx context.Context, item collectormetadata.Sche
 	}
 	// Not waiting, for the budget or an export (none is pending here).
 	e.Metrics.setExportBlocked(item, false)
-	began := time.Now()
-	batch, err := e.Source.Query(ctx, item.Target, query, QueryParams{
+	readCtx, read := e.Metrics.stage(ctx, item, stageRead)
+	batch, err := e.Source.Query(readCtx, item.Target, query, QueryParams{
 		From: watermark.Instant, To: to, Limit: settings.BatchLimit, MaxBytes: granted,
 		DateTime: watermark.InstantType == "DATETIME",
 	})
-	e.Metrics.observeStage(item, stageRead, began)
+	read(err)
 	// Hold what the batch holds until its export ends, or nothing if no
 	// export starts.
 	held := batch.Bytes
@@ -265,7 +265,7 @@ func (e *Executor) extractBatch(ctx context.Context, item collectormetadata.Sche
 	}
 	*watermark = Watermark{Instant: next, InstantType: instantType, Source: watermark.Source}
 	if len(rows) > 0 {
-		began = time.Now()
+		_, built := e.Metrics.stage(ctx, item, stageBuild)
 		logs := buildLogs(batch, rows, instants, recordContext{
 			collector:   item.CollectorID,
 			target:      item.Target.Name,
@@ -274,16 +274,16 @@ func (e *Executor) extractBatch(ctx context.Context, item collectormetadata.Sche
 			location:    location,
 			observed:    now,
 		})
-		e.Metrics.observeStage(item, stageBuild, began)
+		built(nil)
 		// The export releases the batch's bytes when it ends.
 		held = 0
-		e.startExport(item, key, logs, batch, rows, instants, *watermark, location)
+		e.startExport(ctx, item, key, logs, batch, rows, instants, *watermark, location)
 		return full, nil
 	}
 	e.Metrics.setLag(item, now.Sub(Real(next, location)))
-	began = time.Now()
+	_, saved := e.Metrics.stage(ctx, item, stageWatermark)
 	err = e.Store.Save(key, *watermark, now)
-	e.Metrics.observeStage(item, stageWatermark, began)
+	saved(err)
 	if err != nil {
 		return false, fmt.Errorf("log type %s: the watermark is only kept in memory: %w", item.Definition.Name, err)
 	}
