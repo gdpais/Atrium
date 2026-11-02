@@ -56,6 +56,8 @@ const (
 	maxValueBytes = 4 << 10
 	// warnInterval limits the warnings a failing export writes to stderr.
 	warnInterval = time.Minute
+	// selfLogsClient is the client label of the export's OTLP metrics.
+	selfLogsClient = "self-logs"
 	// scopeName is the instrumentation scope of the records.
 	scopeName = "heartbeat/internal/telemetry"
 )
@@ -224,11 +226,12 @@ type logQueue struct {
 	lastWarn time.Time
 }
 
-func newLogQueue(endpoint string, identity Identity, records *prometheus.CounterVec, diagnostics *slog.Logger) *logQueue {
+func newLogQueue(endpoint string, identity Identity, records *prometheus.CounterVec, metrics *otlp.ClientMetrics, diagnostics *slog.Logger) *logQueue {
 	client := otlp.NewClient()
 	client.HTTP = &http.Client{Timeout: exportTimeout}
 	client.MaxAttempts = exportAttempts
 	client.Logger = diagnostics
+	client.Metrics = metrics
 	ctx, cancel := context.WithCancel(context.Background())
 	return &logQueue{
 		client:      client,

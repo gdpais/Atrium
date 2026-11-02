@@ -331,6 +331,9 @@ type targetTracker struct {
 	probes  map[probeKey]probeState
 	now     func() time.Time
 	jitter  func() float64 // uniform in [0, 1)
+	// lastCycleStart is when the previous cycle started; only the Poller's own
+	// goroutine reads and writes it, between cycles.
+	lastCycleStart time.Time
 }
 
 func newTargetTracker() *targetTracker {
@@ -472,6 +475,9 @@ func (r Runner) runCycle(ctx context.Context, collector collectorconfig.Collecto
 	wg.Wait()
 	result.Finished = tracker.now()
 	r.recordCycle(collector.ID, result.Finished.Sub(started))
+	if !errors.Is(ctx.Err(), context.Canceled) {
+		r.metrics.observeCycle(collector.ID, result.Finished.Sub(started), collector.ScrapeInterval)
+	}
 	return result
 }
 
@@ -1522,11 +1528,16 @@ func (p Poller) Start(ctx context.Context) error {
 // cycle is logged and reported as a failure of every scheduled target.
 func (p Poller) cycle(ctx context.Context, tracker *targetTracker) {
 	started := tracker.now()
+	if !tracker.lastCycleStart.IsZero() {
+		p.Runner.metrics.observeStartDelay(p.Collector.ID, started.Sub(tracker.lastCycleStart)-p.Collector.ScrapeInterval)
+	}
+	tracker.lastCycleStart = started
 	var result CycleResult
 	attrs := []any{"collector", p.Collector.ID}
 	if err := p.Runner.protect("collector cycle", attrs, func() {
 		result = p.Runner.runCycle(ctx, p.Collector, tracker)
 	}); err != nil {
+		p.Runner.metrics.cyclePanicked(p.Collector.ID)
 		result = failedCycle(p.Collector, tracker, started, err)
 	}
 	if p.Report == nil {

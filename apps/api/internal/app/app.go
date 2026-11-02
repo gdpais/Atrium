@@ -95,7 +95,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	if err := cfg.Telemetry.Register(registry); err != nil {
 		return runDeps{}, err
 	}
-	checks, closeDeps, err := connect(cfg, logger)
+	checks, closeDeps, err := connect(cfg, logger, registry)
 	if err != nil {
 		return runDeps{}, err
 	}
@@ -117,14 +117,14 @@ const (
 )
 
 // connect creates the PostgreSQL pool and the Redis client, without
-// connecting, and returns their readiness checks and a function that closes
-// both.
+// connecting, registers their pool metrics, and returns their readiness checks
+// and a function that closes both.
 //
 // The PostgreSQL check passes when a query reaches the database and its
 // schema is at least the newest migration this build embeds, so a replica
 // started before `api migrate up` has run stays out of its Service. The
 // Redis check is a PING.
-func connect(cfg Config, logger *slog.Logger) ([]httpapi.Check, func(), error) {
+func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) ([]httpapi.Check, func(), error) {
 	resolver := credentials.Files{Dir: cfg.CredentialsDir, Fallback: credentials.Env{}}
 	want, err := store.LatestVersion()
 	if err != nil {
@@ -138,6 +138,11 @@ func connect(cfg Config, logger *slog.Logger) ([]httpapi.Check, func(), error) {
 	if err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("redis: %w", err)
+	}
+	if err := registerer.Register(poolCollector{postgres: pool.Stat, redis: client.PoolStats}); err != nil {
+		pool.Close()
+		_ = client.Close()
+		return nil, nil, err
 	}
 	logger.Info("dependencies configured",
 		"postgresql_host", cfg.Postgres.Host, "postgresql_port", cfg.Postgres.Port,
@@ -164,7 +169,7 @@ type runDeps struct {
 	logger   *slog.Logger
 	registry *prometheus.Registry
 	// requestMetrics, when set, records every request.
-	requestMetrics *requestMetrics
+	requestMetrics *telemetry.HTTPMetrics
 	// checks are the readiness checks GET /readyz runs: PostgreSQL and
 	// Redis in production.
 	checks []httpapi.Check
@@ -235,12 +240,9 @@ func shutdown(server *http.Server, logger *slog.Logger, timeout time.Duration) {
 // /healthz, /readyz and every later operation come from apps/api/openapi.yaml
 // through httpapi.Server; /metrics is not part of the contract. Every request
 // is recorded in the request metrics, by the route that served it.
-func routes(registry *prometheus.Registry, metrics *requestMetrics, api *httpapi.Server) http.Handler {
+func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *httpapi.Server) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	api.Register(mux)
-	if metrics == nil {
-		return mux
-	}
-	return metrics.instrument(mux)
+	return metrics.Instrument(mux)
 }

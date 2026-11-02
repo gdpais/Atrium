@@ -211,6 +211,13 @@ a failing `blocking` probe reads as 0. The catalog lives in
 | `heartbeat_collector_target_consecutive_failures` | gauge | `collector`, `environment`, `target` | Failed cycles in a row; a `degraded` cycle is not one |
 | `heartbeat_collector_target_last_success_timestamp_seconds` | gauge | `collector`, `environment`, `target` | Unix time of the last cycle that did not fail the target (`ok`, `blocked` or `degraded`); use it for freshness alerts, and `heartbeat_collector_probe_up` for a single probe |
 | `heartbeat_collector_cycle_duration_seconds` | gauge | `collector` | Duration of the last collection cycle |
+| `heartbeat_collector_cycle_seconds` | histogram | `collector` | Duration of every collection cycle; buckets 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
+| `heartbeat_collector_cycles_total` | counter | `collector`, `outcome` | Cycles by outcome: `on_time` (finished within its interval), `late` (used the whole interval: the deadline ended what was still running, and the next cycle starts late) or `panic`. Created at 0. A cycle ended by the collector stopping is not counted |
+| `heartbeat_collector_cycle_start_delay_seconds` | histogram | `collector` | How much later than the interval after the previous start a cycle started; buckets 10ms, 100ms, 500ms, 1s, 5s, 15s, 60s |
+| `heartbeat_collector_db_connections` | gauge | `environment`, `target`, `state` | Connections to a monitored database, `in_use` or `idle`. Read at each scrape, so a target's series go with its last connection pool. Targets that share a server and login share a pool, reported under whichever opened it first |
+| `heartbeat_collector_db_connection_waits_total`, `heartbeat_collector_db_connection_wait_seconds_total` | counter | `environment`, `target` | Waits for a free connection, and the time spent in them. A value lower than before is a new pool, as after a credential rotation |
+| `heartbeat_collector_http_requests_total` | counter | `method`, `route`, `code` | Requests to the collector's own endpoints, as [the API's](#api-requests) |
+| `heartbeat_collector_http_request_duration_seconds` | histogram | `method`, `route` | Time to serve them |
 | `heartbeat_collector_target_login_sysadmin` | gauge | `collector`, `environment`, `target` | 1 if the collector's login for the target is sysadmin-equivalent: a member of `sysadmin`, or holding `CONTROL SERVER` (it should be 0; see [login permissions](../guides/database-targets.md#collector-login-permissions)). Checked when the collector first connects to the target and about every 10 minutes after; absent until the first check, and while SQL Server cannot tell |
 | `heartbeat_collector_probe_duration_seconds` | histogram | `collector`, `environment`, `target`, `probe` | Probe execution time, failed and timed-out executions included (an abandoned probe is observed at the time it was abandoned); buckets 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
 | `heartbeat_collector_probe_errors_total` | counter | `collector`, `environment`, `target`, `probe`, `reason` | Failed probe executions. `reason` is one of `timeout` (probe timeout or cycle deadline reached while running, including a probe abandoned because it did not stop within 2s, or a database read or write that timed out), `error` (connection, login, query or decoding error, or more rows than the probe's `max_rows`), `not_started` (cycle deadline passed before the probe could start, or an abandoned probe of the target is still running), `panic`. Probes interrupted because the collector is stopping (shutdown or reload) are not counted |
@@ -284,6 +291,14 @@ the target as before.
 | `heartbeat_outsystems_recounts_total` | counter | Recounts run, failed ones included: one in each minute that has a poll |
 | `heartbeat_outsystems_recount_failures_total` | counter | Recounts that failed (query error, more than 1,000,000 rows in the window). Late and duplicate rows are not counted meanwhile; extraction goes on |
 
+Two more have other labels. `heartbeat_outsystems_stage_duration_seconds`
+(histogram; `collector`, `log_type`, `stage`) is the time of one step of a batch:
+`read` (the query), `build` (rows to OTLP records), `export` (until the OTel
+Collector accepted it, waiting for Loki included), `derive` (the derived metrics)
+and `watermark` (the save to disk); buckets 10ms to 300s, at most 440 series per
+collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the row data
+held in memory now, read, being exported or pending, against the 64 MiB allowed.
+
 **The recount.** Once a minute (in each minute that has a poll), each log type counts again, per minute of
 `Instant`, the rows its query returns in the `recount_window` (default 10
 minutes, [configuration](configuration.md#outsystems_logs-collectors)) behind
@@ -349,6 +364,11 @@ included. Not scraped yet: the API is not deployed.
 | --- | --- | --- | --- |
 | `heartbeat_api_http_requests_total` | counter | `method`, `route`, `code` | Requests served, by status code |
 | `heartbeat_api_http_request_duration_seconds` | histogram | `method`, `route` | Time from receiving a request to its handler returning; the Prometheus client's default buckets, 5ms to 10s |
+| `heartbeat_api_db_connections` | gauge | `state` | PostgreSQL pool connections: `in_use`, `idle` or `constructing` |
+| `heartbeat_api_db_connections_max` | gauge | none | The most connections the pool opens |
+| `heartbeat_api_db_connection_waits_total`, `heartbeat_api_db_connection_wait_seconds_total` | counter | none | Acquires that found no idle connection, and the time they waited |
+| `heartbeat_api_redis_connections` | gauge | `state` | Redis pool connections: `in_use` or `idle` |
+| `heartbeat_api_redis_connection_timeouts_total` | counter | none | Commands that gave up waiting for a connection from the pool |
 
 `route` is the pattern that served the request, without the method
 (`/readyz`; later `/api/v1/applications/{id}`, never the ID itself), or
@@ -366,6 +386,9 @@ Both services expose these
 | --- | --- | --- | --- |
 | `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
 | `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
+| `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, or `outsystems` on the collector. Created at 0 |
+| `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
+| `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
 
 The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 `service_name` (`db-collector`, `api`) and `deployment_environment_name`:

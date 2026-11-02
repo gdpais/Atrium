@@ -285,11 +285,13 @@ func (e *Executor) startExport(item collectormetadata.ScheduledProbe, key Waterm
 	s.mu.Unlock()
 	go func() {
 		defer s.wg.Done()
+		began := time.Now()
 		err := e.Exporter.Export(ctx, endpoint, logs)
 		metrics := e.Metrics
 		if !s.live(item.CollectorID) {
 			metrics = nil
 		}
+		metrics.observeStage(item, stageExport, began)
 		if err != nil {
 			metrics.exportFailed(item)
 			err = fmt.Errorf("log type %s: %w", key.LogType, err)
@@ -299,10 +301,15 @@ func (e *Executor) startExport(item collectormetadata.ScheduledProbe, key Waterm
 			// the watermark also sees the rows behind it.
 			e.recounts.delivered(key, instants)
 			metrics.addRows(item, len(rows))
+			began = time.Now()
 			metrics.observeRows(item, batch, rows, instants)
+			metrics.observeStage(item, stageDerive, began)
 			metrics.setLogDelay(item, now.Sub(Real(instants[len(instants)-1], location)))
 			metrics.setLag(item, now.Sub(Real(next.Instant, location)))
-			if saveErr := e.Store.Save(key, next, now); saveErr != nil {
+			began = time.Now()
+			saveErr := e.Store.Save(key, next, now)
+			metrics.observeStage(item, stageWatermark, began)
+			if saveErr != nil {
 				err = fmt.Errorf("log type %s: rows delivered, but the watermark is only kept in memory: %w", key.LogType, saveErr)
 			}
 		}

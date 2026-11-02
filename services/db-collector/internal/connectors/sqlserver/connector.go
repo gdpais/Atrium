@@ -248,7 +248,7 @@ func (m Manager) Open(ctx context.Context, target collectormetadata.DatabaseTarg
 		return db, func() { _ = db.Close() }, nil
 	}
 	key := m.pool.key(m, target, creds)
-	return m.pool.acquire(ctx, key,
+	return m.pool.acquire(ctx, key, poolOwner{environment: target.EnvironmentSlug, target: target.Name},
 		func(ctx context.Context) (*sql.DB, loginState, error) {
 			return m.connect(ctx, target, dsn, creds, true)
 		},
@@ -554,6 +554,8 @@ type poolEntry struct {
 	ready chan struct{}
 	db    *sql.DB
 	err   error
+	// owner is the target that opened the handle; it labels the pool metrics.
+	owner poolOwner
 
 	// refs, lastUsed, login, checkedAt and rechecking are guarded by pool.mu.
 	refs     int
@@ -678,7 +680,7 @@ func (p *pool) recheck(ctx context.Context, entry *poolEntry, previous loginStat
 // in-flight creation instead of starting their own.  When the entry's login
 // check is due, the one caller that claims it re-runs it with recheck, also
 // without holding p.mu, before returning.
-func (p *pool) acquire(ctx context.Context, key poolKey, create func(context.Context) (*sql.DB, loginState, error), recheck func(context.Context, *sql.DB, loginState) (loginState, error)) (*sql.DB, func(), error) {
+func (p *pool) acquire(ctx context.Context, key poolKey, owner poolOwner, create func(context.Context) (*sql.DB, loginState, error), recheck func(context.Context, *sql.DB, loginState) (loginState, error)) (*sql.DB, func(), error) {
 	for {
 		p.mu.Lock()
 		if p.closed {
@@ -688,7 +690,7 @@ func (p *pool) acquire(ctx context.Context, key poolKey, create func(context.Con
 		stale := p.sweepLocked()
 		entry, ok := p.entries[key]
 		if !ok {
-			entry = &poolEntry{ready: make(chan struct{})}
+			entry = &poolEntry{ready: make(chan struct{}), owner: owner}
 			p.entries[key] = entry
 			p.mu.Unlock()
 			closeHandles(stale)

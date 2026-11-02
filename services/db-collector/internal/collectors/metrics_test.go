@@ -255,3 +255,98 @@ func TestCanceledCycleCountsNoProbeErrors(t *testing.T) {
 		t.Fatalf("expected no probe errors for a canceled cycle, got %v", got)
 	}
 }
+
+func TestCycleMetrics(t *testing.T) {
+	metrics, reg := newTestProbeMetrics(t)
+	collector := collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true}
+	metrics.initCollector(collector)
+	if got := probeSeries(t, reg, MetricCycles); len(got) != len(CycleOutcomes) {
+		t.Fatalf("%s series before any cycle = %v, want one per outcome at 0", MetricCycles, got)
+	}
+
+	metrics.observeCycle("c", time.Second, 15*time.Second)
+	metrics.observeCycle("c", 2*time.Second, 15*time.Second)
+	metrics.observeCycle("c", 15*time.Second, 15*time.Second)
+	metrics.cyclePanicked("c")
+	metrics.observeStartDelay("c", 3*time.Second)
+	metrics.observeStartDelay("c", -time.Millisecond) // timer jitter
+
+	want := `
+# HELP heartbeat_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
+# TYPE heartbeat_collector_cycles_total counter
+heartbeat_collector_cycles_total{collector="c",outcome="late"} 1
+heartbeat_collector_cycles_total{collector="c",outcome="on_time"} 2
+heartbeat_collector_cycles_total{collector="c",outcome="panic"} 1
+`
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), MetricCycles); err != nil {
+		t.Error(err)
+	}
+	if got := testutil.CollectAndCount(metrics.cycleTime); got != 1 {
+		t.Errorf("%s has %d metrics, want 1", MetricCycleSeconds, got)
+	}
+	if got := testutil.CollectAndCount(metrics.startDelay); got != 1 {
+		t.Errorf("%s has %d metrics, want 1", MetricCycleStartDelay, got)
+	}
+
+	metrics.forgetCollector("c")
+	for _, name := range []string{MetricCycles, MetricCycleSeconds, MetricCycleStartDelay} {
+		if got := probeSeries(t, reg, name); len(got) != 0 {
+			t.Errorf("%s series after the collector stopped = %v", name, got)
+		}
+	}
+}
+
+// A Poller reports how late each cycle after the first started, and a panic
+// in a cycle is counted instead of being lost.
+func TestPollerRecordsCycles(t *testing.T) {
+	metrics, reg := newTestProbeMetrics(t)
+	runner := Runner{metrics: metrics}
+	poller := Poller{Runner: runner, Collector: collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true, ScrapeInterval: time.Minute}}
+	tracker := newTargetTracker()
+	now := time.Unix(1000, 0)
+	tracker.now = func() time.Time { return now }
+
+	poller.cycle(context.Background(), tracker)
+	if got := testutil.CollectAndCount(metrics.startDelay); got != 0 {
+		t.Errorf("the first cycle has no previous start, yet %d delay metrics", got)
+	}
+	now = now.Add(time.Minute + 2*time.Second)
+	poller.cycle(context.Background(), tracker)
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(`
+# HELP heartbeat_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
+# TYPE heartbeat_collector_cycles_total counter
+heartbeat_collector_cycles_total{collector="c",outcome="on_time"} 2
+`), MetricCycles); err != nil {
+		t.Error(err)
+	}
+	if got := probeHistogramSum(t, reg, MetricCycleStartDelay); got != 2 {
+		t.Errorf("start delay sum = %v, want 2", got)
+	}
+}
+
+// A collector stopping ends its cycle, which says nothing about how it runs.
+func TestStoppingCycleIsNotCounted(t *testing.T) {
+	metrics, reg := newTestProbeMetrics(t)
+	runner := Runner{metrics: metrics}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	runner.runCycle(ctx, collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true, ScrapeInterval: time.Minute}, newTargetTracker())
+	if got := probeSeries(t, reg, MetricCycles); len(got) != 0 {
+		t.Errorf("%s series = %v, want none", MetricCycles, got)
+	}
+}
+
+func probeHistogramSum(t *testing.T, reg *prometheus.Registry, name string) float64 {
+	t.Helper()
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		if family.GetName() == name {
+			return family.GetMetric()[0].GetHistogram().GetSampleSum()
+		}
+	}
+	t.Fatalf("%s not found", name)
+	return 0
+}

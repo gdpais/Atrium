@@ -83,6 +83,8 @@ type Client struct {
 	// Logger receives a warning when the receiver rejects some records of an
 	// accepted request (OTLP partial success).  Nil means [slog.Default].
 	Logger *slog.Logger
+	// Metrics records each attempt.  Nil records nothing.
+	Metrics *ClientMetrics
 	// sleep waits for d or until ctx ends, reporting whether d elapsed.
 	sleep func(ctx context.Context, d time.Duration) bool
 }
@@ -121,7 +123,9 @@ func (c *Client) Export(ctx context.Context, endpoint string, resourceLogs []*lo
 func (c *Client) send(ctx context.Context, url string, body []byte) error {
 	backoff := c.InitialBackoff
 	for attempt := 1; ; attempt++ {
+		began := time.Now()
 		retryAfter, err := c.post(ctx, url, body)
+		c.Metrics.observe(err, time.Since(began), len(body))
 		if err == nil {
 			return nil
 		}
