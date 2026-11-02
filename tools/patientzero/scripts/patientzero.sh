@@ -49,7 +49,10 @@
 #   log's end (scale-<end>), so a regenerated log gets fresh watermarks and
 #   its own rows in Loki.
 # scale-check: compares what Loki holds for that log with expected.json,
-#   through a port-forward to Loki; writes .tmp/patientzero-scale/check.md.
+#   through a port-forward to Loki; writes .tmp/patientzero-scale/check.md
+#   (and the GitHub step summary in CI). With SCALE_WAIT, it first waits for
+#   the collector to catch up. The scenarios workflow runs scale,
+#   scale-collect and scale-check after the scenarios.
 # scale-down: drops patientzero_scale and removes the patientzero-scale
 #   collector.
 #
@@ -69,6 +72,7 @@
 #   SCALE_SEED             seed of the generated log [1]
 #   SCALE_END              last instant generated, RFC 3339 [now]
 #   SCALE_LOOKBACK         how far back the patientzero-scale collector starts [48h]
+#   SCALE_WAIT             minutes scale-check waits for that collector to catch up [0]
 #   SCENARIO               scenario to run; empty to list them []
 #   SCENARIO_LOAD          0 to run a scenario without starting its load [1]
 #   SCENARIOS              scenarios to run, space-separated; empty for all []
@@ -944,27 +948,70 @@ cmd_scale_collect() {
 	log "extracting; make patientzero-scale-check compares Loki with $SCALE_DIR/expected.json once it caught up"
 }
 
-# Runs oslog-scale check against Loki through a port-forward. It needs no SQL
-# Server: the known answers are in expected.json.
-cmd_scale_check() {
-	cluster_exists || die "kind cluster $CLUSTER does not exist"
-	[ -f "$SCALE_STATE" ] || die "the patientzero-scale collector is not running; run make patientzero-scale-collect"
-	read -r label lookback started <"$SCALE_STATE"
-	work=$(mktemp -d "${TMPDIR:-/tmp}/patientzero-scale-check.XXXXXX")
-	kubectl_ -n "$HEARTBEAT_NAMESPACE" port-forward svc/loki :3100 >"$work/port-forward.log" 2>&1 &
+# scale_loki <action>: oslog-scale <action> (check or caught-up) against
+# Loki, through a port-forward of its own: one does not last through a long
+# wait (open_forward). kubectl runs directly, so $! is kubectl.
+scale_loki() {
+	: >"$work/port-forward.log"
+	kubectl --context "$CONTEXT" -n "$HEARTBEAT_NAMESPACE" port-forward svc/loki :3100 >"$work/port-forward.log" 2>&1 &
 	forward=$!
-	trap 'kill "$forward" 2>/dev/null; rm -rf "$work"' EXIT
-	trap 'exit 130' INT TERM
+	ran=0
 	i=0
 	until grep -q '^Forwarding from 127.0.0.1:' "$work/port-forward.log"; do
 		i=$((i + 1))
-		[ "$i" -le 30 ] || die "the port-forward to Loki did not start: $(cat "$work/port-forward.log")"
+		if [ "$i" -gt 30 ]; then
+			log "the port-forward to Loki did not start: $(cat "$work/port-forward.log")"
+			ran=1
+			break
+		fi
 		sleep 1
 	done
-	port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$work/port-forward.log" | head -n 1)
+	if [ "$ran" -eq 0 ]; then
+		port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$work/port-forward.log" | head -n 1)
+		(cd tools/patientzero && "$work/oslog-scale" -loki "http://127.0.0.1:$port" -environment "$label" \
+			-collected-from "$started" -lookback "$lookback" "$1") || ran=$?
+	fi
+	kill "$forward" 2>/dev/null || true
+	wait "$forward" 2>/dev/null || true
+	forward=
+	return "$ran"
+}
+
+# Runs oslog-scale check against Loki. It needs no SQL Server: the known
+# answers are in expected.json. With SCALE_WAIT, it first waits up to that
+# many minutes for the collector to catch up, reading Loki once a minute.
+cmd_scale_check() {
+	cluster_exists || die "kind cluster $CLUSTER does not exist"
+	[ -f "$SCALE_STATE" ] || die "the patientzero-scale collector is not running; run make patientzero-scale-collect"
+	wait_minutes=${SCALE_WAIT:-0}
+	case "$wait_minutes" in
+	"" | *[!0-9]*) die "SCALE_WAIT must be a number of minutes, not $wait_minutes" ;;
+	esac
+	read -r label lookback started <"$SCALE_STATE"
+	work=$(mktemp -d "${TMPDIR:-/tmp}/patientzero-scale-check.XXXXXX")
+	forward=
+	trap '[ -z "$forward" ] || kill "$forward" 2>/dev/null; rm -rf "$work"' EXIT
+	trap 'exit 130' INT TERM
+	GOCACHE=${GOCACHE:-$(pwd)/.tmp/gocache} go -C tools/patientzero build -o "$work/oslog-scale" ./cmd/oslog-scale
+	if [ "$wait_minutes" -gt 0 ]; then
+		log "waiting up to $wait_minutes minutes for Loki to hold $label's last hour"
+		deadline=$(($(date +%s) + wait_minutes * 60))
+		until scale_loki caught-up; do
+			if [ "$(date +%s)" -ge "$deadline" ]; then
+				log "Loki did not catch up in $wait_minutes minutes; checking what it holds"
+				break
+			fi
+			sleep 60
+		done
+	fi
+	rm -f "$SCALE_DIR/check.md"
 	log "checking Loki's $label rows against $SCALE_DIR/expected.json"
-	GOCACHE=${GOCACHE:-$(pwd)/.tmp/gocache} go -C tools/patientzero run ./cmd/oslog-scale \
-		-loki "http://127.0.0.1:$port" -environment "$label" -collected-from "$started" -lookback "$lookback" check
+	checked=0
+	scale_loki check || checked=$?
+	if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$SCALE_DIR/check.md" ]; then
+		cat "$SCALE_DIR/check.md" >>"$GITHUB_STEP_SUMMARY"
+	fi
+	return "$checked"
 }
 
 # Removes the patientzero-scale collector first, so it does not read a

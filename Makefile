@@ -73,7 +73,7 @@ help:
 		'  make patientzero-scale   Fill patientzero_scale with a production-sized log and measure the log queries (SCALE, SCALE_SEED, SCALE_END)' \
 		'  make patientzero-scale-measure  Measure the log queries on patientzero_scale again' \
 		'  make patientzero-scale-collect  Redeploy Heartbeat with a collector that reads patientzero_scale (SCALE_LOOKBACK)' \
-		'  make patientzero-scale-check  Compare the users, sessions and error fingerprints in Loki with expected.json' \
+		'  make patientzero-scale-check  Compare the users, sessions and error fingerprints in Loki with expected.json (SCALE_WAIT)' \
 		'  make patientzero-scale-down  Drop patientzero_scale and remove its collector' \
 		'  make kind-e2e            Run the acceptance checks on a separate, temporary kind cluster' \
 		'  make chart-deps          Fetch the chart dependencies listed in Chart.lock' \
@@ -189,7 +189,7 @@ patientzero-scale-collect:
 	@PROFILE=$(PROFILE) SCALE_LOOKBACK='$(SCALE_LOOKBACK)' SQLSERVER_ENV_FILE=$(SQLSERVER_DEV_ENV_FILE) $(PATIENTZERO_MODULE)/scripts/patientzero.sh scale-collect
 
 patientzero-scale-check:
-	@$(PATIENTZERO_MODULE)/scripts/patientzero.sh scale-check
+	@SCALE_WAIT='$(SCALE_WAIT)' $(PATIENTZERO_MODULE)/scripts/patientzero.sh scale-check
 
 patientzero-scale-down:
 	@PROFILE=$(PROFILE) SQLSERVER_ENV_FILE=$(SQLSERVER_DEV_ENV_FILE) $(PATIENTZERO_MODULE)/scripts/patientzero.sh scale-down
