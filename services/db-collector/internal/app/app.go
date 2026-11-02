@@ -158,6 +158,10 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	if err := cfg.Telemetry.Register(registry); err != nil {
 		return runDeps{}, err
 	}
+	httpMetrics, err := telemetry.NewHTTPMetrics(registry, MetricHTTPRequests, MetricHTTPRequestDuration)
+	if err != nil {
+		return runDeps{}, err
+	}
 	configMetrics, err := newConfigMetrics(registry, configManager.Snapshot)
 	if err != nil {
 		return runDeps{}, err
@@ -170,8 +174,12 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	exporter := collectorexport.NewPrometheusExporter(registry)
 	manager := connector.NewManager(connector.FileCredentialResolver{Dir: cfg.CredentialsDir, Fallback: connector.EnvCredentialResolver{}})
 	manager.TrustServerCertificate = cfg.SQLServerTrustServerCertificate
+	if err := registry.Register(manager.Collector()); err != nil {
+		return runDeps{}, err
+	}
 	logsClient := otlp.NewClient()
 	logsClient.Logger = logger
+	logsClient.Metrics = cfg.Telemetry.OTLPClient("outsystems")
 	logs := outsystems.NewExecutor(outsystems.SQLServerSource{Manager: manager},
 		outsystems.NewStore(filepath.Join(cfg.StateDir, outSystemsStateDir)), logsClient, logMetrics, logger)
 	executor := collectors.EngineExecutor{
@@ -185,6 +193,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		configManager: configManager,
 		configMetrics: configMetrics,
 		registry:      registry,
+		httpMetrics:   httpMetrics,
 		newLifecycle: func(parent context.Context) *pollerLifecycle {
 			return newPollerLifecycle(parent, runner, logger)
 		},
@@ -220,6 +229,8 @@ type runDeps struct {
 	// the startup load.
 	configMetrics *configMetrics
 	registry      *prometheus.Registry
+	// httpMetrics, when set, records every request.
+	httpMetrics *telemetry.HTTPMetrics
 	// newLifecycle builds the poller supervisor under parent.
 	newLifecycle func(parent context.Context) *pollerLifecycle
 	// closeConnections releases pooled database connections after every
@@ -250,7 +261,7 @@ func run(ctx context.Context, deps runDeps) error {
 	svc := newService(deps.configManager, lifecycle, logger, deps.cfg.AdminToken, deps.timeouts)
 	svc.warnings = startupWarnings(deps.cfg, logger)
 	svc.configMetrics = deps.configMetrics
-	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: routes(deps.registry, svc), ReadHeaderTimeout: 10 * time.Second}
+	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: deps.httpMetrics.Instrument(routes(deps.registry, svc)), ReadHeaderTimeout: 10 * time.Second}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- server.Serve(listener) }()
 	logger.Info("http server listening", "addr", listener.Addr().String())

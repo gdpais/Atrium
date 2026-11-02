@@ -105,7 +105,7 @@ Heartbeat measured itself before the API and Web work continued ([ADR 0018](docs
 - [x] Decide the approach: metrics on `/metrics`; logs over OTLP on their own receiver and pipeline; traces through the OTel SDK into Tempo; opt-in loopback pprof
 - [x] `internal/telemetry`: identity, `heartbeat_service_info`, version at build time, a log handler that writes to stderr and a bounded OTLP queue, loopback pprof; wired into the db-collector and the API. The OTLP client moved to `internal/otlp`
 - [x] Chart: `telemetry` values, the Collector's `otlp/self` receiver and `logs/self` pipeline, NetworkPolicies, and the external-platform example
-- [ ] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
+- [x] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
 - [ ] *Heartbeat Service* dashboard, SLOs and alerts with promtool tests
 - [ ] Traces: SDK setup, spans for HTTP, PostgreSQL, Redis, collector cycles and OutSystems extraction, logs correlated with traces
 - [ ] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Loki, Tempo or the Collector down; a 30-minute soak

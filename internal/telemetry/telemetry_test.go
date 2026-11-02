@@ -249,7 +249,7 @@ func TestAStuckCollectorDropsInsteadOfBlocking(t *testing.T) {
 
 func TestAQueueOverItsBytesDrops(t *testing.T) {
 	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "c"}, []string{"outcome"})
-	q := newLogQueue("http://localhost:1", Identity{}, counter, slog.New(slog.DiscardHandler))
+	q := newLogQueue("http://localhost:1", Identity{}, counter, nil, slog.New(slog.DiscardHandler))
 	// Three values at their limit: the bytes run out before the channel's places.
 	value := stringValue(strings.Repeat("x", maxValueBytes))
 	big := &logspb.LogRecord{Attributes: []*commonpb.KeyValue{{Key: "a", Value: value}, {Key: "b", Value: value}, {Key: "c", Value: value}}}
@@ -397,7 +397,7 @@ func TestHandlerContract(t *testing.T) {
 	var queue *logQueue
 	var records []*logspb.LogRecord
 	new := func() *handler {
-		queue = newLogQueue("http://localhost:1", Identity{}, counter, slog.New(slog.DiscardHandler))
+		queue = newLogQueue("http://localhost:1", Identity{}, counter, nil, slog.New(slog.DiscardHandler))
 		return &handler{base: slog.DiscardHandler, queue: queue}
 	}
 	check := func(t *testing.T) map[string]any {

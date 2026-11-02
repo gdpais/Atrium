@@ -3,6 +3,7 @@ package outsystems
 import (
 	"fmt"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,7 +49,33 @@ const (
 	// MetricRecountFailures counts recounts that failed; meanwhile late and
 	// duplicate rows go uncounted.
 	MetricRecountFailures = "heartbeat_outsystems_recount_failures_total"
+	// MetricStageDuration is the time of one step of a batch (see
+	// [batchStages]).  Labels: collector, log_type, stage.  Without target,
+	// since each series is a histogram and a step's cost hardly differs
+	// between the targets of a collector.
+	MetricStageDuration = "heartbeat_outsystems_stage_duration_seconds"
+	// MetricHeldBytes is the row data held in memory now, read, being
+	// exported or pending, against [Executor.MaxHeldBytes].  No labels.
+	MetricHeldBytes = "heartbeat_outsystems_held_bytes"
 )
+
+// Values of the stage label of [MetricStageDuration].
+const (
+	// stageRead is the query on the logging database.
+	stageRead = "read"
+	// stageBuild is turning rows into OTLP log records.
+	stageBuild = "build"
+	// stageExport is until the OTel Collector accepted the batch, retries
+	// and waiting for Loki included.
+	stageExport = "export"
+	// stageDerive is updating the derived metrics from the delivered rows.
+	stageDerive = "derive"
+	// stageWatermark is saving the watermark to disk.
+	stageWatermark = "watermark"
+)
+
+// stageDurationBuckets reach far: an export waits for as long as Loki is down.
+var stageDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 30, 300}
 
 // metricLabels are the label names of every extraction metric.
 var metricLabels = []string{"collector", "environment", "target", "log_type"}
@@ -71,7 +98,10 @@ type Metrics struct {
 	recounts        *prometheus.CounterVec
 	recountFailures *prometheus.CounterVec
 	exportBlocked   *prometheus.GaugeVec
-	derived         *derived
+	stages          *prometheus.HistogramVec
+	// heldBytes is the executor's, once it exists; see [MetricHeldBytes].
+	heldBytes atomic.Pointer[func() int64]
+	derived   *derived
 }
 
 // NewMetrics creates the extraction metrics and the derived metrics and
@@ -118,9 +148,23 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 			Name: MetricRecountFailures,
 			Help: "OutSystems log recounts that failed; late and duplicate rows are not counted meanwhile.",
 		}, metricLabels),
+		stages: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    MetricStageDuration,
+			Help:    "Time of one step of an OutSystems log batch in seconds: read, build, export, derive or watermark.",
+			Buckets: stageDurationBuckets,
+		}, []string{"collector", "log_type", "stage"}),
 		derived: newDerived(),
 	}
-	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures}, m.derived.collectors()...) {
+	held := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name: MetricHeldBytes,
+		Help: "OutSystems log row data held in memory now: read, being exported or pending.",
+	}, func() float64 {
+		if read := m.heldBytes.Load(); read != nil {
+			return float64((*read)())
+		}
+		return 0
+	})
+	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures, m.stages, held}, m.derived.collectors()...) {
 		if err := reg.Register(collector); err != nil {
 			return nil, fmt.Errorf("register outsystems metrics: %w", err)
 		}
@@ -172,7 +216,17 @@ func (m *Metrics) forgetCollector(collectorID string) {
 	m.duplicateRows.DeletePartialMatch(labels)
 	m.recounts.DeletePartialMatch(labels)
 	m.recountFailures.DeletePartialMatch(labels)
+	m.stages.DeletePartialMatch(labels)
 	m.derived.forget(collectorID)
+}
+
+func (m *Metrics) observeStage(item collectormetadata.ScheduledProbe, stage string, began time.Time) {
+	if m == nil {
+		return
+	}
+	if observer, err := m.stages.GetMetricWithLabelValues(item.CollectorID, item.Definition.Name, stage); err == nil {
+		observer.Observe(time.Since(began).Seconds())
+	}
 }
 
 func (m *Metrics) addRows(item collectormetadata.ScheduledProbe, n int) {

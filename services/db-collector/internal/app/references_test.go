@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"heartbeat/services/db-collector/internal/collectors"
+	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
 )
 
 // repoRoot is the repository root relative to this package's directory.
@@ -39,11 +40,16 @@ func collectorMetrics() map[string]bool {
 		collectors.MetricTargetUp, collectors.MetricTargetLastSuccess, collectors.MetricTargetConsecutiveFailures,
 		collectors.MetricCycleDuration, collectors.MetricTargetLoginSysadmin, collectors.MetricProbeErrors, collectors.MetricProbeUp,
 		MetricConfigLastReloadSuccessful, MetricConfigLastReloadSuccessTimestamp, MetricConfigReloads, MetricConfigInfo,
+		collectors.MetricCycles,
+		connector.MetricConnections, connector.MetricConnectionWaits, connector.MetricConnectionWaitSeconds,
+		MetricHTTPRequests,
 	} {
 		names[name] = true
 	}
 	for _, suffix := range []string{"", "_bucket", "_sum", "_count"} {
-		names[collectors.MetricProbeDuration+suffix] = true
+		for _, histogram := range []string{collectors.MetricProbeDuration, collectors.MetricCycleSeconds, collectors.MetricCycleStartDelay, MetricHTTPRequestDuration} {
+			names[histogram+suffix] = true
+		}
 	}
 	return names
 }

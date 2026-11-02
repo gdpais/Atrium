@@ -37,6 +37,8 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"heartbeat/internal/otlp"
 )
 
 // Environment variables this package reads.
@@ -91,6 +93,7 @@ type Telemetry struct {
 
 	logs    *logQueue
 	records *prometheus.CounterVec
+	otlp    *otlp.Metrics
 	pprof   *http.Server
 }
 
@@ -102,6 +105,7 @@ func Start(service string, stderr io.Writer) *Telemetry {
 	diagnostics := slog.New(base)
 	t := &Telemetry{
 		Identity: identityFromEnv(service),
+		otlp:     otlp.NewMetrics(),
 		records: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: MetricLogRecords,
 			Help: "Log records the service tried to send over OTLP, by outcome.",
@@ -111,7 +115,7 @@ func Start(service string, stderr io.Writer) *Telemetry {
 		t.records.WithLabelValues(outcome)
 	}
 	if endpoint := logsEndpoint(); endpoint != "" {
-		t.logs = newLogQueue(endpoint, t.Identity, t.records, diagnostics)
+		t.logs = newLogQueue(endpoint, t.Identity, t.records, t.otlp.Client(selfLogsClient), diagnostics)
 		go t.logs.run()
 	}
 	t.Logger = slog.New(&handler{base: base, queue: t.logs})
@@ -129,7 +133,20 @@ func (t *Telemetry) Register(registerer prometheus.Registerer) error {
 		Help: "Always 1: the service, version, revision and environment that are running.",
 	}, []string{"service", "version", "revision", "environment"})
 	info.WithLabelValues(t.Identity.Service, t.Identity.Version, t.Identity.Revision, t.Identity.Environment).Set(1)
-	return errors.Join(registerer.Register(info), registerer.Register(t.records))
+	errs := []error{registerer.Register(info), registerer.Register(t.records)}
+	for _, collector := range t.otlp.Collectors() {
+		errs = append(errs, registerer.Register(collector))
+	}
+	return errors.Join(errs...)
+}
+
+// OTLPClient returns the metrics of an OTLP client of this service, called
+// name in the client label.
+func (t *Telemetry) OTLPClient(name string) *otlp.ClientMetrics {
+	if t == nil {
+		return nil
+	}
+	return t.otlp.Client(name)
 }
 
 // Shutdown sends the logs still queued and stops the pprof listener, waiting

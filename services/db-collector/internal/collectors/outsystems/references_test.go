@@ -55,6 +55,7 @@ func registeredMetrics(t *testing.T) map[string]bool {
 	metrics.recounted(item, 1, 1)
 	metrics.recountRan(item)
 	metrics.recountFailed(item)
+	metrics.observeStage(item, stageRead, time.Now())
 	observe := func(logType string, columns []string, row ...any) {
 		batch := Batch{Rows: [][]any{row}}
 		for _, name := range columns {
@@ -93,7 +94,7 @@ func TestEveryDeclaredMetricIsExported(t *testing.T) {
 		MetricRows, MetricLag, MetricExportFailures, MetricStuckBatches, MetricLogDelay, MetricExportBlocked,
 		MetricOperationDuration, MetricOperations, MetricOperationSeconds, MetricIntegrationDuration,
 		MetricErrors, MetricSlowEvents, MetricTimerDelay, MetricScreenState, MetricFrontEndOperations,
-		MetricDerivedSeries, MetricDerivedSeriesOverflow,
+		MetricDerivedSeries, MetricDerivedSeriesOverflow, MetricStageDuration, MetricHeldBytes,
 	} {
 		if !names[name] {
 			t.Errorf("%s is declared but not exported", name)
