@@ -16,10 +16,11 @@
 telemetry:
   environment: production
 
-# Traces on S3, in the same way as Loki's chunks.
+# Traces on S3, in the same way as Loki's chunks. The WAL keeps its volume, as
+# Loki's does: the root filesystem is read-only.
 tempo:
   persistence:
-    enabled: false
+    storageClassName: gp3
   tempo:
     storage:
       trace:

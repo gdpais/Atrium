@@ -959,6 +959,7 @@ func TestChartProfiles(t *testing.T) {
 			checkLogIdentifiers(t, objects)
 			checkLokiLabelPolicy(t, objects)
 			checkLokiRetention(t, objects)
+			checkTempoWAL(t, objects)
 			checkGrafanaGzip(t, objects)
 			checkNotes(t, profile)
 			checkConfigReloadAlert(t, objects, profile.configReloadAlertOff)
@@ -1892,6 +1893,61 @@ func checkLokiRetention(t *testing.T, objects map[string]object) {
 	} else if store := config.SchemaConfig.Configs[n-1].ObjectStore; config.Compactor.DeleteRequestStore != store {
 		t.Errorf("Loki compactor.delete_request_store is %q, want the chunks' object_store %q", config.Compactor.DeleteRequestStore, store)
 	}
+}
+
+// Tempo's WAL must be on a writable volume wherever its traces are stored:
+// the root filesystem is read-only, and a WAL there would not outlive the pod.
+// Moving the traces to S3 by turning persistence off once left it nowhere.
+func checkTempoWAL(t *testing.T, objects map[string]object) {
+	t.Helper()
+	sts, ok := objects["StatefulSet/tempo"]
+	if !ok {
+		return
+	}
+	var config struct {
+		Storage struct {
+			Trace struct {
+				WAL struct {
+					Path string `yaml:"path"`
+				} `yaml:"wal"`
+			} `yaml:"trace"`
+		} `yaml:"storage"`
+	}
+	mustUnmarshal(t, objects["ConfigMap/tempo"].Data["tempo.yaml"], &config)
+	wal := config.Storage.Trace.WAL.Path
+	if wal == "" {
+		t.Fatal("Tempo has no storage.trace.wal.path")
+	}
+	type volumeMount struct {
+		MountPath string `yaml:"mountPath"`
+		ReadOnly  bool   `yaml:"readOnly"`
+	}
+	var spec struct {
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					Name         string        `yaml:"name"`
+					VolumeMounts []volumeMount `yaml:"volumeMounts"`
+				} `yaml:"containers"`
+			} `yaml:"spec"`
+		} `yaml:"template"`
+	}
+	if err := sts.Spec.Decode(&spec); err != nil {
+		t.Fatal(err)
+	}
+	for _, container := range spec.Template.Spec.Containers {
+		if container.Name != "tempo" {
+			continue
+		}
+		mounted := slices.ContainsFunc(container.VolumeMounts, func(m volumeMount) bool {
+			return !m.ReadOnly && (wal == m.MountPath || strings.HasPrefix(wal, strings.TrimSuffix(m.MountPath, "/")+"/"))
+		})
+		if !mounted {
+			t.Errorf("Tempo's WAL %s is on no writable volume", wal)
+		}
+		return
+	}
+	t.Error("StatefulSet/tempo has no tempo container")
 }
 
 func hostOf(raw string) string {

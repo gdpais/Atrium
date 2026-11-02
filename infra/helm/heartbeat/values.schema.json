@@ -404,7 +404,7 @@
           }
         },
         "tempo": {
-          "description": "Admitted to 3100.",
+          "description": "Admitted to 3200 and 4318.",
           "type": "object",
           "additionalProperties": false,
           "required": [

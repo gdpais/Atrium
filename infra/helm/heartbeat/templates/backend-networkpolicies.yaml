@@ -69,7 +69,7 @@ spec:
 {{- $metrics := dict "port" (dig "prom-exporter" "containerPort" 8889 $ports) }}
 {{- $exporter := dig "prom-exporter" "enabled" false $ports }}
 {{- $rules := list }}
-{{- /* The db-collector sends OTLP/HTTP only: outsystems_logs rows, and its own logs while telemetry is on. */}}
+{{- /* The db-collector sends OTLP/HTTP only: outsystems_logs rows and its spans, and its own logs while telemetry is on. */}}
 {{- if get $on "db-collector" }}
 {{- $sent := list $otlpHttp }}
 {{- if .Values.telemetry.enabled }}
