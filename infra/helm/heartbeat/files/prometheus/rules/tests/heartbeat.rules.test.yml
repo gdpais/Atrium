@@ -786,3 +786,19 @@ tests:
       - eval_time: 5m
         alertname: HeartbeatAuditDeliveryStalled
         exp_alerts: []
+
+  - name: Records refused by a partial success alert at once; a client without any does not
+    interval: 1m
+    input_series:
+      - series: 'heartbeat_otlp_export_rejected_records_total{job="api",instance="a",client="audit"}'
+        values: '0 0 3 3 3'
+      - series: 'heartbeat_otlp_export_rejected_records_total{job="api",instance="a",client="self-logs"}'
+        values: '0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HeartbeatOTLPRecordsRejected
+        exp_alerts:
+          - exp_labels: {severity: warning, job: api, instance: a, client: audit}
+            exp_annotations:
+              summary: "The OTel Collector refused about 3 audit log records from api"
+              description: "The receiver answered with an OTLP partial success: it took the request and refused those records, and a request it took is not sent again, so they are lost. For audit, audit records are missing from Loki; for outsystems, log rows are; for self-logs, the service's own lines (still in `kubectl logs`). The reason is the `OTLP receiver rejected some log records` warning in the service's log."

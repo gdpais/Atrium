@@ -91,15 +91,16 @@ func TestAuditOutboxMigrationUpAndDown(t *testing.T) {
 select concat_ws(',',
   to_regclass('public.audit_outbox')::text,
   (select column_name from information_schema.columns where table_name = 'users' and column_name = 'password_hash'),
-  (select name from roles where name = 'admin'));
+  (select name from roles where name = 'admin'),
+  to_regclass('public.users_email_lower_uq')::text);
 `
 	for round := 1; round <= 2; round++ {
 		stack.ApplyMigration(t, "/migrations/0002_audit_outbox.up.sql")
-		if stdout := stack.PSQL(t, stack.DBName, present); !strings.Contains(stdout, "audit_outbox,password_hash,admin") {
+		if stdout := stack.PSQL(t, stack.DBName, present); !strings.Contains(stdout, "audit_outbox,password_hash,admin,users_email_lower_uq") {
 			t.Fatalf("round %d, after up: %s", round, stdout)
 		}
 		stack.ApplyMigration(t, "/migrations/0002_audit_outbox.down.sql")
-		if stdout := stack.PSQL(t, stack.DBName, present); strings.Contains(stdout, "audit_outbox") || strings.Contains(stdout, "password_hash") || strings.Contains(stdout, "admin") {
+		if stdout := stack.PSQL(t, stack.DBName, present); strings.Contains(stdout, "audit_outbox") || strings.Contains(stdout, "password_hash") || strings.Contains(stdout, "admin") || strings.Contains(stdout, "users_email_lower_uq") {
 			t.Fatalf("round %d, after down: %s", round, stdout)
 		}
 	}

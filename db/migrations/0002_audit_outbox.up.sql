@@ -6,6 +6,11 @@
 -- password.
 alter table users add column password_hash text;
 
+-- One user per address whatever its case, whoever writes the row: an email
+-- is a login, compared without regard to case. The API stores emails in
+-- lower case; this holds for any other writer too.
+create unique index users_email_lower_uq on users (lower(email));
+
 -- The admin role `api users create-admin` grants. The other roles arrive
 -- with the code that checks them [4.2].
 insert into roles (name, description)

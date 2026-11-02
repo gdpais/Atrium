@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -276,7 +277,8 @@ func TestExportStopsWhenTheContextEnds(t *testing.T) {
 	}
 }
 
-// A partial success is delivered (nothing to retry) and logged.
+// A partial success is delivered (nothing to retry), logged, and its
+// rejected records counted: they are lost.
 func TestExportLogsPartialSuccess(t *testing.T) {
 	var partial []byte
 	partial = protowire.AppendTag(partial, 1, protowire.VarintType)
@@ -294,11 +296,16 @@ func TestExportLogsPartialSuccess(t *testing.T) {
 	var waits []time.Duration
 	client := testClient(&waits)
 	client.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	metrics := NewMetrics()
+	client.Metrics = metrics.Client("test")
 	if err := client.Export(context.Background(), server.URL, []*logspb.ResourceLogs{logs("a", "1", "2")}); err != nil {
 		t.Fatalf("Export: %v", err)
 	}
 	if !strings.Contains(logged.String(), "rejected=2") || !strings.Contains(logged.String(), `message="too old"`) {
 		t.Fatalf("log = %q", logged.String())
+	}
+	if got := testutil.ToFloat64(metrics.rejected.WithLabelValues("test")); got != 2 {
+		t.Fatalf("%s = %v, want 2", MetricExportRejectedRecords, got)
 	}
 }
 

@@ -258,9 +258,9 @@ func TestDrainerBacksOff(t *testing.T) {
 	run(t, d)
 	time.Sleep(300 * time.Millisecond)
 	// 20 + 40 + 40 ... ms: about 8 rounds in 300 ms; without the backoff,
-	// hundreds.
-	if got := collector.Attempts(); got < 3 || got > 12 {
-		t.Fatalf("%d attempts in 300 ms, want about 8", got)
+	// hundreds. A busy machine runs fewer, never more.
+	if got := collector.Attempts(); got < 2 || got > 12 {
+		t.Fatalf("%d attempts in 300 ms, want about 8 and at most 12", got)
 	}
 }
 
@@ -274,8 +274,9 @@ func TestDrainerPollsAnEmptyOutbox(t *testing.T) {
 	outbox.mu.Lock()
 	rounds := outbox.rounds
 	outbox.mu.Unlock()
-	if rounds < 3 || rounds > 7 {
-		t.Fatalf("%d rounds in 260 ms with a 50 ms poll interval, want about 6", rounds)
+	// About 6; a busy machine runs fewer, never more.
+	if rounds < 2 || rounds > 7 {
+		t.Fatalf("%d rounds in 260 ms with a 50 ms poll interval, want about 6 and at most 7", rounds)
 	}
 }
 

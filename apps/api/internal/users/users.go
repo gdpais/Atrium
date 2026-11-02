@@ -37,7 +37,7 @@ var ErrEmailTaken = errors.New("a user with this email already exists")
 // NewAdmin is an admin to create.
 type NewAdmin struct {
 	// Email is the login, compared without regard to case: it is stored in
-	// lower case.
+	// lower case, and a unique index on lower(email) holds for any writer.
 	Email string
 	// DisplayName defaults to the email's local part.
 	DisplayName string

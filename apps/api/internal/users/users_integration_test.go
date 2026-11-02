@@ -127,6 +127,16 @@ func TestCreateAdminRefusesAnExistingEmail(t *testing.T) {
 	if n := len(outbox(t, pool)); n != 1 {
 		t.Fatalf("%d audit records, want only the first creation's", n)
 	}
+
+	// The database enforces it too, for a row another writer stored in
+	// mixed case.
+	if _, err := pool.Exec(ctx, "insert into users (email, display_name) values ('Ops@Example.com', 'ops')"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = users.CreateAdmin(ctx, pool, hasher(), users.NewAdmin{Email: "ops@example.com", Password: secret}, actor, "req-3")
+	if !errors.Is(err, users.ErrEmailTaken) {
+		t.Fatalf("CreateAdmin over a mixed-case row = %v, want ErrEmailTaken", err)
+	}
 }
 
 // The user and its record are one transaction: when the record cannot be

@@ -307,7 +307,8 @@ deleting them; foreign keys restrict deletion.
 `users.password_hash` is the argon2id hash of a local login's password, in the
 PHC string format with its parameters; null for a user without one
 ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)). Emails are
-stored in lower case. Migration `0002` adds the `admin` role, which
+stored in lower case, and `users_email_lower_uq` (`unique (lower(email))`) keeps
+one user per address in any case, whoever writes the row. Migration `0002` adds the `admin` role, which
 `api users create-admin` grants; the others come with the code that checks
 them [4.2].
 

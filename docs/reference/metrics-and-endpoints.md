@@ -403,7 +403,10 @@ sends them with the OTLP client the db-collector uses (`client="audit"` in
 holds a round's rows. It goes on at once while it finds full batches, polls
 every 2s once the outbox is empty, and backs off from 1s to 30s while the
 Collector fails, logging `audit: delivery failed` once, then every minute,
-and `audit: delivery resumed`. Without `HEARTBEAT_API_AUDIT_ENDPOINT`, nothing
+and `audit: delivery resumed`. A request the Collector accepts while refusing
+some of its records (OTLP partial success) is not sent again: those records
+are counted in `heartbeat_otlp_export_rejected_records_total{client="audit"}`
+and `HeartbeatOTLPRecordsRejected` fires. Without `HEARTBEAT_API_AUDIT_ENDPOINT`, nothing
 is sent and records wait. A round that finds records is traced: `audit.drain`
 → `audit.export` and the `db.query` of the delete.
 
@@ -436,6 +439,7 @@ Both services expose these
 | `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, `outsystems` on the collector, or `audit` on the API; `self-logs` and `audit` exist only while the service has their endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
 | `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
 | `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
+| `heartbeat_otlp_export_rejected_records_total` | counter | `client` | Records the receiver refused inside a request it accepted (OTLP partial success). Such a request is not sent again, so the records are lost; `HeartbeatOTLPRecordsRejected` fires on any. Created at 0 |
 
 The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 `service_name` (`db-collector`, `api`) and `deployment_environment_name`:
@@ -524,6 +528,7 @@ for Heartbeat's own objectives):
 | `HeartbeatGoroutinesGrowing` | Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h |
 | `HeartbeatOwnLogsDropped` | Alert (warning): `heartbeat_telemetry_log_records_total` counted drops in the last 15 minutes |
 | `HeartbeatOTLPExportRejected` | Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes |
+| `HeartbeatOTLPRecordsRejected` | Alert (warning): the OTel Collector accepted a request but refused some of its records (OTLP partial success) in the last 15 minutes, per client; those records are lost |
 | `HeartbeatAuditDeliveryStalled` | Alert (warning): the oldest audit record in the API's outbox above 2 minutes old for 2 minutes, `max()` over the replicas, which report the same table: the Collector does not take audit records, or `HEARTBEAT_API_AUDIT_ENDPOINT` is unset. Changes still commit and no record is lost ([audit delivery](#audit-delivery)) |
 | `Watchdog` | Alert: always firing. Alertmanager routes it to the `deadmans-switch` receiver (healthchecks.io in production, ADR 0005), which notifies when it stops arriving |
 
