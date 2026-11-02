@@ -157,11 +157,11 @@ groups:
           severity: warning
         annotations:
           summary: "{{ $labels.job }} {{ $labels.instance }} dropped about {{ $value | printf \"%.0f\" }} of its own log records"
-          description: "They did not reach the OTel Collector, which is down or slow, or the service logs faster than it sends. They are still in `kubectl logs` until the pod goes. heartbeat_otlp_export_attempts_total with client self-logs says how the attempts end."
+          description: "They did not reach the OTel Collector, which is down or slow, or the service logs faster than it sends. They are still in `kubectl logs` until the pod goes. The Export attempts panel of Heartbeat Service says how they end."
       - alert: HeartbeatOTLPExportRejected
         expr: sum by (job, instance, client) (increase(heartbeat_otlp_export_attempts_total{outcome="rejected"}[15m])) > 0
         labels:
           severity: warning
         annotations:
           summary: "The OTel Collector rejected {{ $labels.client }} requests from {{ $labels.job }}"
-          description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again and heartbeat_outsystems_export_failures_total counts it. The status is in the service's log."
+          description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again. The status is in the service's log."
