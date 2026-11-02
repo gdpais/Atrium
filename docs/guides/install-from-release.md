@@ -226,6 +226,10 @@ left half done. Helm applies every object it can, keeps the objects the new
 version removes, and marks the revision `failed`. Fix the cause and upgrade
 again, or go back with `helm rollback heartbeat`.
 
+Grafana keeps a provisioned dashboard after a release removes its file, as a
+safeguard. The releases since 0.1.0 replace *Heartbeat Overview* with *Heartbeat
+Service*; delete the old one by hand if you had it.
+
 **From 0.1.0.** Do these once, before the first upgrade, in this order:
 
 1. Update your values files. The release notes list the values renamed or

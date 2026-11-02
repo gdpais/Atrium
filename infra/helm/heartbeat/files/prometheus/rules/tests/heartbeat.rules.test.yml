@@ -3,6 +3,7 @@ rule_files:
   - ../heartbeat.rules.yml
   - ../heartbeat-config-reload.rules.yml
   - ../heartbeat-collector-missing.rules.yml
+  - ../heartbeat-self.rules.yml
 
 evaluation_interval: 1m
 
@@ -482,3 +483,179 @@ tests:
             exp_annotations:
               summary: "OutSystems screen log recount of prod/logging-db is failing"
               description: "Most recounts of the oslogs collector's screen rows failed in the last 15 minutes, so rows committed past the lag, or sent twice, are not counted. The reason is in the collector's log (\"outsystems_logs recount failed\"); extraction itself goes on."
+
+  - name: Late collector cycles burn their budget; on-time cycles do not
+    interval: 1m
+    input_series:
+      # 4 cycles a minute, a quarter of them late, for 90 minutes.
+      - series: 'heartbeat_collector_cycles_total{collector="slow",outcome="on_time",job="db-collector",instance="i"}'
+        values: '0+3x90'
+      - series: 'heartbeat_collector_cycles_total{collector="slow",outcome="late",job="db-collector",instance="i"}'
+        values: '0+1x90'
+      - series: 'heartbeat_collector_cycles_total{collector="fine",outcome="on_time",job="db-collector",instance="i"}'
+        values: '0+4x90'
+      - series: 'heartbeat_collector_cycles_total{collector="fine",outcome="late",job="db-collector",instance="i"}'
+        values: '0x90'
+    promql_expr_test:
+      - expr: heartbeat:collector_cycles_late:ratio_rate1h
+        eval_time: 70m
+        exp_samples:
+          - labels: 'heartbeat:collector_cycles_late:ratio_rate1h{collector="slow"}'
+            value: 0.25
+          - labels: 'heartbeat:collector_cycles_late:ratio_rate1h{collector="fine"}'
+            value: 0
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HeartbeatCollectorCyclesLateFast
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              collector: slow
+            exp_annotations:
+              summary: "The slow collector's cycles run late"
+              description: "25% of its cycles over the last hour used their whole interval or panicked, more than 14.4 times the 0.5% budget, so its metrics arrive late or with gaps. See heartbeat_collector_probe_duration_seconds for the probe that takes the time: often a slow monitored database. A panic is in the service's log."
+
+  - name: Extraction freshness burns only while the lag stays above 5 minutes
+    interval: 1m
+    input_series:
+      - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="behind",log_type="error"}'
+        values: '600x90'
+      - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="fresh",log_type="error"}'
+        values: '60x90'
+    promql_expr_test:
+      - expr: heartbeat:outsystems_extract_fresh:ratio_avg1h
+        eval_time: 70m
+        exp_samples:
+          - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="behind",log_type="error"}'
+            value: 0
+          - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="fresh",log_type="error"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HeartbeatExtractionFreshnessBurn
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              collector: c
+              environment: e
+              target: behind
+              log_type: error
+            exp_annotations:
+              summary: "OutSystems log type error of behind is often behind"
+              description: "Its extraction lag was under 5 minutes for only 0% of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+
+  - name: API errors page; the health endpoints and low traffic do not
+    interval: 1m
+    input_series:
+      # 60 requests a minute, 5% failing.
+      - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="200"}'
+        values: '0+57x90'
+      - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="500"}'
+        values: '0+3x90'
+      # /readyz fails on purpose while a dependency is down.
+      - series: 'heartbeat_api_http_requests_total{route="/readyz",method="GET",code="503"}'
+        values: '0+600x90'
+    promql_expr_test:
+      - expr: heartbeat:api_request_errors:ratio_rate1h
+        eval_time: 70m
+        exp_samples:
+          - labels: 'heartbeat:api_request_errors:ratio_rate1h'
+            value: 0.05
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HeartbeatAPIErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "The Heartbeat API is burning its error budget fast"
+              description: "5% of API requests failed over the last hour, more than 14.4 times the 0.1% budget."
+
+  - name: The API's slow requests count against 250 ms, without the health endpoints
+    interval: 1m
+    input_series:
+      - series: 'heartbeat_api_http_request_duration_seconds_bucket{route="/api/v1/applications",method="GET",le="0.25"}'
+        values: '0+10x90'
+      - series: 'heartbeat_api_http_request_duration_seconds_count{route="/api/v1/applications",method="GET"}'
+        values: '0+100x90'
+      - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="200"}'
+        values: '0+100x90'
+    promql_expr_test:
+      - expr: heartbeat:api_request_slow:ratio_rate1h
+        eval_time: 70m
+        exp_samples:
+          - labels: 'heartbeat:api_request_slow:ratio_rate1h'
+            value: 0.9
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HeartbeatAPISlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "The Heartbeat API is slow"
+              description: "90% of API requests took more than 250 ms over the last hour; the objective is at most 5%."
+
+  - name: A restart loop, high memory, dropped logs and rejected exports alert
+    interval: 1m
+    input_series:
+      - series: 'process_start_time_seconds{job="db-collector",instance="looping"}'
+        values: '100 100 200 200 300 300 400 400 500 500'
+      - series: 'process_start_time_seconds{job="db-collector",instance="stable"}'
+        values: '100x9'
+      - series: 'process_resident_memory_bytes{job="db-collector",instance="big"}'
+        values: '300x30'
+      - series: 'go_gc_gomemlimit_bytes{job="db-collector",instance="big"}'
+        values: '200x30'
+      - series: 'process_resident_memory_bytes{job="db-collector",instance="ok"}'
+        values: '100x30'
+      - series: 'go_gc_gomemlimit_bytes{job="db-collector",instance="ok"}'
+        values: '200x30'
+      - series: 'heartbeat_otlp_export_attempts_total{job="db-collector",instance="i",client="outsystems",outcome="rejected"}'
+        values: '0 0 0 3 3 3'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: HeartbeatServiceRestarting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: db-collector
+              instance: looping
+            exp_annotations:
+              summary: "db-collector looping restarted 4 times in an hour"
+              description: "The process keeps restarting: an out-of-memory kill, a panic or a failing liveness probe. `kubectl describe pod` gives the reason, and `kubectl logs --previous` holds what it wrote last, which never reached Loki."
+      - eval_time: 20m
+        alertname: HeartbeatServiceMemoryHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: db-collector
+              instance: big
+            exp_annotations:
+              summary: "db-collector big uses more memory than its GOMEMLIMIT"
+              description: "Resident memory has stayed above the soft limit, so the garbage collector works hard and an out-of-memory kill may follow. Take a heap profile through HEARTBEAT_PPROF_ADDR, or raise the memory limit."
+      - eval_time: 5m
+        alertname: HeartbeatOTLPExportRejected
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: db-collector
+              instance: i
+              client: outsystems
+            exp_annotations:
+              summary: "The OTel Collector rejected outsystems requests from db-collector"
+              description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again and heartbeat_outsystems_export_failures_total counts it. The status is in the service's log."
+
+  - name: Dropped own logs alert, exported ones do not
+    interval: 1m
+    input_series:
+      - series: 'heartbeat_telemetry_log_records_total{job="db-collector",instance="i",outcome="dropped_queue_full"}'
+        values: '0 0 0 15 15 15'
+      - series: 'heartbeat_telemetry_log_records_total{job="db-collector",instance="i",outcome="exported"}'
+        values: '0 100 200 300 400 500'
+    promql_expr_test:
+      - expr: sum by (job, instance) (increase(heartbeat_telemetry_log_records_total{outcome=~"dropped_.*"}[15m])) > 0
+        eval_time: 5m
+        exp_samples:
+          - labels: '{job="db-collector",instance="i"}'
+            value: 15
