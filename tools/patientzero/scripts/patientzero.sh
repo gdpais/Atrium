@@ -105,7 +105,7 @@ SCENARIO_DIR=.tmp/patientzero-scenarios
 # missing here fails the scenarios package's tests.
 SCENARIO_ORDER="bad-deploy slow-sql checkout-errors orderlist-latency restarts rotation log-backlog log-growth loki-outage otel-outage collector-outage sqlserver-outage late-commits"
 # Renovate keeps this pin current (renovate.json).
-K6_IMAGE=grafana/k6:1.7.1@sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f
+K6_IMAGE=grafana/k6:1.8.2@sha256:00fdcebafbc86cb0137d429529b1caa401a02e09025f02fc74866fa6e2b004d8
 
 kubectl_() { kubectl --context "$CONTEXT" "$@"; }
 log() { printf '==> %s\n' "$*"; }
