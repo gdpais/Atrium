@@ -126,7 +126,7 @@ branches as `gone`, ready for `git branch -d`.
 | Job | Runs |
 | --- | --- |
 | `Detect changes` | Always. Lists the paths the pull request changes; [`scripts/ci-changes.sh`](scripts/ci-changes.sh) decides which of the jobs below they need |
-| `test` | Always: generated code is current, Go tests, race checks, vet, Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
+| `test` | Always: generated code is current, Go tests with the race detector, vet, Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
 | `SQL Server probes` | When `services/db-collector`, its test scripts or `tools/patientzero` (outside its chart) change; also runs PatientZero's live test |
 | `Helm chart` | When the chart, its values, its tests, or PatientZero's chart or setup script change; lints, renders and checks PatientZero's chart too |
 | `kind end-to-end` | When a service, the chart or the kind setup changes |
@@ -151,6 +151,9 @@ scenario's run journal and a summary. Run the same locally with
 `make patientzero-scenarios` on a fresh cluster. Never add `paths:` to the workflow's
 triggers: a required check whose workflow never starts is never reported, and
 the pull request waits forever.
+
+Runners are pinned too (`ubuntu-26.04`, not `ubuntu-latest`), so a new image
+arrives as a reviewed change rather than on GitHub's schedule.
 
 Actions and reusable workflows from other repositories are pinned to a full
 commit SHA, with the exact version as a comment:

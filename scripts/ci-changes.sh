@@ -67,7 +67,7 @@ while IFS= read -r path; do
 	# Read only by the Go tests, which always run.
 	packages/telemetry-contracts/*) ;;
 	# The API: the always-run job tests it, checks its generated code (make
-	# test) and runs its PostgreSQL and Valkey integration tests (make
+	# generate-check) and runs its PostgreSQL and Valkey integration tests (make
 	# test-integration). Nothing builds or deploys it yet; when the chart
 	# does [4.1], it needs kind_e2e like services/db-collector.
 	apps/api/*) ;;

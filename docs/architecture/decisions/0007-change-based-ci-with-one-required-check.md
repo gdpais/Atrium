@@ -5,7 +5,8 @@
   every PatientZero scenario (`scenarios.yml`, about two and a half hours),
   chosen by its branch rather than its paths, and `ci-ok` includes it; the
   same workflow runs nightly on `master` and by hand. Ordinary pull requests
-  keep their change-based jobs.
+  keep their change-based jobs. Amended 2026-11-01: `test` runs the Go tests
+  once, with the race detector, not once with and once without it.
 
 ## Context
 
@@ -33,7 +34,7 @@ interacts badly with required checks:
 | Concern | Choice | Why |
 | --- | --- | --- |
 | Workflow | One workflow, `.github/workflows/ci.yml` (was `db-collector-ci.yml`), started by every pull request, every push to `master` and by hand. No `paths:` filters on its triggers | Every check is always reported; the old name no longer matched what it tests. |
-| What always runs | Go tests, race checks and vet, Prometheus rules, the docs site, the PostgreSQL integration tests (`test`, about 2 minutes) | They are cheap and catch breakage in shared code that a path rule might miss. |
+| What always runs | Go tests with the race detector and vet, Prometheus rules, the docs site, the PostgreSQL integration tests (`test`, about 2 minutes) | They are cheap and catch breakage in shared code that a path rule might miss. |
 | What runs on change | A `changes` job lists the paths the pull request changes and [`scripts/ci-changes.sh`](../../../scripts/ci-changes.sh) turns them into flags: SQL Server probe tests (`db_collector`), chart checks (`chart`), kind acceptance checks (`kind_e2e`). Each slow job runs only when its flag is true | The slow jobs are where the time goes. |
 | Unknown paths | Any path the script does not list (go.mod, `internal/`, the config schema, the Makefile, workflows, new directories) runs every job | A missing rule costs minutes, not an untested merge. |
 | Full runs | Pushes to `master` and manual runs (Actions → ci → Run workflow) run every job | Every commit a release can tag passed the full suite; a rule that skipped too much is caught before a release. A manual run on a branch is the way to force a full run on its pull request. |

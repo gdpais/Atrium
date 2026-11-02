@@ -37,7 +37,7 @@ func TestCIChangesFlags(t *testing.T) {
 		{"chart", []string{"infra/helm/heartbeat/values.yaml"}, false, chart},
 		{"chart rules", []string{"infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml"}, false, chart},
 		{"values profile", []string{"infra/helm/values/kind.yaml"}, false, chart},
-		{"kind cluster", []string{"infra/kind/cluster.yaml"}, false, e2e},
+		{"kind cluster", []string{"infra/kind/cluster.yaml", "infra/kind/e2e.yaml"}, false, e2e},
 		{"docs and chart", []string{"docs/README.md", "infra/helm/heartbeat/Chart.yaml"}, false, chart},
 		{"chart tests", []string{"tests/chart_render_test.go", "tests/chart_schema_test.go"}, false, "db_collector=false chart=true kind_e2e=false"},
 		{"kind scripts", []string{"scripts/kind.sh", "scripts/kind-e2e.sh"}, false, e2e},

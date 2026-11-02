@@ -33,7 +33,7 @@ env:
 jobs:
   verify:
     name: Verify tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Longer than release-verify.sh's own wait for ci-ok (90 minutes).
     timeout-minutes: 100
     permissions:
@@ -55,7 +55,7 @@ jobs:
   images:
     name: Image (${{ matrix.service }})
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -111,7 +111,7 @@ jobs:
   chart:
     name: Helm chart
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -152,7 +152,7 @@ jobs:
   notes:
     name: Release notes
     needs: [verify, images, chart]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
