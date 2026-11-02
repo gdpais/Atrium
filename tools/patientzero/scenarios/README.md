@@ -117,6 +117,7 @@ the scenarios.
 | `HeartbeatServiceMemoryHigh` | Resident memory stays above `GOMEMLIMIT` for 15 minutes | No fault grows the collector's memory that far |
 | `HeartbeatGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |
 | `HeartbeatOTLPExportRejected` | The OTel Collector rejects a request for good | No fault misconfigures the endpoint |
+| `HeartbeatAuditDeliveryStalled` | The oldest audit record waits in the API's outbox for over 4 minutes (2, then its `for: 2m`) | The API is not deployed yet [4.1], and no scenario makes audited changes |
 
 `HeartbeatServiceDown` is covered, but only one of its two rules fires for
 the db-collector in a given cluster: `collector-outage` fires the `absent()`

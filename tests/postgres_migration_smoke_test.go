@@ -78,3 +78,29 @@ where environment_id = (select id from environments where slug = 'prod')
 		t.Fatalf("query plan did not use expected index: %s", stdout)
 	}
 }
+
+// 0002 adds the audit outbox, the password hash and the admin role, and its
+// down migration removes them again, so the up migration applies twice.
+func TestAuditOutboxMigrationUpAndDown(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	stack := newPostgresStack(t, root)
+	stack.ResetDatabase(t)
+	stack.ApplyMigration(t, "/migrations/0001_foundations.up.sql")
+	present := `
+select concat_ws(',',
+  to_regclass('public.audit_outbox')::text,
+  (select column_name from information_schema.columns where table_name = 'users' and column_name = 'password_hash'),
+  (select name from roles where name = 'admin'));
+`
+	for round := 1; round <= 2; round++ {
+		stack.ApplyMigration(t, "/migrations/0002_audit_outbox.up.sql")
+		if stdout := stack.PSQL(t, stack.DBName, present); !strings.Contains(stdout, "audit_outbox,password_hash,admin") {
+			t.Fatalf("round %d, after up: %s", round, stdout)
+		}
+		stack.ApplyMigration(t, "/migrations/0002_audit_outbox.down.sql")
+		if stdout := stack.PSQL(t, stack.DBName, present); strings.Contains(stdout, "audit_outbox") || strings.Contains(stdout, "password_hash") || strings.Contains(stdout, "admin") {
+			t.Fatalf("round %d, after down: %s", round, stdout)
+		}
+	}
+}

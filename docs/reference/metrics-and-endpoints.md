@@ -80,13 +80,15 @@ is served beside it.
 
 | Endpoint | Auth | Behavior |
 | --- | --- | --- |
-| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), Go runtime and process metrics |
+| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), [audit delivery](#audit-delivery), Go runtime and process metrics |
 | `GET /healthz` | none | Liveness only; 200 `ok` while the process serves HTTP. It checks no dependency, so a PostgreSQL or Redis outage never restarts the pod |
 | `GET /readyz` | none | 200 when every readiness check passes, 503 otherwise. The checks run concurrently on each call, 2s at most in all; a check without an answer by then fails. `postgresql`: a query reaches the database and its schema version is at least the newest migration the API embeds, and that migration is not dirty (a newer version passes, dirty or not, so the previous release keeps serving while the next one migrates). `redis`: a `PING` reaches Redis (Valkey) and authenticates. Each passes again on its own once its dependency is back. The body is only `{"status":"ready"}` or `{"status":"not_ready"}`; the failing checks and their errors (`schema not migrated`, a refused connection, a failed login, never a password) are logged when the status changes |
 
-On `SIGTERM` or `SIGINT` the API stops accepting connections, waits up to 10s
-for the requests in flight, closes the rest, then closes its PostgreSQL and
-Redis connections.
+On `SIGTERM` or `SIGINT` the API stops accepting connections and its audit
+drainer, waits up to 10s for the requests in flight, closes the rest, then
+closes its PostgreSQL and Redis connections. An audit export in flight is
+abandoned, and its records are sent again by another replica or the next
+one; records the Collector already accepted are still deleted, within 5s.
 
 ## Metrics
 
@@ -379,6 +381,48 @@ request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
 OPTIONS. A scan of made-up paths and methods therefore lands in the
 `unmatched` and `other` series instead of adding new ones.
 
+### Audit delivery
+
+Every admin or operator change writes an audit record to the `audit_outbox`
+table in its own transaction; a drainer in each API replica sends the oldest
+records to the OTel Collector and deletes them once it accepts them
+([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)).
+So far the one audited change is `api users create-admin`
+([configuration](configuration.md#api)).
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `heartbeat_api_audit_outbox_rows` | gauge | none | Records waiting in the outbox, read at each scrape. Every replica reports the same table. Absent from a scrape while PostgreSQL does not answer within 2s; the rest of the scrape still works |
+| `heartbeat_api_audit_outbox_oldest_age_seconds` | gauge | none | Age of the oldest waiting record, 0 when none waits; normally a few seconds at most. `HeartbeatAuditDeliveryStalled` fires above 2 minutes for 2 minutes |
+| `heartbeat_api_audit_records_delivered_total` | counter | none | Records this replica delivered: the Collector accepted them and they left the outbox. A record can be delivered twice (an export the Collector took after the API gave up on it); its id tells the copies apart |
+
+The drainer claims up to 100 of the oldest rows at a time with
+`FOR UPDATE SKIP LOCKED`, so replicas never send the same rows at once, and
+sends them with the OTLP client the db-collector uses (`client="audit"` in
+`heartbeat_otlp_export_attempts_total`): one export, retried for up to 30s,
+holds a round's rows. It goes on at once while it finds full batches, polls
+every 2s once the outbox is empty, and backs off from 1s to 30s while the
+Collector fails, logging `audit: delivery failed` once, then every minute,
+and `audit: delivery resumed`. Without `HEARTBEAT_API_AUDIT_ENDPOINT`, nothing
+is sent and records wait. A round that finds records is traced: `audit.drain`
+→ `audit.export` and the `db.query` of the delete.
+
+Each record is an OTLP log record: severity INFO, the record's time, the
+record as compact JSON in the body
+([`audit_record.schema.json`](../../packages/telemetry-contracts/src/audit_record.schema.json)),
+attributes `event.name` = `heartbeat.audit` and `log.record.uid` = the record's
+id, and the resource `service.name` = `heartbeat-api` with the replica's
+`service.version`, `service.instance.id` and `deployment.environment.name`.
+There is no `service.namespace`, so audit records stay out of Heartbeat's own
+logs (`service_namespace="heartbeat"`). The record's fields are `id`, `time`,
+`request_id`, `actor` (a user's `user_id` and `email`, or a `cli` command and
+the `host` it ran on), `action`, `entity_type`, `entity_id`, `before`, `after`
+and, for runtime config, `config_version`. In Grafana's Explore, on Loki:
+
+```logql
+{service_name="heartbeat-api"} | event_name="heartbeat.audit" | json | entity_type="user"
+```
+
 ### Heartbeat's own telemetry
 
 Both services expose these
@@ -389,7 +433,7 @@ Both services expose these
 | `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
 | `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
 | `heartbeat_telemetry_trace_errors_total` | counter | none | Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest |
-| `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, or `outsystems` on the collector; `self-logs` exists only while the service has a logs endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
+| `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, `outsystems` on the collector, or `audit` on the API; `self-logs` and `audit` exist only while the service has their endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
 | `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
 | `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
 
@@ -478,6 +522,7 @@ for Heartbeat's own objectives):
 | `HeartbeatGoroutinesGrowing` | Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h |
 | `HeartbeatOwnLogsDropped` | Alert (warning): `heartbeat_telemetry_log_records_total` counted drops in the last 15 minutes |
 | `HeartbeatOTLPExportRejected` | Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes |
+| `HeartbeatAuditDeliveryStalled` | Alert (warning): the oldest audit record in the API's outbox above 2 minutes old for 2 minutes, `max()` over the replicas, which report the same table: the Collector does not take audit records, or `HEARTBEAT_API_AUDIT_ENDPOINT` is unset. Changes still commit and no record is lost ([audit delivery](#audit-delivery)) |
 | `Watchdog` | Alert: always firing. Alertmanager routes it to the `deadmans-switch` receiver (healthchecks.io in production, ADR 0005), which notifies when it stops arriving |
 
 `files/prometheus/rules/generated/` (in the chart) is loaded but empty; it is

@@ -718,7 +718,7 @@ tests:
               client: outsystems
             exp_annotations:
               summary: "The OTel Collector rejected outsystems requests from db-collector"
-              description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again. The status is in the service's log."
+              description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again; for audit, the records stay in the outbox and are sent again. The status is in the service's log."
 
   - name: Dropped own logs alert, exported ones do not; growing goroutines alert
     interval: 1m
@@ -747,3 +747,42 @@ tests:
             exp_annotations:
               summary: "db-collector leaking keeps adding goroutines"
               description: "More than 20 goroutines an hour over the last 6 hours, without having stopped: a likely leak. Take a goroutine profile through HEARTBEAT_PPROF_ADDR."
+
+  - name: Audit delivery stalled alerts after 4 minutes of waiting, once, whatever the replicas
+    interval: 1m
+    input_series:
+      # Two replicas report the same outbox. The oldest record waits from
+      # minute 1 to minute 8, when the Collector takes it.
+      - series: 'heartbeat_api_audit_outbox_oldest_age_seconds{job="api",instance="a"}'
+        values: '0 0 60 120 180 240 300 360 420 0 0'
+      - series: 'heartbeat_api_audit_outbox_oldest_age_seconds{job="api",instance="b"}'
+        values: '0 0 60 120 180 240 300 360 420 0 0'
+    alert_rule_test:
+      # Above 120 s from minute 4; pending for 2 minutes.
+      - eval_time: 5m
+        alertname: HeartbeatAuditDeliveryStalled
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: HeartbeatAuditDeliveryStalled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Audit records have waited 5m 0s for the OTel Collector"
+              description: "The oldest audit record in the API's outbox is older than 2 minutes: the API cannot hand records to the OTel Collector, so they are not in Loki yet. Changes still commit and no record is lost; they are delivered once the Collector takes them again. Check that HEARTBEAT_API_AUDIT_ENDPOINT is set (the API logs `audit delivery off` at startup when it is not), HeartbeatServiceDown for the OTel Collector and Loki, and `audit: delivery failed` in the API's log for the reason. heartbeat_api_audit_outbox_rows says how many wait."
+      - eval_time: 10m
+        alertname: HeartbeatAuditDeliveryStalled
+        exp_alerts: []
+
+  - name: Audit records that wait 3 minutes, as through a Collector restart, do not alert
+    interval: 1m
+    input_series:
+      - series: 'heartbeat_api_audit_outbox_oldest_age_seconds{job="api",instance="a"}'
+        values: '0 60 120 180 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HeartbeatAuditDeliveryStalled
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: HeartbeatAuditDeliveryStalled
+        exp_alerts: []
