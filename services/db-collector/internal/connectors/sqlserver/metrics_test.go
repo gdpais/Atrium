@@ -2,8 +2,11 @@ package sqlserver
 
 import (
 	"context"
+	"database/sql"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -65,4 +68,66 @@ func TestPoolMetricsSumTheHandlesOfATarget(t *testing.T) {
 	if _, err := registry.Gather(); err != nil {
 		t.Fatalf("scrape failed: %v", err)
 	}
+}
+
+// A target renamed in the config keeps its pool, which must not keep
+// reporting under the old name.
+func TestPoolMetricsFollowARenamedTarget(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	now := time.Unix(1000, 0)
+	m.pool.now = func() time.Time { return now }
+	old := target("a", "db.example", "ref-a")
+	_, release := mustOpen(t, m, old)
+	release()
+	renamed := old
+	renamed.Name = "b"
+	if got := ownersOf(m.pool.stats()); !slices.Equal(got, []string{"a"}) {
+		t.Fatalf("owners = %v, want [a]", got)
+	}
+	now = now.Add(time.Minute)
+	_, release = mustOpen(t, m, renamed)
+	release()
+	// Both used it recently: the first in name order, so they do not take turns.
+	if got := ownersOf(m.pool.stats()); !slices.Equal(got, []string{"a"}) {
+		t.Fatalf("owners = %v, want [a]", got)
+	}
+	now = now.Add(m.pool.idleTTL)
+	_, release = mustOpen(t, m, renamed)
+	release()
+	if got := ownersOf(m.pool.stats()); !slices.Equal(got, []string{"b"}) {
+		t.Fatalf("owners = %v, want [b] once a has gone unused", got)
+	}
+}
+
+// Waits of a closed handle stay in its owner's counters, so a rotation that
+// closes the old handle does not lower them.
+func TestPoolWaitCountersSurviveAClosedHandle(t *testing.T) {
+	m, _, _ := newTestManager(t)
+	tg := target("a", "db.example", "ref-a")
+	_, release := mustOpen(t, m, tg)
+	defer release()
+	owner := poolOwner{target: "a"}
+	m.pool.mu.Lock()
+	m.pool.retired[owner] = sql.DBStats{WaitCount: 5, WaitDuration: 2 * time.Second}
+	m.pool.retired[poolOwner{target: "gone"}] = sql.DBStats{WaitCount: 9}
+	m.pool.mu.Unlock()
+	var waits int64
+	for _, s := range m.pool.stats()[owner] {
+		waits += s.WaitCount
+	}
+	if waits < 5 {
+		t.Errorf("waits = %d, want the closed handle's 5 kept", waits)
+	}
+	if _, ok := m.pool.stats()[poolOwner{target: "gone"}]; ok {
+		t.Error("an owner with no handle left is still reported")
+	}
+}
+
+func ownersOf(stats map[poolOwner][]sql.DBStats) []string {
+	var out []string
+	for owner := range stats {
+		out = append(out, owner.target)
+	}
+	slices.Sort(out)
+	return out
 }
