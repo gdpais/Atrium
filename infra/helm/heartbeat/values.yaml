@@ -247,7 +247,7 @@ grafanaDashboards:
   enabled: true
 
 # Ingress NetworkPolicies for the bundled engines [9.6], one per engine that
-# is on: otel-collector, prometheus, alertmanager and loki. Only the
+# is on: otel-collector, prometheus, alertmanager, loki and tempo. Only the
 # components that use an engine may connect, on the ports they use; every
 # other pod, in this namespace or another, is dropped:
 #   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (its
@@ -258,6 +258,8 @@ grafanaDashboards:
 #   loki            3100 from the OTel Collector (OTLP), Grafana (datasource)
 #                   and Prometheus (its scrape); gRPC 9095 and memberlist 7946
 #                   from Loki itself
+#   tempo           4318 (OTLP/HTTP) from the OTel Collector; 3200 from Grafana
+#                   (datasource) and Prometheus (its scrape)
 # A component that is off, or a scrape job that is disabled, is not admitted.
 # Grafana gets no policy: whatever serves its UI (an ingress, a load
 # balancer, the operator) must reach it, and its login is the access control
@@ -286,10 +288,52 @@ backendNetworkPolicies:
   loki:
     # Admitted to 3100 (push, query and metrics).
     extraPeers: []
+  tempo:
+    # Admitted to 3200 (query and metrics) and 4318 (OTLP/HTTP).
+    extraPeers: []
 
 # ---------------------------------------------------------------------------
 # Third-party engines (pinned dependencies, see Chart.yaml)
 # ---------------------------------------------------------------------------
+
+# The trace store, in single-binary mode (ADR 0018): OTLP from the OTel
+# Collector, queried by Grafana. One replica on a local disk, like Loki on kind;
+# production moves it to S3 (production.example.yaml) with Loki's chunks.
+tempo:
+  enabled: true
+  fullnameOverride: tempo
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 2Gi
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  tempo:
+    reportingEnabled: false
+    # Debug traces are worth days, not the months the logs of an audit are.
+    retention: 168h
+    # The chart's other receivers (Jaeger, OTLP gRPC) stay, since its Service
+    # needs them; backendNetworkPolicies admits only 4318 and 3200.
+    extraEnv:
+      # Its soft memory limit, below the container's (ADR 0003's budget).
+      - name: GOMEMLIMIT
+        value: 200MiB
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
 
 prometheus:
   enabled: true
@@ -370,6 +414,9 @@ prometheus:
     loki:
       static_configs:
         - targets: ["loki:3100"]
+    tempo:
+      static_configs:
+        - targets: ["tempo:3200"]
 
   alertmanager:
     enabled: true
@@ -436,6 +483,28 @@ grafana:
           type: loki
           access: proxy
           url: http://loki:3100
+          jsonData:
+            # From a log line's trace ID to its trace.
+            derivedFields:
+              - name: trace_id
+                matcherType: label
+                matcherRegex: trace_id
+                datasourceUid: tempo
+                url: $${__value.raw}
+                urlDisplayLabel: View trace
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo:3200
+          jsonData:
+            # From a span to the logs of its trace, around its time.
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: -5m
+              spanEndTimeShift: 5m
+              customQuery: true
+              query: '{service_name="$${__span.tags["service.name"]}"} | trace_id="$${__span.traceId}"'
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -728,6 +797,11 @@ otelCollector:
         endpoint: http://loki:3100/otlp
         sending_queue:
           queue_size: 64
+      # Traces may be lost like those logs: they are a sample anyway.
+      otlp_http/traces:
+        endpoint: http://tempo:4318
+        sending_queue:
+          queue_size: 64
     service:
       extensions: [health_check, file_storage/export-queue]
       pipelines:
@@ -751,6 +825,10 @@ otelCollector:
           receivers: [otlp/self]
           processors: [memory_limiter, resource, batch]
           exporters: [otlp_http/self-logs]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp_http/traces]
       telemetry:
         metrics:
           readers:

@@ -64,7 +64,7 @@ answer.
 | Open | What you should see |
 | --- | --- |
 | http://localhost:3001 (Grafana, `admin`/`admin`) | Dashboards → **Heartbeat** folder with *Heartbeat Service*, *SQL Server Overview* and the four OutSystems dashboards (empty until an `outsystems_logs` collector runs, for example with PatientZero); Connections → Data sources lists Prometheus and Loki |
-| http://localhost:9090/targets (Prometheus) | Five jobs, all **UP**: alertmanager, db-collector, loki, otel-collector, prometheus |
+| http://localhost:9090/targets (Prometheus) | Six jobs, all **UP**: alertmanager, db-collector, loki, otel-collector, prometheus, tempo |
 | http://localhost:9090/alerts | **Watchdog** firing. It always fires; that is how a dead-man's switch knows alerting works |
 | http://localhost:9093 (Alertmanager) | The Watchdog alert, received from Prometheus |
 | http://localhost:8082/readyz | `{"status":"ready"}`; the details need the admin token (next section) |

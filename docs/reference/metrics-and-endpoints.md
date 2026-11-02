@@ -17,6 +17,7 @@ maps fixed NodePorts to these ports on 127.0.0.1 only.
 | Alertmanager | 9093 | |
 | OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile. Heartbeat's own logs use a third port, 4319, in-cluster only |
 | Loki | none | In-cluster only (`loki:3100`); query it through Grafana, or `kubectl port-forward svc/loki 3100` |
+| Tempo | none | In-cluster only (`tempo:3200`, OTLP on `tempo:4318`); query it through Grafana, or `kubectl port-forward svc/tempo 3200`. `full` profile |
 | SQL Server (dev target only) | 127.0.0.1:11433 | Loopback-bound Docker container; see the [local development guide](../guides/local-development.md#sql-server-sandbox) |
 
 Inside the cluster every component keeps its Compose-era name and port
@@ -401,8 +402,8 @@ The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
 
 Scrape jobs (`prometheus.scrapeConfigs` in the chart's
 [`values.yaml`](../../infra/helm/heartbeat/values.yaml)): `prometheus`,
-`otel-collector`, `db-collector`, `alertmanager`, `loki`; the `minimal`
-profile drops `otel-collector` and `loki`, which it does not deploy. `db-collector` uses
+`otel-collector`, `db-collector`, `alertmanager`, `loki`, `tempo`; the `minimal`
+profile drops `otel-collector`, `loki` and `tempo`, which it does not deploy. `db-collector` uses
 DNS discovery on the headless `db-collector-headless` Service, which lists the
 pod even while it is unready, so the collector's failure metrics are still
 scraped. Prometheus sends alerts to `alertmanager:9093`.
@@ -432,7 +433,7 @@ for Heartbeat's own objectives):
 | `OutSystemsDuplicateLogRows` | Alert (warning): `heartbeat_outsystems_duplicate_rows_total` grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent |
 | `OutSystemsDerivedSeriesOverflow` | Alert (warning): `heartbeat_outsystems_derived_series_overflow_total` grew in the last 15 minutes, per collector: its derived series reached `max_derived_series`, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise `max_derived_series` if the collector's memory allows |
 | `OutSystemsLogRecountFailing` | Alert (warning): more than half of a log type's recounts failed in the last 15 minutes, of three or more, whatever the poll interval; the reason is in the collector's log |
-| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the OTel Collector or Loki; and no `up` series at all for the DB collector, whose DNS discovery finds no target while it has no pod (`absent(up{job="db-collector"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
+| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector, whose DNS discovery finds no target while it has no pod (`absent(up{job="db-collector"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
 | `LokiDiscardingLogs` | Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (`loki_discarded_samples_total`); those rows are lost |
 | `HeartbeatCollectorLoginElevated` | Alert (warning): `heartbeat_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
 | `HeartbeatCollectorConfigReloadFailed` | Alert (warning): `heartbeat_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |

@@ -16,6 +16,21 @@
 telemetry:
   environment: production
 
+# Traces on S3, in the same way as Loki's chunks.
+tempo:
+  persistence:
+    enabled: false
+  tempo:
+    storage:
+      trace:
+        backend: s3
+        s3:
+          bucket: <heartbeat-traces-bucket>
+          endpoint: s3.<region>.amazonaws.com
+          region: <region>
+        wal:
+          path: /var/tempo/wal
+
 dbCollector:
   image:
     repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/db-collector

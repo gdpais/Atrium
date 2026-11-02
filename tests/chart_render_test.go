@@ -126,6 +126,7 @@ var defaultBackendPolicies = map[string][]string{
 		"TCP/3100 <- " + otelCollectorPeer, "TCP/3100 <- " + grafanaPeer, "TCP/3100 <- " + bundledPrometheusPeer,
 		"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 	},
+	"tempo": {"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer, "TCP/3200 <- " + bundledPrometheusPeer},
 }
 
 // kindBackendPolicies adds the kind values' operator access to the engines
@@ -197,7 +198,7 @@ var chartProfiles = []chartProfile{
 		// Without the OTel Collector there is nothing to export to.
 		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/1433 -> " + kindHostPeer},
 		// No policy for the engines that are off.
-		backendPolicies: withPairs(kindBackendPolicies, nil, "otel-collector", "loki"),
+		backendPolicies: withPairs(kindBackendPolicies, nil, "otel-collector", "loki", "tempo"),
 	},
 	{
 		name:              "kind-sqlserver-dev",
@@ -276,6 +277,10 @@ var chartProfiles = []chartProfile{
 				"TCP/3100 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
 				"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 			},
+			"tempo": {
+				"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer,
+				"TCP/3200 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
+			},
 		},
 	},
 	{
@@ -331,7 +336,7 @@ var chartProfiles = []chartProfile{
 		name: "backend-scrapes-disabled",
 		set: []string{
 			"prometheus.scrapeConfigs.loki.enabled=false", "prometheus.scrapeConfigs.otel-collector.enabled=false",
-			"otelCollector.ports.prom-exporter.enabled=false",
+			"prometheus.scrapeConfigs.tempo.enabled=false", "otelCollector.ports.prom-exporter.enabled=false",
 		},
 		collectorPeers: []string{bundledPrometheusPeer},
 		backendPolicies: map[string][]string{
@@ -339,6 +344,7 @@ var chartProfiles = []chartProfile{
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["loki"],
+			"tempo":          withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["tempo"],
 		},
 	},
 	{
@@ -526,6 +532,7 @@ var chartProfiles = []chartProfile{
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           defaultBackendPolicies["loki"],
+			"tempo":          defaultBackendPolicies["tempo"],
 		},
 		selfLogsOff: true,
 	},
@@ -1414,7 +1421,7 @@ func checkInClusterEndpoints(t *testing.T, objects map[string]object) {
 
 // The OTel Collector runs exactly Heartbeat's config in every profile: only
 // the profile's receivers (the two OTLP receivers unless it says otherwise),
-// and the logs, Heartbeat's own logs and metrics pipelines. Values merged over the
+// and the logs, Heartbeat's own logs, metrics and traces pipelines. Values merged over the
 // subchart's defaults once brought back its other receivers and a traces
 // pipeline in profiles that did not set otelCollector keys.
 func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers []string) {
@@ -1436,8 +1443,8 @@ func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers 
 	if got := slices.Sorted(maps.Keys(relay.Receivers)); !slices.Equal(got, receivers) {
 		t.Errorf("OTel Collector receivers = %v, want %v", got, receivers)
 	}
-	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "logs/self", "metrics"}) {
-		t.Errorf("OTel Collector pipelines = %v, want [logs logs/self metrics]", got)
+	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "logs/self", "metrics", "traces"}) {
+		t.Errorf("OTel Collector pipelines = %v, want [logs logs/self metrics traces]", got)
 	}
 }
 
@@ -2105,6 +2112,7 @@ func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPe
 // backendWorkloads are the workloads each engine NetworkPolicy protects.
 var backendWorkloads = map[string]string{
 	"otel-collector": "StatefulSet/otel-collector",
+	"tempo":          "StatefulSet/tempo",
 	"prometheus":     "Deployment/prometheus",
 	"alertmanager":   "StatefulSet/alertmanager",
 	"loki":           "StatefulSet/loki",

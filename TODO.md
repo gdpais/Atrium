@@ -343,19 +343,17 @@ Design: [request traces](docs/architecture/application-observability.md#request-
 ### 3.6 OTLP trace ingest
 
 Heartbeat accepts all three OpenTelemetry signals, so any source that sends
-OTLP traces has somewhere to store them, and step B [3.5] reuses the store. No
-real source sends traces yet, so the tests use generated ones (`telemetrygen`).
-Not part of the phase 2 exit (decided 2026-10-21): OutSystems 11 self-managed
-sends no traces, and the request timeline [3.5] already answers "what happened
-in this request" from logs. Build this together with step B [3.5], as one
-request-traces feature, once something consumes it: the first OTLP trace
-source (OutSystems Cloud or ODC) or the phase 7 investigation timeline.
+OTLP traces has somewhere to store them, and step B [3.5] reuses the store. Not
+part of the phase 2 exit: OutSystems 11 self-managed sends no traces, and the
+request timeline [3.5] already answers "what happened in this request" from
+logs. Heartbeat's own traces became the first source, so this came before the
+rest of 4.1 ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md)).
 
-- [ ] Decide trace storage and retention (ADR; Grafana Tempo in single-binary mode is the natural fit next to Loki)
-- [ ] Tempo as a pinned chart dependency with persistence and retention, off in the `minimal` profile; storage settings in the production example values
-- [ ] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
-- [ ] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
-- [ ] Validate: kind-e2e sends traces and logs sharing a trace ID with `telemetrygen`, finds the trace in Tempo and follows the link from the log; record the full profile's added memory [16.2]
+- [x] Decide trace storage and retention: Tempo in single-binary mode, 7 days ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md))
+- [x] Tempo as a pinned chart dependency with persistence and retention, off in the `minimal` profile; storage settings in the production example values
+- [x] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
+- [x] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
+- [ ] Validate: kind-e2e finds a trace of the collector's in Tempo and follows the link from a log with its trace ID; record the full profile's added memory [0.6, 16.2]
 
 ---
 

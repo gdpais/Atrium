@@ -386,6 +386,22 @@
               }
             }
           }
+        },
+        "tempo": {
+          "description": "Admitted to 3100.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
         }
       }
     },
@@ -498,6 +514,10 @@
     },
     "loki": {
       "description": "Values of the loki subchart, checked by its own schema.",
+      "type": "object"
+    },
+    "tempo": {
+      "description": "Values of the tempo subchart.",
       "type": "object"
     },
     "otelCollector": {
