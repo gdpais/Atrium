@@ -172,4 +172,25 @@ groups:
           severity: warning
         annotations:
           summary: "The OTel Collector rejected {{ $labels.client }} requests from {{ $labels.job }}"
-          description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again. The status is in the service's log."
+          description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again; for audit, the records stay in the outbox and are sent again. The status is in the service's log."
+      # A partial success: the request was accepted, so neither the client
+      # nor the audit outbox sends it again. No for: the records are lost.
+      - alert: HeartbeatOTLPRecordsRejected
+        expr: sum by (job, instance, client) (increase(heartbeat_otlp_export_rejected_records_total[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "The OTel Collector refused about {{ $value | printf \"%.0f\" }} {{ $labels.client }} log records from {{ $labels.job }}"
+          description: "The receiver answered with an OTLP partial success: it took the request and refused those records, and a request it took is not sent again, so they are lost. For audit, audit records are missing from Loki; for outsystems, log rows are; for self-logs, the service's own lines (still in `kubectl logs`). The reason is the `OTLP receiver rejected some log records` warning in the service's log."
+      # Audit records (ADR 0016) wait in the API's outbox, normally for
+      # seconds, until the OTel Collector accepts them. Every replica reports
+      # the same table, hence max. As OutSystemsLogExportBlocked: 2 minutes of
+      # waiting, then 2 more, so a Collector or Loki restart does not fire it.
+      - alert: HeartbeatAuditDeliveryStalled
+        expr: max(heartbeat_api_audit_outbox_oldest_age_seconds) > 120
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Audit records have waited {{ $value | humanizeDuration }} for the OTel Collector"
+          description: "The oldest audit record in the API's outbox is older than 2 minutes: the API cannot hand records to the OTel Collector, so they are not in Loki yet. Changes still commit and no record is lost; they are delivered once the Collector takes them again. Check that HEARTBEAT_API_AUDIT_ENDPOINT is set (the API logs `audit delivery off` at startup when it is not), HeartbeatServiceDown for the OTel Collector and Loki, and `audit: delivery failed` in the API's log for the reason. heartbeat_api_audit_outbox_rows says how many wait."

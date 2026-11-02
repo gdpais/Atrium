@@ -436,7 +436,8 @@ instead of falling back to the default.
 | `HEARTBEAT_API_REDIS_TLS` | `true` | TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. `false` for a server without TLS on a trusted network: kind, a local container |
 | `HEARTBEAT_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `HEARTBEAT_CREDENTIAL_<REF>` files, read on every new connection |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` commands send no telemetry |
+| `HEARTBEAT_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `HeartbeatAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |
 
 The settings above win over libpq's `PG*` environment variables, which the
@@ -448,7 +449,8 @@ The API connects lazily: it starts while PostgreSQL or Redis is down or its
 credential is missing, and `GET /readyz` answers 503 until both work
 ([endpoints](metrics-and-endpoints.md#api-8081)).
 
-The same binary applies the migrations ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)).
+The same binary applies the migrations and creates admins
+([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)).
 These commands read only the PostgreSQL settings and the credential lookup,
 then exit:
 
@@ -456,6 +458,16 @@ then exit:
 | --- | --- |
 | `api migrate up` | Applies, in order, each migration of [`db/migrations`](../../db/migrations) newer than the database's version, and records it in `schema_migrations`. Replicas may run it at once: a PostgreSQL advisory lock makes the others wait and each migration runs once. Each wait for the lock ends after 5 minutes, or on SIGTERM, and fails the command. A database already past the newest migration it embeds (after rolling the API back) is left alone, and the command succeeds. A dirty version fails it ([repair](../guides/local-development.md#change-a-query-or-a-migration)) |
 | `api migrate version` | Prints the schema version, `0` when never migrated, with ` (dirty)` while a migration runs or after one failed partway. It only reads `schema_migrations`: it creates nothing and does not wait for a migration in progress |
+| `api users create-admin --email ADDRESS [--name NAME]` | Creates a user with the `admin` role and the password read from standard input, and its audit record, in one transaction. There is no default password: this is how the first admin is made, and how anyone who can run a command in an API container gets back in. The email is stored in lower case and must not belong to a user already, in any case; the name defaults to the email's local part. The password is the first line of standard input, its line end dropped, from 15 characters ([NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html)'s minimum for a single factor) to 1,024 bytes, stored only as its argon2id hash (RFC 9106's second recommended setting: 64 MiB, t=3, p=4). A terminal is refused, since it echoes what is typed: pipe the password in. Fails, writing nothing, on a schema older than the API's (`run api migrate up`). Logs the user's ID and the audit record's ID; the record is sent by the API's drainer, as `api users create-admin` on the pod's host name |
+
+Creating the first admin, where the password never reaches the command line
+or the shell history; on a cluster, the same through `kubectl exec -i` into an
+API pod (the chart adds the API [4.1]):
+
+```bash
+read -rs PASSWORD && printf '%s\n' "$PASSWORD" | \
+  api users create-admin --email admin@example.com --name "First Admin"; unset PASSWORD
+```
 
 ### Local development files
 

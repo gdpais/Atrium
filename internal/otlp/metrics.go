@@ -19,6 +19,10 @@ const (
 	// MetricExportBytes counts the compressed bytes of accepted requests.
 	// Labels: client.
 	MetricExportBytes = "heartbeat_otlp_export_bytes_total"
+	// MetricExportRejectedRecords counts the records the receiver refused
+	// inside requests it accepted (OTLP partial success). Retrying such a
+	// request is not allowed, so these records are lost. Labels: client.
+	MetricExportRejectedRecords = "heartbeat_otlp_export_rejected_records_total"
 )
 
 // Values of the outcome label of [MetricExportAttempts].
@@ -45,6 +49,7 @@ type Metrics struct {
 	attempts *prometheus.CounterVec
 	duration *prometheus.HistogramVec
 	bytes    *prometheus.CounterVec
+	rejected *prometheus.CounterVec
 }
 
 // NewMetrics returns the export metrics.
@@ -63,12 +68,16 @@ func NewMetrics() *Metrics {
 			Name: MetricExportBytes,
 			Help: "Compressed bytes of the OTLP/HTTP requests the receiver accepted.",
 		}, []string{"client"}),
+		rejected: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: MetricExportRejectedRecords,
+			Help: "Log records the receiver refused inside accepted OTLP/HTTP requests (partial success); they are lost.",
+		}, []string{"client"}),
 	}
 }
 
 // Collectors returns what a registry must register.
 func (m *Metrics) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{m.attempts, m.duration, m.bytes}
+	return []prometheus.Collector{m.attempts, m.duration, m.bytes, m.rejected}
 }
 
 // Client returns the metrics of the client called name, with its counters at
@@ -84,6 +93,7 @@ func (m *Metrics) Client(name string) *ClientMetrics {
 		rejected:  m.attempts.WithLabelValues(name, outcomeRejected),
 		duration:  m.duration.WithLabelValues(name),
 		bytes:     m.bytes.WithLabelValues(name),
+		records:   m.rejected.WithLabelValues(name),
 	}
 	return c
 }
@@ -94,6 +104,16 @@ type ClientMetrics struct {
 	accepted, retryable, rejected prometheus.Counter
 	duration                      prometheus.Observer
 	bytes                         prometheus.Counter
+	// records counts the records refused by partial success.
+	records prometheus.Counter
+}
+
+// rejectRecords records n records refused inside an accepted request.
+func (c *ClientMetrics) rejectRecords(n int64) {
+	if c == nil {
+		return
+	}
+	c.records.Add(float64(n))
 }
 
 // observe records one attempt that sent size bytes and ended with err.  An

@@ -14,7 +14,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/database"
 	migratepgx "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 
@@ -108,16 +107,9 @@ func MigrateUp(ctx context.Context, cfg Config, resolver credentials.Resolver, l
 // partway. It only reads schema_migrations, so it neither creates the table
 // nor waits for a migration in progress.
 func MigrationVersion(ctx context.Context, cfg Config, resolver credentials.Resolver) (uint, bool, error) {
-	connConfig, err := cfg.connConfig()
+	conn, err := Connect(ctx, cfg, resolver)
 	if err != nil {
 		return 0, false, err
-	}
-	if err := beforeConnect(resolver, cfg.CredentialRef)(ctx, connConfig); err != nil {
-		return 0, false, err
-	}
-	conn, err := pgx.ConnectConfig(ctx, connConfig)
-	if err != nil {
-		return 0, false, fmt.Errorf("connect to postgresql: %w", err)
 	}
 	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	got, err := New(conn).SchemaVersion(ctx)

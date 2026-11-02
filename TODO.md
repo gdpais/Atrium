@@ -402,7 +402,7 @@ queue tests alone.
 - [ ] When the chart deploys the API: set its telemetry environment variables as the db-collector's, add its Prometheus scrape job, admit it to the Collector's 4319, and check its logs, metrics and traces on kind ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md))
 
 ### 4.2 Identity and access
-- [ ] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md))
+- [ ] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)). Hashing (`apps/api/internal/password`, with its concurrency cap) and `api users create-admin` are in [4.10]; login verifies and upgrades hashes
 - [ ] Implement users/roles/user_roles management
 - [ ] Add minimal admin/wallboard access model
 - [ ] Defer OIDC/SSO unless required early
@@ -467,10 +467,11 @@ Built with the reporting worker [7, 14], not in stage 3.
 
 ### 4.10 Audit output
 - [x] Decide how audit records are written and delivered: in the change's transaction to an `audit_outbox`, drained as OTLP log records through the OTel Collector to Loki ([ADR 0016](docs/architecture/decisions/0016-audit-records-through-an-outbox.md))
-- [ ] Write a record for every admin/operator change in its transaction; drain the outbox to the OTel Collector, at least once, and delete rows once accepted; `audit_record.schema.json` in `packages/telemetry-contracts`
-- [ ] Include request ID, actor, entity type/id, before/after, config version when relevant
-- [ ] Ensure secrets never enter audit records: a test changes each audited entity and fails on a password, hash, session ID or token
-- [ ] Export the outbox's row count and oldest age; alert when delivery stalls
+- [x] Write the audit record in the change's transaction (`audit_outbox`); drain the outbox to the OTel Collector, at least once, and delete rows once accepted; `audit_record.schema.json` in `packages/telemetry-contracts`. The first audited change is `api users create-admin`; each later slice writes the records of its own changes through `audit.Write` and adds its entity to `audit.EntityTypes`
+- [x] Include request ID, actor, entity type/id, before/after, config version when relevant
+- [x] Ensure secrets never enter audit records: a test changes each audited entity and fails on a password, hash, session ID or token (`auditedChanges` in `apps/api/internal/audit`; it fails while an entity type has no change listed, so each later slice adds its own)
+- [x] Export the outbox's row count and oldest age; alert when delivery stalls (`HeartbeatAuditDeliveryStalled`)
+- [ ] With the chart's API [4.1]: set `HEARTBEAT_API_AUDIT_ENDPOINT` to the Collector's 4318 (the logs pipeline with the persistent queue), admit the API to 4318 in the Collector's NetworkPolicy, and check in kind-e2e that a record from `api users create-admin` reaches Loki (`{service_name="heartbeat-api"} | event_name="heartbeat.audit"`)
 
 ---
 

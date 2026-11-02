@@ -80,7 +80,8 @@ type Client struct {
 	InitialBackoff time.Duration
 	MaxBackoff     time.Duration
 	// Logger receives a warning when the receiver rejects some records of an
-	// accepted request (OTLP partial success).  Nil means [slog.Default].
+	// accepted request (OTLP partial success), which Metrics also counts.
+	// Nil means [slog.Default].
 	Logger *slog.Logger
 	// Metrics records each attempt.  Nil records nothing.
 	Metrics *ClientMetrics
@@ -197,6 +198,7 @@ func (c *Client) post(ctx context.Context, url string, body []byte) (time.Durati
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		if rejected, message := partialSuccess(payload); rejected > 0 {
+			c.Metrics.rejectRecords(rejected)
 			c.logger().Warn("OTLP receiver rejected some log records", "endpoint", url, "rejected", rejected, "message", message)
 		}
 		return 0, nil
