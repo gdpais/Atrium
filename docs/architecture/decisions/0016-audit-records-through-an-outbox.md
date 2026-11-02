@@ -93,7 +93,7 @@ Considered and not chosen:
 ## Consequences
 
 - One expand migration adds `audit_outbox`; the API gains a small OTLP log
-  exporter. The db-collector's (`services/db-collector/internal/export/otlp`)
+  exporter. The db-collector's (`internal/otlp`)
   is the model; sharing it is a refactor for that slice to weigh.
 - The OTel Collector's NetworkPolicy admits the API on its OTLP port.
 - Changes don't depend on the Collector being up; audit delivery does, and is
