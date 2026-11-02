@@ -37,8 +37,9 @@ is installed on monitored database hosts.
   not defaults.
 - These engines are the bundled platform, not a dependency of Heartbeat's
   services: [ADR 0011](0011-platform-agnostic-telemetry-boundary.md) keeps the
-  platform replaceable and reconsiders it, against the organization's ELK
-  stack, before production.
+  platform replaceable, and [ADR 0019](0019-keep-grafana-and-share-telemetry-as-otlp.md)
+  keeps the Grafana stack after the review against the organization's ELK
+  stack.
 - Redis runs as Valkey, and how PostgreSQL and Redis are deployed is
   [ADR 0015](0015-postgresql-and-redis-delivery.md).
 - A late-roadmap evaluation compares the custom SQL Server collector with
