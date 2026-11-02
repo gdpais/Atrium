@@ -462,6 +462,25 @@ target_up logging-db 1 || fail "the logging-db target is not up"
 pass "3 OutSystems error rows in Loki as {service_name=\"E2eShop\", outsystems_log_type=\"error\"}, attributes as structured metadata"
 
 # ----------------------------------------------------------------------------
+step "Heartbeat's own logs and traces reach Loki and Tempo, linked by trace ID"
+own_logs='{service_namespace="heartbeat",service_name="db-collector",deployment_environment_name="local"}'
+wait_for 120 "the collector's own logs in Loki" log_found "$own_logs"
+[ "$(prom_value 'sum(heartbeat_telemetry_log_records_total{outcome="exported"}) > 0' | cut -c1)" != "" ] ||
+	fail "the collector counts no exported log records"
+[ "$(prom_value 'heartbeat_service_info{service="db-collector",environment="local"}')" = 1 ] ||
+	fail "no heartbeat_service_info for the db-collector"
+# A cycle's trace, from the target that always fails: its warnings carry the
+# trace ID, which leads to the trace.
+traced_warning() { loki_query "$own_logs | trace_id!=\"\" | detected_level=\"warn\"" | jq -r '[.data.result[].stream.trace_id] | first // empty'; }
+trace_has_cycle() {
+	trace_id=$(traced_warning)
+	[ -n "$trace_id" ] && svc_get tempo:3200 "/api/traces/$trace_id" |
+		jq -e '[.batches[].scopeSpans[].spans[].name] | contains(["collector.cycle", "collector.target", "collector.probe"])'
+}
+wait_for 180 "a warning's trace ID leads to its collection cycle in Tempo" trace_has_cycle
+pass "own logs in Loki under service_namespace=heartbeat; trace $trace_id holds the cycle, target and probe spans"
+
+# ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"
 readyz=$(pod_get /readyz)
 [ "$(printf '%s' "$readyz" | jq -c keys)" = '["status"]' ] || fail "/readyz serves more than its status: $readyz"

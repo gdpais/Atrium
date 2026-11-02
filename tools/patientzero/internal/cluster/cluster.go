@@ -18,7 +18,7 @@ import (
 // Workloads a cluster fault can act on, as the host agent knows them: the
 // Heartbeat StatefulSets of the same name (one pod each), and SQL Server,
 // the Docker container outside the cluster.
-var Workloads = []string{"db-collector", "loki", "otel-collector", "sqlserver"}
+var Workloads = []string{"db-collector", "loki", "otel-collector", "sqlserver", "tempo"}
 
 // Delegator applies (start) or removes (stop) a cluster fault and returns
 // once it has.

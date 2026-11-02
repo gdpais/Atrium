@@ -353,7 +353,8 @@ rest of 4.1 ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetr
 - [x] Tempo as a pinned chart dependency with persistence and retention, off in the `minimal` profile; storage settings in the production example values
 - [x] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
 - [x] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
-- [ ] Validate: kind-e2e finds a trace of the collector's in Tempo and follows the link from a log with its trace ID; record the full profile's added memory [0.6, 16.2]
+- [x] Validate: kind-e2e finds a trace of the collector's in Tempo and follows the link from a log with its trace ID
+- [ ] Record the full profile's added memory [0.6, 16.2]
 
 ---
 

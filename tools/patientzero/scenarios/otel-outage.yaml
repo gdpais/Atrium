@@ -7,7 +7,8 @@ description: >-
   HeartbeatServiceDown fires for it after 2 minutes and resolves once it is
   back. The db-collector's exports fail meanwhile and are retried in the
   background until the Collector takes them, so OutSystemsLogExportBlocked
-  fires too. Once the Collector is back the backlog drains and Loki ends
+  fires too. The db-collector's own logs have nowhere to go, so it counts them
+  dropped and HeartbeatOwnLogsDropped fires. Once the Collector is back the backlog drains and Loki ends
   with every row PatientZero committed, once.
 load: steady
 steps:
@@ -37,6 +38,12 @@ signals:
   - name: export-blocked-fires
     alert: OutSystemsLogExportBlocked
     labels: {collector: patientzero}
+    state: firing
+    step: down
+    within: 4m
+  - name: own-logs-dropped-fires
+    alert: HeartbeatOwnLogsDropped
+    labels: {job: db-collector}
     state: firing
     step: down
     within: 4m

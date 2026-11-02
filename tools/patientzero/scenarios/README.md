@@ -46,10 +46,11 @@ scenario with cluster faults it is also the run's host agent, which needs
 | [`restarts`](restarts.yaml) | The db-collector, the OTel Collector and Loki restarted one after the other | No `HeartbeatServiceDown`, `OutSystemsLogExportBlocked`, `OutSystemsLateLogRows` or `OutSystemsDuplicateLogRows`, no discarded rows; Loki holds every row of the run, once | about 9 minutes |
 | [`loki-outage`](loki-outage.yaml) | Loki down for 4 minutes | `heartbeat_outsystems_export_blocked` 1 while the target stays up; `OutSystemsLogExportBlocked` and `HeartbeatServiceDown` for Loki firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
 | [`otel-outage`](otel-outage.yaml) | The OTel Collector down for 4 minutes | `HeartbeatServiceDown` for it and `OutSystemsLogExportBlocked` firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
+| [`tempo-outage`](tempo-outage.yaml) | Tempo down for 4 minutes | `HeartbeatServiceDown` for it firing, then resolved; the target stays up, its export never blocks and extraction keeps up; Loki holds every row of the run, once | 8 min |
 | [`collector-outage`](collector-outage.yaml) | The db-collector down for 4 minutes | No collector target up and `HeartbeatServiceDown` for it firing, then both back; extraction catches up; Loki holds every row, once | about 8 minutes |
 | [`sqlserver-outage`](sqlserver-outage.yaml) | The sandbox SQL Server stopped for 2 minutes | Both collector targets down, then up again; Loki holds every row PatientZero could write, once | about 7 minutes |
 
-The last five have cluster faults: `make patientzero-scenario` applies them
+The last six have cluster faults: `make patientzero-scenario` applies them
 as the run's host agent ([cluster faults](#cluster-faults)). What the
 scenarios leave out is under [not covered](#not-covered).
 
@@ -115,7 +116,6 @@ the scenarios.
 | `HeartbeatServiceRestarting` | A service starts more than 3 times in an hour | `restarts` restarts it once |
 | `HeartbeatServiceMemoryHigh` | Resident memory stays above `GOMEMLIMIT` for 15 minutes | No fault grows the collector's memory that far |
 | `HeartbeatGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |
-| `HeartbeatOwnLogsDropped` | A service dropped own log records in the last 15 minutes | `otel-outage` should: checked by hand until it does |
 | `HeartbeatOTLPExportRejected` | The OTel Collector rejects a request for good | No fault misconfigures the endpoint |
 
 `HeartbeatServiceDown` is covered, but only one of its two rules fires for
