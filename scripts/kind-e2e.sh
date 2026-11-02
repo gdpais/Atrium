@@ -828,7 +828,7 @@ for backlog in $backlogs; do
 	fixture_output=$({
 		printf 'CREATE DATABASE heartbeat_oslog_backlog_%s;\nGO\nUSE heartbeat_oslog_backlog_%s;\nGO\n' "$name" "$name"
 		cat services/db-collector/internal/collectors/outsystems/testdata/oslog/error.sql
-		printf '\nGO\nCREATE USER [%s] FOR LOGIN [%s];\nGRANT SELECT ON dbo.oslog_Error TO [%s];\nGRANT SELECT ON dbo.oslog_Error_Previous TO [%s];\n' "$oslog_login" "$oslog_login" "$oslog_login" "$oslog_login"
+		printf '\nGO\n'
 		cat <<EOF
 WITH numbers AS (
     SELECT TOP ($backlog_rows) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i
@@ -842,6 +842,10 @@ SELECT CONCAT('backlog-', i),
 FROM numbers;
 GO
 EOF
+		# Last: a poll before this cannot read the database at all. One between the
+		# grant and the rows would find none, move the watermark past them, and
+		# the backlog would never be read.
+		printf 'CREATE USER [%s] FOR LOGIN [%s];\nGRANT SELECT ON dbo.oslog_Error TO [%s];\nGRANT SELECT ON dbo.oslog_Error_Previous TO [%s];\nGO\n' "$oslog_login" "$oslog_login" "$oslog_login" "$oslog_login"
 	} | SQLCMDPASSWORD=$password docker exec -i -e SQLCMDPASSWORD "$SQL_CONTAINER" \
 		/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b 2>&1) ||
 		fail "loading the $name backlog fixture failed: $fixture_output"
