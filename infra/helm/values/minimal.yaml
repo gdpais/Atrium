@@ -1,6 +1,6 @@
-# Minimal profile: DB collector, Prometheus, Alertmanager and Grafana. Drops
-# Loki, Tempo and the OpenTelemetry Collector to save CPU and RAM.
-# Layer after kind.yaml.
+# Minimal profile: DB collector, the API with its PostgreSQL and Valkey,
+# Prometheus, Alertmanager and Grafana. Drops Loki, Tempo and the
+# OpenTelemetry Collector to save CPU and RAM. Layer after kind.yaml.
 
 loki:
   enabled: false

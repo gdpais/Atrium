@@ -139,6 +139,174 @@ dbCollector:
   tolerations: []
   affinity: {}
 
+# The API, Heartbeat's control plane (ADR 0013). An init container runs
+# `api migrate up` before each pod starts, so a new image applies its
+# migrations first; golang-migrate's advisory lock lets replicas start
+# together. Readiness waits for PostgreSQL at the newest migration this image
+# embeds, and for Redis (Valkey). Its liveness never depends on either.
+api:
+  enabled: true
+  image:
+    # Where the release workflow publishes it (tests/chart_release_test.go).
+    repository: ghcr.io/gdpais/heartbeat/api
+    # Defaults to the chart appVersion. Production pins a digest instead.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # Secret with the API's logins, one HEARTBEAT_CREDENTIAL_<REF> key each,
+  # "username:password": HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES and
+  # HEARTBEAT_CREDENTIAL_SECRET_API_REDIS. Mounted as files the API reads on
+  # every new connection, so a rotated password needs no restart
+  # (docs/reference/configuration.md#credential-resolution).
+  credentials:
+    existingSecret: heartbeat-api-credentials
+  postgres:
+    # Empty: the bundled PostgreSQL (postgresql.enabled), on its port and
+    # database, without TLS. Set: an external server such as Amazon RDS, with
+    # sslMode verify-full unless sslMode says otherwise.
+    host: ""
+    port: 5432
+    database: heartbeat
+    # disable, require, verify-ca or verify-full. Empty: disable for the
+    # bundled PostgreSQL, verify-full for any other host.
+    sslMode: ""
+    # A PEM CA bundle for verify-ca and verify-full, as a path in the
+    # container (mount it with extraVolumes). Empty: the image's system CAs,
+    # which do not include Amazon RDS's.
+    sslRootCert: ""
+  redis:
+    # host:port. Empty: the bundled Valkey (valkey.enabled), without TLS.
+    addr: ""
+    # TLS, verified against the image's system CAs. Empty (null): off for
+    # the bundled Valkey, on for any other address.
+    tls: null
+  # HTTP drain 10s, then 3s to send the service's last logs.
+  terminationGracePeriodSeconds: 20
+  # A ClusterIP Service: the API has no authentication yet [4.2].
+  service:
+    port: 8081
+  # Ingress NetworkPolicy for the API's port 8081. The bundled Prometheus
+  # (its scrape) and the peers below may connect; other pods are dropped.
+  # Kubelet probes and `kubectl port-forward` are not subject to
+  # NetworkPolicy. Clients of the API (the Web UI [5], an ingress
+  # controller) are added as peers when they exist.
+  networkPolicy:
+    enabled: true
+    peers: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  # Go's soft memory limit (GOMEMLIMIT), such as 200MiB, or "off". Empty sets
+  # it to 80% of resources.limits.memory, or leaves it unset without a limit.
+  goMemLimit: ""
+  # The init container that applies the migrations (`api migrate up`).
+  migrate:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  extraEnv: []
+  # More volumes and mounts for the API container and its init container,
+  # such as a CA bundle for api.postgres.sslRootCert.
+  extraVolumes: []
+  extraVolumeMounts: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# PostgreSQL for the API, on the postgres image (ADR 0015): one replica, data
+# on a claim (postgresql-data), no backups, no replicas and no major-version
+# upgrades. For kind and CI only; production turns it off and points
+# api.postgres at Amazon RDS. On kind, a new major means deleting the claim
+# and migrating again.
+postgresql:
+  enabled: true
+  image:
+    # The major and version of the integration-test fixture
+    # (infra/docker-compose.test.yml), and the newest major Amazon RDS
+    # supports (tests/chart_engines_test.go).
+    repository: postgres
+    tag: "18.6"
+    pullPolicy: IfNotPresent
+  auth:
+    # The superuser the image creates on first start, and owner of the
+    # database. Changing either later changes nothing in an existing database.
+    username: heartbeat
+    database: heartbeat
+    # Secret with its password, read once, when the database is created:
+    # a later change needs ALTER ROLE as well.
+    existingSecret: heartbeat-postgresql
+    passwordKey: password
+  # Server settings, as -c name=value. Sized for kind (ADR 0003's budget).
+  parameters:
+    shared_buffers: 32MB
+    max_connections: "50"
+  persistence:
+    size: 1Gi
+    # Empty uses the cluster's default StorageClass.
+    storageClassName: ""
+  # PostgreSQL's port 5432 admits only the API (and later the workers) and
+  # extraPeers.
+  networkPolicy:
+    enabled: true
+    extraPeers: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Valkey, the Redis server (ADR 0015), on the valkey/valkey image: one
+# replica. Nothing in it is a record (sessions, job delivery, locks): with
+# persistence off, the default, a restart costs a login and a re-enqueue. For
+# kind and CI only; production turns it off and points api.redis at Amazon
+# ElastiCache.
+valkey:
+  enabled: true
+  image:
+    # The version of the API's integration tests (ValkeyImage in
+    # apps/api/internal/testenv/testenv.go; tests/chart_engines_test.go).
+    repository: valkey/valkey
+    tag: "9.1.3"
+    pullPolicy: IfNotPresent
+  auth:
+    # Secret with the default user's password: letters and digits only. Read
+    # at start: a change needs a restart of the valkey pod.
+    existingSecret: heartbeat-valkey
+    passwordKey: password
+  # Valkey refuses writes past this (noeviction): evicting would drop
+  # sessions or jobs without a word. Below resources.limits.memory.
+  maxmemory: 96mb
+  # An append-only file on a claim (valkey-data), so a restart keeps the
+  # sessions. Off: an emptyDir.
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClassName: ""
+  networkPolicy:
+    enabled: true
+    extraPeers: []
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 # Heartbeat's own telemetry (ADR 0018). Metrics are always on /metrics; with
 # the bundled OTel Collector on, the services also send it their logs, on
 # their own port and pipeline (otelCollector.ports.otlp-self). With it off they
@@ -257,9 +425,9 @@ grafanaDashboards:
 # is on: otel-collector, prometheus, alertmanager, loki and tempo. Only the
 # components that use an engine may connect, on the ports they use; every
 # other pod, in this namespace or another, is dropped:
-#   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (its
-#                   own logs) from the db-collector; 8889 (its Prometheus
-#                   exporter) from Prometheus
+#   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (their
+#                   own logs) from the db-collector and the API; 8889 (its
+#                   Prometheus exporter) from Prometheus
 #   prometheus      9090 from Grafana (datasource)
 #   alertmanager    9093 from Prometheus (alerts and its scrape)
 #   loki            3100 from the OTel Collector (OTLP), Grafana (datasource)
@@ -412,6 +580,12 @@ prometheus:
         - names: ["db-collector-headless"]
           type: A
           port: 8082
+    # Every API replica, ready or not, like the collector.
+    api:
+      dns_sd_configs:
+        - names: ["api-headless"]
+          type: A
+          port: 8081
     otel-collector:
       static_configs:
         - targets: ["otel-collector:8889"]

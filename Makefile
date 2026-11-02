@@ -208,7 +208,7 @@ chart-check:
 	HELM=$(HELM) GOCACHE=$$(pwd)/.tmp/gocache go test -tags=chart -count=1 -run TestPatientZeroChart ./tests
 
 rules-check:
-	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/heartbeat.rules.yml /rules/heartbeat-config-reload.rules.yml /rules/heartbeat-collector-missing.rules.yml /rules/heartbeat-self.rules.yml /rules/generated/heartbeat-rendered.rules.yml
+	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/heartbeat.rules.yml /rules/heartbeat-config-reload.rules.yml /rules/heartbeat-collector-missing.rules.yml /rules/heartbeat-api-missing.rules.yml /rules/heartbeat-self.rules.yml /rules/generated/heartbeat-rendered.rules.yml
 	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" -w /rules/tests --entrypoint promtool $(PROMETHEUS_IMAGE) test rules heartbeat.rules.test.yml
 
 generate:

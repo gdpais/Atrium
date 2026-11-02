@@ -2,8 +2,9 @@
 # (ADR 0011): Elastic, a vendor's OTLP endpoint, or a shared OTel gateway.
 #
 # The bundled Grafana stack is off. The OpenTelemetry Collector scrapes the
-# db-collector's /metrics, as Prometheus would, and sends metrics and logs as
-# OTLP/HTTP to the platform. Heartbeat's services do not change.
+# db-collector's and the API's /metrics, as Prometheus would, and sends
+# metrics and logs as OTLP/HTTP to the platform. Heartbeat's services do not
+# change.
 #
 # Before use: create the Secret below, set the endpoint, and install the
 # platform's own dashboards and alert rules. Heartbeat ships content only for
@@ -39,6 +40,15 @@ dbCollector:
   networkPolicy:
     # The Collector replaces Prometheus as the collector's scraper.
     scrapers:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: otelCollector
+            component: statefulset-collector
+
+api:
+  networkPolicy:
+    # The Collector replaces Prometheus as the API's scraper.
+    peers:
       - podSelector:
           matchLabels:
             app.kubernetes.io/name: otelCollector
@@ -83,6 +93,13 @@ otelCollector:
                 - names: ["db-collector-headless"]
                   type: A
                   port: 8082
+            # The bundled Prometheus' api job: every replica, ready or not.
+            - job_name: api
+              scrape_interval: 30s
+              dns_sd_configs:
+                - names: ["api-headless"]
+                  type: A
+                  port: 8081
     processors:
       memory_limiter:
         check_interval: 5s

@@ -1,0 +1,222 @@
+{{- if .Values.api.enabled }}
+{{- $a := .Values.api }}
+{{- $sel := dict "root" $ "component" "api" }}
+{{- $deps := include "heartbeat.apiDependencies" . | fromYaml }}
+{{- $credentialsDir := "/var/run/secrets/heartbeat/credentials" }}
+{{- /* What `api migrate up` and the API both read: PostgreSQL and the
+credentials directory. */}}
+{{- $postgresEnv := list
+  (dict "name" "HEARTBEAT_API_POSTGRES_HOST" "value" $deps.postgresHost)
+  (dict "name" "HEARTBEAT_API_POSTGRES_PORT" "value" (toString $deps.postgresPort))
+  (dict "name" "HEARTBEAT_API_POSTGRES_DATABASE" "value" $deps.postgresDatabase)
+  (dict "name" "HEARTBEAT_API_POSTGRES_SSLMODE" "value" $deps.sslMode) }}
+{{- with $a.postgres.sslRootCert }}
+{{- $postgresEnv = append $postgresEnv (dict "name" "HEARTBEAT_API_POSTGRES_SSLROOTCERT" "value" .) }}
+{{- end }}
+{{- if $a.credentials.existingSecret }}
+{{- $postgresEnv = append $postgresEnv (dict "name" "HEARTBEAT_CREDENTIALS_DIR" "value" $credentialsDir) }}
+{{- end }}
+{{- $mounts := list }}
+{{- if $a.credentials.existingSecret }}
+{{- /* A directory mount (not subPath) so Secret updates reach the pod. */}}
+{{- $mounts = append $mounts (dict "name" "credentials" "mountPath" $credentialsDir "readOnly" true) }}
+{{- end }}
+{{- $mounts = concat $mounts $a.extraVolumeMounts }}
+# The API (ADR 0013). Stateless, so a Deployment: a new pod starts before the
+# old one stops, and its init container applies the new image's migrations
+# first. Migrations are expand, then contract (CONTRIBUTING.md), so the old
+# pod stays ready on the newer schema.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  replicas: {{ $a.replicas }}
+  selector:
+    matchLabels:
+      {{- include "heartbeat.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "heartbeat.componentLabels" $sel | nindent 8 }}
+      {{- with $a.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ $a.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # No Helm or Argo CD hook (ADR 0013): every pod migrates before it
+      # starts. golang-migrate takes a PostgreSQL advisory lock, so pods that
+      # start together apply each migration once, and the others wait. The
+      # API's readiness checks the schema version as well, so a pod that
+      # skipped this step would still stay out of the Service.
+      initContainers:
+        - name: migrate
+          image: {{ include "heartbeat.image" (dict "root" $ "image" $a.image) | quote }}
+          imagePullPolicy: {{ $a.image.pullPolicy }}
+          args: ["migrate", "up"]
+          env:
+            {{- toYaml $postgresEnv | nindent 12 }}
+            {{- with $a.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml $a.migrate.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with $mounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: api
+          image: {{ include "heartbeat.image" (dict "root" $ "image" $a.image) | quote }}
+          imagePullPolicy: {{ $a.image.pullPolicy }}
+          env:
+            - name: HEARTBEAT_API_LISTEN_ADDR
+              value: ":8081"
+            {{- toYaml $postgresEnv | nindent 12 }}
+            - name: HEARTBEAT_API_REDIS_ADDR
+              value: {{ $deps.redisAddr | quote }}
+            - name: HEARTBEAT_API_REDIS_TLS
+              value: {{ $deps.redisTLS | quote }}
+            {{- with $a.goMemLimit | default (include "heartbeat.goMemLimit" (dict "limit" (dig "limits" "memory" "" $a.resources) "name" "api")) }}
+            # Go's soft memory limit, below the container limit.
+            - name: GOMEMLIMIT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with include "heartbeat.telemetryEnv" . }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with $a.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8081
+          # Liveness only checks the process: a PostgreSQL or Redis outage
+          # must never restart the API. Readiness needs both, and PostgreSQL
+          # at the newest migration this image embeds.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml $a.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with $mounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- if or $a.credentials.existingSecret $a.extraVolumes }}
+      volumes:
+        {{- with $a.credentials.existingSecret }}
+        - name: credentials
+          secret:
+            secretName: {{ . }}
+            # Readable by the pod's fsGroup only.
+            defaultMode: 0440
+        {{- end }}
+        {{- with $a.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with $a.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $a.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $a.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# Prometheus' scrape target: every replica, ready or not, so an API that
+# cannot reach its dependencies is still scraped.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "heartbeat.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+# The API's clients. Routes only to ready pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "heartbeat.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $a.service.port }}
+      targetPort: http
+{{- if $a.networkPolicy.enabled }}
+{{- $peers := list }}
+{{- if include "heartbeat.prometheusScrapes" (dict "root" $ "job" "api") }}
+{{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "prometheus") | fromYaml) }}
+{{- end }}
+{{- $peers = concat $peers $a.networkPolicy.peers }}
+---
+# Only the bundled Prometheus (while it scrapes the api job) and the peers in
+# api.networkPolicy may reach port 8081; other pods are dropped. With no peers
+# the policy denies all ingress: an empty `from` would admit every source.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "heartbeat.selectorLabels" $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+  {{- if $peers }}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8081
+      from:
+        {{- toYaml $peers | nindent 8 }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -56,6 +56,14 @@ dbCollector:
             except:
               - 10.244.0.0/16
 
+# The API's image, built and loaded like the collector's; scripts/kind.sh sets
+# its tag. PostgreSQL and Valkey are the chart's bundled ones, with Secrets
+# that scripts/kind.sh generates once per cluster.
+api:
+  image:
+    repository: heartbeat/api
+    pullPolicy: Never
+
 # The same operator access to the engines with a loopback NodePort (make
 # health, the demo helpers): Prometheus, Alertmanager and the OTel Collector's
 # OTLP ports. Pods stay limited to the components that use each engine. Loki

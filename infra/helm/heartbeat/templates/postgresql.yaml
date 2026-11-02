@@ -1,0 +1,180 @@
+{{- if .Values.postgresql.enabled }}
+{{- $p := .Values.postgresql }}
+{{- $sel := dict "root" $ "component" "postgresql" }}
+{{- $secretDir := "/var/run/secrets/heartbeat/postgresql" }}
+# The API's PostgreSQL for kind and CI (ADR 0015): one replica, no backups,
+# no replicas, no major-version upgrades. Production uses Amazon RDS.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: postgresql
+  # As the db-collector's: a pod that never became Ready is still replaced.
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "heartbeat.selectorLabels" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "heartbeat.componentLabels" $sel | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # The image's STOPSIGNAL is SIGINT, a fast shutdown: open sessions are
+      # ended rather than waited for.
+      terminationGracePeriodSeconds: 60
+      # The image's postgres user. fsGroup makes the data volume writable.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgresql
+          image: {{ printf "%s:%s" $p.image.repository $p.image.tag | quote }}
+          imagePullPolicy: {{ $p.image.pullPolicy }}
+          args:
+            {{- range $name, $value := $p.parameters }}
+            - "-c"
+            - {{ printf "%s=%v" $name $value | quote }}
+            {{- end }}
+          env:
+            # Used only when the data directory is empty: the image's first
+            # start creates the role and the database.
+            - name: POSTGRES_USER
+              value: {{ $p.auth.username | quote }}
+            - name: POSTGRES_DB
+              value: {{ $p.auth.database | quote }}
+            - name: POSTGRES_PASSWORD_FILE
+              value: {{ $secretDir }}/{{ $p.auth.passwordKey }}
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", {{ $p.auth.username | quote }}, "-d", {{ $p.auth.database | quote }}]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml $p.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            # postgres 18 keeps its data in a versioned directory under this
+            # one (PGDATA /var/lib/postgresql/18/docker).
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: password
+              mountPath: {{ $secretDir }}
+              readOnly: true
+            # The Unix socket and temporary files: the root filesystem is
+            # read-only.
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgresql-data
+        - name: password
+          secret:
+            secretName: {{ $p.auth.existingSecret }}
+            defaultMode: 0440
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with $p.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $p.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $p.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+# A plain claim, not a volumeClaimTemplate, as the db-collector's: a template
+# could never change on an existing StatefulSet.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with $p.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "heartbeat.selectorLabels" $sel | nindent 4 }}
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+{{- if $p.networkPolicy.enabled }}
+{{- $peers := list }}
+{{- if .Values.api.enabled }}
+{{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "api") | fromYaml) }}
+{{- end }}
+{{- $peers = concat $peers $p.networkPolicy.extraPeers }}
+---
+# Only the API (and, when they exist, the workers) and extraPeers may reach
+# port 5432 (ADR 0015). `kubectl port-forward` and `kubectl exec` are not
+# subject to NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heartbeat.componentLabels" $sel | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "heartbeat.selectorLabels" $sel | nindent 6 }}
+  policyTypes:
+    - Ingress
+  {{- if $peers }}
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5432
+      from:
+        {{- toYaml $peers | nindent 8 }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+{{- end }}
+{{- end }}
