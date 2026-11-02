@@ -323,7 +323,8 @@ telemetry:
     enabled: true
     # The share of traces kept, decided when a cycle or a request starts: each
     # cycle or request is a whole trace or none. A span costs far less than the
-    # work it times, so this is about what Tempo stores.
+    # work it times, so this is about what Tempo stores, and so which log lines
+    # carry a trace ID: only those of a kept trace.
     sampleRatio: 0.1
 
 # Pod and container hardening for the Heartbeat workloads. The images
@@ -475,6 +476,11 @@ backendNetworkPolicies:
 # Collector, queried by Grafana. One replica on a local disk, like Loki on kind;
 # production moves it to S3 (production.example.yaml) with Loki's chunks.
 tempo:
+  # Off, as in minimal.yaml, also needs: prometheus.scrapeConfigs.tempo.enabled
+  # false, or HeartbeatServiceDown fires for it; grafana.datasources without the
+  # Tempo datasource and the Loki datasource's derivedFields; and, while the OTel
+  # Collector is on, telemetry.traces.enabled false or otlp_http/traces repointed
+  # (external-platform.example.yaml), or its exports fail.
   enabled: true
   fullnameOverride: tempo
   replicas: 1
