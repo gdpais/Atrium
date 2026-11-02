@@ -59,8 +59,9 @@ What each option costs:
   clients [9.6]. Operators reach Loki through Grafana or `kubectl
   port-forward` ([network access](../../guides/kubernetes-local.md#network-access)).
 - Loki is a store of personal data: its retention, backups and access are
-  part of the production review, and the ELK review [18] must carry the same
-  access rules if logs move there.
+  part of the production review, and any application that receives the logs
+  as OTLP ([ADR 0019](0019-keep-grafana-and-share-telemetry-as-otlp.md)) must
+  carry the same access rules [18].
 - `docs/architecture/workflows.md`'s "prefer hashed identifiers" rule now
   reads as "keep identifiers out of labels; raw values only behind access
   control" and points here.

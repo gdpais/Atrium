@@ -232,12 +232,9 @@ the defaults in
 It comes after the Web UI so the first production deploy carries a usable
 product; pull it forward if a production SQL Server must be monitored sooner.
 
-- **First, review the observability platform:** the organization's ELK stack
-  (Elastic Cloud) against the bundled Grafana stack, on the same data, with
-  the OpenTelemetry Collector sending to both. Compare search, the
-  investigation queries, alerting, cost and operations, and record the choice
-  in an ADR. Heartbeat's services stay as they are either way
-  ([ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) [18]
+- The observability platform is chosen: the Grafana stack stays, and other
+  applications receive Heartbeat's telemetry as OTLP from the Collector
+  ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)) [18]
 - `heartbeat-deploy` repository with Argo CD Applications and per-environment
   values; optional Argo CD rehearsal on kind
 - CI publishes multi-arch images and the chart to ECR through GitHub OIDC

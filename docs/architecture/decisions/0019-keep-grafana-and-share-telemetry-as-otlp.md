@@ -25,18 +25,22 @@ Two places could translate Heartbeat's data to OpenTelemetry for them:
   "OTLP" to a caller that asks.
 - **The OpenTelemetry Collector.** It already receives every OTLP signal
   Heartbeat emits, has a pipeline per signal (`metrics`, `logs`,
-  `logs/self`, `traces`) with role-named exporters, and is the only place
-  besides the chart that names a platform (ADR 0011). In the bundled stack
-  Prometheus scrapes the db-collector's `/metrics` directly, so those series
-  do not pass through the Collector today; the
+  `logs/self`; `traces` comes with Tempo [TODO 3.6]) with role-named log
+  exporters, and is the only place besides the chart that names a platform
+  (ADR 0011). In the bundled stack Prometheus scrapes the db-collector's
+  `/metrics` directly, and the Collector's own `prometheus` exporter
+  (`otel-collector:8889`), so the db-collector's series do not pass through
+  the Collector today; the
   [external-platform example](../../../infra/helm/values/external-platform.example.yaml)
   already has the Collector scrape them instead.
 
 ## Decision
 
 1. **The Grafana stack is Heartbeat's observability platform.** Prometheus,
-   Loki, Tempo, Grafana and Alertmanager stay bundled, and dashboards, rules
-   and query adapters are written for them only. The ELK review in TODO 18 is
+   Loki, Grafana and Alertmanager stay bundled, Tempo joins them
+   ([ADR 0018](0018-heartbeats-own-telemetry.md), [TODO 3.6]), and
+   dashboards, rules and query adapters are written for them only. The ELK
+   review in TODO 18 is
    closed; ADR 0011's boundary stays, so another platform is still a values
    file away.
 2. **The Collector is the transformation layer.** A consumer that wants
@@ -45,12 +49,15 @@ Two places could translate Heartbeat's data to OpenTelemetry for them:
    `/share-logs`, `/share-traces`) added next to the bundled exporters, set in
    the chart's values with the endpoint and credentials in a Secret. When
    metrics are shared, the Collector scrapes the db-collector's `/metrics`
-   with the same job as Prometheus, so both see the same series.
+   with the same job as Prometheus, so both see the same series, in a
+   pipeline of its own that exports only to the shared exporter: in the
+   `metrics` pipeline they would also reach the Collector's `prometheus`
+   exporter, and Prometheus would store them twice.
 3. **The API serves Heartbeat's own resources, not raw telemetry.**
    Inventory, investigations, evidence links and, later, query results go
    through the API as JSON, and its reads of logs and metrics go through the
-   ADR 0011 adapters, with Grafana's (Loki, Prometheus, Tempo) the only
-   implementation.
+   ADR 0011 adapters, with the Grafana stack's (Loki, Prometheus, and Tempo
+   once it is bundled) the only implementation.
 
 ## Consequences
 

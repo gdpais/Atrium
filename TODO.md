@@ -646,7 +646,7 @@ Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
 - [x] Provision collector config
 - [x] Route metrics/logs correctly to Prometheus/Loki paths
 - [x] Prefer collector processors/config before custom service code
-- [ ] Share telemetry with other applications as OTLP ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)): optional role-named exporters per signal set in values, endpoint and credentials from a Secret; when metrics are shared, the Collector scrapes the db-collector's `/metrics` with Prometheus' job; `make chart-check` renders it, and `make kind-e2e` checks a test receiver gets metrics, logs and traces
+- [ ] Share telemetry with other applications as OTLP ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)): optional role-named exporters per signal set in values, endpoint and credentials from a Secret; when metrics are shared, the Collector scrapes the db-collector's `/metrics` with Prometheus' job, in a pipeline of its own that exports only to the shared exporter (not the `prometheus` exporter Prometheus scrapes, or it stores the series twice); `make chart-check` renders it, and `make kind-e2e` checks a test receiver gets metrics and logs, and traces once the traces pipeline exists [3.6]
 
 ### 9.6 Network access to the bundled backends
 - [x] NetworkPolicies for the OTel Collector, Prometheus, Alertmanager and Loki: only the components that use each one reach it (`backendNetworkPolicies`; Grafana stays open to whatever serves its UI, behind its login)

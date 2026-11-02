@@ -10,8 +10,8 @@ and status are in [TODO.md](../../TODO.md).
 
 Each roadmap phase is a **user outcome**: who can now do what, and the
 evidence that shows it. The outcomes are in the
-[roadmap](roadmap.md#phase-outcomes). A phase is done when its outcome is shown, not
-when its checklist is ticked.
+[roadmap](roadmap.md#phase-outcomes). A phase is done when its outcome is
+shown, not when its checklist is ticked.
 
 - Every checklist item serves the current phase's outcome, or a later
   phase's. If it serves neither, it does not go in.
@@ -34,8 +34,9 @@ can answer, quickly.
 
 - the phase outcomes and their order ([roadmap](roadmap.md))
 - the guardrails: [architecture decisions](../architecture/decisions/README.md),
-  [CONTRIBUTING.md](../../CONTRIBUTING.md) and the delivery policy in
-  `.claude/delivery.json`
+  [CONTRIBUTING.md](../../CONTRIBUTING.md) and the agents' delivery policy
+  (local to the owner's machine, not in git: what agents may commit, push and
+  open without asking)
 - what needs the owner: merging, releases, deploys, spending, credentials and
   access, compliance, and any change to an outcome or a guardrail
 
@@ -47,7 +48,8 @@ can answer, quickly.
 - recording a decision as an ADR when it follows from the guardrails
 
 **Owner actions are marked and answered fast.** An item only the owner can do
-starts with **Owner** in TODO.md, with the date it became needed. The aim is
+starts with **Owner** in TODO.md, with the date it became needed, or what it
+waits for until then. The aim is
 an answer within two working days. Status updates list open owner actions
 first, oldest first. Everything else continues around them.
 
@@ -78,11 +80,12 @@ Two kinds of data, for different questions:
 | --- | --- | --- |
 | Answers | Does Heartbeat produce the right signal when this fault happens? | Is what Heartbeat shows useful on a real application's data? |
 | Data | Synthetic, shaped by the replica's survey; the answer is known | Real: one week of a real installation's screens, integrations, slow SQL and users |
-| Live | Yes: load, faults, rotation, restarts | No: the one surveyed was a stale extract (`oslog_all`) with the native log tables empty |
+| Live | Yes: load, faults, rotation, restarts | No: the one surveyed was a stale extract (`oslog_all`) with the native log tables empty, deleted after the survey |
 | Use for | Fault scenarios, regressions, nightly CI | Today: its schema and traffic profile only ([ADR 0010](../architecture/decisions/0010-patientzero-test-application.md)). Outcome demos on its rows need a decision first |
 
 A replica holds personal data ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)):
-it stays on the owner's machine, and only DDL and aggregates reach git.
+it is used only on the owner's machine and deleted once its numbers are
+taken, and only DDL and aggregates reach git.
 
 ## Reversals
 
