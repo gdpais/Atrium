@@ -21,6 +21,8 @@ grafana:
   enabled: false
 loki:
   enabled: false
+tempo:
+  enabled: false
 prometheusRules:
   enabled: false
 grafanaDashboards:
@@ -100,8 +102,13 @@ otelCollector:
         endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
         headers:
           Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}
-      # Heartbeat's own logs; the chart's logs/self pipeline stays as it is.
+      # Heartbeat's own logs and its traces; the chart's logs/self and traces
+      # pipelines stay as they are.
       otlp_http/self-logs:
+        endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
+        headers:
+          Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}
+      otlp_http/traces:
         endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
         headers:
           Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}

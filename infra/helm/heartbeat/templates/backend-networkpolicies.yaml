@@ -49,7 +49,7 @@ spec:
 {{- $np := .Values.backendNetworkPolicies }}
 {{- if $np.enabled }}
 {{- $peer := dict }}
-{{- range list "db-collector" "prometheus" "alertmanager" "grafana" "loki" "otelCollector" }}
+{{- range list "db-collector" "prometheus" "alertmanager" "grafana" "loki" "tempo" "otelCollector" }}
 {{- $_ := set $peer . (include "heartbeat.enginePeer" (dict "root" $ "engine" .) | fromYaml) }}
 {{- end }}
 {{- $on := dict
@@ -58,6 +58,7 @@ spec:
   "alertmanager" (and .Values.prometheus.enabled .Values.prometheus.alertmanager.enabled)
   "grafana" .Values.grafana.enabled
   "loki" .Values.loki.enabled
+  "tempo" .Values.tempo.enabled
   "otelCollector" .Values.otelCollector.enabled }}
 
 {{- if $on.otelCollector }}
@@ -68,7 +69,7 @@ spec:
 {{- $metrics := dict "port" (dig "prom-exporter" "containerPort" 8889 $ports) }}
 {{- $exporter := dig "prom-exporter" "enabled" false $ports }}
 {{- $rules := list }}
-{{- /* The db-collector sends OTLP/HTTP only: outsystems_logs rows, and its own logs while telemetry is on. */}}
+{{- /* The db-collector sends OTLP/HTTP only: outsystems_logs rows and its spans, and its own logs while telemetry is on. */}}
 {{- if get $on "db-collector" }}
 {{- $sent := list $otlpHttp }}
 {{- if .Values.telemetry.enabled }}
@@ -144,5 +145,27 @@ and the memberlist ring it must join to start. */}}
 # pushes from the OTel Collector, queries from Grafana's datasource, the
 # bundled Prometheus's scrape, and extraPeers. gRPC and memberlist: Loki only.
 {{ include "heartbeat.backendNetworkPolicy" (dict "root" $ "name" "loki" "engine" "loki" "rules" $rules) | trim }}
+{{- end }}
+
+{{- if $on.tempo }}
+{{- $query := dict "port" 3200 }}
+{{- $otlp := dict "port" 4318 }}
+{{- $rules := list }}
+{{- if $on.otelCollector }}
+{{- $rules = append $rules (dict "ports" (list $otlp) "from" (list $peer.otelCollector)) }}
+{{- end }}
+{{- $clients := list }}
+{{- if $on.grafana }}
+{{- $clients = append $clients $peer.grafana }}
+{{- end }}
+{{- if include "heartbeat.prometheusScrapes" (dict "root" $ "job" "tempo") }}
+{{- $clients = append $clients $peer.prometheus }}
+{{- end }}
+{{- $rules = append $rules (dict "ports" (list $query) "from" $clients) }}
+{{- $rules = append $rules (dict "ports" (list $query $otlp) "from" $np.tempo.extraPeers) }}
+---
+# Tempo: OTLP from the OTel Collector, queries from Grafana's datasource, the
+# bundled Prometheus's scrape, and extraPeers.
+{{ include "heartbeat.backendNetworkPolicy" (dict "root" $ "name" "tempo" "engine" "tempo" "rules" $rules) | trim }}
 {{- end }}
 {{- end }}

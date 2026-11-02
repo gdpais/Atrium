@@ -19,6 +19,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
@@ -78,6 +79,7 @@ func (r *receiver) records() []*logspb.LogRecord {
 func start(t *testing.T, endpoint string) (*Telemetry, *bytes.Buffer) {
 	t.Helper()
 	t.Setenv(EnvLogsEndpoint, endpoint)
+	t.Setenv(EnvTracesEndpoint, "")
 	t.Setenv(EnvSDKDisabled, "")
 	t.Setenv(EnvResourceAttributes, "deployment.environment.name=test,other=x")
 	t.Setenv(EnvPprofAddr, "")
@@ -92,7 +94,7 @@ func shutdown(t *testing.T, tel *Telemetry) {
 	tel.Shutdown(ctx)
 }
 
-func attribute(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
+func recordAttr(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
 	for _, a := range attrs {
 		if a.Key == key {
 			return a.Value
@@ -118,13 +120,13 @@ func TestLogsReachStderrAndTheCollector(t *testing.T) {
 	if record.Body.GetStringValue() != "hello" || record.SeverityNumber != logspb.SeverityNumber_SEVERITY_NUMBER_WARN || record.TimeUnixNano == 0 {
 		t.Errorf("record = %v", record)
 	}
-	if got := attribute(record.Attributes, "a").GetIntValue(); got != 1 {
+	if got := recordAttr(record.Attributes, "a").GetIntValue(); got != 1 {
 		t.Errorf("a = %d, want 1", got)
 	}
-	if got := attribute(record.Attributes, "g.b").GetStringValue(); got != "two" {
+	if got := recordAttr(record.Attributes, "g.b").GetStringValue(); got != "two" {
 		t.Errorf("g.b = %q, want two", got)
 	}
-	if got := attribute(record.Attributes, "g.d").GetStringValue(); got != "3s" {
+	if got := recordAttr(record.Attributes, "g.d").GetStringValue(); got != "3s" {
 		t.Errorf("g.d = %q, want 3s", got)
 	}
 	res := r.logs[0].Resource.Attributes
@@ -134,7 +136,7 @@ func TestLogsReachStderrAndTheCollector(t *testing.T) {
 		"service.version":             "dev",
 		"deployment.environment.name": "test",
 	} {
-		if got := attribute(res, key).GetStringValue(); got != want {
+		if got := recordAttr(res, key).GetStringValue(); got != want {
 			t.Errorf("resource %s = %q, want %q", key, got, want)
 		}
 	}
@@ -184,10 +186,10 @@ func TestStringsAreCutAndValidUTF8(t *testing.T) {
 	if body := records[0].Body.GetStringValue(); !utf8.ValidString(body) {
 		t.Errorf("body %q is not valid UTF-8", body)
 	}
-	if got := len(attribute(records[0].Attributes, "long").GetStringValue()); got != maxValueBytes {
+	if got := len(recordAttr(records[0].Attributes, "long").GetStringValue()); got != maxValueBytes {
 		t.Errorf("long is %d bytes, want %d", got, maxValueBytes)
 	}
-	if got := attribute(records[0].Attributes, "bad�key").GetIntValue(); got != 1 {
+	if got := recordAttr(records[0].Attributes, "bad�key").GetIntValue(); got != 1 {
 		t.Errorf("bad�key = %d, want 1", got)
 	}
 	if !strings.Contains(stderr.String(), strings.Repeat("x", 2*maxValueBytes)) {
@@ -306,6 +308,31 @@ func TestABusyPprofListenerDoesNotCostTheLastLogs(t *testing.T) {
 		}
 	}()
 	<-started
+
+	tel.Logger.Info("last words")
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	tel.Shutdown(ctx)
+	if got := len(r.records()); got != 1 {
+		t.Errorf("got %d records, want 1", got)
+	}
+}
+
+// Traces may be lost, logs may not: spans the Collector does not take, while
+// Tempo is down and its queue full, must not spend the time the last logs need.
+func TestStuckSpansDoNotCostTheLastLogs(t *testing.T) {
+	r := newReceiver(t)
+	release := make(chan struct{})
+	stuck := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer stuck.Close()
+	defer close(release)
+	previous := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(previous) })
+	tel, _ := start(t, r.URL)
+	t.Setenv(EnvTracesEndpoint, stuck.URL+"/v1/traces")
+	tel.stopTraces = startTraces(tel.Identity, tel.traceErrors, slog.New(slog.DiscardHandler))
+	_, span := otel.GetTracerProvider().Tracer("t").Start(context.Background(), "work")
+	span.End()
 
 	tel.Logger.Info("last words")
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)

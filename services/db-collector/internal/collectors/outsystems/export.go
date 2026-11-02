@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
 	collectorconfig "heartbeat/internal/config"
@@ -271,13 +272,16 @@ func isDone(e *export) bool {
 // startExport sends logs in the background and, once the Collector accepts
 // them, counts the rows and saves next as key's watermark.  The batch's held
 // bytes are released when the export ends.
-func (e *Executor) startExport(item collectormetadata.ScheduledProbe, key WatermarkKey, logs []*logspb.ResourceLogs, batch Batch, rows [][]any, instants []time.Time, next Watermark, location *time.Location) *export {
+func (e *Executor) startExport(callCtx context.Context, item collectormetadata.ScheduledProbe, key WatermarkKey, logs []*logspb.ResourceLogs, batch Batch, rows [][]any, instants []time.Time, next Watermark, location *time.Location) *export {
 	s := &e.exports
 	s.init()
 	endpoint := item.OutSystemsLogs.LogsEndpoint
 	pending := &export{logType: key.LogType, endpoint: endpoint, rows: len(rows), started: time.Now(), done: make(chan struct{})}
 	s.mu.Lock()
-	ctx := otlp.WithRetryObserver(s.collectorContext(item.CollectorID), func(attempt int, err error) {
+	// Under the executor's context rather than the call's, which ends first, but
+	// in the same trace.
+	ctx := trace.ContextWithSpanContext(s.collectorContext(item.CollectorID), trace.SpanContextFromContext(callCtx))
+	ctx = otlp.WithRetryObserver(ctx, func(attempt int, err error) {
 		e.attemptFailed(key, pending, attempt, err)
 	})
 	s.pending[key] = pending
@@ -285,8 +289,12 @@ func (e *Executor) startExport(item collectormetadata.ScheduledProbe, key Waterm
 	s.mu.Unlock()
 	go func() {
 		defer s.wg.Done()
+		// The span alone for now: the metric waits until it is known that the
+		// collector did not stop meanwhile, or it would bring its series back.
 		began := time.Now()
-		err := e.Exporter.Export(ctx, endpoint, logs)
+		exportCtx, exported := (*Metrics)(nil).stage(ctx, item, stageExport)
+		err := e.Exporter.Export(exportCtx, endpoint, logs)
+		exported(err)
 		metrics := e.Metrics
 		if !s.live(item.CollectorID) {
 			metrics = nil
@@ -301,14 +309,14 @@ func (e *Executor) startExport(item collectormetadata.ScheduledProbe, key Waterm
 			// the watermark also sees the rows behind it.
 			e.recounts.delivered(key, instants)
 			metrics.addRows(item, len(rows))
-			began = time.Now()
+			_, derived := metrics.stage(ctx, item, stageDerive)
 			metrics.observeRows(item, batch, rows, instants)
-			metrics.observeStage(item, stageDerive, began)
+			derived(nil)
 			metrics.setLogDelay(item, now.Sub(Real(instants[len(instants)-1], location)))
 			metrics.setLag(item, now.Sub(Real(next.Instant, location)))
-			began = time.Now()
+			_, saved := metrics.stage(ctx, item, stageWatermark)
 			saveErr := e.Store.Save(key, next, now)
-			metrics.observeStage(item, stageWatermark, began)
+			saved(saveErr)
 			if saveErr != nil {
 				err = fmt.Errorf("log type %s: rows delivered, but the watermark is only kept in memory: %w", key.LogType, saveErr)
 			}

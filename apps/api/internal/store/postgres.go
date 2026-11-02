@@ -143,6 +143,7 @@ func NewPool(cfg Config, resolver credentials.Resolver) (*pgxpool.Pool, error) {
 	}
 	poolConfig.MaxConns = maxConns
 	poolConfig.BeforeConnect = beforeConnect(resolver, cfg.CredentialRef)
+	poolConfig.ConnConfig.Tracer = queryTracer{}
 	return pgxpool.NewWithConfig(context.Background(), poolConfig)
 }
 

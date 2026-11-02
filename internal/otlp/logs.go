@@ -21,7 +21,6 @@
 //
 // The request body is a LogsData message, which is wire-compatible with
 // ExportLogsServiceRequest: both are `repeated ResourceLogs resource_logs = 1`.
-// Using it keeps the gRPC service packages, and gRPC, out of the build.
 package otlp
 
 import (

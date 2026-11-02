@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=scenario.schema.json
+version: 1
+name: tempo-outage
+description: >-
+  Tempo is down for 4 minutes while the load runs (its StatefulSet scaled to
+  0). Traces are the one signal that may be lost, so nothing else may notice:
+  Prometheus cannot scrape Tempo, so HeartbeatServiceDown fires for it after 2
+  minutes and resolves once it is back, but the OTel Collector keeps taking
+  spans into a bounded queue, the db-collector's target stays up, its extraction
+  neither blocks nor falls behind, and Loki ends with every row PatientZero
+  committed, once.
+load: steady
+steps:
+  - name: before
+    duration: 1m
+  - name: down
+    duration: 4m
+    fault:
+      type: outage
+      params: {workload: tempo}
+  - name: after
+    duration: 2m
+signals:
+  - name: tempo-down-fires
+    alert: HeartbeatServiceDown
+    labels: {job: tempo}
+    state: firing
+    step: down
+    within: 4m
+  - name: tempo-down-resolves
+    alert: HeartbeatServiceDown
+    labels: {job: tempo}
+    state: resolved
+    step: down
+    from: end
+    within: 3m
+  - name: target-stays-up
+    promql: min(heartbeat_collector_target_up{collector="patientzero"})
+    condition: "== 1"
+    step: down
+    mode: always
+    within: 4m
+  - name: export-never-blocks
+    promql: max(heartbeat_outsystems_export_blocked{collector="patientzero"})
+    condition: "== 0"
+    step: down
+    mode: always
+    within: 4m
+  - name: extraction-keeps-up
+    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    condition: "< 120"
+    step: down
+    mode: always
+    within: 4m
+  - name: every-row-once
+    delivery:
+      log_types: [screen, mobile_request, integration, general, error]
+    step: after
+    from: end
+    within: 5m

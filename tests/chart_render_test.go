@@ -126,6 +126,7 @@ var defaultBackendPolicies = map[string][]string{
 		"TCP/3100 <- " + otelCollectorPeer, "TCP/3100 <- " + grafanaPeer, "TCP/3100 <- " + bundledPrometheusPeer,
 		"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 	},
+	"tempo": {"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer, "TCP/3200 <- " + bundledPrometheusPeer},
 }
 
 // kindBackendPolicies adds the kind values' operator access to the engines
@@ -197,7 +198,7 @@ var chartProfiles = []chartProfile{
 		// Without the OTel Collector there is nothing to export to.
 		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/1433 -> " + kindHostPeer},
 		// No policy for the engines that are off.
-		backendPolicies: withPairs(kindBackendPolicies, nil, "otel-collector", "loki"),
+		backendPolicies: withPairs(kindBackendPolicies, nil, "otel-collector", "loki", "tempo"),
 	},
 	{
 		name:              "kind-sqlserver-dev",
@@ -276,6 +277,10 @@ var chartProfiles = []chartProfile{
 				"TCP/3100 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
 				"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 			},
+			"tempo": {
+				"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer,
+				"TCP/3200 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
+			},
 		},
 	},
 	{
@@ -331,7 +336,7 @@ var chartProfiles = []chartProfile{
 		name: "backend-scrapes-disabled",
 		set: []string{
 			"prometheus.scrapeConfigs.loki.enabled=false", "prometheus.scrapeConfigs.otel-collector.enabled=false",
-			"otelCollector.ports.prom-exporter.enabled=false",
+			"prometheus.scrapeConfigs.tempo.enabled=false", "otelCollector.ports.prom-exporter.enabled=false",
 		},
 		collectorPeers: []string{bundledPrometheusPeer},
 		backendPolicies: map[string][]string{
@@ -339,6 +344,7 @@ var chartProfiles = []chartProfile{
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["loki"],
+			"tempo":          withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["tempo"],
 		},
 	},
 	{
@@ -526,6 +532,7 @@ var chartProfiles = []chartProfile{
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           defaultBackendPolicies["loki"],
+			"tempo":          defaultBackendPolicies["tempo"],
 		},
 		selfLogsOff: true,
 	},
@@ -952,6 +959,7 @@ func TestChartProfiles(t *testing.T) {
 			checkLogIdentifiers(t, objects)
 			checkLokiLabelPolicy(t, objects)
 			checkLokiRetention(t, objects)
+			checkTempoWAL(t, objects)
 			checkGrafanaGzip(t, objects)
 			checkNotes(t, profile)
 			checkConfigReloadAlert(t, objects, profile.configReloadAlertOff)
@@ -1414,7 +1422,7 @@ func checkInClusterEndpoints(t *testing.T, objects map[string]object) {
 
 // The OTel Collector runs exactly Heartbeat's config in every profile: only
 // the profile's receivers (the two OTLP receivers unless it says otherwise),
-// and the logs, Heartbeat's own logs and metrics pipelines. Values merged over the
+// and the logs, Heartbeat's own logs, metrics and traces pipelines. Values merged over the
 // subchart's defaults once brought back its other receivers and a traces
 // pipeline in profiles that did not set otelCollector keys.
 func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers []string) {
@@ -1436,8 +1444,8 @@ func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers 
 	if got := slices.Sorted(maps.Keys(relay.Receivers)); !slices.Equal(got, receivers) {
 		t.Errorf("OTel Collector receivers = %v, want %v", got, receivers)
 	}
-	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "logs/self", "metrics"}) {
-		t.Errorf("OTel Collector pipelines = %v, want [logs logs/self metrics]", got)
+	if got := slices.Sorted(maps.Keys(relay.Service.Pipelines)); !slices.Equal(got, []string{"logs", "logs/self", "metrics", "traces"}) {
+		t.Errorf("OTel Collector pipelines = %v, want [logs logs/self metrics traces]", got)
 	}
 }
 
@@ -1462,6 +1470,16 @@ func checkSelfLogs(t *testing.T, objects map[string]object, off bool) {
 	}
 	if endpoint != want {
 		t.Errorf("collector OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = %q, want %q", endpoint, want)
+	}
+	wantTraces := "http://otel-collector:4318/v1/traces"
+	if off {
+		wantTraces = ""
+	}
+	if got, _ := collectorEnv(t, objects, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); got != wantTraces {
+		t.Errorf("collector OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = %q, want %q", got, wantTraces)
+	}
+	if got, _ := collectorEnv(t, objects, "OTEL_TRACES_SAMPLER"); !off && got != "parentbased_traceidratio" {
+		t.Errorf("collector OTEL_TRACES_SAMPLER = %q, want parentbased_traceidratio", got)
 	}
 	var relay struct {
 		Exporters map[string]struct {
@@ -1877,6 +1895,61 @@ func checkLokiRetention(t *testing.T, objects map[string]object) {
 	}
 }
 
+// Tempo's WAL must be on a writable volume wherever its traces are stored:
+// the root filesystem is read-only, and a WAL there would not outlive the pod.
+// Moving the traces to S3 by turning persistence off once left it nowhere.
+func checkTempoWAL(t *testing.T, objects map[string]object) {
+	t.Helper()
+	sts, ok := objects["StatefulSet/tempo"]
+	if !ok {
+		return
+	}
+	var config struct {
+		Storage struct {
+			Trace struct {
+				WAL struct {
+					Path string `yaml:"path"`
+				} `yaml:"wal"`
+			} `yaml:"trace"`
+		} `yaml:"storage"`
+	}
+	mustUnmarshal(t, objects["ConfigMap/tempo"].Data["tempo.yaml"], &config)
+	wal := config.Storage.Trace.WAL.Path
+	if wal == "" {
+		t.Fatal("Tempo has no storage.trace.wal.path")
+	}
+	type volumeMount struct {
+		MountPath string `yaml:"mountPath"`
+		ReadOnly  bool   `yaml:"readOnly"`
+	}
+	var spec struct {
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					Name         string        `yaml:"name"`
+					VolumeMounts []volumeMount `yaml:"volumeMounts"`
+				} `yaml:"containers"`
+			} `yaml:"spec"`
+		} `yaml:"template"`
+	}
+	if err := sts.Spec.Decode(&spec); err != nil {
+		t.Fatal(err)
+	}
+	for _, container := range spec.Template.Spec.Containers {
+		if container.Name != "tempo" {
+			continue
+		}
+		mounted := slices.ContainsFunc(container.VolumeMounts, func(m volumeMount) bool {
+			return !m.ReadOnly && (wal == m.MountPath || strings.HasPrefix(wal, strings.TrimSuffix(m.MountPath, "/")+"/"))
+		})
+		if !mounted {
+			t.Errorf("Tempo's WAL %s is on no writable volume", wal)
+		}
+		return
+	}
+	t.Error("StatefulSet/tempo has no tempo container")
+}
+
 func hostOf(raw string) string {
 	if !strings.Contains(raw, "://") {
 		raw = "tcp://" + raw
@@ -2105,6 +2178,7 @@ func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPe
 // backendWorkloads are the workloads each engine NetworkPolicy protects.
 var backendWorkloads = map[string]string{
 	"otel-collector": "StatefulSet/otel-collector",
+	"tempo":          "StatefulSet/tempo",
 	"prometheus":     "Deployment/prometheus",
 	"alertmanager":   "StatefulSet/alertmanager",
 	"loki":           "StatefulSet/loki",

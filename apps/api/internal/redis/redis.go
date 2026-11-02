@@ -72,7 +72,9 @@ func New(cfg Config, resolver credentials.Resolver) (*goredis.Client, error) {
 		host, _, _ := net.SplitHostPort(cfg.Addr)
 		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: host}
 	}
-	return goredis.NewClient(opts), nil
+	client := goredis.NewClient(opts)
+	client.AddHook(tracingHook{})
+	return client, nil
 }
 
 // credentialsProvider returns the login of each new connection, read again

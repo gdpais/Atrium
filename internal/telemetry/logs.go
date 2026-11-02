@@ -236,7 +236,7 @@ func newLogQueue(endpoint string, identity Identity, records *prometheus.Counter
 	return &logQueue{
 		client:      client,
 		endpoint:    endpoint,
-		resource:    resource(identity),
+		resource:    logResource(identity),
 		scope:       &commonpb.InstrumentationScope{Name: scopeName},
 		records:     records,
 		diagnostics: diagnostics,
@@ -248,9 +248,9 @@ func newLogQueue(endpoint string, identity Identity, records *prometheus.Counter
 	}
 }
 
-// resource returns the OTLP resource of identity. A value that is unknown is
+// logResource returns the OTLP resource of identity. A value that is unknown is
 // left out rather than sent empty.
-func resource(identity Identity) *resourcepb.Resource {
+func logResource(identity Identity) *resourcepb.Resource {
 	var attrs []*commonpb.KeyValue
 	for _, attr := range []struct{ key, value string }{
 		{"service.namespace", Namespace},
