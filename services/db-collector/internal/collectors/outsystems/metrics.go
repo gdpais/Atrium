@@ -21,6 +21,10 @@ const (
 	// MetricLag is how far the watermark trails now: rows newer than it are
 	// not extracted yet.  At rest it is about lag plus the poll interval.
 	MetricLag = "heartbeat_outsystems_extract_lag_seconds"
+	// MetricLagSetting is the lag the log type is configured with: its own,
+	// or the collector's.  MetricLag never goes below it, so an objective on
+	// the lag is set relative to it.
+	MetricLagSetting = "heartbeat_outsystems_extract_lag_setting_seconds"
 	// MetricExportFailures counts batches the OTel Collector did not accept
 	// after retries; the watermark stays and the batch is read again.
 	MetricExportFailures = "heartbeat_outsystems_export_failures_total"
@@ -90,6 +94,7 @@ var metricLabels = []string{"collector", "environment", "target", "log_type"}
 type Metrics struct {
 	rows            *prometheus.CounterVec
 	lag             *prometheus.GaugeVec
+	lagSetting      *prometheus.GaugeVec
 	exportFailures  *prometheus.CounterVec
 	stuck           *prometheus.CounterVec
 	logDelay        *prometheus.GaugeVec
@@ -115,6 +120,10 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 		lag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: MetricLag,
 			Help: "Seconds the OutSystems log extraction watermark trails now; about lag plus the poll interval when caught up.",
+		}, metricLabels),
+		lagSetting: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: MetricLagSetting,
+			Help: "Seconds behind now the OutSystems log type's reads stop, as configured; the extraction lag never goes below it.",
 		}, metricLabels),
 		exportFailures: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: MetricExportFailures,
@@ -164,7 +173,7 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 		}
 		return 0
 	})
-	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures, m.stages, held}, m.derived.collectors()...) {
+	for _, collector := range append([]prometheus.Collector{m.rows, m.lag, m.lagSetting, m.exportFailures, m.stuck, m.logDelay, m.exportBlocked, m.lateRows, m.duplicateRows, m.recounts, m.recountFailures, m.stages, held}, m.derived.collectors()...) {
 		if err := reg.Register(collector); err != nil {
 			return nil, fmt.Errorf("register outsystems metrics: %w", err)
 		}
@@ -178,8 +187,8 @@ func labelValues(item collectormetadata.ScheduledProbe) []string {
 }
 
 // initCollector creates the counters of every log type collector extracts at
-// 0, so increase() sees the first row and the first failure, and its
-// export-blocked gauge at 0.  It also sets the collector's series budget
+// 0, so increase() sees the first row and the first failure, its
+// export-blocked gauge at 0, and its lag setting.  It also sets the collector's series budget
 // for the derived metrics and creates its budget series.
 func (m *Metrics) initCollector(collector collectorconfig.CollectorRuntimeConfig) {
 	if m == nil || !collector.Enabled {
@@ -196,6 +205,13 @@ func (m *Metrics) initCollector(collector collectorconfig.CollectorRuntimeConfig
 				_, _ = vec.GetMetricWithLabelValues(values...)
 			}
 			_, _ = m.exportBlocked.GetMetricWithLabelValues(values...)
+			lag := collector.OutSystemsLogs.Lag
+			if probe.Lag > 0 {
+				lag = probe.Lag
+			}
+			if gauge, err := m.lagSetting.GetMetricWithLabelValues(values...); err == nil {
+				gauge.Set(lag.Seconds())
+			}
 		}
 	}
 }
@@ -208,6 +224,7 @@ func (m *Metrics) forgetCollector(collectorID string) {
 	labels := prometheus.Labels{"collector": collectorID}
 	m.rows.DeletePartialMatch(labels)
 	m.lag.DeletePartialMatch(labels)
+	m.lagSetting.DeletePartialMatch(labels)
 	m.exportFailures.DeletePartialMatch(labels)
 	m.stuck.DeletePartialMatch(labels)
 	m.logDelay.DeletePartialMatch(labels)

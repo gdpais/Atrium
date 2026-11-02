@@ -515,43 +515,96 @@ tests:
               summary: "The slow collector's cycles run late"
               description: "25% of its cycles over the last hour used their whole interval or panicked, more than 14.4 times the 0.5% budget, so its metrics arrive late or with gaps. See heartbeat_collector_probe_duration_seconds for the probe that takes the time: often a slow monitored database. A panic is in the service's log."
 
-  - name: Extraction freshness burns only while the lag stays above 5 minutes
+  - name: Extraction freshness counts the lag beyond its setting, and a target that is down
     interval: 1m
     input_series:
+      # behind: 10 minutes over a 1-minute setting. slow: a 5-minute setting,
+      # 10 s over it, which is fresh. down: a frozen gauge, but the target is down.
       - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="behind",log_type="error"}'
-        values: '600x90'
-      - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="fresh",log_type="error"}'
-        values: '60x90'
+        values: '660x400'
+      - series: 'heartbeat_outsystems_extract_lag_setting_seconds{collector="c",environment="e",target="behind",log_type="error"}'
+        values: '60x400'
+      - series: 'heartbeat_collector_target_up{collector="c",environment="e",target="behind"}'
+        values: '1x400'
+      - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="slow",log_type="error"}'
+        values: '310x400'
+      - series: 'heartbeat_outsystems_extract_lag_setting_seconds{collector="c",environment="e",target="slow",log_type="error"}'
+        values: '300x400'
+      - series: 'heartbeat_collector_target_up{collector="c",environment="e",target="slow"}'
+        values: '1x400'
+      - series: 'heartbeat_outsystems_extract_lag_seconds{collector="c",environment="e",target="down",log_type="error"}'
+        values: '70x400'
+      - series: 'heartbeat_outsystems_extract_lag_setting_seconds{collector="c",environment="e",target="down",log_type="error"}'
+        values: '60x400'
+      - series: 'heartbeat_collector_target_up{collector="c",environment="e",target="down"}'
+        values: '0x400'
     promql_expr_test:
       - expr: heartbeat:outsystems_extract_fresh:ratio_avg1h
         eval_time: 70m
         exp_samples:
           - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="behind",log_type="error"}'
             value: 0
-          - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="fresh",log_type="error"}'
+          - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="slow",log_type="error"}'
             value: 1
+          - labels: 'heartbeat:outsystems_extract_fresh:ratio_avg1h{collector="c",environment="e",target="down",log_type="error"}'
+            value: 0
     alert_rule_test:
       - eval_time: 70m
         alertname: HeartbeatExtractionFreshnessBurn
         exp_alerts:
-          - exp_labels:
-              severity: warning
-              collector: c
-              environment: e
-              target: behind
-              log_type: error
+          - exp_labels: {severity: warning, collector: c, environment: e, target: behind, log_type: error}
             exp_annotations:
               summary: "OutSystems log type error of behind is often behind"
-              description: "Its extraction lag was under 5 minutes for only 0% of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+              description: "Its extraction lag was within 5 minutes of its setting for only 0% of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+          - exp_labels: {severity: warning, collector: c, environment: e, target: down, log_type: error}
+            exp_annotations:
+              summary: "OutSystems log type error of down is often behind"
+              description: "Its extraction lag was within 5 minutes of its setting for only 0% of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+      - eval_time: 400m
+        alertname: HeartbeatExtractionFreshnessBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: warning, collector: c, environment: e, target: behind, log_type: error}
+            exp_annotations:
+              summary: "OutSystems log type error of behind is behind too often"
+              description: "Its extraction lag was within 5 minutes of its setting for only 0% of the last 6 hours, burning the 99% objective more than 6 times too fast."
+          - exp_labels: {severity: warning, collector: c, environment: e, target: down, log_type: error}
+            exp_annotations:
+              summary: "OutSystems log type error of down is behind too often"
+              description: "Its extraction lag was within 5 minutes of its setting for only 0% of the last 6 hours, burning the 99% objective more than 6 times too fast."
+
+  - name: A collector with long intervals does not page on one late cycle; a busy one burns slowly too
+    interval: 1m
+    input_series:
+      # sparse: one cycle every 5 minutes, one of them late.
+      - series: 'heartbeat_collector_cycles_total{collector="sparse",outcome="on_time"}'
+        values: '0x9 1x4 2x4 3x4 4x4 5x4 6x4 7x4 8x4 9x4 10x4 11x4 12x4'
+      - series: 'heartbeat_collector_cycles_total{collector="sparse",outcome="late"}'
+        values: '0x59 1x10'
+      # busy: 4 cycles a minute, 5% late, for 400 minutes.
+      - series: 'heartbeat_collector_cycles_total{collector="busy",outcome="on_time"}'
+        values: '0+3.8x400'
+      - series: 'heartbeat_collector_cycles_total{collector="busy",outcome="late"}'
+        values: '0+0.2x400'
+    alert_rule_test:
+      - eval_time: 62m
+        alertname: HeartbeatCollectorCyclesLateFast
+        exp_alerts: []
+      - eval_time: 400m
+        alertname: HeartbeatCollectorCyclesLate
+        exp_alerts:
+          - exp_labels: {severity: warning, collector: busy}
+            exp_annotations:
+              summary: "The busy collector's cycles often run late"
+              description: "5% of its cycles over the last 6 hours used their whole interval or panicked, more than 6 times the 0.5% budget."
 
   - name: API errors page; the health endpoints and low traffic do not
     interval: 1m
     input_series:
       # 60 requests a minute, 5% failing.
       - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="200"}'
-        values: '0+57x90'
+        values: '0+57x400'
       - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="500"}'
-        values: '0+3x90'
+        values: '0+3x400'
       # /readyz fails on purpose while a dependency is down.
       - series: 'heartbeat_api_http_requests_total{route="/readyz",method="GET",code="503"}'
         values: '0+600x90'
@@ -570,6 +623,27 @@ tests:
             exp_annotations:
               summary: "The Heartbeat API is burning its error budget fast"
               description: "5% of API requests failed over the last hour, more than 14.4 times the 0.1% budget."
+      - eval_time: 400m
+        alertname: HeartbeatAPIErrorBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "The Heartbeat API is burning its error budget"
+              description: "5% of API requests failed over the last 6 hours, more than 6 times the 0.1% budget."
+
+  - name: A few failed API requests do not page
+    interval: 1m
+    input_series:
+      # 3 requests a minute, half failing: under the 5 a minute the alert needs.
+      - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="200"}'
+        values: '0+1.5x90'
+      - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="500"}'
+        values: '0+1.5x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HeartbeatAPIErrorBudgetBurnFast
+        exp_alerts: []
 
   - name: The API's slow requests count against 250 ms, without the health endpoints
     interval: 1m
@@ -646,16 +720,30 @@ tests:
               summary: "The OTel Collector rejected outsystems requests from db-collector"
               description: "A status retrying cannot fix: a wrong endpoint or path, or a request the Collector refuses. For outsystems, the batch is read again. The status is in the service's log."
 
-  - name: Dropped own logs alert, exported ones do not
+  - name: Dropped own logs alert, exported ones do not; growing goroutines alert
     interval: 1m
     input_series:
       - series: 'heartbeat_telemetry_log_records_total{job="db-collector",instance="i",outcome="dropped_queue_full"}'
         values: '0 0 0 15 15 15'
       - series: 'heartbeat_telemetry_log_records_total{job="db-collector",instance="i",outcome="exported"}'
         values: '0 100 200 300 400 500'
-    promql_expr_test:
-      - expr: sum by (job, instance) (increase(heartbeat_telemetry_log_records_total{outcome=~"dropped_.*"}[15m])) > 0
-        eval_time: 5m
-        exp_samples:
-          - labels: '{job="db-collector",instance="i"}'
-            value: 15
+      # 250 goroutines, 1 more a minute: 60 an hour.
+      - series: 'go_goroutines{job="db-collector",instance="leaking"}'
+        values: '250+1x480'
+      - series: 'go_goroutines{job="db-collector",instance="steady"}'
+        values: '250x480'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HeartbeatOwnLogsDropped
+        exp_alerts:
+          - exp_labels: {severity: warning, job: db-collector, instance: i}
+            exp_annotations:
+              summary: "db-collector i dropped about 15 of its own log records"
+              description: "They did not reach the OTel Collector, which is down or slow, or the service logs faster than it sends. They are still in `kubectl logs` until the pod goes. The Export attempts panel of Heartbeat Service says how they end."
+      - eval_time: 480m
+        alertname: HeartbeatGoroutinesGrowing
+        exp_alerts:
+          - exp_labels: {severity: warning, job: db-collector, instance: leaking}
+            exp_annotations:
+              summary: "db-collector leaking keeps adding goroutines"
+              description: "More than 20 goroutines an hour over the last 6 hours, without having stopped: a likely leak. Take a goroutine profile through HEARTBEAT_PPROF_ADDR."
