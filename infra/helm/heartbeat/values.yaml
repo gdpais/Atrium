@@ -154,10 +154,11 @@ telemetry:
   traces:
     enabled: true
     # The share of traces kept, decided when a cycle or a request starts: each
-    # cycle or request is a whole trace or none. A span costs far less than the
-    # work it times, so this is about what Tempo stores, and so which log lines
-    # carry a trace ID: only those of a kept trace.
-    sampleRatio: 0.1
+    # cycle or request is a whole trace or none, and only a kept trace's log
+    # lines carry its ID. All by default: a trace is one collection cycle, a few
+    # a minute, and Tempo stores about 80 MB a day of them on kind (ADR 0018).
+    # Lower it per environment once request traffic makes storage matter.
+    sampleRatio: 1
 
 # Pod and container hardening for the Heartbeat workloads. The images
 # are distroless and run as the nonroot user. fsGroup makes the collector's
@@ -335,13 +336,15 @@ tempo:
     extraEnv:
       # Its soft memory limit, below the container's (ADR 0003's budget).
       - name: GOMEMLIMIT
-        value: 200MiB
+        value: 300MiB
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
+      # It peaked at 249 MiB on kind keeping every trace, most of it Tempo's own
+      # baseline (what the telemetry costs, in metrics-and-endpoints.md).
       limits:
-        memory: 256Mi
+        memory: 384Mi
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true

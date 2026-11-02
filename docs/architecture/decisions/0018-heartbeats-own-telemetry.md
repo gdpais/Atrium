@@ -1,7 +1,8 @@
 # 0018. Heartbeat's own telemetry
 
 - Status: Accepted
-- Date: 2026-11-02
+- Date: 2026-11-02. Amended 2026-11-02: every trace is kept by default, not
+  10%, after the volume was measured (decision 4)
 
 ## Context
 
@@ -55,8 +56,15 @@ answer: services emit only OTLP and Prometheus exposition.
    the collector's binary from 21.1 MB to 26.8 MB and brings gRPC into the build,
    which the OTLP logs client had kept out. That is accepted: a hand-written span
    exporter is more code to own for a binary size that costs nothing at run time.
-   Sampling is parent-based by ratio, set by `telemetry.traces.sampleRatio`: 10%
-   by default, everything on kind.
+   Sampling is parent-based by ratio, set by `telemetry.traces.sampleRatio`:
+   everything by default. A trace is one collection cycle, a few a minute; on
+   kind's full load Tempo stored about 80 MB a day
+   ([what the telemetry costs](../../reference/metrics-and-endpoints.md#what-the-telemetry-costs)),
+   and the production example makes about half as many spans. A 10% default,
+   decided first, would have lost nine in ten of the failing cycles a trace is
+   opened for, to save storage that costs cents a month on S3. An environment
+   lowers the ratio in its values once the API's request traffic [4.1] makes
+   storage matter.
 
 5. **Tempo stores traces,** in single-binary mode, in the `full` profile and off
    in `minimal`. Heartbeat is the first trace source, so TODO 3.6 comes before

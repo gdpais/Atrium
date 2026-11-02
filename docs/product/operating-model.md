@@ -109,6 +109,7 @@ Each one is logged here when its pull request merges, with its cause:
 | 2026-10-10 | Per-job required checks replaced by `ci-ok` ([ADR 0007](../architecture/decisions/0007-change-based-ci-with-one-required-check.md)) | 2026-10-05 | Wrong assumption | One ruleset change | Try a CI rule on a scenario pull request before requiring it |
 | 2026-10-18 | OTel gateway service removed ([ADR 0009](../architecture/decisions/0009-remove-the-otel-gateway.md)) | 2026-06-13 | Built ahead of need | ~770 lines; planned as the next stage on 2026-10-04 | Build a component with its first caller |
 | 2026-10-19 | Integrations config renamed to be platform-neutral; push endpoints dropped ([ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) | 2026-06-13 | Late information | A breaking config change | Ask which platforms the organization uses before naming one in a contract |
+| 2026-11-02 | Traces sampled at 10% by default replaced by keeping every trace ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) | 2026-11-02 | Wrong assumption | One default, the ADR and its docs | Set a sampling or retention limit from a measured volume, not a convention |
 
 The board scorecard counts reversals per month by cause.
 
