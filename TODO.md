@@ -98,6 +98,18 @@ the rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Collector StatefulSet on `podManagementPolicy: Parallel`, so a corrected upgrade replaces a pod that never became Ready; an install from `0.1.0` deletes the StatefulSet once with `--cascade=orphan` ([upgrade](docs/guides/install-from-release.md#upgrade); `scripts/kind.sh` does it on kind); `make kind-e2e` checks both
 - [x] Chart schema rejects unknown top-level values, so a misspelt key fails instead of being ignored
 
+### 0.6 Heartbeat's own telemetry
+
+Heartbeat measured itself before the API and Web work continued ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md)). Delivered in order; the trace store is [3.6].
+
+- [x] Decide the approach: metrics on `/metrics`; logs over OTLP on their own receiver and pipeline; traces through the OTel SDK into Tempo; opt-in loopback pprof
+- [x] `internal/telemetry`: identity, `heartbeat_service_info`, version at build time, a log handler that writes to stderr and a bounded OTLP queue, loopback pprof; wired into the db-collector and the API. The OTLP client moved to `internal/otlp`
+- [x] Chart: `telemetry` values, the Collector's `otlp/self` receiver and `logs/self` pipeline, NetworkPolicies, and the external-platform example
+- [ ] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
+- [ ] *Heartbeat Service* dashboard, SLOs and alerts with promtool tests
+- [ ] Traces: SDK setup, spans for HTTP, PostgreSQL, Redis, collector cycles and OutSystems extraction, logs correlated with traces
+- [ ] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Loki, Tempo or the Collector down; a 30-minute soak
+
 ---
 
 ## 1. Core system: PostgreSQL metadata and schema
@@ -384,6 +396,7 @@ queue tests alone.
 - [x] Add PostgreSQL and Redis connectivity: credentials from mounted Secret files like the collector's, readiness on both, and the API starts while either is down
 - [ ] Apply `db/migrations` with golang-migrate from an init container before the API starts ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)). `api migrate up` applies the embedded migrations and readiness waits for the newest; left for the chart pull request: the init container that runs it
 - [ ] Add PostgreSQL and Redis to the Helm chart once the API consumes them; keep monitored databases and test fixtures external (templates on `postgres` and `valkey/valkey`, off in production: [ADR 0015](docs/architecture/decisions/0015-postgresql-and-redis-delivery.md))
+- [ ] When the chart deploys the API: set its telemetry environment variables as the db-collector's, add its Prometheus scrape job, admit it to the Collector's 4319, and check its logs, metrics and traces on kind ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md))
 
 ### 4.2 Identity and access
 - [ ] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md))

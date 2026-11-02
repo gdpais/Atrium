@@ -6,6 +6,9 @@
 # Services are NodePorts that infra/kind/cluster.yaml maps to the same
 # 127.0.0.1 ports the Compose stack used.
 
+telemetry:
+  environment: local
+
 dbCollector:
   image:
     # The image scripts/kind.sh builds, not the release image the chart

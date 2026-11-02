@@ -13,6 +13,9 @@
 # - Alerts: Slack and Microsoft Teams; WhatsApp for critical alerts through
 #   Amazon SNS; Watchdog to healthchecks.io.
 
+telemetry:
+  environment: production
+
 dbCollector:
   image:
     repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/db-collector

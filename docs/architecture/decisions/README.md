@@ -23,6 +23,7 @@ one; mark the old record *Superseded by ADR NNNN*.
 | [0015](0015-postgresql-and-redis-delivery.md) | PostgreSQL and Redis: small chart templates on the projects' images for kind and CI, off in production, which uses RDS and ElastiCache; Redis runs as Valkey; no Bitnami charts | Accepted |
 | [0016](0016-audit-records-through-an-outbox.md) | Audit records are written to an `audit_outbox` in the change's transaction and drained as OTLP log records through the OTel Collector to Loki; no JSONL files; the outbox is a queue, not a store | Accepted |
 | [0017](0017-outsystems-sources-map-application-identity.md) | An OutSystems 11 telemetry source maps an application to its `service.name` (`application_name`); the `outsystems_logs` collector per installation stays in YAML, not rendered by the API | Accepted |
+| [0018](0018-heartbeats-own-telemetry.md) | Heartbeat's own telemetry: metrics stay on `/metrics`; logs go over OTLP as well as stderr, on their own Collector receiver and pipeline, never the OutSystems delivery path; traces use the OTel SDK and Tempo; opt-in loopback pprof | Accepted |
 
 Template:
 

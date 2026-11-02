@@ -410,6 +410,10 @@ into a pod.
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | Directory with one `HEARTBEAT_CREDENTIAL_<REF>` file per credential, read on every connection; references without a file come from the environment. The chart sets it to the mounted `dbCollector.credentials.existingSecret`. See [credential resolution](#credential-resolution) |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | Target credentials, see [credential resolution](#credential-resolution) |
 | `GOMEMLIMIT` | unset | Go's soft memory limit, such as `200MiB`. The chart sets 80% of `dbCollector.resources.limits.memory` (`204MiB` for the default `256Mi`), so the garbage collector works harder before the pod is OOM-killed; `dbCollector.goMemLimit` overrides it, `off` disables it |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | unset (stderr only) | Where the service sends its own logs, besides stderr: the OTel Collector's `otlp/self` receiver, such as `http://otel-collector:4319/v1/logs`. The chart sets it while `telemetry.enabled` and `otelCollector.enabled` are on. Not read from `OTEL_EXPORTER_OTLP_ENDPOINT`, whose port is the OutSystems delivery path ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | `deployment.environment.name` is read from it: the environment Heartbeat itself runs in. The chart sets it from `telemetry.environment` |
+| `OTEL_SDK_DISABLED` | unset | `true` turns off the OTLP export; stderr is unaffected |
+| `HEARTBEAT_PPROF_ADDR` | unset (off) | Loopback address for the runtime profiles at `/debug/pprof/`, such as `127.0.0.1:6060`; any other address is refused with an error in the log. Set it with `dbCollector.extraEnv`, then `kubectl port-forward pod/db-collector-0 6060` |
 
 ### API
 
@@ -430,6 +434,7 @@ instead of falling back to the default.
 | `HEARTBEAT_API_REDIS_TLS` | `true` | TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. `false` for a server without TLS on a trusted network: kind, a local container |
 | `HEARTBEAT_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `HEARTBEAT_CREDENTIAL_<REF>` files, read on every new connection |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` commands send no telemetry |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |
 
 The settings above win over libpq's `PG*` environment variables, which the

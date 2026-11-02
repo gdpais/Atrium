@@ -15,7 +15,7 @@ maps fixed NodePorts to these ports on 127.0.0.1 only.
 | Prometheus | 9090 | 15s scrape interval |
 | Grafana | 3001 | Local login `admin`/`admin`, anonymous viewer enabled. **Local only.** |
 | Alertmanager | 9093 | |
-| OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile |
+| OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile. Heartbeat's own logs use a third port, 4319, in-cluster only |
 | Loki | none | In-cluster only (`loki:3100`); query it through Grafana, or `kubectl port-forward svc/loki 3100` |
 | SQL Server (dev target only) | 127.0.0.1:11433 | Loopback-bound Docker container; see the [local development guide](../guides/local-development.md#sql-server-sandbox) |
 
@@ -356,6 +356,23 @@ included. Not scraped yet: the API is not deployed.
 request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
 OPTIONS. A scan of made-up paths and methods therefore lands in the
 `unmatched` and `other` series instead of adding new ones.
+
+### Heartbeat's own telemetry
+
+Both services expose these
+([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)).
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
+| `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts of 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
+
+The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
+`service_name` (`db-collector`, `api`) and `deployment_environment_name`:
+
+```logql
+{service_namespace="heartbeat", service_name="db-collector"} | detected_level="error"
+```
 
 ### Prometheus scrape jobs and rules
 
