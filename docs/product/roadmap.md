@@ -21,6 +21,27 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 10 | Oracle collector, gated by an Alloy coverage check | Late roadmap |
 | 11 | Custom collector vs Grafana Alloy comparison | Last planned phase |
 
+## Phase outcomes
+
+What each phase lets someone do. A phase is done when its outcome is shown
+in a demo on real-shaped data, not when its checklist is ticked
+([how we work](operating-model.md#outcomes-over-features)).
+
+| Phase | Who | Can now |
+| --- | --- | --- |
+| 0 | Developer | Run the whole stack locally and in CI with one chart and one command sequence |
+| 1 | DBA, SRE | See a SQL Server's waits, blocking, sessions, memory and storage in Grafana, with no agent on the database host |
+| 2 | SRE | See an OutSystems application's health, errors and latency, with its logs, in Grafana, and be alerted when its objective burns |
+| 3 | Operator | Onboard an application, a SQL Server target and its probes through the API, without editing YAML, with every change audited |
+| 4 | Operator | Do the same in a browser |
+| 5 | SRE, on-call | Run Heartbeat on EKS against production databases, with alerts reaching on-call |
+| 6 | Application owner | Read an application's and its databases' health together, end to end |
+| 7 | SRE | Ask what happened to a user, session or request in a time window and get correlated evidence; get low-noise alerts and a weekly report |
+| 8 | SRE | Lose a collector or a node without a data gap beyond the agreed objective |
+| 9 | Operator | Load exported logs where Heartbeat cannot reach the database |
+| 10 | DBA | See Oracle as they see SQL Server |
+| 11 | Owner | Decide, on evidence, whether to keep the custom collector or adopt Alloy |
+
 ## Test application: PatientZero
 
 Heartbeat only reads, so the phases are tested against **PatientZero**, a
