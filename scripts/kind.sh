@@ -114,17 +114,22 @@ apply_secret() {
 }
 
 # Prints a Secret's key, or nothing when the Secret or key does not exist.
+# Fails when kubectl does: piped straight into base64, its failure would read
+# as "no password" (sh has no pipefail), and a new one would replace the kept
+# one.
 secret_value() {
-	kubectl_ -n "$NAMESPACE" get secret "$1" --ignore-not-found -o "jsonpath={.data.$2}" | base64 -d
+	encoded=$(kubectl_ -n "$NAMESPACE" get secret "$1" --ignore-not-found -o "jsonpath={.data.$2}") || return 1
+	printf '%s' "$encoded" | base64 -d
 }
 
 # Applies a Secret from key=value lines on standard input, through a 0600
-# file, so a password never reaches a command line.
+# file, so a password never reaches a command line. The file is removed even
+# when kubectl fails.
 apply_secret_env() {
 	name=$1
 	env_file=$(mktemp "${TMPDIR:-/tmp}/heartbeat-$name.XXXXXX")
 	cat >"$env_file"
-	apply_secret "$name" --from-env-file="$env_file"
+	apply_secret "$name" --from-env-file="$env_file" || { rm -f "$env_file"; return 1; }
 	rm -f "$env_file"
 }
 
@@ -134,12 +139,12 @@ apply_secret_env() {
 # the existing volume. The API's Secret is derived from the other two on
 # every deploy, so the three always agree.
 cmd_api_secrets() {
-	postgres_password=$(secret_value heartbeat-postgresql password)
+	postgres_password=$(secret_value heartbeat-postgresql password) || die "cannot read Secret heartbeat-postgresql"
 	if [ -z "$postgres_password" ]; then
 		postgres_password=$(openssl rand -hex 24)
 		printf 'password=%s\n' "$postgres_password" | apply_secret_env heartbeat-postgresql
 	fi
-	valkey_password=$(secret_value heartbeat-valkey password)
+	valkey_password=$(secret_value heartbeat-valkey password) || die "cannot read Secret heartbeat-valkey"
 	if [ -z "$valkey_password" ]; then
 		valkey_password=$(openssl rand -hex 24)
 		printf 'password=%s\n' "$valkey_password" | apply_secret_env heartbeat-valkey
