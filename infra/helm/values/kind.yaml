@@ -8,9 +8,6 @@
 
 telemetry:
   environment: local
-  # Every cycle: kind runs one or two targets, and a test looks for its trace.
-  traces:
-    sampleRatio: 1
 
 dbCollector:
   image:
