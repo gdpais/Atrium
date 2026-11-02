@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,6 +21,7 @@ import (
 // matrix) to the chart values key whose image deploys it.
 var releaseImageValues = map[string]string{
 	"db-collector": "dbCollector",
+	"api":          "api",
 }
 
 func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
@@ -50,7 +52,10 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 				Env      map[string]string `yaml:"env"`
 				Strategy struct {
 					Matrix struct {
-						Service []string `yaml:"service"`
+						Include []struct {
+							Service    string `yaml:"service"`
+							Dockerfile string `yaml:"dockerfile"`
+						} `yaml:"include"`
 					} `yaml:"matrix"`
 				} `yaml:"strategy"`
 			} `yaml:"images"`
@@ -65,9 +70,21 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 		t.Errorf("release.yml IMAGE_PREFIX is %q; update this test and the chart's image defaults together", imagePrefix)
 	}
 	chartRef := expand(workflow.Env["CHART_REPO"]) + "/" + chart.Name
-	services := workflow.Jobs.Images.Strategy.Matrix.Service
-	if len(services) == 0 {
-		t.Fatal("release.yml jobs.images.strategy.matrix.service is empty; the test is not reading the workflow")
+	include := workflow.Jobs.Images.Strategy.Matrix.Include
+	if len(include) == 0 {
+		t.Fatal("release.yml jobs.images.strategy.matrix.include is empty; the test is not reading the workflow")
+	}
+	var services []string
+	for _, image := range include {
+		services = append(services, image.Service)
+		if _, err := os.Stat(filepath.Join(root, image.Dockerfile)); err != nil {
+			t.Errorf("release.yml builds %s from %q: %v", image.Service, image.Dockerfile, err)
+		}
+	}
+	for service := range releaseImageValues {
+		if !slices.Contains(services, service) {
+			t.Errorf("the chart deploys %s, which release.yml does not build", service)
+		}
 	}
 
 	var values map[string]any
