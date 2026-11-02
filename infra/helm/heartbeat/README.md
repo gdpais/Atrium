@@ -15,7 +15,9 @@ match your version, open the same path at its `vX.Y.Z` tag.
 ## Before you install
 
 The chart creates no Secrets. Create these in the release's namespace first,
-or the pods that need them wait in `CreateContainerConfigError`:
+or the pods that need them wait in `CreateContainerConfigError`, or, for the
+two mounted as files (`heartbeat-api-credentials`, `heartbeat-postgresql`),
+in `ContainerCreating` or `Init:0/1` with a `FailedMount` event:
 
 | Secret | Keys | For |
 | --- | --- | --- |
