@@ -282,16 +282,19 @@ inventory exists; API-managed onboarding [4.4, 10.1] follows in stage 3.
 Generic source expansion [3.4] remains later work. Grafana dashboards [10.4]
 follow the ingest path.
 
-Remaining work, in order: the first green nightly run of the scenarios
-workflow [16.5] → this stage's validation → the release [0.5]. The signal gaps
-the PatientZero scenarios found are closed [3.3, 9.1], and the workflow is on
-`master` since 2026-10-27. Not part of this exit, and done alongside stage 3 before
+Remaining work, in order: the 48 hour backfill, checked again on the current
+export path and in the nightly run [16.5] → the outcome demo → the release
+[0.5]. The signal gaps the PatientZero scenarios found are closed [3.3, 9.1],
+and the scenarios workflow has run green every night on `master` since
+2026-10-28 [16.5]. Not part of this exit, and done alongside stage 3 before
 the first production deploy [18]: a series
 budget [2.6], collector egress and exposure [2.7], unknown keys in component
 values [0.4], Alertmanager's rollout policy [9.4] and PatientZero's hardening
 [16.5].
 
-- [ ] Validate this stage: every log-type query against a SQL Server fixture with the `oslog_*` tables, extraction → OTel Collector → Loki and derived metrics → Prometheus on kind, restarts and outages without gaps [16.1–16.2]; Tempo and request traces are not part of this exit [3.6]
+- [x] Validate this stage (2026-11-02): every log-type query against a SQL Server fixture with the `oslog_*` tables ([`SQL Server probes` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/41470669530/job/125363192693): `TestLogQueriesAgainstSQLServer` passes for all eight log types), extraction → OTel Collector → Loki and derived metrics → Prometheus on kind, restarts and outages without gaps, and the SLO scenarios firing the burn-rate alerts ([latest nightly run](https://github.com/gdpais/Heartbeat/actions/runs/41436749000): all 13 scenarios passed, their delivery checks finding in Loki the rows PatientZero committed, once; [`kind end-to-end` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/41470669530/job/125363192389): the Collector restarted during 45-minute and three-hour backlogs, all 6,000 rows of each in Loki once) [16.1–16.2]; Tempo and request traces are not part of this exit [3.6]. The 48 hour backfill and the outcome demo follow
+- [ ] Check the 48 hour backfill again on the current export path, in the nightly run: it matched its known answer in Loki on 2026-10-21 by hand (`make patientzero-scale-collect`, `-check`), before the db-collector began waiting for the Collector in the background (2026-10-22), and no CI job runs it. Add the generate, collect and check steps to `scenarios.yml` after the scenarios (about 20 minutes: 2 to generate, 16 to catch up), so the nightly run carries it; try it by hand on a branch first, since the runner's SQL Server is capped at 2 GB and the log is 3 GB [16.5]
+- [ ] Show the phase's outcome in a demo ([how we work](docs/product/operating-model.md#outcomes-over-features)): an SRE sees a broken deploy's errors, latency and logs in Grafana and the burn-rate alert page, on kind with PatientZero. `make patientzero-scenario NAME=bad-deploy` (19 minutes) and `NAME=orderlist-latency` (7 minutes), then walk *OutSystems Overview*, *Errors*, *Latency* and *Request Timeline* and find the new exception's request in Loki. The [live demo](docs/guides/live-demo.md) starts the scenarios but does not walk through the dashboards or the logs, and its §7 still says nothing writes to Loki: add the walk-through there, and record the date and commit [16.5]
 
 ### 3.1 OTel gateway bootstrap (service removed, [ADR 0009](docs/architecture/decisions/0009-remove-the-otel-gateway.md))
 - [x] Create Go service entrypoint `services/otel-gateway/cmd/otel-gateway/`
@@ -851,7 +854,7 @@ First slice, with phase 2:
 - [x] Ingest scenarios: `rotation` (weekly rotation on demand), `log-backlog`, `log-growth`, backfill within Loki's 168h limit, commits held back past the `lag`, and restarts and outages of the db-collector, the OTel Collector, Loki and SQL Server; the collector's clock is never changed; the restarts and outages are cluster faults, applied on the host with the kubeconfig and Docker ([cluster faults](tools/patientzero/scenarios/README.md#cluster-faults)). Done: `rotation`, `log-backlog` (commits late within the `lag`), `late-commits` (held back past it: those rows are lost, as ADR 0008 accepts), `log-growth`, `restarts`, and the `loki-outage`, `otel-outage`, `collector-outage` and `sqlserver-outage`, each checked against the rows PatientZero committed ([delivery checks](tools/patientzero/scenarios/README.md#delivery-checks)); the restarts and outages are applied by `make patientzero-scenario` as the run's host agent. The backfill within Loki's 168h limit is not a scenario (2026-10-25): `make patientzero-scale-collect` and `-check` backfill a 48 h generated log through the same extractor, Collector and Loki, and every hour matches its known answer [10.4]
 - [x] SLO scenarios: `bad-deploy` and `slow-sql` fire the existing burn-rate alerts in Alertmanager, end to end, with the rules' real windows (`make patientzero-scenario NAME=bad-deploy`, `NAME=slow-sql`); new `deploy` and `sql-latency` faults, and PatientZero logs slow SQL as the platform does ([SLO scenarios](tools/patientzero/scenarios/README.md#slo-scenarios))
 - [x] A CI workflow runs every scenario against PatientZero on a fresh kind cluster and checks their signals (`.github/workflows/scenarios.yml`, `make patientzero-scenarios`, in a fixed order): nightly on `master`, by hand, and on the release pull request, where `ci-ok` fails while a scenario fails, so no release is tagged with one. Not in `make kind-e2e`: the thirteen scenarios take about two and a half hours and would gate every pull request on them
-- [ ] The first green nightly run of the scenarios workflow is this stage's validation evidence [3]; the workflow is on `master` since 2026-10-27, so the first nightly run is on 2026-10-28
+- [x] The first green nightly run of the scenarios workflow is this stage's validation evidence [3]: [2026-10-28](https://github.com/gdpais/Heartbeat/actions/runs/40667370569) (13 scenarios passed), then green every night to [2026-11-02](https://github.com/gdpais/Heartbeat/actions/runs/41436749000). Each run keeps its journals and `summary.md` as an artifact for 30 days
 - [ ] Replace the hand-run load in the [live demo](docs/guides/live-demo.md) with the scenarios [16.2, 16.3]
 
 Later, each with the phase that needs it:
