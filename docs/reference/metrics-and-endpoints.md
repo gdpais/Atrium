@@ -430,7 +430,8 @@ Tempo kept every trace (`telemetry.traces.sampleRatio: 1`, now the default),
 about 5.6 spans a second, and its memory moved between 140 and 210 MiB without
 growing. A later 4.7-hour run on the same load took 4.8 spans and 655 bytes a
 second, stored about 190 bytes a span (some 80 MB a day, 550 MB over the 7-day
-retention), and peaked at 249 MiB, so Tempo's limit went from 256 to 384 MiB. A log call costs about 1.4 µs and 18
+retention, a quarter of its 2 GiB volume), and peaked at 249 MiB, so Tempo's
+limit went from 256 to 384 MiB. A log call costs about 1.4 µs and 18
 allocations with the OTLP export on, 0.45 µs and none with it off; a request
 that is not sampled about 1.7 µs in the tracing middleware.
 

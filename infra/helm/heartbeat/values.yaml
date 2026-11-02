@@ -319,6 +319,9 @@ tempo:
   replicas: 1
   persistence:
     enabled: true
+    # Seven days of every trace on kind take about 550 MB of it (what the
+    # telemetry costs, in metrics-and-endpoints.md); more targets or a shorter
+    # scrape_interval take more. On S3 it holds only the WAL.
     size: 2Gi
   securityContext:
     runAsNonRoot: true
