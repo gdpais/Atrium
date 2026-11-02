@@ -6,9 +6,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
@@ -21,6 +24,7 @@ func setRequired(t *testing.T) {
 	for _, key := range []string{
 		envListenAddr, envPostgresPort, envPostgresDatabase, envPostgresSSLMode, envPostgresSSLRootCert,
 		envPostgresCredentialRef, envRedisTLS, envRedisCredentialRef, envCredentialsDir, envAuditEndpoint,
+		envSiteOrigin, envSessionIdleTimeout, envSessionMaxAge, envTrustedProxies, envShutdownDelay,
 	} {
 		t.Setenv(key, "")
 	}
@@ -54,6 +58,13 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.AuditEndpoint != "" {
 		t.Fatalf("AuditEndpoint = %q, want none: audit records wait in the outbox", cfg.AuditEndpoint)
 	}
+	if cfg.Site != "" || cfg.TrustedProxies != nil {
+		t.Fatalf("Site %q, TrustedProxies %v: want none", cfg.Site, cfg.TrustedProxies)
+	}
+	if cfg.SessionIdleTimeout != 8*time.Hour || cfg.SessionMaxAge != 7*24*time.Hour || cfg.ShutdownDelay != 5*time.Second {
+		t.Fatalf("SessionIdleTimeout %s, SessionMaxAge %s, ShutdownDelay %s: want 8h, 168h, 5s",
+			cfg.SessionIdleTimeout, cfg.SessionMaxAge, cfg.ShutdownDelay)
+	}
 }
 
 func TestLoadConfigReadsEverySetting(t *testing.T) {
@@ -71,6 +82,11 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 		envRedisCredentialRef:    "env/redis.local",
 		envCredentialsDir:        "/var/run/secrets/heartbeat/credentials",
 		envAuditEndpoint:         "https://otel-collector.observability.svc:4318/",
+		envSiteOrigin:            "HTTPS://Heartbeat.Example.com:443/",
+		envSessionIdleTimeout:    "30m",
+		envSessionMaxAge:         "12h",
+		envTrustedProxies:        " 10.0.0.0/8, 192.168.1.7 ,fd00::/8",
+		envShutdownDelay:         "0s",
 	} {
 		t.Setenv(key, value)
 	}
@@ -93,6 +109,44 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 	}
 	if want := "https://otel-collector.observability.svc:4318"; cfg.AuditEndpoint != want {
 		t.Fatalf("AuditEndpoint = %q, want %q", cfg.AuditEndpoint, want)
+	}
+	if want := "https://heartbeat.example.com"; cfg.Site != want {
+		t.Fatalf("Site = %q, want %q, as a browser writes the Origin header", cfg.Site, want)
+	}
+	if cfg.SessionIdleTimeout != 30*time.Minute || cfg.SessionMaxAge != 12*time.Hour || cfg.ShutdownDelay != 0 {
+		t.Fatalf("SessionIdleTimeout %s, SessionMaxAge %s, ShutdownDelay %s", cfg.SessionIdleTimeout, cfg.SessionMaxAge, cfg.ShutdownDelay)
+	}
+	want := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("192.168.1.7/32"), netip.MustParsePrefix("fd00::/8")}
+	if !slices.Equal(cfg.TrustedProxies, want) {
+		t.Fatalf("TrustedProxies = %v, want %v", cfg.TrustedProxies, want)
+	}
+}
+
+// The site's origin is compared with the Origin header as browsers write
+// it.
+func TestLoadConfigWritesTheSiteAsAnOrigin(t *testing.T) {
+	for value, want := range map[string]string{
+		"https://heartbeat.example.com":       "https://heartbeat.example.com",
+		"https://heartbeat.example.com/":      "https://heartbeat.example.com",
+		"https://heartbeat.example.com:8443":  "https://heartbeat.example.com:8443",
+		"http://localhost:8081":               "http://localhost:8081",
+		"http://LOCALHOST:80":                 "http://localhost",
+		"https://[2001:db8::1]:443":           "https://[2001:db8::1]",
+		"http://heartbeat.example.com:443":    "http://heartbeat.example.com:443",
+		"https://heartbeat.example.com:80/":   "https://heartbeat.example.com:80",
+		"https://heartbeat.internal.corp.lan": "https://heartbeat.internal.corp.lan",
+	} {
+		t.Run(value, func(t *testing.T) {
+			setRequired(t)
+			t.Setenv(envSiteOrigin, value)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Site != want {
+				t.Fatalf("Site = %q, want %q", cfg.Site, want)
+			}
+		})
 	}
 }
 
@@ -161,6 +215,24 @@ func TestLoadConfigRejectsValuesThatCannotWork(t *testing.T) {
 		{envAuditEndpoint, "http://"},
 		{envAuditEndpoint, "http://user:secret@otel-collector:4318"},
 		{envAuditEndpoint, "http://otel-collector:4318?x=1"},
+		{envSiteOrigin, "heartbeat.example.com"},
+		{envSiteOrigin, "https://heartbeat.example.com/app"},
+		{envSiteOrigin, "https://user@heartbeat.example.com"},
+		{envSiteOrigin, "https://heartbeat.example.com?x=1"},
+		{envSiteOrigin, "ftp://heartbeat.example.com"},
+		{envSiteOrigin, "https://"},
+		{envSessionIdleTimeout, "8"},
+		{envSessionIdleTimeout, "30s"},
+		{envSessionIdleTimeout, "-1h"},
+		{envSessionIdleTimeout, "200h"},
+		{envSessionMaxAge, "a week"},
+		{envSessionMaxAge, "0"},
+		{envTrustedProxies, "10.0.0.0/33"},
+		{envTrustedProxies, "ingress-nginx"},
+		{envTrustedProxies, "10.0.0.1:443"},
+		{envShutdownDelay, "-1s"},
+		{envShutdownDelay, "2m"},
+		{envShutdownDelay, "5"},
 	} {
 		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
 			setRequired(t)

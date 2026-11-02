@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 	"gopkg.in/yaml.v3"
 
 	"heartbeat/apps/api/internal/redis"
@@ -132,6 +133,19 @@ func Valkey(t *testing.T) (Container, redis.Config) {
 	c.Credential = credentials.Credential{Username: "default", Password: password}
 	waitHealthy(t, c.Name)
 	return c, redis.Config{Addr: c.Addr, CredentialRef: RedisRef}
+}
+
+// ValkeyClient starts Valkey as [Valkey] does and returns a client on it
+// that is closed when the test ends.
+func ValkeyClient(t *testing.T) (Container, *goredis.Client) {
+	t.Helper()
+	c, cfg := Valkey(t)
+	client, err := redis.New(cfg, Resolver{RedisRef: c.Credential})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	return c, client
 }
 
 // start runs image detached under a random name, publishing port on a

@@ -42,6 +42,65 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const getLoginUser = `-- name: GetLoginUser :one
+select id, email, status, password_hash
+from users
+where lower(email) = lower($1)
+`
+
+type GetLoginUserRow struct {
+	ID           pgtype.UUID
+	Email        string
+	Status       string
+	PasswordHash pgtype.Text
+}
+
+// The user an email logs in as, compared without regard to case, as the
+// unique index on lower(email) does.
+func (q *Queries) GetLoginUser(ctx context.Context, email string) (GetLoginUserRow, error) {
+	row := q.db.QueryRow(ctx, getLoginUser, email)
+	var i GetLoginUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Status,
+		&i.PasswordHash,
+	)
+	return i, err
+}
+
+const getSessionUser = `-- name: GetSessionUser :one
+select u.id, u.email, u.display_name, u.status,
+  coalesce(array_agg(r.name order by r.name) filter (where r.name is not null), '{}')::text[] as roles
+from users u
+left join user_roles ur on ur.user_id = u.id
+left join roles r on r.id = ur.role_id
+where u.id = $1
+group by u.id
+`
+
+type GetSessionUserRow struct {
+	ID          pgtype.UUID
+	Email       string
+	DisplayName string
+	Status      string
+	Roles       []string
+}
+
+// A user and the names of their roles, for each request with a session.
+func (q *Queries) GetSessionUser(ctx context.Context, id pgtype.UUID) (GetSessionUserRow, error) {
+	row := q.db.QueryRow(ctx, getSessionUser, id)
+	var i GetSessionUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.Status,
+		&i.Roles,
+	)
+	return i, err
+}
+
 const grantRole = `-- name: GrantRole :one
 insert into user_roles (user_id, role_id)
 select $1, id
@@ -61,4 +120,34 @@ func (q *Queries) GrantRole(ctx context.Context, arg GrantRoleParams) (pgtype.UU
 	var role_id pgtype.UUID
 	err := row.Scan(&role_id)
 	return role_id, err
+}
+
+const recordLogin = `-- name: RecordLogin :exec
+update users set last_login_at = now() where id = $1
+`
+
+func (q *Queries) RecordLogin(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, recordLogin, id)
+	return err
+}
+
+const upgradePasswordHash = `-- name: UpgradePasswordHash :execrows
+update users set password_hash = $1
+where id = $2 and password_hash = $3
+`
+
+type UpgradePasswordHashParams struct {
+	NewHash pgtype.Text
+	ID      pgtype.UUID
+	OldHash pgtype.Text
+}
+
+// Replaces the hash only if it is still the one the login checked, so a
+// password changed meanwhile is kept.
+func (q *Queries) UpgradePasswordHash(ctx context.Context, arg UpgradePasswordHashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upgradePasswordHash, arg.NewHash, arg.ID, arg.OldHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

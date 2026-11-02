@@ -4,40 +4,123 @@
 // Server implements the strict server interface that oapi-codegen generates
 // into package openapi; Register serves it on a ServeMux. Handlers get typed
 // requests and return typed responses, so a response the spec does not
-// declare does not compile.
+// declare does not compile. Before any handler runs, a guard checks the
+// request's Origin, session and role against the rule its operation
+// declares in the spec.
 package httpapi
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"sync/atomic"
 	"time"
 
+	api "heartbeat/apps/api"
+	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/openapi"
 )
 
 // Server implements [openapi.StrictServerInterface].
 type Server struct {
 	readiness *readiness
+	// draining makes GET /readyz answer 503 once shutdown has begun.
+	draining atomic.Bool
+	logger   *slog.Logger
+	// rules are the operations' access rules, by ServeMux pattern.
+	rules          map[string]rule
+	auth           Authenticator
+	site           string
+	trustedProxies []netip.Prefix
 }
 
 // The generated interface lists every operation of the spec, so an
 // operation added to openapi.yaml without a handler fails to compile here.
 var _ openapi.StrictServerInterface = (*Server)(nil)
 
-// NewServer returns a Server whose GET /readyz runs checks, all of them
-// bounded together by readinessTimeout. A nil logger discards logs.
-func NewServer(logger *slog.Logger, checks []Check, readinessTimeout time.Duration) *Server {
+// Authenticator logs users in and out and authenticates their sessions:
+// *auth.Service.
+type Authenticator interface {
+	Login(ctx context.Context, email, secret string, client auth.Client) (auth.Principal, string, error)
+	Authenticate(ctx context.Context, token string) (auth.Principal, error)
+	Logout(ctx context.Context, p auth.Principal, client auth.Client) error
+	// ExpiresAt is when session ends however active it is.
+	ExpiresAt(session auth.Session) time.Time
+}
+
+var _ Authenticator = (*auth.Service)(nil)
+
+// Options configure a Server.
+type Options struct {
+	// Logger receives logs; nil discards them.
+	Logger *slog.Logger
+	// Checks are what GET /readyz runs, all of them bounded together by
+	// ReadinessTimeout.
+	Checks           []Check
+	ReadinessTimeout time.Duration
+	// Auth logs users in and authenticates sessions. Without it, every
+	// operation that needs a session answers 503, and logging in fails.
+	Auth Authenticator
+	// Site is the origin unsafe methods must come from, such as
+	// https://heartbeat.example.com, as a browser writes it in the Origin
+	// header. Empty refuses every unsafe method.
+	Site string
+	// TrustedProxies are the peers whose X-Forwarded-For names the client.
+	TrustedProxies []netip.Prefix
+}
+
+// NewServer returns a Server. It fails when an operation of the spec does
+// not declare who may call it.
+func NewServer(opts Options) (*Server, error) {
+	logger := opts.Logger
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	return &Server{readiness: &readiness{checks: checks, timeout: readinessTimeout, logger: logger}}
+	rules, err := accessRules(api.Spec)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{
+		readiness:      &readiness{checks: opts.Checks, timeout: opts.ReadinessTimeout, logger: logger},
+		logger:         logger,
+		rules:          rules,
+		auth:           opts.Auth,
+		site:           opts.Site,
+		trustedProxies: opts.TrustedProxies,
+	}, nil
 }
 
 // Register serves every operation of the spec on mux, under the method and
-// path patterns the spec declares (GET /healthz, GET /readyz).
+// path patterns the spec declares (GET /healthz, POST /api/v1/session, ...),
+// each behind the guard.
 func (s *Server) Register(mux *http.ServeMux) {
-	openapi.HandlerFromMux(openapi.NewStrictHandler(s, nil), mux)
+	strict := openapi.NewStrictHandlerWithOptions(s, nil, openapi.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+		},
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			s.logger.ErrorContext(r.Context(), "request failed", "pattern", r.Pattern,
+				"request_id", requestFrom(r.Context()).client.RequestID, "error", err)
+			writeProblem(w, http.StatusInternalServerError, fmt.Sprintf("the API could not serve the request; its ID is in the %s header", requestIDHeader))
+		},
+	})
+	openapi.HandlerWithOptions(strict, openapi.StdHTTPServerOptions{
+		BaseRouter:  mux,
+		Middlewares: []openapi.MiddlewareFunc{s.guard},
+		ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+		},
+	})
+}
+
+// Drain makes GET /readyz answer 503 from now on, so that the API leaves
+// its Service while it still serves the requests already sent to it.
+func (s *Server) Drain() {
+	if !s.draining.Swap(true) {
+		s.logger.Info("readiness changed", "status", openapi.NotReady, "reasons", []string{"shutting down"})
+	}
 }
 
 // GetHealthz serves GET /healthz: liveness. It checks no dependency, so a
@@ -48,11 +131,11 @@ func (s *Server) GetHealthz(context.Context, openapi.GetHealthzRequestObject) (o
 }
 
 // GetReadyz serves GET /readyz: 200 when every readiness check passes, 503
-// otherwise. The endpoint is unauthenticated and kubelet probes only need
-// the status code, so the body carries the status alone; which check failed
-// and why is logged.
+// otherwise and once the API is draining. The endpoint is unauthenticated
+// and kubelet probes only need the status code, so the body carries the
+// status alone; which check failed and why is logged.
 func (s *Server) GetReadyz(ctx context.Context, _ openapi.GetReadyzRequestObject) (openapi.GetReadyzResponseObject, error) {
-	if s.readiness.ready(ctx) {
+	if !s.draining.Load() && s.readiness.ready(ctx) {
 		return openapi.GetReadyz200JSONResponse{Status: openapi.Ready}, nil
 	}
 	return openapi.GetReadyz503JSONResponse{Status: openapi.NotReady}, nil
