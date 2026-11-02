@@ -408,6 +408,27 @@ A client's `traceparent` is linked, not continued. Spans name what ran, never
 query values, command arguments or error text, which can name a host and a
 login; a log line in a span has its `trace_id`, and Grafana links the two ways.
 
+#### What the telemetry costs
+
+Measured on kind on 2026-11-02 under `make patientzero-load LOAD=steady`, the
+same way as the [memory budget](../guides/local-development.md#daily-loop),
+against the build before it (`2844ec1`), each on a freshly restarted node:
+
+| | Before | With it | Budget |
+| --- | --- | --- | --- |
+| Full profile in the kind node, peak less PatientZero | 1.44 GiB | 1.79 GiB (Tempo about 210 MiB of it) | 2.5 GiB |
+| db-collector resident memory, peak | 24.6 MiB | 32.9 MiB | 20 MiB more at most |
+| db-collector CPU | 2.7 millicores | 2.9 millicores | within run-to-run noise (1.8 to 2.7) |
+| Collector `/metrics` series; scrape time, mean and max | 1,015; 7.5 and 12.5 ms | 1,697; 7.8 and 10.7 ms | under 100 ms |
+| Probe p95 | 35 ms | 30 ms | no regression |
+| Rows extracted a second; extraction lag, max | 9.5; 61 s | 9.7; 60 s | no regression |
+
+Tempo kept every trace (`telemetry.traces.sampleRatio: 1` on kind), about 5.6
+spans a second, and its memory moved between 140 and 210 MiB against its
+256 MiB limit without growing. A log call costs about 1.4 µs and 18
+allocations with the OTLP export on, 0.45 µs and none with it off; a request
+that is not sampled about 1.7 µs in the tracing middleware.
+
 ### Prometheus scrape jobs and rules
 
 Scrape jobs (`prometheus.scrapeConfigs` in the chart's

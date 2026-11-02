@@ -108,7 +108,7 @@ Heartbeat measured itself before the API and Web work continued ([ADR 0018](docs
 - [x] Metrics: cycle outcomes and scheduling lag, connection pools, OTLP export, OutSystems stage durations, HTTP metrics on the collector
 - [x] *Heartbeat Service* dashboard, SLOs and alerts with promtool tests
 - [x] Traces: SDK setup, spans for HTTP, PostgreSQL, Redis, collector cycles and OutSystems extraction, logs correlated with traces
-- [ ] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Loki, Tempo or the Collector down; a 30-minute soak
+- [x] Performance budgets measured base against head under `make patientzero-load`; `make kind-e2e` checks the three signals; a failure scenario with Tempo down, and `otel-outage` expects dropped own logs; a 30-minute soak ([what the telemetry costs](docs/reference/metrics-and-endpoints.md#what-the-telemetry-costs))
 
 ---
 
@@ -354,7 +354,7 @@ rest of 4.1 ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetr
 - [x] Traces pipeline in the OTel Collector config (`otlp` → `memory_limiter`, `resource`, `batch` → Tempo); update the chart render test that pins the pipelines
 - [x] Grafana Tempo data source, with links from a log's trace ID to its trace and from a span to its logs
 - [x] Validate: kind-e2e finds a trace of the collector's in Tempo and follows the link from a log with its trace ID
-- [ ] Record the full profile's added memory [0.6, 16.2]
+- [x] Record the full profile's added memory [0.6, 16.2]: 1.44 GiB to 1.79 GiB peak under `LOAD=steady`, Tempo about 210 MiB of it ([what the telemetry costs](docs/reference/metrics-and-endpoints.md#what-the-telemetry-costs))
 
 ---
 

@@ -705,7 +705,7 @@ end_outage() {
 # (stop) a cluster fault; on failure it prints why.
 cluster_fault() {
 	case $3 in
-	db-collector | otel-collector | loki) pod=$3-0 ;;
+	db-collector | otel-collector | loki | tempo) pod=$3-0 ;;
 	sqlserver) pod= ;;
 	*) echo "unknown workload $3"; return 1 ;;
 	esac

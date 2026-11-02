@@ -89,7 +89,9 @@ in the kind node. To check it, watch `docker stats heartbeat-control-plane`
 Job, which run in the same node (`docker exec heartbeat-control-plane crictl
 stats --label io.kubernetes.pod.namespace=patientzero`). A second cluster,
 such as `make kind-e2e`, fits next to a sandbox that has run for hours only
-while the profile stays near today's 2.0 GiB; at the budget it does not fit
+while the profile stays near today's 1.8 GiB (2026-11-02, Tempo included:
+[what the telemetry costs](../reference/metrics-and-endpoints.md#what-the-telemetry-costs));
+at the budget it does not fit
 in a 7.6 GiB Docker host. Run it in CI, or
 `docker restart heartbeat-sqlserver-dev` first: that frees the sandbox's
 memory and keeps its databases. A change that would exceed the budget is

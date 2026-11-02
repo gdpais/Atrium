@@ -1,6 +1,6 @@
 // Package cluster holds PatientZero's cluster faults: restarts and outages
-// of the workloads around it, the db-collector, the OTel Collector, Loki
-// and SQL Server. PatientZero cannot apply them, on purpose; each one is a
+// of the workloads around it, the db-collector, the OTel Collector, Loki,
+// Tempo and SQL Server. PatientZero cannot apply them, on purpose; each one is a
 // request to the host agent of its run (runner.Delegate), which applies it
 // with the kubeconfig and Docker it already uses (scenarios/README.md,
 // "Cluster faults").
