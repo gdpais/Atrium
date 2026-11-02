@@ -331,8 +331,8 @@ func (m Manager) dsn(target collectormetadata.DatabaseTarget, creds Credential) 
 // logging a warning when the login is sysadmin-equivalent or undeterminable.
 // pooled applies the pool limits.  On failure the handle is closed and the
 // error is scrubbed of creds before it is wrapped (see [redactError]):
-// go-mssqldb parses dsn when it connects, and its parse errors quote the
-// whole DSN.
+// go-mssqldb parses dsn when it connects, and before v1.11 its parse errors
+// quoted the whole DSN.
 func (m Manager) connect(ctx context.Context, target collectormetadata.DatabaseTarget, dsn string, creds Credential, pooled bool) (*sql.DB, loginState, error) {
 	db, err := sql.Open(m.driver(), dsn)
 	if err != nil {
