@@ -77,12 +77,16 @@ func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.base.Enabled(ctx, level)
 }
 
-// Handle writes r to stderr, adding the trace context when ctx has one, and
-// queues it. The record is converted here rather than in the exporter's
-// goroutine because a [slog.LogValuer] may not be safe to call from another
-// goroutine after this call returns.
+// Handle writes r to stderr, adding the trace context when ctx has a sampled
+// one, and queues it. A trace that was not sampled is never stored, so its ID
+// would lead nowhere. The record is converted here rather than in the
+// exporter's goroutine because a [slog.LogValuer] may not be safe to call from
+// another goroutine after this call returns.
 func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 	span := trace.SpanContextFromContext(ctx)
+	if !span.IsSampled() {
+		span = trace.SpanContext{}
+	}
 	written := r
 	if span.IsValid() {
 		written = r.Clone()
