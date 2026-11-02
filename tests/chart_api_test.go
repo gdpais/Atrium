@@ -89,6 +89,8 @@ type probe struct {
 	Exec *struct {
 		Command []string `yaml:"command"`
 	} `yaml:"exec"`
+	// Zero when unset: the kubelet's default, 1 second.
+	TimeoutSeconds int `yaml:"timeoutSeconds"`
 }
 
 type podSpec struct {
@@ -261,6 +263,11 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 	}
 	if api.ReadinessProbe == nil || api.ReadinessProbe.HTTPGet == nil || api.ReadinessProbe.HTTPGet.Path != "/readyz" {
 		t.Error("API readiness is not GET /readyz, which waits for both and the newest migration")
+	}
+	// GET /readyz answers within 2 seconds, every check included
+	// (defaultTimeouts in apps/api/internal/app/app.go).
+	if api.ReadinessProbe != nil && api.ReadinessProbe.TimeoutSeconds <= 2 {
+		t.Errorf("API readiness times out after %ds, within the API's own 2s for its checks", max(api.ReadinessProbe.TimeoutSeconds, 1))
 	}
 
 	// The same telemetry wiring as the db-collector.
