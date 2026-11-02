@@ -69,7 +69,11 @@ spec:
   {{- $otlpHttp := dig "otlp-http" "containerPort" 4318 (.Values.otelCollector.ports | default dict) }}
   {{- $otlpSelf := dig "otlp-self" "containerPort" 4319 (.Values.otelCollector.ports | default dict) }}
   {{- $otel := include "heartbeat.enginePeer" (dict "root" $ "engine" "otelCollector") | fromYaml }}
-  {{- $rules = append $rules (dict "to" (list $otel) "ports" (list (dict "protocol" "TCP" "port" $otlpHttp) (dict "protocol" "TCP" "port" $otlpSelf))) }}
+  {{- $otelPorts := list (dict "protocol" "TCP" "port" $otlpHttp) }}
+  {{- if .Values.telemetry.enabled }}
+  {{- $otelPorts = append $otelPorts (dict "protocol" "TCP" "port" $otlpSelf) }}
+  {{- end }}
+  {{- $rules = append $rules (dict "to" (list $otel) "ports" $otelPorts) }}
   {{- end }}
   {{- with $egress.targets }}
   {{- $targetPorts := list }}

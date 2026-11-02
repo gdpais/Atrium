@@ -53,7 +53,8 @@ dbCollector:
     size: 256Mi
     # Empty uses the cluster's default StorageClass.
     storageClassName: ""
-  # Covers the bounded shutdown: HTTP drain 10s + poller stop 20s + 5s.
+  # Covers the bounded shutdown: HTTP drain 10s + poller stop 20s + 5s, and 3s
+  # to send the service's last logs.
   terminationGracePeriodSeconds: 45
   service:
     # Keep ClusterIP in production. /metrics is unauthenticated and names the
@@ -249,8 +250,9 @@ grafanaDashboards:
 # is on: otel-collector, prometheus, alertmanager and loki. Only the
 # components that use an engine may connect, on the ports they use; every
 # other pod, in this namespace or another, is dropped:
-#   otel-collector  4318 (OTLP/HTTP) and 4319 (its own logs) from the
-#                   db-collector; 8889 (its Prometheus exporter) from Prometheus
+#   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (its
+#                   own logs) from the db-collector; 8889 (its Prometheus
+#                   exporter) from Prometheus
 #   prometheus      9090 from Grafana (datasource)
 #   alertmanager    9093 from Prometheus (alerts and its scrape)
 #   loki            3100 from the OTel Collector (OTLP), Grafana (datasource)

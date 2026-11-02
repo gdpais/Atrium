@@ -233,7 +233,10 @@ again, or go back with `helm rollback heartbeat`.
    ([ADR 0009](../architecture/decisions/0009-remove-the-otel-gateway.md)),
    and unknown top-level values now fail. The `helm template` check above
    must pass before the next step, so that the upgrade cannot fail on the
-   values after it.
+   values after it. If you repoint `otlp_http/logs` at another platform, repoint
+   `otlp_http/self-logs` too
+   ([example](../../infra/helm/values/external-platform.example.yaml)), or the
+   services' own logs go to a Loki that is not there.
 2. Delete the collector's StatefulSet, leaving its pod running:
 
    ```bash

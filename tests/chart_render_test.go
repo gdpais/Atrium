@@ -64,6 +64,9 @@ type chartProfile struct {
 	// collectorReceivers are the OTel Collector's receivers; none means only
 	// otlp.
 	collectorReceivers []string
+	// selfLogsOff means telemetry.enabled is false: the collector must send
+	// its own logs nowhere.
+	selfLogsOff bool
 	// stateEmptyDir means the collector's state is an emptyDir instead of the
 	// db-collector-state claim (dbCollector.persistence.enabled=false).
 	stateEmptyDir bool
@@ -511,6 +514,22 @@ var chartProfiles = []chartProfile{
 		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/14318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer},
 	},
 	{
+		// Without its own logs the db-collector has no use for 4319, in either
+		// direction.
+		name:            "telemetry-off",
+		inline:          "telemetry: {enabled: false}\ndbCollector: {networkPolicy: {egress: {enabled: true}}}\n",
+		present:         []string{"NetworkPolicy/db-collector"},
+		collectorPeers:  []string{bundledPrometheusPeer},
+		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer},
+		backendPolicies: map[string][]string{
+			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
+			"prometheus":     defaultBackendPolicies["prometheus"],
+			"alertmanager":   defaultBackendPolicies["alertmanager"],
+			"loki":           defaultBackendPolicies["loki"],
+		},
+		selfLogsOff: true,
+	},
+	{
 		// A misspelt port key would be dropped, widening the rule to every port.
 		name:      "collector-egress-extra-rule-port-typo",
 		inline:    "dbCollector: {networkPolicy: {egress: {enabled: true, extraRules: [{to: [{ipBlock: {cidr: 10.30.0.1/32}}], ports: [{protocol: TCP, portt: 3128}]}]}}}\n",
@@ -928,7 +947,7 @@ func TestChartProfiles(t *testing.T) {
 			checkCollectorCredentials(t, objects, profile.credentialsSecret)
 			checkCollectorPipelines(t, objects, profile.collectorReceivers)
 			checkLogDelivery(t, objects)
-			checkSelfLogs(t, objects)
+			checkSelfLogs(t, objects, profile.selfLogsOff)
 			checkExportQueue(t, objects, profile.queueEmptyDir)
 			checkLogIdentifiers(t, objects)
 			checkLokiLabelPolicy(t, objects)
@@ -1425,8 +1444,9 @@ func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers 
 // Heartbeat's own logs stay off the OutSystems delivery path: their own
 // receiver, exporter and memory queue, so they neither wait for that path's
 // one-request queue nor take a place in it (ADR 0018). The services send them
-// to that receiver's port, never 4318.
-func checkSelfLogs(t *testing.T, objects map[string]object) {
+// to that receiver's port, never 4318, and the platform that gets the OutSystems
+// logs gets these too: an example that repoints one exporter must repoint both.
+func checkSelfLogs(t *testing.T, objects map[string]object, off bool) {
 	t.Helper()
 	endpoint, hasEndpoint := collectorEnv(t, objects, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")
 	config, ok := collectorRelay(t, objects)
@@ -1436,11 +1456,16 @@ func checkSelfLogs(t *testing.T, objects map[string]object) {
 		}
 		return
 	}
-	if want := "http://otel-collector:4319/v1/logs"; endpoint != want {
+	want := "http://otel-collector:4319/v1/logs"
+	if off {
+		want = ""
+	}
+	if endpoint != want {
 		t.Errorf("collector OTEL_EXPORTER_OTLP_LOGS_ENDPOINT = %q, want %q", endpoint, want)
 	}
 	var relay struct {
 		Exporters map[string]struct {
+			Endpoint     string `yaml:"endpoint"`
 			SendingQueue struct {
 				Storage         string `yaml:"storage"`
 				BlockOnOverflow bool   `yaml:"block_on_overflow"`
@@ -1454,6 +1479,9 @@ func checkSelfLogs(t *testing.T, objects map[string]object) {
 		} `yaml:"service"`
 	}
 	mustUnmarshal(t, config, &relay)
+	if self, logs := relay.Exporters["otlp_http/self-logs"].Endpoint, relay.Exporters["otlp_http/logs"].Endpoint; self != logs {
+		t.Errorf("otlp_http/self-logs goes to %q, otlp_http/logs to %q", self, logs)
+	}
 	self, logs := relay.Service.Pipelines["logs/self"], relay.Service.Pipelines["logs"]
 	if !slices.Equal(self.Receivers, []string{"otlp/self"}) {
 		t.Errorf("logs/self receivers = %v, want [otlp/self]", self.Receivers)
