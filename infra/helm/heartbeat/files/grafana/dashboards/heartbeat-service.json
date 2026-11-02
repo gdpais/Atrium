@@ -78,7 +78,7 @@
         "textMode": "value",
         "colorMode": "value"
       },
-      "description": "1 if Prometheus can scrape every instance of the selected services.",
+      "description": "1 if Prometheus can scrape every instance of the selected Heartbeat services.",
       "id": 2,
       "gridPos": {
         "h": 4,
@@ -1326,7 +1326,7 @@
           "sort": "desc"
         }
       },
-      "description": "How far the watermark trails now. The objective is under 5 minutes 99% of the time.",
+      "description": "How far the watermark trails now. The objective is within 5 minutes of the configured lag 99% of the time.",
       "id": 28,
       "gridPos": {
         "h": 8,
@@ -1751,7 +1751,6 @@
         },
         "hide": 0,
         "includeAll": true,
-        "allValue": ".*",
         "label": "Service",
         "multi": false,
         "name": "service",
@@ -1772,7 +1771,6 @@
         },
         "hide": 0,
         "includeAll": true,
-        "allValue": ".*",
         "label": "Collector",
         "multi": false,
         "name": "collector",
@@ -1783,7 +1781,8 @@
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
-        }
+        },
+        "allValue": ".*"
       }
     ]
   },

@@ -16,16 +16,19 @@ groups:
         expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[1h])) / sum by (collector) (rate(heartbeat_collector_cycles_total[1h]))
       - record: heartbeat:collector_cycles_late:ratio_rate6h
         expr: sum by (collector) (rate(heartbeat_collector_cycles_total{outcome!="on_time"}[6h])) / sum by (collector) (rate(heartbeat_collector_cycles_total[6h]))
-      # The share of the window a log type's extraction lag stayed under 5
-      # minutes, sampled once a minute.
+      # The share of the window a log type's extraction lag stayed within 5
+      # minutes of its configured lag, below which it never goes, sampled once a
+      # minute. A target that is down counts as behind, since its lag gauge
+      # keeps the value of the last batch read; minutes without the series (the
+      # collector down) are not counted, and HeartbeatServiceDown covers them.
       - record: heartbeat:outsystems_extract_fresh:ratio_avg5m
-        expr: avg_over_time((heartbeat_outsystems_extract_lag_seconds < bool 300)[5m:1m])
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[5m:1m])
       - record: heartbeat:outsystems_extract_fresh:ratio_avg30m
-        expr: avg_over_time((heartbeat_outsystems_extract_lag_seconds < bool 300)[30m:1m])
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[30m:1m])
       - record: heartbeat:outsystems_extract_fresh:ratio_avg1h
-        expr: avg_over_time((heartbeat_outsystems_extract_lag_seconds < bool 300)[1h:1m])
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[1h:1m])
       - record: heartbeat:outsystems_extract_fresh:ratio_avg6h
-        expr: avg_over_time((heartbeat_outsystems_extract_lag_seconds < bool 300)[6h:1m])
+        expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[6h:1m])
       # The API's requests, without /metrics and the health endpoints: scrapes
       # and probes are not users, and /readyz answers 503 on purpose while a
       # dependency is down.
@@ -46,10 +49,13 @@ groups:
     rules:
       # 99.5% of cycles on time: a 0.5% budget, burnt 14.4 times over 1h and
       # 5m, or 6 times over 6h and 30m.
+      # At least 30 cycles an hour, an interval of 2 minutes or less: with
+      # fewer, one late cycle is already more than the fast burn.
       - alert: HeartbeatCollectorCyclesLateFast
         expr: >-
           heartbeat:collector_cycles_late:ratio_rate1h > (14.4 * 0.005)
           and heartbeat:collector_cycles_late:ratio_rate5m > (14.4 * 0.005)
+          and sum by (collector) (rate(heartbeat_collector_cycles_total[1h])) * 3600 >= 30
         for: 2m
         labels:
           severity: warning
@@ -60,14 +66,16 @@ groups:
         expr: >-
           heartbeat:collector_cycles_late:ratio_rate6h > (6 * 0.005)
           and heartbeat:collector_cycles_late:ratio_rate30m > (6 * 0.005)
+          and sum by (collector) (rate(heartbeat_collector_cycles_total[6h])) * 3600 >= 30
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: "The {{ $labels.collector }} collector's cycles often run late"
           description: "{{ $value | humanizePercentage }} of its cycles over the last 6 hours used their whole interval or panicked, more than 6 times the 0.5% budget."
-      # Under 5 minutes 99% of the time. OutSystemsLogExtractionBehind fires
-      # later, on a lag above 30 minutes; this one sees repeated smaller delays.
+      # Within 5 minutes of the configured lag 99% of the time.
+      # OutSystemsLogExtractionBehind fires later, on a lag above 30 minutes;
+      # this one sees repeated smaller delays.
       - alert: HeartbeatExtractionFreshnessBurn
         expr: >-
           heartbeat:outsystems_extract_fresh:ratio_avg1h < (1 - 14.4 * 0.01)
@@ -77,7 +85,7 @@ groups:
           severity: warning
         annotations:
           summary: "OutSystems log type {{ $labels.log_type }} of {{ $labels.target }} is often behind"
-          description: "Its extraction lag was under 5 minutes for only {{ $value | humanizePercentage }} of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
+          description: "Its extraction lag was within 5 minutes of its setting for only {{ $value | humanizePercentage }} of the last hour, burning the 99% objective more than 14.4 times too fast. See the Batch steps panel of Heartbeat Service for where the time goes."
       - alert: HeartbeatExtractionFreshnessBurnSlow
         expr: >-
           heartbeat:outsystems_extract_fresh:ratio_avg6h < (1 - 6 * 0.01)
@@ -87,7 +95,7 @@ groups:
           severity: warning
         annotations:
           summary: "OutSystems log type {{ $labels.log_type }} of {{ $labels.target }} is behind too often"
-          description: "Its extraction lag was under 5 minutes for only {{ $value | humanizePercentage }} of the last 6 hours, burning the 99% objective more than 6 times too fast."
+          description: "Its extraction lag was within 5 minutes of its setting for only {{ $value | humanizePercentage }} of the last 6 hours, burning the 99% objective more than 6 times too fast."
       # 99.9% of the API's requests succeed, and 95% answer within 250 ms.
       # Traffic gates as in the OutSystems alerts: a few failures must not page.
       - alert: HeartbeatAPIErrorBudgetBurnFast

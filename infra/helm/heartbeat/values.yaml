@@ -187,7 +187,7 @@ integrations:
     base_url: http://localhost:3001
     dashboard_templates:
       sqlserver-overview: /d/sqlserver-overview
-      heartbeat-overview: /d/heartbeat-overview
+      heartbeat-service: /d/heartbeat-service
       outsystems-overview: /d/outsystems-overview
     deep_link_templates:
       logs-explore: /explore?orgId=1&left=${logs_query}

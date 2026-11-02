@@ -109,10 +109,10 @@ the scenarios.
 | `HeartbeatAPIErrorBudgetBurnFast` | The API fails over 1.44% of its requests over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
 | `HeartbeatAPIErrorBudgetBurnSlow` | The API fails over 0.6% of its requests over 6 hours and 30 minutes | The API is not deployed yet [4.1] |
 | `HeartbeatAPISlow` | Over 72% of the API's requests take more than 250 ms over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatCollectorCyclesLateFast` | Over 7.2% of a collector's cycles use their whole interval over 1 hour and 5 minutes | No fault slows a probe past the interval that long |
+| `HeartbeatCollectorCyclesLateFast` | Over 7.2% of a collector's cycles use their whole interval over 1 hour and 5 minutes, with at least 30 cycles an hour | No fault slows a probe past the interval that long |
 | `HeartbeatCollectorCyclesLate` | Over 3% of them do over 6 hours and 30 minutes | As above, and no scenario lasts 6 hours |
-| `HeartbeatExtractionFreshnessBurn` | A log type's lag stays above 5 minutes for over 14.4% of an hour and of 5 minutes | The longest outage lasts 4 minutes |
-| `HeartbeatExtractionFreshnessBurnSlow` | Above 5 minutes for over 6% of 6 hours and of 30 minutes | No scenario lasts 6 hours |
+| `HeartbeatExtractionFreshnessBurn` | A log type's lag stays more than 5 minutes past its setting, or its target down, for over 14.4% of an hour and of 5 minutes | The longest outage lasts 4 minutes |
+| `HeartbeatExtractionFreshnessBurnSlow` | The same for over 6% of 6 hours and of 30 minutes | No scenario lasts 6 hours |
 | `HeartbeatServiceRestarting` | A service starts more than 3 times in an hour | `restarts` restarts it once |
 | `HeartbeatServiceMemoryHigh` | Resident memory stays above `GOMEMLIMIT` for 15 minutes | No fault grows the collector's memory that far |
 | `HeartbeatGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |

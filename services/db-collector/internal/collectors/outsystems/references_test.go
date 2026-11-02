@@ -45,7 +45,9 @@ func registeredMetrics(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metrics.initCollector(collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true})
+	metrics.initCollector(collectorconfig.CollectorRuntimeConfig{ID: "c", Enabled: true, Targets: []collectorconfig.TargetRuntimeConfig{
+		{Name: "t", Probes: []collectorconfig.ProbeRuntimeConfig{{Name: "screen"}}},
+	}})
 	item := collectormetadata.ScheduledProbe{CollectorID: "c", Definition: collectormetadata.ProbeDefinition{Name: "screen"}}
 	metrics.addRows(item, 1)
 	metrics.setLag(item, time.Second)
@@ -93,7 +95,7 @@ func registeredMetrics(t *testing.T) map[string]bool {
 func TestEveryDeclaredMetricIsExported(t *testing.T) {
 	names := registeredMetrics(t)
 	for _, name := range []string{
-		MetricRows, MetricLag, MetricExportFailures, MetricStuckBatches, MetricLogDelay, MetricExportBlocked,
+		MetricRows, MetricLag, MetricLagSetting, MetricExportFailures, MetricStuckBatches, MetricLogDelay, MetricExportBlocked,
 		MetricOperationDuration, MetricOperations, MetricOperationSeconds, MetricIntegrationDuration,
 		MetricErrors, MetricSlowEvents, MetricTimerDelay, MetricScreenState, MetricFrontEndOperations,
 		MetricDerivedSeries, MetricDerivedSeriesOverflow, MetricStageDuration, MetricHeldBytes,
