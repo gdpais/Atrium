@@ -32,7 +32,7 @@ instead. Production deploys the same chart from ECR through Argo CD
 - A default StorageClass. The release asks for seven volumes, 23.25 GiB in
   all (listed under [Uninstall](#uninstall)).
 - Memory: the pods request about 1.0 GiB, and their limits add up to about
-  4.1 GiB.
+  4.2 GiB.
 - A CNI that enforces NetworkPolicy (kindnet, Calico, Cilium, Amazon VPC CNI
   with network policy on). Without one the chart's policies are accepted and
   drop nothing. To limit where the collector connects, set
