@@ -36,14 +36,24 @@ const (
 	// EntitySession is a login session. Its ID is the session's ID, which
 	// identifies it but cannot log in, never its token.
 	EntitySession = "session"
+	// EntityEnvironment, EntityApplication and EntityComponent are the
+	// inventory (package inventory); before and after are the entity as the
+	// API shows it.
+	EntityEnvironment = "environment"
+	EntityApplication = "application"
+	EntityComponent   = "application_component"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent}
 
 // Actions.
 const (
 	ActionCreate = "create"
+	// ActionUpdate changes an entity; its record has both before and after.
+	ActionUpdate = "update"
+	// ActionDelete removes one; its record's before is what was removed.
+	ActionDelete = "delete"
 	// ActionLogin starts a session; its record's after is the session.
 	ActionLogin = "login"
 	// ActionLogout ends one; its record's before is the session.

@@ -11,8 +11,10 @@ page and the migrations disagree, the migrations win; please fix this page.
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
 > writes `users`, `user_roles` and `audit_outbox` so far, through
 > `api users create-admin`, logins (`users.last_login_at`, upgraded
-> password hashes) and the users API; the other tables wait for its later
-> endpoints. The
+> password hashes) and the users API, and the inventory, `environments`,
+> `applications` and `application_components`, through `/api/v1`
+> ([inventory](../reference/metrics-and-endpoints.md#inventory)); the other
+> tables wait for its later endpoints. The
 > DB collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
@@ -346,6 +348,26 @@ OutSystems Traditional and Reactive are represented through
 `applications.platform`, `application_components.component_type` and, where
 necessary, `telemetry_sources.config`. Map default OutSystems log fields
 faithfully first so existing SRE queries keep working.
+
+What the API keeps true of these rows [4.3]:
+
+- `applications.environment_id` and `application_components.application_id`
+  are set at creation and never updated: an application in another
+  environment is another application, so its history (investigations,
+  alerts, reports) stays with the environment it happened in. A component's
+  environment is its application's, read through the join.
+- `environments.slug` is the collectors' `environment` and the telemetry's
+  `deployment.environment.name` ([ADR 0017](decisions/0017-outsystems-sources-map-application-identity.md)
+  §2): lower-case letters, digits and hyphens, 1 to 63, starting and ending
+  with a letter or a digit, and fixed once created. `platform` and
+  `component_type` are identifiers (`outsystems_traditional`, `module`):
+  lower-case letters, digits and underscores.
+- `labels` are a JSON object of strings, at most 64.
+- Deletes follow the foreign keys: refused while any row refers to the
+  environment or application. Components have no status and nothing refers
+  to them, so they are deleted; environments and applications are disabled.
+  The one cascade: deleting an application deletes its
+  `adaptive_baselines`, which are computed from its telemetry.
 
 ### Database observability
 

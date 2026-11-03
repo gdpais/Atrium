@@ -370,7 +370,7 @@ and collector contracts are prerequisites, and its decisions are recorded
 9.3], which exist.
 
 Remaining work, in order, one pull request each:
-inventory [4.3] → telemetry sources [4.4] → database targets and probe
+telemetry sources [4.4] → database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
 applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
 The `managedCollectors` chart key they render to is in place [2.5]. ADR 0014's
@@ -405,10 +405,10 @@ queue tests alone.
 - [ ] Defer OIDC/SSO unless required early
 
 ### 4.3 Environment/application inventory
-- [ ] Implement environments CRUD
-- [ ] Implement applications CRUD
-- [ ] Implement application components CRUD
-- [ ] Enforce app -> environment ownership path
+- [x] Implement environments CRUD: `/api/v1/environments`, the slug checked as the collectors' `environment` ([ADR 0017](docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md) §2) and fixed once created
+- [x] Implement applications CRUD: `/api/v1/applications`, paged with a keyset cursor and filtered by environment and status
+- [x] Implement application components CRUD: `/api/v1/components`, filtered by application
+- [x] Enforce app -> environment ownership path: owners are set at creation and absent from the PATCH schemas, closed request bodies refuse them (400), a component's environment is read through its application, and deletes follow the foreign keys (409 naming what refers to the entity)
 
 ### 4.4 Telemetry source management
 - [x] Decide what an OutSystems 11 source is: a mapping from an application to its `service.name` (`config.application_name`, `ingest_mode = agentless`); the extraction collector per installation stays in YAML ([ADR 0017](docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md))

@@ -19,6 +19,7 @@ import (
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/audit/audittest"
 	"heartbeat/apps/api/internal/auth"
+	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/testenv"
 	"heartbeat/apps/api/internal/users"
@@ -95,6 +96,18 @@ func (h harness) user(t *testing.T, ctx context.Context, email, secret string) (
 		t.Fatal(err)
 	}
 	return uuid.MustParse(u.ID), h.hash(t, ctx, u.ID)
+}
+
+// operator logs a new user in, as the inventory's changes come from one,
+// and returns who they are as a change's caller and the secrets of their
+// login: none may reach an inventory record through its actor.
+func (h harness) operator(t *testing.T, ctx context.Context, email string) (inventory.Caller, []string) {
+	t.Helper()
+	secret := "correct horse battery staple, " + email
+	hash := h.createAdmin(t, ctx, password.DefaultParams, email, secret)
+	principal, session := h.login(t, ctx, email, secret)
+	return inventory.Caller{Actor: audit.UserActor(principal.User.ID, principal.User.Email), RequestID: "req-inventory"},
+		append(session, secret, hash)
 }
 
 // weak are argon2id parameters below the current ones: a login upgrades
@@ -273,6 +286,81 @@ var auditedChanges = []auditedChange{
 				t.Fatal(err)
 			}
 			return []string{secret, hash}
+		},
+	},
+	{
+		name:   "environment created, changed and deleted",
+		entity: audit.EntityEnvironment,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "env-operator@example.com")
+			svc := inventory.New(h.pool)
+			begin()
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Production", Slug: "prod", Type: "production", Labels: map[string]string{"region": "eu"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			disabled := inventory.StatusDisabled
+			if _, err := svc.UpdateEnvironment(ctx, caller, e.ID, inventory.EnvironmentChange{Status: &disabled}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteEnvironment(ctx, caller, e.ID); err != nil {
+				t.Fatal(err)
+			}
+			return secrets
+		},
+	},
+	{
+		name:   "application created, changed and deleted",
+		entity: audit.EntityApplication,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "app-operator@example.com")
+			svc := inventory.New(h.pool)
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Staging", Slug: "staging", Type: "staging"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			begin()
+			a, err := svc.CreateApplication(ctx, caller, inventory.NewApplication{EnvironmentID: e.ID, Name: "Claims", Platform: "outsystems_traditional"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			critical := "critical"
+			if _, err := svc.UpdateApplication(ctx, caller, a.ID, inventory.ApplicationChange{Criticality: &critical}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteApplication(ctx, caller, a.ID); err != nil {
+				t.Fatal(err)
+			}
+			return secrets
+		},
+	},
+	{
+		name:   "component created, changed and deleted",
+		entity: audit.EntityComponent,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "component-operator@example.com")
+			svc := inventory.New(h.pool)
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Test", Slug: "test", Type: "test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := svc.CreateApplication(ctx, caller, inventory.NewApplication{EnvironmentID: e.ID, Name: "Claims", Platform: "outsystems_traditional"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			begin()
+			c, err := svc.CreateComponent(ctx, caller, inventory.NewComponent{ApplicationID: a.ID, Name: "ClaimsWeb", ComponentType: "module"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime := "ClaimsWeb"
+			if _, err := svc.UpdateComponent(ctx, caller, c.ID, inventory.ComponentChange{RuntimeName: &runtime}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteComponent(ctx, caller, c.ID); err != nil {
+				t.Fatal(err)
+			}
+			return secrets
 		},
 	},
 }

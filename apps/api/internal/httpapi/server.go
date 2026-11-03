@@ -11,6 +11,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -32,6 +33,7 @@ type Server struct {
 	// rules are the operations' access rules, by ServeMux pattern.
 	rules          map[string]rule
 	auth           Authenticator
+	inventory      Inventory
 	users          Users
 	site           string
 	trustedProxies []netip.Prefix
@@ -73,6 +75,9 @@ type Options struct {
 	Site string
 	// TrustedProxies are the peers whose X-Forwarded-For names the client.
 	TrustedProxies []netip.Prefix
+	// Inventory serves the environment, application and component
+	// operations. Without it, they fail with 500.
+	Inventory Inventory
 	// Users serves the admins' user and role operations. Without it, they
 	// fail with 500.
 	Users Users
@@ -94,6 +99,7 @@ func NewServer(opts Options) (*Server, error) {
 		logger:         logger,
 		rules:          rules,
 		auth:           opts.Auth,
+		inventory:      opts.Inventory,
 		users:          opts.Users,
 		site:           opts.Site,
 		trustedProxies: opts.TrustedProxies,
@@ -106,20 +112,26 @@ func NewServer(opts Options) (*Server, error) {
 //
 // The guard wraps what the generated code registers, so it runs before
 // the path and query parameters are bound: a request without a session is
-// answered 401, never 400 for a malformed ID.
+// answered 401, never 400 for a malformed ID, and the guard's refusals
+// read no body.
 func (s *Server) Register(mux *http.ServeMux) {
-	strict := openapi.NewStrictHandlerWithOptions(s, nil, openapi.StrictHTTPServerOptions{
+	strict := openapi.NewStrictHandlerWithOptions(s, []openapi.StrictMiddlewareFunc{s.closedBodies}, openapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			var invalid *requestError
+			if errors.As(err, &invalid) {
+				writeProblem(w, http.StatusBadRequest, invalid.Error())
+				return
+			}
 			s.logger.ErrorContext(r.Context(), "request failed", "pattern", r.Pattern,
 				"request_id", requestFrom(r.Context()).client.RequestID, "error", err)
 			writeProblem(w, http.StatusInternalServerError, fmt.Sprintf("the API could not serve the request; its ID is in the %s header", requestIDHeader))
 		},
 	})
 	openapi.HandlerWithOptions(strict, openapi.StdHTTPServerOptions{
-		BaseRouter: guardedMux{ServeMux: mux, guard: s.guard},
+		BaseRouter: guardedMux{ServeMux: mux, guard: func(h http.Handler) http.Handler { return s.guard(s.keepBody(h)) }},
 		ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 		},
