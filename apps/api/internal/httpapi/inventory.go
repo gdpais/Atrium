@@ -96,7 +96,7 @@ func page(limit *int, cursor *string) inventory.Page {
 	if limit != nil {
 		p.Limit = *limit
 		if p.Limit == 0 {
-			p.Limit = -1 // 0 asks for the default; ?limit=0 is out of range
+			p.Limit = -1 // Page reads 0 as the default; ?limit=0 is out of range
 		}
 	}
 	if cursor != nil {

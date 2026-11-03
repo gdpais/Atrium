@@ -38,7 +38,7 @@ func (p Page) resolve() (int, *position, error) {
 	case limit == 0:
 		limit = DefaultLimit
 	case limit < 1 || limit > MaxLimit:
-		return 0, nil, invalid("limit", "%d: want 1 to %d", limit, MaxLimit)
+		return 0, nil, invalid("limit", "want 1 to %d", MaxLimit)
 	}
 	if p.Cursor == "" {
 		return limit, nil, nil
