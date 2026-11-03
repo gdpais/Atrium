@@ -11,10 +11,11 @@ page and the migrations disagree, the migrations win; please fix this page.
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
 > writes `users`, `user_roles` and `audit_outbox` so far, through
 > `api users create-admin` and logins (`users.last_login_at`, upgraded
-> password hashes), and the inventory, `environments`, `applications` and
-> `application_components`, through `/api/v1`
-> ([inventory](../reference/metrics-and-endpoints.md#inventory)); the other
-> tables wait for its later endpoints. The
+> password hashes), the inventory, `environments`, `applications` and
+> `application_components`, and `telemetry_sources`, through `/api/v1`
+> ([inventory](../reference/metrics-and-endpoints.md#inventory),
+> [telemetry sources](../reference/metrics-and-endpoints.md#telemetry-sources));
+> the other tables wait for its later endpoints. The
 > DB collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
@@ -361,6 +362,14 @@ What the API keeps true of these rows [4.3]:
   `component_type` are identifiers (`outsystems_traditional`, `module`):
   lower-case letters, digits and underscores.
 - `labels` are a JSON object of strings, at most 64.
+- `telemetry_sources.application_id` is fixed like the others, and a
+  source's `config` is valid against its `source_type`'s JSON Schema in
+  `packages/config-schema/src/telemetry-sources` [4.4]: closed, with
+  credential references only. Within an environment, a
+  `config.application_name` belongs to one application; every source change
+  takes the environment's row lock (`for no key update`, which applications
+  being added do not wait for) before it checks, so two changes cannot both
+  find a name free. No migration: the rule spans two tables.
 - Deletes follow the foreign keys: refused while any row refers to the
   environment or application. Components have no status and nothing refers
   to them, so they are deleted; environments and applications are disabled.

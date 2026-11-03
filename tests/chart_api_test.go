@@ -231,6 +231,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 	if got := apiEnv["HEARTBEAT_API_AUDIT_ENDPOINT"]; got != wantAudit {
 		t.Errorf("HEARTBEAT_API_AUDIT_ENDPOINT = %q, want %q: the Collector's OTLP/HTTP logs receiver while it is on", got, wantAudit)
 	}
+	checkAPICollectorAccess(t, objects, api)
 	got := apiDependencies{
 		postgresHost: apiEnv["HEARTBEAT_API_POSTGRES_HOST"], postgresPort: apiEnv["HEARTBEAT_API_POSTGRES_PORT"],
 		postgresDatabase: apiEnv["HEARTBEAT_API_POSTGRES_DATABASE"], sslMode: apiEnv["HEARTBEAT_API_POSTGRES_SSLMODE"],
@@ -599,5 +600,41 @@ func checkAPIMissingAlert(t *testing.T, objects map[string]object) {
 	}
 	if got && !strings.Contains(content, `absent(up{job="api"})`) {
 		t.Errorf("%s does not alert on absent(up{job=\"api\"}):\n%s", file, content)
+	}
+}
+
+// checkAPICollectorAccess checks that the API reads the DB collector's
+// admin config for whether telemetry sources are observed (ADR 0017 §4):
+// its URL is the collector's Service, and its token is the collector's own,
+// from the same Secret key, never a value in the manifest.
+func checkAPICollectorAccess(t *testing.T, objects map[string]object, api container) {
+	t.Helper()
+	sts, collector := objects["StatefulSet/db-collector"]
+	url := api.env()["HEARTBEAT_API_COLLECTOR_URL"]
+	if !collector {
+		if url != "" {
+			t.Errorf("HEARTBEAT_API_COLLECTOR_URL = %q without a db-collector", url)
+		}
+		return
+	}
+	if want := "http://db-collector:8082"; url != want {
+		t.Errorf("HEARTBEAT_API_COLLECTOR_URL = %q, want %q", url, want)
+	}
+	tokenRef := func(c container, name string) string {
+		for _, e := range c.Env {
+			if e.Name != name {
+				continue
+			}
+			if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
+				t.Errorf("%s is set by value; it must come from the Secret", name)
+				return "by value"
+			}
+			return e.ValueFrom.SecretKeyRef.Name + "/" + e.ValueFrom.SecretKeyRef.Key
+		}
+		return ""
+	}
+	pod := decodePodSpec(t, sts).Template.Spec
+	if got, want := tokenRef(api, "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"), tokenRef(pod.Containers[0], "HEARTBEAT_ADMIN_TOKEN"); got != want {
+		t.Errorf("the API's collector token comes from %q, the collector's from %q", got, want)
 	}
 }

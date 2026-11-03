@@ -81,6 +81,54 @@ func (e EnvironmentType) Valid() bool {
 	}
 }
 
+// Defines values for IngestMode.
+const (
+	Agentless IngestMode = "agentless"
+	Api       IngestMode = "api"
+	File      IngestMode = "file"
+	Otlp      IngestMode = "otlp"
+)
+
+// Valid indicates whether the value is a known member of the IngestMode enum.
+func (e IngestMode) Valid() bool {
+	switch e {
+	case Agentless:
+		return true
+	case Api:
+		return true
+	case File:
+		return true
+	case Otlp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ObservationStatus.
+const (
+	NotApplicable ObservationStatus = "not_applicable"
+	NotObserved   ObservationStatus = "not_observed"
+	Observed      ObservationStatus = "observed"
+	Unknown       ObservationStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ObservationStatus enum.
+func (e ObservationStatus) Valid() bool {
+	switch e {
+	case NotApplicable:
+		return true
+	case NotObserved:
+		return true
+	case Observed:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProbeEngine.
 const (
 	ProbeEngineSqlserver ProbeEngine = "sqlserver"
@@ -129,6 +177,21 @@ func (e Role) Valid() bool {
 	case Operator:
 		return true
 	case Viewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SourceType.
+const (
+	Outsystems SourceType = "outsystems"
+)
+
+// Valid indicates whether the value is a known member of the SourceType enum.
+func (e SourceType) Valid() bool {
+	switch e {
+	case Outsystems:
 		return true
 	default:
 		return false
@@ -438,6 +501,9 @@ type EnvironmentUpdate struct {
 // Examples: sql01.finance.internal
 type Host = string
 
+// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+type IngestMode string
+
 // Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
 type Labels map[string]string
 
@@ -598,6 +664,48 @@ type NewProbeDefinition struct {
 	TimeoutMs *int `json:"timeout_ms,omitempty"`
 }
 
+// NewTelemetrySource defines model for NewTelemetrySource.
+type NewTelemetrySource struct {
+	ApplicationId openapi_types.UUID `json:"application_id"`
+
+	// Config The source type's settings, valid against its JSON Schema. For
+	// `outsystems`: `{"application_name": "Claims"}`, the OutSystems
+	// `Application_Name`, which is the `service.name` of the application's
+	// logs. Never a credential: a schema names one only as a reference,
+	// such as `env/finance-prod`.
+	//
+	//
+	// Examples: {"application_name":"Claims"}
+	Config SourceConfig `json:"config"`
+
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	IngestMode IngestMode `json:"ingest_mode"`
+
+	// SourceType The kind of source, which says what `config` holds (one JSON Schema per type in `packages/config-schema/src/telemetry-sources`).
+	SourceType SourceType `json:"source_type"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status *Status `json:"status,omitempty"`
+}
+
+// Observation Whether the DB collector observes the source, as its redacted `GET /admin/config` says when the source is read.
+type Observation struct {
+	// CheckedAt When the collector answered; absent when it did not.
+	CheckedAt *time.Time `json:"checked_at,omitempty"`
+
+	// Collectors The IDs of the collectors that extract it.
+	Collectors []string `json:"collectors"`
+
+	// Detail Why the source is not observed, or why that is unknown.
+	Detail *string `json:"detail,omitempty"`
+
+	// Status `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself).
+	Status ObservationStatus `json:"status"`
+}
+
+// ObservationStatus `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself).
+type ObservationStatus string
+
 // Platform What the application runs on, such as `outsystems_traditional`, `outsystems_reactive` or `dotnet`. Lower-case letters, digits and underscores, starting with a letter; at most 63.
 //
 // Examples: outsystems_traditional
@@ -729,6 +837,18 @@ type SessionUser struct {
 // Examples: prod
 type Slug = string
 
+// SourceConfig The source type's settings, valid against its JSON Schema. For
+// `outsystems`: `{"application_name": "Claims"}`, the OutSystems
+// `Application_Name`, which is the `service.name` of the application's
+// logs. Never a credential: a schema names one only as a reference,
+// such as `env/finance-prod`.
+//
+// Examples: {"application_name":"Claims"}
+type SourceConfig map[string]interface{}
+
+// SourceType The kind of source, which says what `config` holds (one JSON Schema per type in `packages/config-schema/src/telemetry-sources`).
+type SourceType string
+
 // Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
 type Status string
 
@@ -739,6 +859,67 @@ type Status string
 //
 // Examples: finance-prod
 type TargetName = string
+
+// TelemetrySource defines model for TelemetrySource.
+type TelemetrySource struct {
+	// ApplicationId The application it belongs to, fixed when it was registered.
+	ApplicationId openapi_types.UUID `json:"application_id"`
+
+	// Config The source type's settings, valid against its JSON Schema. For
+	// `outsystems`: `{"application_name": "Claims"}`, the OutSystems
+	// `Application_Name`, which is the `service.name` of the application's
+	// logs. Never a credential: a schema names one only as a reference,
+	// such as `env/finance-prod`.
+	//
+	//
+	// Examples: {"application_name":"Claims"}
+	Config    SourceConfig `json:"config"`
+	CreatedAt time.Time    `json:"created_at"`
+
+	// EnvironmentId Its application's environment, read through the application; a source has none of its own.
+	EnvironmentId openapi_types.UUID `json:"environment_id"`
+	Id            openapi_types.UUID `json:"id"`
+
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	IngestMode IngestMode `json:"ingest_mode"`
+
+	// Observation Whether the DB collector observes the source, as its redacted `GET /admin/config` says when the source is read.
+	Observation Observation `json:"observation"`
+
+	// SourceType The kind of source, which says what `config` holds (one JSON Schema per type in `packages/config-schema/src/telemetry-sources`).
+	SourceType SourceType `json:"source_type"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status    Status    `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TelemetrySourcePage defines model for TelemetrySourcePage.
+type TelemetrySourcePage struct {
+	Items []TelemetrySource `json:"items"`
+
+	// NextCursor The `cursor` of the next page; absent on the last.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
+
+// TelemetrySourceUpdate The fields to change; the application and the source type cannot.
+type TelemetrySourceUpdate struct {
+	// Config The source type's settings, valid against its JSON Schema. For
+	// `outsystems`: `{"application_name": "Claims"}`, the OutSystems
+	// `Application_Name`, which is the `service.name` of the application's
+	// logs. Never a credential: a schema names one only as a reference,
+	// such as `env/finance-prod`.
+	//
+	//
+	// Examples: {"application_name":"Claims"}
+	Config *SourceConfig `json:"config,omitempty"`
+
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	IngestMode *IngestMode `json:"ingest_mode,omitempty"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status *Status `json:"status,omitempty"`
+}
 
 // Cursor defines model for Cursor.
 type Cursor = string
@@ -824,6 +1005,25 @@ type ListEnvironmentsParams struct {
 	Status *StatusFilter `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListTelemetrySourcesParams defines parameters for ListTelemetrySources.
+type ListTelemetrySourcesParams struct {
+	// ApplicationId Only the sources of this application.
+	ApplicationId *openapi_types.UUID `form:"application_id,omitempty" json:"application_id,omitempty"`
+
+	// EnvironmentId Only the sources of this environment's applications.
+	EnvironmentId *openapi_types.UUID `form:"environment_id,omitempty" json:"environment_id,omitempty"`
+	SourceType    *SourceType         `form:"source_type,omitempty" json:"source_type,omitempty"`
+
+	// Status Only the active, or only the disabled, ones.
+	Status *StatusFilter `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit The most items a page holds; 50 when left out.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Where the page starts; the `next_cursor` of the page before. Left out, the first page.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // CreateApplicationJSONRequestBody defines body for CreateApplication for application/json ContentType.
 type CreateApplicationJSONRequestBody = NewApplication
 
@@ -859,6 +1059,12 @@ type CreateProbeDefinitionVersionJSONRequestBody = ProbeDefinitionContent
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = Credentials
+
+// CreateTelemetrySourceJSONRequestBody defines body for CreateTelemetrySource for application/json ContentType.
+type CreateTelemetrySourceJSONRequestBody = NewTelemetrySource
+
+// UpdateTelemetrySourceJSONRequestBody defines body for UpdateTelemetrySource for application/json ContentType.
+type UpdateTelemetrySourceJSONRequestBody = TelemetrySourceUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -949,6 +1155,21 @@ type ServerInterface interface {
 	// CreateSession Log in
 	// (POST /api/v1/session)
 	CreateSession(w http.ResponseWriter, r *http.Request)
+	// ListTelemetrySources List telemetry sources
+	// (GET /api/v1/telemetry-sources)
+	ListTelemetrySources(w http.ResponseWriter, r *http.Request, params ListTelemetrySourcesParams)
+	// CreateTelemetrySource Register a telemetry source
+	// (POST /api/v1/telemetry-sources)
+	CreateTelemetrySource(w http.ResponseWriter, r *http.Request)
+	// DeleteTelemetrySource Delete a telemetry source
+	// (DELETE /api/v1/telemetry-sources/{id})
+	DeleteTelemetrySource(w http.ResponseWriter, r *http.Request, id ID)
+	// GetTelemetrySource Get a telemetry source
+	// (GET /api/v1/telemetry-sources/{id})
+	GetTelemetrySource(w http.ResponseWriter, r *http.Request, id ID)
+	// UpdateTelemetrySource Change a telemetry source
+	// (PATCH /api/v1/telemetry-sources/{id})
+	UpdateTelemetrySource(w http.ResponseWriter, r *http.Request, id ID)
 	// GetHealthz Liveness
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
@@ -1744,6 +1965,196 @@ func (siw *ServerInterfaceWrapper) CreateSession(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListTelemetrySources operation middleware
+func (siw *ServerInterfaceWrapper) ListTelemetrySources(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTelemetrySourcesParams
+
+	// ------------- Optional query parameter "application_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "application_id", r.URL.Query(), &params.ApplicationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "application_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "application_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "environment_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "environment_id", r.URL.Query(), &params.EnvironmentId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "environment_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "source_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_type", r.URL.Query(), &params.SourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTelemetrySources(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTelemetrySource operation middleware
+func (siw *ServerInterfaceWrapper) CreateTelemetrySource(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTelemetrySource(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTelemetrySource operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTelemetrySource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTelemetrySource(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTelemetrySource operation middleware
+func (siw *ServerInterfaceWrapper) GetTelemetrySource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTelemetrySource(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTelemetrySource operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTelemetrySource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTelemetrySource(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealthz operation middleware
 func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
 
@@ -1912,6 +2323,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/components/{id}", wrapper.DeleteComponent)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/components/{id}", wrapper.GetComponent)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/components/{id}", wrapper.UpdateComponent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/telemetry-sources", wrapper.ListTelemetrySources)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/telemetry-sources", wrapper.CreateTelemetrySource)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.DeleteTelemetrySource)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.GetTelemetrySource)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.UpdateTelemetrySource)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/database-targets", wrapper.ListDatabaseTargets)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/database-targets", wrapper.CreateDatabaseTarget)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.DeleteDatabaseTarget)
@@ -5015,6 +5431,556 @@ func (response CreateSessiondefaultApplicationProblemPlusJSONResponse) VisitCrea
 	return err
 }
 
+type ListTelemetrySourcesRequestObject struct {
+	Params ListTelemetrySourcesParams
+}
+
+type ListTelemetrySourcesResponseObject interface {
+	VisitListTelemetrySourcesResponse(w http.ResponseWriter) error
+}
+
+type ListTelemetrySources200JSONResponse TelemetrySourcePage
+
+func (response ListTelemetrySources200JSONResponse) VisitListTelemetrySourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTelemetrySources400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListTelemetrySources400ApplicationProblemPlusJSONResponse) VisitListTelemetrySourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTelemetrySources401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListTelemetrySources401ApplicationProblemPlusJSONResponse) VisitListTelemetrySourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTelemetrySources403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListTelemetrySources403ApplicationProblemPlusJSONResponse) VisitListTelemetrySourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTelemetrySourcesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListTelemetrySourcesdefaultApplicationProblemPlusJSONResponse) VisitListTelemetrySourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySourceRequestObject struct {
+	Body *CreateTelemetrySourceJSONRequestBody
+}
+
+type CreateTelemetrySourceResponseObject interface {
+	VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error
+}
+
+type CreateTelemetrySource201ResponseHeaders struct {
+	Location string
+}
+
+type CreateTelemetrySource201JSONResponse struct {
+	Body    TelemetrySource
+	Headers CreateTelemetrySource201ResponseHeaders
+}
+
+func (response CreateTelemetrySource201JSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySource400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateTelemetrySource400ApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySource401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateTelemetrySource401ApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySource403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response CreateTelemetrySource403ApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySource409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateTelemetrySource409ApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySource422ApplicationProblemPlusJSONResponse struct {
+	NoOwnerApplicationProblemPlusJSONResponse
+}
+
+func (response CreateTelemetrySource422ApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTelemetrySourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateTelemetrySourcedefaultApplicationProblemPlusJSONResponse) VisitCreateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySourceRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteTelemetrySourceResponseObject interface {
+	VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error
+}
+
+type DeleteTelemetrySource204Response struct {
+}
+
+func (response DeleteTelemetrySource204Response) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteTelemetrySource400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteTelemetrySource400ApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySource401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteTelemetrySource401ApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySource403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteTelemetrySource403ApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySource404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteTelemetrySource404ApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySource409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteTelemetrySource409ApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTelemetrySourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteTelemetrySourcedefaultApplicationProblemPlusJSONResponse) VisitDeleteTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySourceRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetTelemetrySourceResponseObject interface {
+	VisitGetTelemetrySourceResponse(w http.ResponseWriter) error
+}
+
+type GetTelemetrySource200JSONResponse TelemetrySource
+
+func (response GetTelemetrySource200JSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySource400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetTelemetrySource400ApplicationProblemPlusJSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySource401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetTelemetrySource401ApplicationProblemPlusJSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySource403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetTelemetrySource403ApplicationProblemPlusJSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySource404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetTelemetrySource404ApplicationProblemPlusJSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTelemetrySourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTelemetrySourcedefaultApplicationProblemPlusJSONResponse) VisitGetTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySourceRequestObject struct {
+	Id   ID `json:"id"`
+	Body *UpdateTelemetrySourceJSONRequestBody
+}
+
+type UpdateTelemetrySourceResponseObject interface {
+	VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error
+}
+
+type UpdateTelemetrySource200JSONResponse TelemetrySource
+
+func (response UpdateTelemetrySource200JSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySource400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateTelemetrySource400ApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySource401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateTelemetrySource401ApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySource403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateTelemetrySource403ApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySource404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateTelemetrySource404ApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySource409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateTelemetrySource409ApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTelemetrySourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateTelemetrySourcedefaultApplicationProblemPlusJSONResponse) VisitUpdateTelemetrySourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthzRequestObject struct {
 }
 
@@ -5157,6 +6123,21 @@ type StrictServerInterface interface {
 	// CreateSession Log in
 	// (POST /api/v1/session)
 	CreateSession(ctx context.Context, request CreateSessionRequestObject) (CreateSessionResponseObject, error)
+	// ListTelemetrySources List telemetry sources
+	// (GET /api/v1/telemetry-sources)
+	ListTelemetrySources(ctx context.Context, request ListTelemetrySourcesRequestObject) (ListTelemetrySourcesResponseObject, error)
+	// CreateTelemetrySource Register a telemetry source
+	// (POST /api/v1/telemetry-sources)
+	CreateTelemetrySource(ctx context.Context, request CreateTelemetrySourceRequestObject) (CreateTelemetrySourceResponseObject, error)
+	// DeleteTelemetrySource Delete a telemetry source
+	// (DELETE /api/v1/telemetry-sources/{id})
+	DeleteTelemetrySource(ctx context.Context, request DeleteTelemetrySourceRequestObject) (DeleteTelemetrySourceResponseObject, error)
+	// GetTelemetrySource Get a telemetry source
+	// (GET /api/v1/telemetry-sources/{id})
+	GetTelemetrySource(ctx context.Context, request GetTelemetrySourceRequestObject) (GetTelemetrySourceResponseObject, error)
+	// UpdateTelemetrySource Change a telemetry source
+	// (PATCH /api/v1/telemetry-sources/{id})
+	UpdateTelemetrySource(ctx context.Context, request UpdateTelemetrySourceRequestObject) (UpdateTelemetrySourceResponseObject, error)
 	// GetHealthz Liveness
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
@@ -6017,6 +6998,148 @@ func (sh *strictHandler) CreateSession(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateSessionResponseObject); ok {
 		if err := validResponse.VisitCreateSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTelemetrySources operation middleware
+func (sh *strictHandler) ListTelemetrySources(w http.ResponseWriter, r *http.Request, params ListTelemetrySourcesParams) {
+	var request ListTelemetrySourcesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTelemetrySources(ctx, request.(ListTelemetrySourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTelemetrySources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTelemetrySourcesResponseObject); ok {
+		if err := validResponse.VisitListTelemetrySourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTelemetrySource operation middleware
+func (sh *strictHandler) CreateTelemetrySource(w http.ResponseWriter, r *http.Request) {
+	var request CreateTelemetrySourceRequestObject
+
+	var body CreateTelemetrySourceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTelemetrySource(ctx, request.(CreateTelemetrySourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTelemetrySource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTelemetrySourceResponseObject); ok {
+		if err := validResponse.VisitCreateTelemetrySourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteTelemetrySource operation middleware
+func (sh *strictHandler) DeleteTelemetrySource(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteTelemetrySourceRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteTelemetrySource(ctx, request.(DeleteTelemetrySourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteTelemetrySource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteTelemetrySourceResponseObject); ok {
+		if err := validResponse.VisitDeleteTelemetrySourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTelemetrySource operation middleware
+func (sh *strictHandler) GetTelemetrySource(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetTelemetrySourceRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTelemetrySource(ctx, request.(GetTelemetrySourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTelemetrySource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTelemetrySourceResponseObject); ok {
+		if err := validResponse.VisitGetTelemetrySourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateTelemetrySource operation middleware
+func (sh *strictHandler) UpdateTelemetrySource(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UpdateTelemetrySourceRequestObject
+
+	request.Id = id
+
+	var body UpdateTelemetrySourceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateTelemetrySource(ctx, request.(UpdateTelemetrySourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateTelemetrySource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateTelemetrySourceResponseObject); ok {
+		if err := validResponse.VisitUpdateTelemetrySourceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

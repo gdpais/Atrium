@@ -370,7 +370,7 @@ and collector contracts are prerequisites, and its decisions are recorded
 9.3], which exist.
 
 Remaining work, in order, one pull request each: users and roles [4.2] →
-telemetry sources [4.4] → database targets and probe
+database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
 applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
 The `managedCollectors` chart key they render to is in place [2.5]. ADR 0014's
@@ -412,13 +412,13 @@ queue tests alone.
 
 ### 4.4 Telemetry source management
 - [x] Decide what an OutSystems 11 source is: a mapping from an application to its `service.name` (`config.application_name`, `ingest_mode = agentless`); the extraction collector per installation stays in YAML ([ADR 0017](docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md))
-- [ ] Implement telemetry sources CRUD
-- [ ] Support OutSystems telemetry source registration, with `config` checked against a JSON Schema per source type; within an environment, an `application_name` maps to one application
-- [ ] Show whether the collector observes the source: an enabled `outsystems_logs` collector reports its environment in `GET /admin/config`
-- [ ] Associate telemetry source to application
-- [ ] Derive environment through application
-- [ ] Validate ingest mode and required config
-- [ ] Store secret refs only
+- [x] Implement telemetry sources CRUD: `/api/v1/telemetry-sources`, paged by `application_name`, filtered by application, environment, type and status
+- [x] Support OutSystems telemetry source registration, with `config` checked against a JSON Schema per source type (`packages/config-schema/src/telemetry-sources`); within an environment, an `application_name` maps to one application, under the environment's row lock
+- [x] Show whether the collector observes the source: an enabled `outsystems_logs` collector reports its environment in `GET /admin/config`, read with the collector's admin token (the chart passes its Secret and admits the API to 8082), kept 15s; unreachable is `unknown` and never blocks a change; kind-e2e sees a source for `local-dev` observed by `oslogs-e2e`
+- [x] Associate telemetry source to application: set at registration, never changed
+- [x] Derive environment through application: `environment_id` is read through the application, never stored
+- [x] Validate ingest mode and required config: `agentless` or `otlp` for `outsystems`, `application_name` required
+- [x] Store secret refs only: the schemas are closed and name a credential only as a `credential-ref` (`env/`, `kv/`, `secret/`); a test fails on a schema with a credential-like property that is not one
 
 ### 4.5 Database target management
 - [x] Implement database targets CRUD: `/api/v1/database-targets`, read by viewers, changed by operators; a target belongs to one environment, its name is unique there, and a delete is refused while it has probe assignments. The API never connects to a target: the collector reports reachability once an assignment renders it

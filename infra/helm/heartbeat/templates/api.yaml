@@ -100,6 +100,22 @@ spec:
             - name: HEARTBEAT_API_AUDIT_ENDPOINT
               value: http://{{ .Values.otelCollector.fullnameOverride }}:{{ dig "otlp-http" "servicePort" 4318 (.Values.otelCollector.ports | default dict) }}
             {{- end }}
+            {{- if .Values.dbCollector.enabled }}
+            # The collector's redacted admin config says which environments
+            # its outsystems_logs collectors extract, for whether telemetry
+            # sources are observed (ADR 0017 §4). The ClusterIP Service routes
+            # to the collector only while it is ready; until then, and
+            # whenever it does not answer, observations are unknown.
+            - name: HEARTBEAT_API_COLLECTOR_URL
+              value: http://db-collector:{{ .Values.dbCollector.service.port }}
+            {{- with .Values.dbCollector.adminToken.existingSecret }}
+            - name: HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.dbCollector.adminToken.key }}
+            {{- end }}
+            {{- end }}
             {{- with $a.goMemLimit | default (include "heartbeat.goMemLimit" (dict "limit" (dig "limits" "memory" "" $a.resources) "name" "api")) }}
             # Go's soft memory limit, below the container limit.
             - name: GOMEMLIMIT

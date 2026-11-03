@@ -42,6 +42,9 @@ const (
 	EntityEnvironment = "environment"
 	EntityApplication = "application"
 	EntityComponent   = "application_component"
+	// EntityTelemetrySource is a telemetry source (ADR 0017); before and
+	// after are the source as the API shows it, without its observation.
+	EntityTelemetrySource = "telemetry_source"
 	// EntityDatabaseTarget is a monitored database (package inventory); its
 	// records hold the credential reference, never a credential.
 	EntityDatabaseTarget = "database_target"
@@ -51,7 +54,7 @@ const (
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityProbeDefinition, EntityDatabaseTarget}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityTelemetrySource, EntityProbeDefinition, EntityDatabaseTarget}
 
 // Actions.
 const (

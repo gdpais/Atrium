@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/testenv"
 	"heartbeat/apps/api/internal/users"
+	heartbeatconfig "heartbeat/internal/config"
 	"heartbeat/internal/credentials"
 	"heartbeat/internal/credentials/credentialstest"
 )
@@ -114,8 +116,23 @@ func TestRunManagesTheInventory(t *testing.T) {
 		credentials.Key(testenv.PostgresRef): pg.Credential.Username + ":" + pg.Credential.Password + "\n",
 		credentials.Key(testenv.RedisRef):    valkey.Credential.Username + ":" + valkey.Credential.Password + "\n",
 	})
+	// The DB collector's admin API, as the collector serves it: an enabled
+	// outsystems_logs collector extracting environment prod.
+	const collectorToken = "collector-admin-token-for-the-test"
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin/config" || r.Header.Get("Authorization") != "Bearer "+collectorToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"config": heartbeatconfig.RuntimeConfig{Collectors: []heartbeatconfig.CollectorRuntimeConfig{{
+			ID: "oslogs-prod", Kind: "outsystems_logs", Enabled: true, Environment: "prod",
+			Targets: []heartbeatconfig.TargetRuntimeConfig{{Name: "logging-db", EnvironmentSlug: "prod", CredentialRef: "env/oslog"}},
+		}}}.Redacted()})
+	}))
+	t.Cleanup(collector.Close)
 	deps, err := newRunDeps(Config{
 		ListenAddr: "127.0.0.1:0", Postgres: pgCfg, Redis: redisCfg, CredentialsDir: dir, Site: site,
+		CollectorURL: collector.URL, CollectorAdminToken: collectorToken,
 		Logger: slog.New(slog.DiscardHandler),
 	})
 	if err != nil {
@@ -207,6 +224,30 @@ func TestRunManagesTheInventory(t *testing.T) {
 		t.Fatalf("staging lists %+v", page.Items)
 	}
 
+	// The application's telemetry source: its environment is the
+	// application's, and the collector observes it; a viewer may not
+	// register one.
+	sourceBody := `{"application_id":"` + app.ID + `","source_type":"outsystems","ingest_mode":"agentless","config":{"application_name":"Claims"}}`
+	c.expect(http.StatusForbidden, http.MethodPost, "/api/v1/telemetry-sources", sourceBody, viewer, nil)
+	var src struct {
+		ID            string `json:"id"`
+		EnvironmentID string `json:"environment_id"`
+		Observation   struct {
+			Status     string   `json:"status"`
+			Collectors []string `json:"collectors"`
+		} `json:"observation"`
+	}
+	createdSource := c.expect(http.StatusCreated, http.MethodPost, "/api/v1/telemetry-sources", sourceBody, operator, &src)
+	if src.EnvironmentID != env.ID || src.Observation.Status != "observed" || len(src.Observation.Collectors) != 1 || src.Observation.Collectors[0] != "oslogs-prod" {
+		t.Fatalf("source %+v: want it in %s, observed by oslogs-prod", src, env.ID)
+	}
+	c.expect(http.StatusBadRequest, http.MethodPost, "/api/v1/telemetry-sources",
+		`{"application_id":"`+app.ID+`","source_type":"outsystems","ingest_mode":"otlp","config":{"application_name":"Claims","password":"hunter2"}}`, operator, nil)
+	c.expect(http.StatusOK, http.MethodGet, "/api/v1/telemetry-sources/"+src.ID, "", viewer, &src)
+	if src.Observation.Status != "observed" {
+		t.Fatalf("source read back: %+v", src)
+	}
+
 	deletedComponent := c.expect(http.StatusNoContent, http.MethodDelete, "/api/v1/components/"+component.ID, "", operator, nil)
 	c.expect(http.StatusNotFound, http.MethodGet, "/api/v1/components/"+component.ID, "", viewer, nil)
 
@@ -221,7 +262,7 @@ func TestRunManagesTheInventory(t *testing.T) {
 	var steps []string
 	for _, record := range records {
 		audittest.Validate(t, []byte(record))
-		audittest.NoSecrets(t, []byte(record), operator, viewer)
+		audittest.NoSecrets(t, []byte(record), operator, viewer, collectorToken, "hunter2")
 		var head struct {
 			Action     string      `json:"action"`
 			EntityType string      `json:"entity_type"`
@@ -242,6 +283,7 @@ func TestRunManagesTheInventory(t *testing.T) {
 		"create application " + createdApp.requestID,
 		"create application_component " + createdComponent.requestID,
 		"update application " + changedApp.requestID,
+		"create telemetry_source " + createdSource.requestID,
 		"delete application_component " + deletedComponent.requestID,
 	}
 	if len(steps) != len(want) {

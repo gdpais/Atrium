@@ -79,3 +79,14 @@ type SchemaMigration struct {
 	Version int64
 	Dirty   bool
 }
+
+type TelemetrySource struct {
+	ID            pgtype.UUID
+	ApplicationID pgtype.UUID
+	SourceType    string
+	IngestMode    string
+	Status        string
+	Config        []byte
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}

@@ -90,6 +90,8 @@ served beside it.
 | `DELETE /api/v1/session` | session, `viewer`; `Origin` | Log out: 204, and the cookie is cleared |
 | `GET /api/v1/environments`, `/applications`, `/components` and `GET …/{id}` | session, `viewer` | The inventory ([below](#inventory)) |
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/environments`, `/applications`, `/components` | session, `operator`; `Origin` | Create, change and delete inventory, each audited ([below](#inventory)) |
+| `GET /api/v1/telemetry-sources` and `GET …/{id}` | session, `viewer` | Telemetry sources, each with its observation ([below](#telemetry-sources)) |
+| `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/telemetry-sources` | session, `operator`; `Origin` | Register, change and delete telemetry sources, each audited ([below](#telemetry-sources)) |
 | `GET /api/v1/database-targets` and `GET /api/v1/database-targets/{id}` | session, `viewer` | Monitored databases ([below](#database-targets)) |
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/database-targets` | session, `operator`; `Origin` | Create, change and delete them |
 | `GET /api/v1/probe-definitions` | session, `viewer` | 200 with the latest version of every probe definition ([below](#probe-definitions)) |
@@ -251,6 +253,49 @@ curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: applica
   localhost:8081/api/v1/applications
 curl -sS -b cookies 'localhost:8081/api/v1/applications?environment_id=<id>&limit=20'
 ```
+
+### Telemetry sources
+
+Which telemetry is an application's own
+([ADR 0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md)),
+under `/api/v1/telemetry-sources`: `GET` (`?application_id=`,
+`?environment_id=`, `?source_type=`, `?status=`, paged by
+`application_name`) and `POST`; `GET`, `PATCH` and `DELETE` on `/{id}`.
+Viewers read; operators register, change and delete. Each change is
+audited as entity type `telemetry_source`.
+
+```json
+{"application_id": "<id>", "source_type": "outsystems", "ingest_mode": "agentless",
+ "config": {"application_name": "Claims"}}
+```
+
+- **Owner.** A source belongs to the application it was registered for, for
+  good; its `environment_id` is the application's, read through it. Neither
+  the application nor the source type can change.
+- **`config`** is checked against its type's JSON Schema,
+  [`packages/config-schema/src/telemetry-sources`](../../packages/config-schema/src/telemetry-sources/outsystems.schema.json).
+  For `outsystems`, `application_name` is the OutSystems `Application_Name`,
+  the `service.name` of its logs, matched exactly. The schemas are closed and
+  hold no credential: a schema names one only as a reference (`env/`, `kv/`
+  or `secret/`, format `credential-ref`), and a test fails on a schema that
+  breaks this. `ingest_mode` is `agentless` (OutSystems 11, read from the
+  logging database) or `otlp` (OutSystems Cloud and ODC).
+- **One name, one application.** Within an environment, an
+  `application_name` belongs to one application (409 otherwise), and an
+  application has one source per type, ingest mode and name.
+- **Observation.** Each source says whether the DB collector observes it.
+  The API reads the collector's redacted `GET /admin/config` with the
+  collector's admin token, at most every 15 seconds, within 2 seconds.
+
+| `observation.status` | When |
+| --- | --- |
+| `observed` | An enabled `outsystems_logs` collector extracts a target whose environment is the source's environment's slug (the collector's `environment` unless the target sets its own; only the targets `target_names` selects). `collectors` lists them |
+| `not_observed` | The collector answered, and none does. A source may be registered before its extraction is set up; nothing is refused |
+| `unknown` | The collector could not be asked: no URL set, no answer, a refused token. `detail` says which; the request itself still succeeds |
+| `not_applicable` | An `otlp` source, which sends its telemetry itself |
+
+The observation is not stored or audited: it is read with the source.
+
 
 ### Database targets
 
@@ -668,8 +713,8 @@ records to the OTel Collector and deletes them once it accepts them
 ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)).
 So far the audited changes are `api users create-admin`
 ([configuration](configuration.md#api)), logins, logouts and failed
-logins ([sessions](#logging-in-and-sessions)), and inventory changes
-([inventory](#inventory)).
+logins ([sessions](#logging-in-and-sessions)), inventory changes
+([inventory](#inventory)) and telemetry sources ([telemetry sources](#telemetry-sources)).
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |

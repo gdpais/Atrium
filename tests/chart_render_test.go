@@ -2382,6 +2382,17 @@ func checkCollectorEgress(t *testing.T, objects map[string]object, want []string
 // silently cut off scraping.
 func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPeers []string) {
 	t.Helper()
+	// The API reads GET /admin/config whenever it is deployed: its pods are
+	// the last peer.
+	if api, ok := objects["Deployment/api"]; ok {
+		var apiSpec struct {
+			Selector labelSelector `yaml:"selector"`
+		}
+		if err := api.Spec.Decode(&apiSpec); err != nil {
+			t.Fatal(err)
+		}
+		wantPeers = append(slices.Clone(wantPeers), "pods"+apiSpec.Selector.String())
+	}
 	policy, ok := objects["NetworkPolicy/db-collector"]
 	if !ok {
 		return

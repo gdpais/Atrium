@@ -260,6 +260,37 @@ var auditedChanges = []auditedChange{
 		},
 	},
 	{
+		name:   "telemetry source registered, changed and deleted",
+		entity: audit.EntityTelemetrySource,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "source-operator@example.com")
+			svc := inventory.New(h.pool)
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Sources", Slug: "sources", Type: "test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := svc.CreateApplication(ctx, caller, inventory.NewApplication{EnvironmentID: e.ID, Name: "Claims", Platform: "outsystems_traditional"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			begin()
+			src, err := svc.CreateSource(ctx, caller, inventory.NewSource{
+				ApplicationID: a.ID, SourceType: "outsystems", IngestMode: "agentless", Config: map[string]any{"application_name": "Claims"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			otlp := "otlp"
+			if _, err := svc.UpdateSource(ctx, caller, src.ID, inventory.SourceChange{IngestMode: &otlp}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteSource(ctx, caller, src.ID); err != nil {
+				t.Fatal(err)
+			}
+			return secrets
+		},
+	},
+	{
 		name:   "database target created, changed and deleted",
 		entity: audit.EntityDatabaseTarget,
 		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {

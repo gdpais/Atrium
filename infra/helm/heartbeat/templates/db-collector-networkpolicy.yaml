@@ -8,6 +8,11 @@
 {{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "prometheus") | fromYaml) }}
 {{- end }}
 {{- $peers = concat $peers $np.scrapers $np.operators }}
+{{- if .Values.api.enabled }}
+{{- /* The API reads GET /admin/config for whether telemetry sources are
+observed (ADR 0017 §4). */}}
+{{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "api") | fromYaml) }}
+{{- end }}
 {{- /* The ports of the monitored databases, from the enabled collectors'
 targets, managedCollectors included; a collector without enabled: true is
 off, as the collector reads it. */}}
@@ -25,7 +30,8 @@ off, as the collector reads it. */}}
 {{- if and $egress.enabled (gt $targets 0) (not $egress.targets) }}
 {{- fail "dbCollector.networkPolicy.egress.enabled needs egress.targets: the monitored databases' addresses as NetworkPolicyPeer objects (an ipBlock CIDR for databases outside the cluster). Without them the collector could not reach its targets." }}
 {{- end }}
-# Only Prometheus, the configured scrapers and the operator peers may reach the collector's
+# Only Prometheus, the configured scrapers, the operator peers and the API (for
+# GET /admin/config) may reach the collector's
 # port 8082 (metrics, health and the token-protected admin endpoints); all
 # other ingress, including from other pods in the namespace, is dropped.
 # Kubelet probes and `kubectl port-forward` are not subject to NetworkPolicy.
