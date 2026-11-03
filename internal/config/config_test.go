@@ -640,8 +640,8 @@ func TestValidHost(t *testing.T) {
 		{"db%2f", false},
 	} {
 		t.Run(tc.host, func(t *testing.T) {
-			if got := validHost(tc.host); got != tc.want {
-				t.Fatalf("validHost(%q) = %t, want %t", tc.host, got, tc.want)
+			if got := ValidHost(tc.host); got != tc.want {
+				t.Fatalf("ValidHost(%q) = %t, want %t", tc.host, got, tc.want)
 			}
 		})
 	}

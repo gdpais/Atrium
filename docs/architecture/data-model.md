@@ -5,7 +5,7 @@ inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
 The schema is defined by the migrations in [`db/migrations`](../../db/migrations)
-(`0001_foundations`, `0002_audit_outbox`, `0003_login_roles`, then `0004_probe_definitions`), which are authoritative. If this
+(`0001_foundations`, `0002_audit_outbox`, `0003_login_roles`, `0004_probe_definitions`, then `0005_database_targets`), which are authoritative. If this
 page and the migrations disagree, the migrations win; please fix this page.
 
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
@@ -392,7 +392,11 @@ Targets belong to an environment; `credential_ref` is a reference only.
   (a check constraint keeps the two kinds apart).
   `timeout_ms` is null for the collector's default. Managed through
   [`/api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions).
-- Deleting a target cascades only to its assignments.
+- A target's name, the `target` label of its metrics, is unique in its
+  environment (`0005`). Managed through
+  [`/api/v1/database-targets`](../reference/metrics-and-endpoints.md#database-targets),
+  which refuses to delete a target that has assignments: the foreign key
+  would cascade to them.
 - Every probe must be reviewed for non-blocking behavior before being assigned
   to a production target.
 - There is deliberately no direct `application → database_target` relation.
@@ -439,7 +443,7 @@ Environment-level reports are a later aggregation across applications.
 | `application_components` → `applications` | restrict | Unique `(application_id, name, component_type)` |
 | `telemetry_sources` → `applications` | restrict | Index `(application_id, source_type, status)` |
 | `normalization_rules` → `users` (`created_by`) | set null | Unique `(source_type, version)`; system rules have no creator |
-| `database_targets` → `environments` | restrict | Unique `(environment_id, engine, host, port, coalesce(database_name,''))` |
+| `database_targets` → `environments` | restrict | Unique `(environment_id, engine, host, port, lower(coalesce(database_name,'')))` and `(environment_id, name)` |
 | `probe_assignments` → `database_targets` | cascade | Unique `(database_target_id, probe_definition_id)` |
 | `probe_assignments` → `probe_definitions` | restrict | Definitions unique by `(engine, name, version)`; an assignment pins a version |
 | `investigations` → `applications`, `environments`, `users` | restrict | `time_end >= time_start` |
