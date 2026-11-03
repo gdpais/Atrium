@@ -141,7 +141,7 @@ host; the e2e script prints them on every run.
 | Singleton update drains the old pod first; gap and SQL concurrency measured | e2e samples running pods and SQL Server sessions every second during a rollout | Never more than 1 collector or 2 sessions; collection gap 12s and 31s in two runs at a 20s scrape interval |
 | Stateful restart keeps persistent data | e2e replaces the Prometheus and Alertmanager pods | TSDB and silences kept |
 | Concurrent CI runs isolated, cannot delete developer resources | e2e uses its own cluster name, kubeconfig and container names, and deletes only those | By construction |
-| Daily loop meets an agreed budget | Budget agreed 2026-10-28: the full profile holds at most 2.5 GiB of RAM in the kind node, the SQL Server sandbox and PatientZero not included. CI's `kind end-to-end` job times out after 25 minutes | Full profile about 2.0 GiB RAM in the kind node, measured idle, and 1.8 GiB after 12 hours up (SQL Server sandbox +0.9 GiB at first, 2.2 GiB after 12 hours: its 2 GiB cap limits SQL Server's own memory, not the container's); `kind end-to-end` 10–12 minutes in CI on 21–22 October, up to 18.6 on 28 October; redeploy under a minute; `minimal` profile for smaller machines |
+| Daily loop meets an agreed budget | Budget agreed 2026-10-28: the full profile holds at most 2.5 GiB of RAM in the kind node, the SQL Server sandbox and PatientZero not included. CI's `kind end-to-end` job times out after 25 minutes | Full profile with the API, PostgreSQL and Valkey 1.85 GiB at its peak under `make patientzero-load LOAD=steady` (2026-11-02, method below); before them about 2.0 GiB RAM in the kind node, measured idle, and 1.8 GiB after 12 hours up (SQL Server sandbox +0.9 GiB at first, 2.2 GiB after 12 hours: its 2 GiB cap limits SQL Server's own memory, not the container's); `kind end-to-end` 10–12 minutes in CI on 21–22 October, up to 18.6 on 28 October; redeploy under a minute; `minimal` profile for smaller machines |
 
 Update 2026-10-28: the local loop's budget is agreed (last row above).
 
@@ -153,15 +153,24 @@ Update 2026-10-28: the local loop's budget is agreed (last row above).
   `docker exec heartbeat-control-plane crictl stats --label io.kubernetes.pod.namespace=patientzero`
   shows their share. Load grows Prometheus's head block and Loki's
   ingesters until they flush, so an idle reading understates it; the
-  2.0 GiB above was measured idle, and the 4.1 chart change that adds the
-  API, PostgreSQL and Valkey is the first measured this way.
+  2.0 GiB above was measured idle.
+- The 4.1 chart change that adds the API, PostgreSQL and Valkey was the
+  first measured this way (2026-11-02, chart at `8dd7efe`): the full profile
+  with and without them, one after the other on the same fresh node, with
+  `docker stats` every 10 seconds under `LOAD=steady`. With them the peak
+  was 1,892 MiB (1.85 GiB) over 32 minutes, without them 1,756 MiB
+  (1.71 GiB) over 25 minutes: 136 MiB more at the peak, 82 MiB more on
+  average, and 0.65 GiB under the budget. Their own containers held 47 MiB
+  of it (API 17, PostgreSQL 18, Valkey 12 MiB, from `crictl stats`); the
+  rest is the node's per-pod overhead and the longer window.
 - The budget gives up a second local cluster. A sandbox that has run for
   hours holds about 2.2 GiB, so the budget plus the sandbox is 4.7 GiB,
   which leaves the rest of this project's Docker host (7.6 GiB in
   `docker info`) for image builds. A second cluster with its own fresh SQL
   Server, such as `make kind-e2e`, adds about 3.4 GiB at the budget:
-  8.1 GiB in all, more than the host has. Today's 2.0 GiB profile still
-  fits, with about 0.7 GiB to spare. Run the second cluster's checks in CI,
+  8.1 GiB in all, more than the host has. Today's profile, 1.85 GiB at its
+  peak, still fits, with about 0.8 GiB to spare (two profiles, the
+  sandbox's 2.2 GiB and the second cluster's fresh SQL Server's 0.9 GiB). Run the second cluster's checks in CI,
   or `docker restart heartbeat-sqlserver-dev` first, which frees the
   sandbox's memory and keeps its databases. On 2026-10-22, before SQL
   Server's memory was capped, a load flood and a second cluster each got it
