@@ -966,6 +966,35 @@ func TestChangePassword(t *testing.T) {
 	}
 }
 
+// The change is the session's user's, found by ID: an email that has
+// moved to another user since the session began names nobody here.
+func TestChangePasswordFollowsTheSessionsUser(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, cheap)
+	ctx := context.Background()
+	const otherSecret, next = "correct horse battery staple, other", "a new horse battery staple, mine"
+	mine := f.addUser(t, f.hasher, "mine@example.com", secret, "viewer")
+	principal, _, err := f.service.Login(ctx, "mine@example.com", secret, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An admin moves the email to a new user before the next request reads
+	// the session's user again.
+	f.exec(t, "update users set email = 'renamed@example.com' where id = $1", mine)
+	other := f.addUser(t, f.hasher, "mine@example.com", otherSecret, "viewer")
+	otherHash := f.hash(t, other)
+
+	if err := f.service.ChangePassword(ctx, principal, secret, next, client); err != nil {
+		t.Fatalf("ChangePassword with the session user's password: %v", err)
+	}
+	if f.hash(t, other) != otherHash {
+		t.Fatal("the change replaced the password of the user who has the email now")
+	}
+	if _, _, err := f.service.Login(ctx, "renamed@example.com", next, client); err != nil {
+		t.Fatalf("the session's user cannot log in with the new password: %v", err)
+	}
+}
+
 // A login that checked the password before a password change or a
 // disabling committed, and records itself after, fails: it starts no
 // session the change has already ended.

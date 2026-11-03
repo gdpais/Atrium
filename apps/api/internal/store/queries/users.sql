@@ -106,3 +106,8 @@ select exists (select 1 from roles where name = @name);
 
 -- name: TouchUser :exec
 update users set updated_at = now() where id = @id;
+
+-- name: GetPasswordHash :one
+-- The user's password hash, for a user changing their own password: by ID,
+-- as the session names them, never by an email that may have moved.
+select password_hash from users where id = @id;

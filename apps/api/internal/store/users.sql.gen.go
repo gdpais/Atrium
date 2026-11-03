@@ -83,6 +83,19 @@ func (q *Queries) GetLoginUser(ctx context.Context, email string) (GetLoginUserR
 	return i, err
 }
 
+const getPasswordHash = `-- name: GetPasswordHash :one
+select password_hash from users where id = $1
+`
+
+// The user's password hash, for a user changing their own password: by ID,
+// as the session names them, never by an email that may have moved.
+func (q *Queries) GetPasswordHash(ctx context.Context, id pgtype.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getPasswordHash, id)
+	var password_hash pgtype.Text
+	err := row.Scan(&password_hash)
+	return password_hash, err
+}
+
 const getSessionUser = `-- name: GetSessionUser :one
 select u.id, u.email, u.display_name, u.status,
   coalesce(array_agg(r.name order by r.name) filter (where r.name is not null), '{}')::text[] as roles

@@ -469,28 +469,33 @@ func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next
 	if wait > 0 {
 		return &RateLimitedError{RetryAfter: wait}
 	}
-	row, err := store.New(s.db).GetLoginUser(ctx, email)
+	id, err := uuid.Parse(p.User.ID)
+	if err != nil {
+		return s.unchecked(ctx, email, client, fmt.Errorf("session %s: user ID: %w", p.Session.ID, err))
+	}
+	// By the session's user ID: the email may belong to someone else by now.
+	hash, err := store.New(s.db).GetPasswordHash(ctx, pgtype.UUID{Bytes: id, Valid: true})
 	if err != nil {
 		return s.unchecked(ctx, email, client, fmt.Errorf("look up the user: %w", err))
 	}
 	var match bool
-	if row.PasswordHash.Valid {
-		match, _, err = s.verify(ctx, current, row.PasswordHash.String)
+	if hash.Valid {
+		match, _, err = s.verify(ctx, current, hash.String)
 		if err != nil && !errors.Is(err, password.ErrMalformedHash) {
 			return s.unchecked(ctx, email, client, err)
 		}
 	}
 	actor := audit.UserActor(p.User.ID, email)
 	if !match {
-		return s.wrongPassword(ctx, actor, row.ID.String(), email, client)
+		return s.wrongPassword(ctx, actor, p.User.ID, email, client)
 	}
 	err = users.SetPassword(ctx, s.db, s.hasher, s.sessions,
 		users.Caller{Actor: actor, RequestID: client.RequestID},
-		users.PasswordChange{UserID: uuid.UUID(row.ID.Bytes), Password: next, IfHash: row.PasswordHash.String})
+		users.PasswordChange{UserID: id, Password: next, IfHash: hash.String})
 	if errors.Is(err, users.ErrStalePassword) {
 		// Changed since it was checked: the current password given is
 		// not the current one any more.
-		return s.wrongPassword(ctx, actor, row.ID.String(), email, client)
+		return s.wrongPassword(ctx, actor, p.User.ID, email, client)
 	}
 	if err != nil {
 		return s.unchecked(ctx, email, client, err)
