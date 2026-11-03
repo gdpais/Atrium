@@ -266,11 +266,21 @@ func probedefsInvalid(t *testing.T) error {
 	return err
 }
 
-func TestGetProbeDefinitionRefusesAMalformedID(t *testing.T) {
+// The guard runs before the path is parsed: a malformed ID is a 400 only
+// for a caller the operation allows, and gets a request ID like any other.
+func TestMalformedIDsAreCheckedByTheGuardFirst(t *testing.T) {
 	defs := &fakeProbeDefinitions{def: customWaits}
-	rec := send(t, probeServer(t, defs), "viewer", http.MethodGet, "/api/v1/probe-definitions/waits", "")
-	if rec.Code != http.StatusBadRequest || len(defs.calls) != 0 {
-		t.Fatalf("GET with a malformed ID = %d, calls %v; want 400 and no call", rec.Code, defs.calls)
+	server := probeServer(t, defs)
+	if rec := send(t, server, "", http.MethodGet, "/api/v1/probe-definitions/waits", ""); rec.Code != http.StatusUnauthorized {
+		t.Errorf("GET with a malformed ID, no session = %d, want 401", rec.Code)
+	}
+	if rec := send(t, server, "viewer", http.MethodPatch, "/api/v1/probe-definitions/waits", `{"enabled":false}`); rec.Code != http.StatusForbidden {
+		t.Errorf("PATCH with a malformed ID, as a viewer = %d, want 403", rec.Code)
+	}
+	rec := send(t, server, "viewer", http.MethodGet, "/api/v1/probe-definitions/waits", "")
+	if rec.Code != http.StatusBadRequest || rec.Header().Get(requestIDHeader) == "" || len(defs.calls) != 0 {
+		t.Errorf("GET with a malformed ID, as a viewer = %d, %s %q, calls %v; want 400, a request ID and no call",
+			rec.Code, requestIDHeader, rec.Header().Get(requestIDHeader), defs.calls)
 	}
 }
 

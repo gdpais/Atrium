@@ -113,12 +113,25 @@ func (s *Server) Register(mux *http.ServeMux) {
 		},
 	})
 	openapi.HandlerWithOptions(strict, openapi.StdHTTPServerOptions{
-		BaseRouter:  mux,
-		Middlewares: []openapi.MiddlewareFunc{s.guard},
+		BaseRouter: guardedMux{ServeMux: mux, guard: s.guard},
 		ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 		},
 	})
+}
+
+// guardedMux registers each operation behind the guard. The generated
+// routes parse path parameters before their middlewares run, so the guard
+// wraps the whole route instead: a request with a malformed ID is checked
+// like any other, and answered 401 or 403 before it is told its ID is
+// malformed.
+type guardedMux struct {
+	*http.ServeMux
+	guard func(http.Handler) http.Handler
+}
+
+func (m guardedMux) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	m.Handle(pattern, m.guard(http.HandlerFunc(handler)))
 }
 
 // Drain makes GET /readyz answer 503 from now on, so that the API leaves
