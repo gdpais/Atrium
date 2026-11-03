@@ -125,6 +125,13 @@ probe deadline.
 
 ## 2. Add the target
 
+The API stores targets too, at
+[`/api/v1/database-targets`](../reference/metrics-and-endpoints.md#database-targets),
+with the same rules for the host and the credential reference; the
+collector runs them once probe assignments render them into its config
+(TODO 4.5, [ADR 0014](../architecture/decisions/0014-probe-assignments-to-runtime-config.md)).
+Until then, add the target by hand:
+
 Add an entry under `collectors[].config.targets[]` of the environment's
 `integrations` values (the chart renders them into `integrations.yaml`; see
 [config by environment](../reference/configuration.md#config-files-by-environment)).
