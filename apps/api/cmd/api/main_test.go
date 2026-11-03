@@ -55,6 +55,9 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.CredentialsDir != "" {
 		t.Fatalf("CredentialsDir = %q, want none", cfg.CredentialsDir)
 	}
+	if cfg.CollectorURL != "" || cfg.CollectorAdminToken != "" {
+		t.Fatalf("CollectorURL %q, want none: observations are unknown", cfg.CollectorURL)
+	}
 	if cfg.AuditEndpoint != "" {
 		t.Fatalf("AuditEndpoint = %q, want none: audit records wait in the outbox", cfg.AuditEndpoint)
 	}
@@ -87,6 +90,8 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 		envSessionMaxAge:         "12h",
 		envTrustedProxies:        " 10.0.0.0/8, 192.168.1.7 ,fd00::/8",
 		envShutdownDelay:         "0s",
+		envCollectorURL:          "http://db-collector:8082/",
+		envCollectorAdminToken:   " collector-token \n",
 	} {
 		t.Setenv(key, value)
 	}
@@ -109,6 +114,9 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 	}
 	if want := "https://otel-collector.observability.svc:4318"; cfg.AuditEndpoint != want {
 		t.Fatalf("AuditEndpoint = %q, want %q", cfg.AuditEndpoint, want)
+	}
+	if cfg.CollectorURL != "http://db-collector:8082" || cfg.CollectorAdminToken != "collector-token" {
+		t.Fatalf("CollectorURL %q, CollectorAdminToken of %d bytes", cfg.CollectorURL, len(cfg.CollectorAdminToken))
 	}
 	if want := "https://heartbeat.example.com"; cfg.Site != want {
 		t.Fatalf("Site = %q, want %q, as a browser writes the Origin header", cfg.Site, want)
@@ -215,6 +223,12 @@ func TestLoadConfigRejectsValuesThatCannotWork(t *testing.T) {
 		{envAuditEndpoint, "http://"},
 		{envAuditEndpoint, "http://user:secret@otel-collector:4318"},
 		{envAuditEndpoint, "http://otel-collector:4318?x=1"},
+		{envCollectorURL, "db-collector:8082"},
+		{envCollectorURL, "http://db-collector:8082/admin/config"},
+		{envCollectorURL, "http://token@db-collector:8082"},
+		{envCollectorURL, "http://db-collector:8082?x=1"},
+		{envCollectorURL, "http://db-collector:8082/?"},
+		{envCollectorURL, "http://db-collector:8082#admin"},
 		{envSiteOrigin, "heartbeat.example.com"},
 		{envSiteOrigin, "https://heartbeat.example.com/app"},
 		{envSiteOrigin, "https://user@heartbeat.example.com"},

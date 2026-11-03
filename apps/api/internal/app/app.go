@@ -24,6 +24,7 @@ import (
 
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/auth"
+	"heartbeat/apps/api/internal/collectors"
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/password"
@@ -60,6 +61,14 @@ type Config struct {
 	// X-Forwarded-For header names the client: for the failed-login limits
 	// per address and for audit records.
 	TrustedProxies []netip.Prefix
+	// CollectorURL is the DB collector's base URL, such as
+	// http://db-collector:8082, whose redacted GET /admin/config says which
+	// environments its outsystems_logs collectors extract (ADR 0017 §4).
+	// Empty makes every agentless source's observation unknown.
+	CollectorURL string
+	// CollectorAdminToken is the collector's admin token, sent as a bearer
+	// token. It is never logged.
+	CollectorAdminToken string
 	// ShutdownDelay is how long the API keeps serving once shutdown begins,
 	// with GET /readyz answering 503, before it stops accepting
 	// connections: time for its Service to stop sending it requests.
@@ -234,7 +243,7 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		},
 		auth:             auth.NewService(pool, hasher, sessions, &auth.Limits{Redis: client}, attempts, logger),
 		users:            users.NewService(pool, hasher, sessions),
-		inventory:        inventory.New(pool),
+		inventory:        inventory.New(pool, inventory.WithObserver(observer(cfg, logger))),
 		probeDefinitions: probedefs.NewService(pool),
 		close: func() {
 			pool.Close()
@@ -424,4 +433,18 @@ func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *
 	mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	api.Register(mux)
 	return telemetry.Traced(metrics.Instrument(mux))
+}
+
+// observer is the client that reads the collector's admin config, or nil
+// when no URL is set.
+func observer(cfg Config, logger *slog.Logger) inventory.Observer {
+	if cfg.CollectorURL == "" {
+		logger.Warn("no collector URL is set, so whether a telemetry source is observed is unknown")
+		return nil
+	}
+	if cfg.CollectorAdminToken == "" {
+		logger.Warn("no collector admin token is set, so the collector refuses the API and observations are unknown", "collector_url", cfg.CollectorURL)
+	}
+	logger.Info("telemetry source observation on", "collector_url", cfg.CollectorURL)
+	return &collectors.Client{URL: cfg.CollectorURL, Token: cfg.CollectorAdminToken}
 }

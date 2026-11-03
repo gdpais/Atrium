@@ -639,6 +639,67 @@ wait_for 120 "the session's login and logout records in Loki" session_audited
 pass "login from $site set the __Host- cookie; session $session_id is the admin's; logout ended it (401 after); both audited in Loki"
 
 # ----------------------------------------------------------------------------
+step "a telemetry source registered through the API is observed by the collector"
+# ADR 0017 §4: the API reads the collector's redacted GET /admin/config with
+# the collector's admin token, through the db-collector Service its
+# NetworkPolicy admits it to. oslogs-e2e, deployed above, extracts
+# environment local-dev, so an OutSystems source registered there is
+# observed; one in an environment no collector extracts is registered too,
+# and not observed. The admin logs in again: the step above logged out. The
+# port-forward logs to a file of its own: the step above's still names the
+# port it forwarded, which is closed now.
+kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward-sources.log" 2>&1 &
+port_forward_pid=$!
+wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward-sources.log"
+api_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/api-forward-sources.log" | head -n 1)
+code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
+[ "$code" = 201 ] || fail "the admin's second login returned $code: $(cat "$WORK/api-body")"
+(
+	umask 077
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+)
+# api_post <path> <json>: the status; the created entity is in $WORK/api-body.
+api_post() { api_call POST "$1" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "$2"; }
+# register <slug> <application_name>: an environment, an application and its
+# agentless OutSystems source; prints the source's ID.
+register() {
+	code=$(api_post /api/v1/environments "$(jq -nc --arg slug "$1" '{name: ("E2E " + $slug), slug: $slug, type: "development"}')")
+	[ "$code" = 201 ] || fail "creating environment $1 returned $code: $(cat "$WORK/api-body")"
+	env_id=$(jq -r .id "$WORK/api-body")
+	code=$(api_post /api/v1/applications "$(jq -nc --arg env "$env_id" --arg name "$2" '{environment_id: $env, name: $name, platform: "outsystems_traditional"}')")
+	[ "$code" = 201 ] || fail "creating application $2 returned $code: $(cat "$WORK/api-body")"
+	app_id=$(jq -r .id "$WORK/api-body")
+	code=$(api_post /api/v1/telemetry-sources "$(jq -nc --arg app "$app_id" --arg name "$2" '{application_id: $app, source_type: "outsystems", ingest_mode: "agentless", config: {application_name: $name}}')")
+	[ "$code" = 201 ] || fail "registering the $2 source returned $code: $(cat "$WORK/api-body")"
+	jq -e --arg env "$env_id" --arg app "$app_id" '.environment_id == $env and .application_id == $app' "$WORK/api-body" >/dev/null ||
+		fail "the $2 source is not in its application's environment: $(cat "$WORK/api-body")"
+	jq -r .id "$WORK/api-body"
+}
+observed_source=$(register local-dev E2eShop)
+unwatched_source=$(register e2e-unwatched E2eNobodyReads)
+# The API keeps the collector's answer for 15s: a first read made while the
+# collector was not reachable says unknown until then. register runs in a
+# command substitution; under set -e its fail stops the script.
+observation_is() {
+	[ "$(api_call GET "/api/v1/telemetry-sources/$1" -H "@$WORK/session-header")" = 200 ] &&
+		jq -e --arg status "$2" --argjson collectors "$3" \
+			'.observation.status == $status and .observation.collectors == $collectors' "$WORK/api-body" >/dev/null
+}
+wait_for 60 "the local-dev source observed by oslogs-e2e" observation_is "$observed_source" observed '["oslogs-e2e"]'
+observation_is "$unwatched_source" not_observed '[]' ||
+	fail "the e2e-unwatched source is not reported unobserved: $(cat "$WORK/api-body")"
+code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
+[ "$code" = 204 ] || fail "the logout returned $code"
+kill "$port_forward_pid" 2>/dev/null || true
+port_forward_pid=
+source_audited() {
+	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$observed_source\"" | jq -e --arg id "$observed_source" \
+		'[.data.result[].values[][1] | fromjson | select(.entity_type == "telemetry_source" and .entity_id == $id) | .action] == ["create"]'
+}
+wait_for 120 "the source's audit record in Loki" source_audited
+pass "an OutSystems source for local-dev is observed by oslogs-e2e through GET /admin/config; one for e2e-unwatched is not; the registration is audited in Loki"
+
+# ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"
 readyz=$(pod_get /readyz)
 [ "$(printf '%s' "$readyz" | jq -c keys)" = '["status"]' ] || fail "/readyz serves more than its status: $readyz"

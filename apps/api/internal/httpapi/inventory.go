@@ -33,6 +33,12 @@ type Inventory interface {
 	CreateComponent(ctx context.Context, caller inventory.Caller, in inventory.NewComponent) (inventory.Component, error)
 	UpdateComponent(ctx context.Context, caller inventory.Caller, id uuid.UUID, change inventory.ComponentChange) (inventory.Component, error)
 	DeleteComponent(ctx context.Context, caller inventory.Caller, id uuid.UUID) error
+
+	ListSources(ctx context.Context, filter inventory.SourceFilter, page inventory.Page) (inventory.SourcePage, error)
+	GetSource(ctx context.Context, id uuid.UUID) (inventory.Source, error)
+	CreateSource(ctx context.Context, caller inventory.Caller, in inventory.NewSource) (inventory.Source, error)
+	UpdateSource(ctx context.Context, caller inventory.Caller, id uuid.UUID, change inventory.SourceChange) (inventory.Source, error)
+	DeleteSource(ctx context.Context, caller inventory.Caller, id uuid.UUID) error
 }
 
 var _ Inventory = (*inventory.Service)(nil)
