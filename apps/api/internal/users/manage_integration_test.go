@@ -316,7 +316,8 @@ func TestServiceSerialisesChangesThatCanLeaveNoAdmin(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := tx.Exec(ctx, "select id from roles where name = 'admin' for update"); err != nil {
+			// As another such change takes it (LockAdminRole).
+			if _, err := tx.Exec(ctx, "select id from roles where name = 'admin' for no key update"); err != nil {
 				t.Fatal(err)
 			}
 			done := make(chan error, 1)
@@ -450,3 +451,60 @@ func TestServiceRoles(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Granting admin while the same user is disabled, or has admin revoked, at
+// the same moment cannot deadlock. The grant holds the user's row and its
+// new user_roles row needs a key-share lock on the admin role's row (the
+// foreign key); the other change holds the admin role's row and waits for
+// the user's. The admin role's lock must not exclude key-share locks.
+func TestServiceGrantDoesNotDeadlockWithTheAdminLock(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	ctx := context.Background()
+	f.create(t, "root@example.com", "admin")
+	for name, other := range map[string]func(id uuid.UUID) error{
+		"disable": func(id uuid.UUID) error {
+			_, err := f.service.Update(ctx, admin, id, users.Change{Status: ptr(users.StatusDisabled)})
+			return err
+		},
+		"revoke": func(id uuid.UUID) error {
+			_, err := f.service.Revoke(ctx, admin, id, "admin")
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			u := f.create(t, name+"@example.com", "viewer")
+			id := uuid.MustParse(u.ID)
+			// Queue the grant first on the user's row, then the other change
+			// behind it, holding the admin role's row; then let them go.
+			hold, err := f.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := hold.Exec(ctx, "select id from users where id = $1 for update", u.ID); err != nil {
+				t.Fatal(err)
+			}
+			grant, change := make(chan error, 1), make(chan error, 1)
+			go func() {
+				_, err := f.service.Grant(ctx, admin, id, "admin")
+				grant <- err
+			}()
+			time.Sleep(200 * time.Millisecond)
+			go func() { change <- other(id) }()
+			time.Sleep(200 * time.Millisecond)
+			if err := hold.Rollback(ctx); err != nil {
+				t.Fatal(err)
+			}
+			for what, done := range map[string]chan error{"grant": grant, name: change} {
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Errorf("%s: %v", what, err)
+					}
+				case <-time.After(30 * time.Second):
+					t.Fatalf("%s did not finish", what)
+				}
+			}
+		})
+	}
+}

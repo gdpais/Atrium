@@ -71,8 +71,12 @@ select id from users where id = @id for update;
 
 -- name: LockAdminRole :one
 -- Serialises every change that could leave no active admin: each takes this
--- lock first, then counts the others (CountOtherActiveAdmins).
-select id from roles where name = 'admin' for update;
+-- lock first, then counts the others (CountOtherActiveAdmins). No key
+-- update, not update: a grant of admin locks the user's row and then, for
+-- its user_roles row's foreign key, takes a key-share lock on this row,
+-- which this lock must not exclude, or a grant and a disabling of the same
+-- user would deadlock.
+select id from roles where name = 'admin' for no key update;
 
 -- name: CountOtherActiveAdmins :one
 select count(*) from users u

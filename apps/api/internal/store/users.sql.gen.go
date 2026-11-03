@@ -262,11 +262,15 @@ func (q *Queries) ListUsers(ctx context.Context, status pgtype.Text) ([]ListUser
 }
 
 const lockAdminRole = `-- name: LockAdminRole :one
-select id from roles where name = 'admin' for update
+select id from roles where name = 'admin' for no key update
 `
 
 // Serialises every change that could leave no active admin: each takes this
-// lock first, then counts the others (CountOtherActiveAdmins).
+// lock first, then counts the others (CountOtherActiveAdmins). No key
+// update, not update: a grant of admin locks the user's row and then, for
+// its user_roles row's foreign key, takes a key-share lock on this row,
+// which this lock must not exclude, or a grant and a disabling of the same
+// user would deadlock.
 func (q *Queries) LockAdminRole(ctx context.Context) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, lockAdminRole)
 	var id pgtype.UUID
