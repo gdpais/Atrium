@@ -152,8 +152,12 @@ func (s *Service) ExpiresAt(session Session) time.Time { return s.sessions.Expir
 // and the session's token. A wrong password, an unknown email and a
 // disabled user are all [ErrInvalidCredentials], take as long, and count
 // against the limits; past them a login is a [*RateLimitedError], refused
-// unchecked. A request it cannot check is an [*InvalidError]. A hash made
-// with older parameters is replaced at a successful login.
+// unchecked. The limits count a login before its password is checked, so
+// concurrent logins cannot pass them; one whose password could not be
+// checked, or matched but could not be recorded, as when PostgreSQL does
+// not answer, does not count. A request it
+// cannot check is an [*InvalidError]. A hash made with older parameters is
+// replaced at a successful login.
 //
 // A successful login writes its audit record, the user's last login time
 // and any new hash in one transaction, and creates the session in Redis
@@ -167,7 +171,7 @@ func (s *Service) Login(ctx context.Context, email, secret string, client Client
 	if secret == "" || len(secret) > password.MaxBytes || !utf8.ValidString(secret) {
 		return Principal{}, "", &InvalidError{reason: fmt.Sprintf("password: want 1 to %d bytes of UTF-8", password.MaxBytes)}
 	}
-	wait, err := s.limits.Wait(ctx, email, client.Address)
+	wait, err := s.limits.Begin(ctx, email, client.Address)
 	if err != nil {
 		return Principal{}, "", err
 	}
@@ -179,18 +183,18 @@ func (s *Service) Login(ctx context.Context, email, secret string, client Client
 	user, err := store.New(s.db).GetLoginUser(ctx, email)
 	known := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return Principal{}, "", fmt.Errorf("look up the user: %w", err)
+		return Principal{}, "", s.unchecked(ctx, email, client, fmt.Errorf("look up the user: %w", err))
 	}
 	hash := user.PasswordHash.String
 	if !known || !user.PasswordHash.Valid {
 		if hash, err = s.decoy(); err != nil {
-			return Principal{}, "", err
+			return Principal{}, "", s.unchecked(ctx, email, client, err)
 		}
 	}
 	match, rehash, err := s.verify(ctx, secret, hash)
 	malformed := errors.Is(err, password.ErrMalformedHash)
 	if err != nil && !malformed {
-		return Principal{}, "", err
+		return Principal{}, "", s.unchecked(ctx, email, client, err)
 	}
 
 	var reason string
@@ -211,7 +215,13 @@ func (s *Service) Login(ctx context.Context, email, secret string, client Client
 	if reason != "" {
 		return Principal{}, "", s.fail(ctx, email, user.ID, reason, client)
 	}
-	return s.succeed(ctx, user, secret, rehash, client)
+	principal, token, err := s.succeed(ctx, email, user, secret, rehash, client)
+	if err != nil {
+		// The password matched: whatever stopped the login, it did not
+		// fail, so an outage cannot lock the account.
+		return Principal{}, "", s.unchecked(ctx, email, client, err)
+	}
+	return principal, token, nil
 }
 
 // verify checks secret against hash in a span of its own: it is most of a
@@ -222,11 +232,20 @@ func (s *Service) verify(ctx context.Context, secret, hash string) (bool, bool, 
 	return s.hasher.Verify(ctx, secret, hash)
 }
 
-// fail counts and audits a failed login, and returns ErrInvalidCredentials.
-func (s *Service) fail(ctx context.Context, email string, userID pgtype.UUID, reason string, client Client) error {
-	if err := s.limits.Failed(ctx, email, client.Address); err != nil {
-		return err
+// unchecked takes back the limits' count of a login that did not fail but
+// was not completed: its password could not be checked, or it matched and
+// the login could not be recorded. It returns err. A login whose password
+// was checked and did not match keeps its count.
+func (s *Service) unchecked(ctx context.Context, email string, client Client, err error) error {
+	if err := s.limits.Unchecked(context.WithoutCancel(ctx), email, client.Address); err != nil {
+		s.logger.WarnContext(ctx, "auth: take back the count of a login that was not checked", "error", err)
 	}
+	return err
+}
+
+// fail audits a failed login, which the limits counted before it was
+// checked, and returns ErrInvalidCredentials.
+func (s *Service) fail(ctx context.Context, email string, userID pgtype.UUID, reason string, client Client) error {
 	attempt, err := audit.NewID()
 	if err != nil {
 		return err
@@ -253,8 +272,9 @@ func (s *Service) fail(ctx context.Context, email string, userID pgtype.UUID, re
 	return ErrInvalidCredentials
 }
 
-// succeed records a login whose password matched and starts its session.
-func (s *Service) succeed(ctx context.Context, login store.GetLoginUserRow, secret string, rehash bool, client Client) (Principal, string, error) {
+// succeed records a login for email whose password matched and starts its
+// session.
+func (s *Service) succeed(ctx context.Context, email string, login store.GetLoginUserRow, secret string, rehash bool, client Client) (Principal, string, error) {
 	var newHash string
 	if rehash {
 		var err error
@@ -319,7 +339,7 @@ func (s *Service) succeed(ctx context.Context, login store.GetLoginUserRow, secr
 	if upgraded {
 		s.logger.InfoContext(ctx, "auth: password hash upgraded to the current parameters", "user_id", principal.User.ID)
 	}
-	if err := s.limits.Succeeded(ctx, principal.User.Email); err != nil {
+	if err := s.limits.Succeeded(context.WithoutCancel(ctx), email, client.Address); err != nil {
 		s.logger.WarnContext(ctx, "auth: clear the account's failed logins", "user_id", principal.User.ID, "error", err)
 	}
 	s.attempts.WithLabelValues(outcomeSucceeded).Inc()
