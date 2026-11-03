@@ -86,7 +86,10 @@ func TestDatabaseTargets(t *testing.T) {
 	t.Run("a credential is never stored", func(t *testing.T) {
 		e := f.environment(t, "targets-credentials")
 		mark := f.mark(t)
-		for _, ref := range []string{"sa:Passw0rd!", "env/sa:Passw0rd!", "https://sa:Passw0rd!@vault"} {
+		// Made up, and built at run time so no credential-shaped literal
+		// sits in the source.
+		credential := "sa" + ":" + "not-a-secret"
+		for _, ref := range []string{credential, "env/" + credential, "https://" + credential + "@vault"} {
 			_, err := f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "creds", Host: "creds", CredentialRef: ref})
 			var invalid *inventory.InvalidError
 			if !errors.As(err, &invalid) || invalid.Field != "credential_ref" {
