@@ -42,13 +42,16 @@ const (
 	EntityEnvironment = "environment"
 	EntityApplication = "application"
 	EntityComponent   = "application_component"
+	// EntityDatabaseTarget is a monitored database (package inventory); its
+	// records hold the credential reference, never a credential.
+	EntityDatabaseTarget = "database_target"
 	// EntityProbeDefinition is one version of a probe definition, by the
 	// version's ID.
 	EntityProbeDefinition = "probe_definition"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityProbeDefinition}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityProbeDefinition, EntityDatabaseTarget}
 
 // Actions.
 const (

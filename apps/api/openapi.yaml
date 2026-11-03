@@ -48,6 +48,15 @@ tags:
       Viewers read; operators create, change and delete. Every change is
       audited (ADR 0016). Disable rather than delete: a delete is refused
       with 409 while anything still refers to the entity.
+  - name: database-targets
+    description: |
+      Monitored databases (TODO 4.5). Each belongs to one environment, set
+      when it is created and never changed, and holds a credential
+      reference, never a credential: the db-collector resolves it from its
+      own mounted Secret (ADR 0014 §6). The API never connects to a target
+      (ADR 0013 §1); whether one is reachable is the collector's to report,
+      once a probe assignment renders it. Viewers read; operators create,
+      change and delete. Every change is audited (ADR 0016).
   - name: probe-definitions
     description: |
       What a probe assignment runs against a database target (TODO 4.5).
@@ -640,6 +649,164 @@ paths:
         Components have no status to disable, so they are deleted. Nothing
         refers to them yet; once something does, a delete while it does is
         refused with 409, as for environments and applications.
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/database-targets:
+    get:
+      operationId: listDatabaseTargets
+      tags: [database-targets]
+      summary: List database targets
+      security:
+        - session: [viewer]
+      description: Targets by name, a page at a time. Filter by environment to list one environment's.
+      parameters:
+        - name: environment_id
+          in: query
+          description: Only the targets of this environment.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/StatusFilter"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of targets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseTargetPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createDatabaseTarget
+      tags: [database-targets]
+      summary: Create a database target
+      security:
+        - session: [operator]
+      description: |
+        Creates a target in the environment the body names, which it
+        belongs to for good. Nothing connects to the database: the API
+        stores where it is and which credential reference the collector
+        logs in with.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewDatabaseTarget"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseTarget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/database-targets/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getDatabaseTarget
+      tags: [database-targets]
+      summary: Get a database target
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The target.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseTarget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateDatabaseTarget
+      tags: [database-targets]
+      summary: Change a database target
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others. Its
+        environment, engine and name cannot change. A body that changes
+        nothing is answered with the target as it is, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatabaseTargetUpdate"
+      responses:
+        "200":
+          description: The target after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseTarget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteDatabaseTarget
+      tags: [database-targets]
+      summary: Delete a database target
+      security:
+        - session: [operator]
+      description: |
+        Deletes a target without probe assignments. While it has any, the
+        answer is 409 and nothing is deleted, since they would go with it:
+        disable it instead (`PATCH` with `status: disabled`).
       responses:
         "204":
           description: Deleted.
@@ -1286,6 +1453,137 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Component"
+        next_cursor:
+          type: string
+          description: The `cursor` of the next page; absent on the last.
+    DatabaseEngine:
+      type: string
+      description: The database's engine, which the collector of the same kind monitors.
+      enum: [sqlserver]
+    TargetName:
+      type: string
+      description: |
+        The `target` label of the target's metrics, beside the
+        environment's. Lower-case letters, digits and hyphens, 1 to 63,
+        starting and ending with a letter or a digit. Unique in its
+        environment, and fixed once created.
+      pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+      examples: [finance-prod]
+    Host:
+      type: string
+      description: |
+        A host name, an IPv4 address or a bare IPv6 address, as the
+        collector accepts it: no port, brackets, credentials or path. At
+        most 253 characters; stored in lower case.
+      minLength: 1
+      maxLength: 253
+      examples: [sql01.finance.internal]
+    Port:
+      type: integer
+      minimum: 1
+      maximum: 65535
+    DatabaseName:
+      type: string
+      description: The database to connect to; empty for the login's default. At most 128 characters, without control characters.
+      maxLength: 128
+    CredentialRef:
+      type: string
+      description: |
+        A reference to the credential the collector logs in with, never
+        the credential: `kv/`, `secret/` or `env/` and a name of letters,
+        digits, `.`, `_` and `-`, at most 200. The collector reads the
+        `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+        its mounted credentials Secret, the reference upper-cased with `/`,
+        `-` and `.` as `_` (`env/finance-prod` is
+        `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+      pattern: "^(kv|secret|env)/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+      examples: [env/finance-prod]
+    DatabaseTarget:
+      type: object
+      additionalProperties: false
+      required: [id, environment_id, engine, name, host, port, database_name, credential_ref, status, labels, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        environment_id:
+          type: string
+          format: uuid
+          description: The environment it belongs to, fixed when it was created.
+        engine:
+          $ref: "#/components/schemas/DatabaseEngine"
+        name:
+          $ref: "#/components/schemas/TargetName"
+        host:
+          $ref: "#/components/schemas/Host"
+        port:
+          $ref: "#/components/schemas/Port"
+        database_name:
+          $ref: "#/components/schemas/DatabaseName"
+        credential_ref:
+          $ref: "#/components/schemas/CredentialRef"
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NewDatabaseTarget:
+      type: object
+      additionalProperties: false
+      required: [environment_id, name, host, credential_ref]
+      properties:
+        environment_id:
+          type: string
+          format: uuid
+        engine:
+          $ref: "#/components/schemas/DatabaseEngine"
+        name:
+          $ref: "#/components/schemas/TargetName"
+        host:
+          $ref: "#/components/schemas/Host"
+        port:
+          allOf:
+            - $ref: "#/components/schemas/Port"
+          description: Defaults to the engine's, 1433 for SQL Server.
+        database_name:
+          $ref: "#/components/schemas/DatabaseName"
+        credential_ref:
+          $ref: "#/components/schemas/CredentialRef"
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+    DatabaseTargetUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the environment, engine and name cannot.
+      properties:
+        host:
+          $ref: "#/components/schemas/Host"
+        port:
+          $ref: "#/components/schemas/Port"
+        database_name:
+          $ref: "#/components/schemas/DatabaseName"
+        credential_ref:
+          $ref: "#/components/schemas/CredentialRef"
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+    DatabaseTargetPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatabaseTarget"
         next_cursor:
           type: string
           description: The `cursor` of the next page; absent on the last.
