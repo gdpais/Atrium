@@ -12,6 +12,16 @@ import (
 	"time"
 )
 
+// newServer returns NewServer(opts), and fails the test on its error.
+func newServer(t *testing.T, opts Options) *Server {
+	t.Helper()
+	server, err := NewServer(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server
+}
+
 // serve sends one request to a mux with the server's operations registered.
 func serve(t *testing.T, server *Server, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -33,7 +43,7 @@ func failing(name, err string) Check {
 func TestHealthzIsAlwaysOK(t *testing.T) {
 	// Liveness ignores the dependencies: a failing one must not restart the
 	// pod.
-	server := NewServer(nil, []Check{failing("postgres", "connection refused")}, time.Second)
+	server := newServer(t, Options{Checks: []Check{failing("postgres", "connection refused")}, ReadinessTimeout: time.Second})
 	rec := serve(t, server, http.MethodGet, "/healthz")
 	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
 		t.Fatalf("GET /healthz = %d %q, want 200 \"ok\"", rec.Code, rec.Body.String())
@@ -56,7 +66,7 @@ func TestReadyz(t *testing.T) {
 		{"every check fails", []Check{failing("postgres", "password authentication failed for user heartbeat"), failing("redis", "NOAUTH")}, http.StatusServiceUnavailable, `{"status":"not_ready"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := serve(t, NewServer(nil, tc.checks, time.Second), http.MethodGet, "/readyz")
+			rec := serve(t, newServer(t, Options{Checks: tc.checks, ReadinessTimeout: time.Second}), http.MethodGet, "/readyz")
 			if rec.Code != tc.code {
 				t.Fatalf("GET /readyz = %d, want %d", rec.Code, tc.code)
 			}
@@ -87,7 +97,7 @@ func TestReadyzRunsChecksConcurrently(t *testing.T) {
 			}
 		}}
 	}
-	server := NewServer(nil, []Check{waitFor(0, 1), waitFor(1, 0)}, 5*time.Second)
+	server := newServer(t, Options{Checks: []Check{waitFor(0, 1), waitFor(1, 0)}, ReadinessTimeout: 5 * time.Second})
 	if rec := serve(t, server, http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
 		t.Fatalf("GET /readyz = %d, want 200", rec.Code)
 	}
@@ -99,7 +109,7 @@ func TestReadyzAnswersWithinTheTimeout(t *testing.T) {
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	hung := Check{Name: "redis", Run: func(context.Context) error { <-release; return nil }}
-	server := NewServer(nil, []Check{passing("postgres"), hung}, 100*time.Millisecond)
+	server := newServer(t, Options{Checks: []Check{passing("postgres"), hung}, ReadinessTimeout: 100 * time.Millisecond})
 	start := time.Now()
 	rec := serve(t, server, http.MethodGet, "/readyz")
 	if rec.Code != http.StatusServiceUnavailable {
@@ -116,7 +126,7 @@ func TestReadyzChecksGetTheDeadline(t *testing.T) {
 		_, deadline = ctx.Deadline()
 		return nil
 	}}
-	if rec := serve(t, NewServer(nil, []Check{check}, time.Second), http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
+	if rec := serve(t, newServer(t, Options{Checks: []Check{check}, ReadinessTimeout: time.Second}), http.MethodGet, "/readyz"); rec.Code != http.StatusOK {
 		t.Fatalf("GET /readyz = %d, want 200", rec.Code)
 	}
 	if !deadline {
@@ -134,7 +144,7 @@ func TestReadinessLogsOnlyChangesWithTheReasons(t *testing.T) {
 		}
 		return errors.New("connection refused")
 	}}
-	server := NewServer(logger, []Check{check}, time.Second)
+	server := newServer(t, Options{Logger: logger, Checks: []Check{check}, ReadinessTimeout: time.Second})
 	for _, step := range []struct {
 		healthy bool
 		code    int
@@ -162,7 +172,7 @@ func TestReadinessLogsOnlyChangesWithTheReasons(t *testing.T) {
 }
 
 func TestOperationsKeepTheirMethods(t *testing.T) {
-	server := NewServer(nil, nil, time.Second)
+	server := newServer(t, Options{Checks: nil, ReadinessTimeout: time.Second})
 	for _, path := range []string{"/healthz", "/readyz"} {
 		if rec := serve(t, server, http.MethodHead, path); rec.Code != http.StatusOK {
 			t.Fatalf("HEAD %s = %d, want 200 (GET routes answer HEAD)", path, rec.Code)

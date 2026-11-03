@@ -75,6 +75,9 @@ api:
   # connection, like the collector's: a rotation needs no restart.
   credentials:
     existingSecret: heartbeat-api-credentials
+  # The public origin of the ingress in front of the API: logins and every
+  # other change must come from a page on it.
+  siteOrigin: https://heartbeat.example.internal
   postgres:
     host: heartbeat.<id>.<region>.rds.amazonaws.com
     database: heartbeat

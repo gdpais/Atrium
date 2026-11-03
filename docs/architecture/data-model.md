@@ -5,12 +5,13 @@ inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
 The schema is defined by the migrations in [`db/migrations`](../../db/migrations)
-(`0001_foundations`, then `0002_audit_outbox`), which are authoritative. If this
+(`0001_foundations`, `0002_audit_outbox`, then `0003_login_roles`), which are authoritative. If this
 page and the migrations disagree, the migrations win; please fix this page.
 
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
 > writes `users`, `user_roles` and `audit_outbox` so far, through
-> `api users create-admin`; the other tables wait for its later endpoints. The
+> `api users create-admin` and logins (`users.last_login_at`, upgraded
+> password hashes); the other tables wait for its later endpoints. The
 > DB collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
@@ -309,8 +310,10 @@ PHC string format with its parameters; null for a user without one
 ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)). Emails are
 stored in lower case, and `users_email_lower_uq` (`unique (lower(email))`) keeps
 one user per address in any case, whoever writes the row. Migration `0002` adds the `admin` role, which
-`api users create-admin` grants; the others come with the code that checks
-them [4.2].
+`api users create-admin` grants, and `0003` adds `operator` and `viewer`.
+They rank `viewer` < `operator` < `admin`, and each API operation declares
+the least one it needs ([who may call what](../reference/metrics-and-endpoints.md#logging-in-and-sessions)).
+A login sets `users.last_login_at`. Sessions are not here: they live in Redis.
 
 ### Audit outbox
 

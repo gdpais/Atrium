@@ -25,6 +25,13 @@
 //	HEARTBEAT_API_REDIS_CREDENTIAL_REF     credential reference of the login (default "secret/api-redis")
 //	HEARTBEAT_API_AUDIT_ENDPOINT           OTLP/HTTP base URL audit records are sent to, such as
 //	                                       http://otel-collector:4318 (default: none; they wait in the outbox)
+//	HEARTBEAT_API_SITE_ORIGIN              origin unsafe requests must come from, such as
+//	                                       https://heartbeat.example.com (default: none; they are all refused)
+//	HEARTBEAT_API_SESSION_IDLE_TIMEOUT     a session ends after this long without a request (default 8h)
+//	HEARTBEAT_API_SESSION_MAX_AGE          a session ends this long after login however active (default 168h)
+//	HEARTBEAT_API_TRUSTED_PROXIES          comma-separated addresses or CIDRs of proxies whose
+//	                                       X-Forwarded-For names the client (default: none)
+//	HEARTBEAT_API_SHUTDOWN_DELAY           how long to serve, unready, before draining at shutdown (default 5s)
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
@@ -39,6 +46,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/signal"
@@ -49,6 +57,7 @@ import (
 	"time"
 
 	"heartbeat/apps/api/internal/app"
+	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
@@ -71,8 +80,17 @@ const (
 	envRedisTLS              = "HEARTBEAT_API_REDIS_TLS"
 	envRedisCredentialRef    = "HEARTBEAT_API_REDIS_CREDENTIAL_REF"
 	envAuditEndpoint         = "HEARTBEAT_API_AUDIT_ENDPOINT"
+	envSiteOrigin            = "HEARTBEAT_API_SITE_ORIGIN"
+	envSessionIdleTimeout    = "HEARTBEAT_API_SESSION_IDLE_TIMEOUT"
+	envSessionMaxAge         = "HEARTBEAT_API_SESSION_MAX_AGE"
+	envTrustedProxies        = "HEARTBEAT_API_TRUSTED_PROXIES"
+	envShutdownDelay         = "HEARTBEAT_API_SHUTDOWN_DELAY"
 	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
 )
+
+// maxShutdownDelay bounds HEARTBEAT_API_SHUTDOWN_DELAY: the pod's
+// termination grace period must cover it and the drain after it.
+const maxShutdownDelay = time.Minute
 
 // errUsage marks a command line that names no command.
 var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password`)
@@ -170,7 +188,85 @@ func loadConfig() (app.Config, error) {
 	if cfg.AuditEndpoint, err = auditEndpoint(os.Getenv(envAuditEndpoint)); err != nil {
 		return app.Config{}, fmt.Errorf("%s: %w", envAuditEndpoint, err)
 	}
+	if cfg.Site, err = siteOrigin(os.Getenv(envSiteOrigin)); err != nil {
+		return app.Config{}, fmt.Errorf("%s: %w", envSiteOrigin, err)
+	}
+	if cfg.SessionIdleTimeout, err = duration(envSessionIdleTimeout, auth.DefaultIdleTimeout, time.Minute, 0); err != nil {
+		return app.Config{}, err
+	}
+	if cfg.SessionMaxAge, err = duration(envSessionMaxAge, auth.DefaultMaxAge, time.Minute, 0); err != nil {
+		return app.Config{}, err
+	}
+	if cfg.SessionIdleTimeout > cfg.SessionMaxAge {
+		return app.Config{}, fmt.Errorf("%s (%s) is longer than %s (%s): want it at most as long",
+			envSessionIdleTimeout, cfg.SessionIdleTimeout, envSessionMaxAge, cfg.SessionMaxAge)
+	}
+	if cfg.TrustedProxies, err = trustedProxies(os.Getenv(envTrustedProxies)); err != nil {
+		return app.Config{}, fmt.Errorf("%s: %w", envTrustedProxies, err)
+	}
+	if cfg.ShutdownDelay, err = duration(envShutdownDelay, 5*time.Second, 0, maxShutdownDelay); err != nil {
+		return app.Config{}, err
+	}
 	return cfg, nil
+}
+
+// siteOrigin checks the site's origin and writes it as a browser writes the
+// Origin header: scheme and host in lower case, without a default port or a
+// trailing slash. Empty stays empty.
+func siteOrigin(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	u, err := url.Parse(value)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
+		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
+		return "", fmt.Errorf("%q: want the site's origin, such as https://heartbeat.example.com, without a path", value)
+	}
+	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	if port := u.Port(); (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		host = strings.TrimSuffix(host, ":"+port)
+	}
+	return scheme + "://" + host, nil
+}
+
+// duration reads a Go duration such as 8h or 30m from key, fallback when
+// unset, and fails outside [least, most]; most 0 means no upper bound.
+func duration(key string, fallback, least, most time.Duration) (time.Duration, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil || d < least || (most > 0 && d > most) {
+		bounds := fmt.Sprintf("at least %s", least)
+		if most > 0 {
+			bounds = fmt.Sprintf("from %s to %s", least, most)
+		}
+		return 0, fmt.Errorf("%s %q: want a duration such as %s, %s", key, value, fallback, bounds)
+	}
+	return d, nil
+}
+
+// trustedProxies reads a comma-separated list of addresses and CIDRs; an
+// address stands for itself alone.
+func trustedProxies(value string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(item); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(item)
+		if err != nil {
+			return nil, fmt.Errorf("%q: want IP addresses or CIDRs, such as 10.0.0.0/8, separated by commas", item)
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
+	}
+	return prefixes, nil
 }
 
 // auditEndpoint checks an OTLP/HTTP base URL, and drops a /v1/logs the

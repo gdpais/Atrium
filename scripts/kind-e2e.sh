@@ -560,12 +560,19 @@ pass "the API's logs in Loki, up{job=\"api\"} 1 with its request metrics, and it
 # ----------------------------------------------------------------------------
 step "an audit record reaches Loki through the Collector's logs pipeline"
 # The first admin, made the documented way: the password on the standard
-# input of `kubectl exec -i`, never on a command line. The command logs its
-# audit record's id; the API's drainer sends the record to the Collector's
-# 4318, the pipeline whose queue is on disk (ADR 0016), and Loki keeps it
-# under service_name heartbeat-api, outside Heartbeat's own logs.
-created=$(openssl rand -hex 16 | k -n "$NAMESPACE" exec -i "$(api_pod)" -c api -- \
-	/app/api users create-admin --email kind-e2e-admin@example.com 2>&1) ||
+# input of `kubectl exec -i`, never on a command line. It stays in a file for
+# the login step below. The command logs its audit record's id; the API's
+# drainer sends the record to the Collector's 4318, the pipeline whose queue
+# is on disk (ADR 0016), and Loki keeps it under service_name heartbeat-api,
+# outside Heartbeat's own logs.
+admin_email=kind-e2e-admin@example.com
+admin_password=$WORK/admin-password
+(
+	umask 077
+	openssl rand -hex 16 >"$admin_password"
+)
+created=$(k -n "$NAMESPACE" exec -i "$(api_pod)" -c api -- \
+	/app/api users create-admin --email "$admin_email" <"$admin_password" 2>&1) ||
 	fail "api users create-admin failed: $created"
 record_id=$(printf '%s\n' "$created" | sed -n 's/.*"audit_record_id":"\([^"]*\)".*/\1/p' | head -n 1)
 [ -n "$record_id" ] || fail "api users create-admin logged no audit_record_id: $created"
@@ -575,6 +582,61 @@ loki_query "$audit_query" | jq -e '[.data.result[].values[][1] | fromjson | sele
 	fail "the audit record in Loki is not the user's creation: $(loki_query "$audit_query" | jq -c '.data.result[0].values[0][1]')"
 wait_for 60 "the audit outbox empty" outbox_empty
 pass "audit record $record_id (user create) in Loki under service_name=heartbeat-api; the outbox is empty"
+
+# ----------------------------------------------------------------------------
+step "the admin logs in, reads the session and logs out, from the site's origin"
+# As a browser would, through `kubectl port-forward` to the API pod, which
+# NetworkPolicy does not filter. The chart sets the origin unsafe requests
+# must come from (api.siteOrigin); one from elsewhere is refused before the
+# password is checked. The password and the session cookie stay in files,
+# never on a command line.
+site=$(k -n "$NAMESPACE" get deployment api -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="HEARTBEAT_API_SITE_ORIGIN")].value}')
+[ -n "$site" ] || fail "the API has no HEARTBEAT_API_SITE_ORIGIN, so nobody can log in"
+kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward.log" 2>&1 &
+port_forward_pid=$!
+wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward.log"
+api_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/api-forward.log" | head -n 1)
+(
+	umask 077
+	jq -n --arg email "$admin_email" --rawfile password "$admin_password" \
+		'{email: $email, password: ($password | rtrimstr("\n"))}' >"$WORK/login.json"
+)
+# api_call <method> <path> [curl options]: the HTTP status; the body is in
+# $WORK/api-body.
+api_call() {
+	method=$1 path=$2
+	shift 2
+	curl -sS -o "$WORK/api-body" -w '%{http_code}' --max-time 10 -X "$method" "$@" "http://127.0.0.1:$api_port$path"
+}
+code=$(api_call POST /api/v1/session -H 'Origin: https://elsewhere.example' -H 'Content-Type: application/json' --data "@$WORK/login.json")
+[ "$code" = 403 ] || fail "a login from another origin returned $code, want 403"
+code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
+[ "$code" = 201 ] || fail "the admin's login returned $code: $(cat "$WORK/api-body")"
+grep -qiE '^set-cookie: __Host-heartbeat_session=[^;]+; Path=/; Max-Age=[0-9]+; HttpOnly; Secure; SameSite=Lax' "$WORK/login-headers" ||
+	fail "the session cookie is not __Host-, HttpOnly, Secure and SameSite=Lax: $(grep -i '^set-cookie:' "$WORK/login-headers" | sed 's/=[^;]*;/=<token>;/')"
+(
+	umask 077
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+)
+code=$(api_call GET /api/v1/session -H "@$WORK/session-header")
+[ "$code" = 200 ] || fail "GET /api/v1/session with the cookie returned $code: $(cat "$WORK/api-body")"
+jq -e --arg email "$admin_email" '.user.email == $email and .user.roles == ["admin"]' "$WORK/api-body" >/dev/null ||
+	fail "GET /api/v1/session is not the admin's session: $(cat "$WORK/api-body")"
+session_id=$(jq -r .id "$WORK/api-body")
+code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
+[ "$code" = 204 ] || fail "the logout returned $code: $(cat "$WORK/api-body")"
+code=$(api_call GET /api/v1/session -H "@$WORK/session-header")
+[ "$code" = 401 ] || fail "the session still answers $code after the logout, want 401"
+kill "$port_forward_pid" 2>/dev/null || true
+port_forward_pid=
+# The login and the logout reach Loki as audit records of the session.
+session_query="{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$session_id\""
+session_audited() {
+	loki_query "$session_query" | jq -e --arg id "$session_id" \
+		'[.data.result[].values[][1] | fromjson | select(.entity_type == "session" and .entity_id == $id) | .action] | sort == ["login", "logout"]'
+}
+wait_for 120 "the session's login and logout records in Loki" session_audited
+pass "login from $site set the __Host- cookie; session $session_id is the admin's; logout ended it (401 after); both audited in Loki"
 
 # ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"

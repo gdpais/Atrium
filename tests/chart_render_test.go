@@ -97,6 +97,8 @@ type chartProfile struct {
 	// apiDeps is where the API must find PostgreSQL and Redis; nil means the
 	// bundled postgresql and valkey, without TLS.
 	apiDeps *apiDependencies
+	// apiSite is the API's HEARTBEAT_API_SITE_ORIGIN; empty means unset.
+	apiSite string
 	// engineExtraPeers are the peers the bundled postgresql and valkey admit
 	// besides the API, by engine, in peerString form.
 	engineExtraPeers map[string][]string
@@ -210,6 +212,7 @@ var chartProfiles = []chartProfile{
 	{
 		name:     "kind",
 		values:   []string{"kind.yaml"},
+		apiSite:  "http://localhost:8081",
 		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
 		apiPeers: []string{bundledPrometheusPeer},
 		// The host through the loopback NodePort; pods stay limited to Prometheus.
@@ -220,6 +223,7 @@ var chartProfiles = []chartProfile{
 	{
 		name:           "kind-minimal",
 		values:         []string{"kind.yaml", "minimal.yaml"},
+		apiSite:        "http://localhost:8081",
 		present:        slices.Concat([]string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "NetworkPolicy/db-collector"}, apiObjects),
 		apiPeers:       []string{bundledPrometheusPeer},
 		absent:         []string{"StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue"},
@@ -232,6 +236,7 @@ var chartProfiles = []chartProfile{
 	{
 		name:              "kind-sqlserver-dev",
 		values:            []string{"kind.yaml", "sqlserver-dev.yaml"},
+		apiSite:           "http://localhost:8081",
 		present:           []string{"StatefulSet/db-collector", "NetworkPolicy/db-collector"},
 		collectorPeers:    []string{bundledPrometheusPeer, "ip 0.0.0.0/0 except 10.244.0.0/16"},
 		collectorEgress:   kindCollectorEgress,
@@ -246,6 +251,7 @@ var chartProfiles = []chartProfile{
 	{
 		name:    "production-example",
 		values:  []string{"production.example.yaml"},
+		apiSite: "https://heartbeat.example.internal",
 		present: []string{"StatefulSet/db-collector", "Ingress/grafana", "NetworkPolicy/db-collector", "Deployment/api", "NetworkPolicy/api"},
 		// RDS and ElastiCache instead of the bundled engines (ADR 0015).
 		absent:   bundledEngineObjects,
@@ -446,6 +452,23 @@ var chartProfiles = []chartProfile{
 		name:      "collector-memory-limit-unparsable",
 		set:       []string{"dbCollector.resources.limits.memory=256m"},
 		wantError: "dbCollector.resources.limits.memory",
+	},
+	{
+		// A longer shutdown delay, with the grace period raised to cover it.
+		name:           "api-longer-shutdown-delay",
+		inline:         "api:\n  extraEnv:\n    - name: HEARTBEAT_API_SHUTDOWN_DELAY\n      value: 20s\n  terminationGracePeriodSeconds: 38\n",
+		present:        []string{"Deployment/api"},
+		collectorPeers: []string{bundledPrometheusPeer},
+	},
+	{
+		name:      "api-site-origin-with-path",
+		set:       []string{"api.siteOrigin=https://heartbeat.example.com/app"},
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "api-site-origin-without-scheme",
+		set:       []string{"api.siteOrigin=heartbeat.example.com"},
+		wantError: "values don't meet the specifications of the schema",
 	},
 	{
 		// Go rejects SI units such as M in GOMEMLIMIT.
@@ -1209,6 +1232,7 @@ func TestChartProfiles(t *testing.T) {
 			checkCollectorMissingAlert(t, objects)
 			checkAPIMissingAlert(t, objects)
 			checkAPI(t, objects, profile.apiDeps)
+			checkAPISessions(t, objects, profile.apiSite)
 			checkAPINetworkPolicy(t, objects, profile.apiPeers)
 			checkBundledEngines(t, objects, profile.engineExtraPeers)
 		})

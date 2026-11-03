@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "actor": {
-      "description": "Who made the change: a logged-in user, or an administrative command run in an API container.",
+      "description": "Who made the change: a logged-in user, an administrative command run in an API container, or a client that is not logged in, such as one whose login failed.",
       "oneOf": [
         {
           "type": "object",
@@ -44,16 +44,25 @@
             "command": {"type": "string", "minLength": 1},
             "host": {"description": "The host the command ran on: the pod's name.", "type": "string"}
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "address"],
+          "properties": {
+            "type": {"const": "client"},
+            "address": {"description": "The client's IP address, behind trusted proxies the one they forwarded.", "type": "string", "minLength": 1}
+          }
         }
       ]
     },
     "action": {
-      "description": "What was done, such as create.",
+      "description": "What was done, such as create, login, logout or login_failed.",
       "type": "string",
       "pattern": "^[a-z][a-z_]*$"
     },
     "entity_type": {
-      "description": "What the change is about, such as user.",
+      "description": "What the change is about, such as user or session.",
       "type": "string",
       "pattern": "^[a-z][a-z_]*$"
     },

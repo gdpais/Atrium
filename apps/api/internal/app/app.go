@@ -9,11 +9,13 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"time"
 
@@ -21,7 +23,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"heartbeat/apps/api/internal/audit"
+	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/httpapi"
+	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
@@ -42,6 +46,21 @@ type Config struct {
 	// Collector's logs receiver with the persistent queue, such as
 	// http://otel-collector:4318. Empty leaves them in the outbox.
 	AuditEndpoint string
+	// Site is the origin unsafe methods must come from, such as
+	// https://heartbeat.example.com. Empty refuses every unsafe method, so
+	// nobody can log in.
+	Site string
+	// SessionIdleTimeout and SessionMaxAge are the session lifetimes; zero
+	// takes auth.DefaultIdleTimeout and auth.DefaultMaxAge.
+	SessionIdleTimeout, SessionMaxAge time.Duration
+	// TrustedProxies are the peers, such as an ingress controller, whose
+	// X-Forwarded-For header names the client: for the failed-login limits
+	// per address and for audit records.
+	TrustedProxies []netip.Prefix
+	// ShutdownDelay is how long the API keeps serving once shutdown begins,
+	// with GET /readyz answering 503, before it stops accepting
+	// connections: time for its Service to stop sending it requests.
+	ShutdownDelay time.Duration
 	// CredentialsDir holds one file per credential reference, normally the
 	// mounted credentials Secret, read on every new connection; references
 	// without a file come from the environment ([credentials.Files]).
@@ -57,6 +76,9 @@ type Config struct {
 type timeouts struct {
 	// readiness bounds one GET /readyz, every check included.
 	readiness time.Duration
+	// shutdownDelay is how long the API serves, unready, once shutdown has
+	// begun.
+	shutdownDelay time.Duration
 	// httpShutdown bounds draining in-flight HTTP requests.
 	httpShutdown time.Duration
 }
@@ -76,11 +98,12 @@ func defaultTimeouts() timeouts {
 // down, and GET /readyz answers 503 until both work. It fails at once only
 // on settings that cannot work.
 //
-// Shutdown is synchronous: after ctx is cancelled, Run stops accepting
-// connections, waits up to 10 seconds for in-flight requests to finish (see
-// defaultTimeouts), closes the connections still open, then the PostgreSQL
-// and Redis connections, and only then returns. Run returns nil on a clean
-// shutdown.
+// Shutdown is synchronous: after ctx is cancelled, GET /readyz answers 503
+// and Run keeps serving for cfg.ShutdownDelay, so that clients sent to it
+// meanwhile are served; then it stops accepting connections, waits up to 10
+// seconds for in-flight requests to finish (see defaultTimeouts), closes the
+// connections still open, then the PostgreSQL and Redis connections, and
+// only then returns. Run returns nil on a clean shutdown.
 func Run(ctx context.Context, cfg Config) error {
 	deps, err := newRunDeps(cfg)
 	if err != nil {
@@ -106,15 +129,18 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	if err != nil {
 		return runDeps{}, err
 	}
+	t := defaultTimeouts()
+	t.shutdownDelay = cfg.ShutdownDelay
 	return runDeps{
 		cfg:            cfg,
 		logger:         logger,
 		registry:       registry,
 		requestMetrics: requestMetrics,
 		checks:         deps.checks,
+		auth:           deps.auth,
 		drain:          deps.drain,
 		closeDeps:      deps.close,
-		timeouts:       defaultTimeouts(),
+		timeouts:       t,
 	}, nil
 }
 
@@ -128,6 +154,8 @@ const (
 type connected struct {
 	// checks are the readiness checks of PostgreSQL and Redis.
 	checks []httpapi.Check
+	// auth logs users in and authenticates their sessions.
+	auth *auth.Service
 	// drain delivers audit records until its context ends; nil without an
 	// audit endpoint.
 	drain func(context.Context)
@@ -136,9 +164,9 @@ type connected struct {
 }
 
 // connect creates the PostgreSQL pool and the Redis client, without
-// connecting, registers their pool metrics and the audit outbox's, and
-// returns their readiness checks, the audit drainer, and a function that
-// closes both.
+// connecting, registers their pool metrics, the audit outbox's and the
+// logins', and returns their readiness checks, the login service, the audit
+// drainer, and a function that closes both.
 //
 // The PostgreSQL check passes when a query reaches the database and its
 // schema is at least the newest migration this build embeds, so a replica
@@ -160,10 +188,12 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		return connected{}, fmt.Errorf("redis: %w", err)
 	}
 	delivered := audit.NewDeliveredCounter()
+	attempts := auth.NewAttemptsCounter()
 	for _, collector := range []prometheus.Collector{
 		poolCollector{postgres: pool.Stat, redis: client.PoolStats},
 		audit.OutboxCollector{Queries: store.New(pool)},
 		delivered,
+		attempts,
 	} {
 		if err := registerer.Register(collector); err != nil {
 			pool.Close()
@@ -177,11 +207,18 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		"postgresql_schema_version", want,
 		"redis_addr", cfg.Redis.Addr, "redis_tls", cfg.Redis.TLS)
 	schema := store.SchemaChecker{Queries: store.New(pool), Want: want}
+	sessions := &auth.Sessions{
+		Redis:       client,
+		IdleTimeout: cmp.Or(cfg.SessionIdleTimeout, auth.DefaultIdleTimeout),
+		MaxAge:      cmp.Or(cfg.SessionMaxAge, auth.DefaultMaxAge),
+	}
 	result := connected{
 		checks: []httpapi.Check{
 			{Name: checkPostgreSQL, Run: schema.Check},
 			{Name: checkRedis, Run: func(ctx context.Context) error { return redis.Ping(ctx, client) }},
 		},
+		auth: auth.NewService(pool, password.NewHasher(password.DefaultParams, password.DefaultConcurrency),
+			sessions, &auth.Limits{Redis: client}, attempts, logger),
 		close: func() {
 			pool.Close()
 			if err := client.Close(); err != nil {
@@ -217,6 +254,8 @@ type runDeps struct {
 	// checks are the readiness checks GET /readyz runs: PostgreSQL and
 	// Redis in production.
 	checks []httpapi.Check
+	// auth, when set, serves the session operations.
+	auth *auth.Service
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
@@ -260,8 +299,30 @@ func run(ctx context.Context, deps runDeps) error {
 		}()
 	}
 
-	api := httpapi.NewServer(logger, deps.checks, deps.timeouts.readiness)
-	server := &http.Server{Handler: routes(deps.registry, deps.requestMetrics, api), ReadHeaderTimeout: 10 * time.Second}
+	opts := httpapi.Options{
+		Logger:           logger,
+		Checks:           deps.checks,
+		ReadinessTimeout: deps.timeouts.readiness,
+		Site:             deps.cfg.Site,
+		TrustedProxies:   deps.cfg.TrustedProxies,
+	}
+	if deps.auth != nil {
+		opts.Auth = deps.auth
+	}
+	api, err := httpapi.NewServer(opts)
+	if err != nil {
+		_ = listener.Close()
+		return err
+	}
+	if deps.cfg.Site == "" {
+		logger.Warn("no site origin is set, so every unsafe request is refused and nobody can log in")
+	}
+	server := &http.Server{
+		Handler:           routes(deps.registry, deps.requestMetrics, api),
+		ReadHeaderTimeout: 10 * time.Second,
+		// Bodies are small JSON; a slow one ties up a connection.
+		ReadTimeout: 30 * time.Second,
+	}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- server.Serve(listener) }()
 	logger.Info("http server listening", "addr", listener.Addr().String())
@@ -270,12 +331,35 @@ func run(ctx context.Context, deps runDeps) error {
 	select {
 	case <-ctx.Done():
 		logger.Info("shutdown requested")
+		runErr = delayShutdown(api, serveErr, logger, deps.timeouts.shutdownDelay)
 	case err := <-serveErr:
 		logger.Error("http server failed", "error", err)
 		runErr = err
 	}
 	shutdown(server, logger, deps.timeouts.httpShutdown)
 	return runErr
+}
+
+// delayShutdown makes the API unready and keeps it serving for delay: a
+// rolling update sends no new requests to a pod once its readiness fails,
+// but the Service's endpoints take a few seconds to drop it, and a request
+// sent meanwhile would be refused if the API stopped listening at once. It
+// returns early, with the error, if the HTTP server fails.
+func delayShutdown(api *httpapi.Server, serveErr <-chan error, logger *slog.Logger, delay time.Duration) error {
+	api.Drain()
+	if delay <= 0 {
+		return nil
+	}
+	logger.Info("shutdown: serving unready before draining", "delay", delay.String())
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case err := <-serveErr:
+		logger.Error("http server failed", "error", err)
+		return err
+	}
 }
 
 // shutdown stops accepting connections and waits for in-flight requests to

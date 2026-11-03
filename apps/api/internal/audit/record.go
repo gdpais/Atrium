@@ -33,14 +33,25 @@ import (
 // that entity too.
 const (
 	EntityUser = "user"
+	// EntitySession is a login session. Its ID is the session's ID, which
+	// identifies it but cannot log in, never its token.
+	EntitySession = "session"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser}
+var EntityTypes = []string{EntityUser, EntitySession}
 
 // Actions.
 const (
 	ActionCreate = "create"
+	// ActionLogin starts a session; its record's after is the session.
+	ActionLogin = "login"
+	// ActionLogout ends one; its record's before is the session.
+	ActionLogout = "logout"
+	// ActionLoginFailed is a refused login (ADR 0016 §1): its entity ID
+	// identifies the attempt, since no session exists, and its after says
+	// which email was tried and why it was refused, never the password.
+	ActionLoginFailed = "login_failed"
 )
 
 // Actor types.
@@ -51,6 +62,9 @@ const (
 	// as `api users create-admin`: whoever could run it, by the command and
 	// the host (the pod) it ran on.
 	ActorCLI = "cli"
+	// ActorClient is a client that is not logged in, by its address, such
+	// as one whose login failed.
+	ActorClient = "client"
 )
 
 // Actor is who made a change.
@@ -60,6 +74,7 @@ type Actor struct {
 	Email   string `json:"email,omitempty"`
 	Command string `json:"command,omitempty"`
 	Host    string `json:"host,omitempty"`
+	Address string `json:"address,omitempty"`
 }
 
 // UserActor is a logged-in user.
@@ -72,12 +87,18 @@ func CLIActor(command, host string) Actor {
 	return Actor{Type: ActorCLI, Command: command, Host: host}
 }
 
+// ClientActor is a client that is not logged in, at address.
+func ClientActor(address string) Actor {
+	return Actor{Type: ActorClient, Address: address}
+}
+
 func (a Actor) validate() error {
 	switch {
-	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "":
-	case a.Type == ActorCLI && a.Command != "" && a.UserID == "" && a.Email == "":
+	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "" && a.Address == "":
+	case a.Type == ActorCLI && a.Command != "" && a.UserID == "" && a.Email == "" && a.Address == "":
+	case a.Type == ActorClient && a.Address != "" && a.UserID == "" && a.Email == "" && a.Command == "" && a.Host == "":
 	default:
-		return fmt.Errorf("actor %+v: want a user with a UUID and an email, or a command", a)
+		return fmt.Errorf("actor %+v: want a user with a UUID and an email, a command, or a client address", a)
 	}
 	return nil
 }

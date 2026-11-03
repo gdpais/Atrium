@@ -1,18 +1,22 @@
 // Package password hashes local users' passwords with argon2id (ADR 0013
 // §7), in the PHC string format, which carries the parameters with the hash
-// so they can be raised later and old hashes upgraded at the next login.
+// so they can be raised later and old hashes upgraded at the next login:
+// [Hasher.Verify] says when a hash was made with other parameters.
 //
-// Each hash takes [Params.MemoryKiB] of memory for the time it runs, so a
-// [Hasher] runs at most a fixed number at once and makes the others wait:
-// a burst of logins queues instead of running the pod out of memory.
+// Each hash, and each verification, takes [Params.MemoryKiB] of memory for
+// the time it runs, so a [Hasher] runs at most a fixed number at once and
+// makes the others wait: a burst of logins queues instead of running the
+// pod out of memory.
 package password
 
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -90,19 +94,101 @@ func Check(password string) error {
 // standard base64. It waits for a free slot, or fails when ctx ends first.
 // It does not check the password's length; [Check] does.
 func (h *Hasher) Hash(ctx context.Context, password string) (string, error) {
-	select {
-	case h.slots <- struct{}{}:
-	case <-ctx.Done():
-		return "", fmt.Errorf("password: waiting to hash: %w", ctx.Err())
-	}
-	defer func() { <-h.slots }()
 	salt := make([]byte, h.params.SaltBytes)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("password: salt: %w", err)
 	}
 	p := h.params
-	key := argon2.IDKey([]byte(password), salt, p.Time, p.MemoryKiB, p.Threads, p.KeyBytes)
+	key, err := h.derive(ctx, password, salt, p)
+	if err != nil {
+		return "", err
+	}
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf(phcFormat, argon2.Version, p.MemoryKiB, p.Time, p.Threads,
 		b64.EncodeToString(salt), b64.EncodeToString(key)), nil
+}
+
+// Bounds on the parameters Verify accepts in a stored hash, so that a hash
+// edited in the database cannot make one login take gigabytes or minutes.
+// They leave room to raise DefaultParams.
+const (
+	maxTime      = 16
+	maxMemoryKiB = 256 * 1024
+	minSaltBytes = 8
+	minKeyBytes  = 16
+	maxKeyBytes  = 128
+)
+
+// ErrMalformedHash reports a stored hash Verify cannot read.
+var ErrMalformedHash = errors.New("password: not an argon2id PHC string this build can check")
+
+// Verify reports whether password matches hash, a PHC string as [Hasher.Hash]
+// writes, and whether hash should be replaced with a new one because it was
+// made with other parameters than the Hasher's. It waits for a slot as Hash
+// does, since checking costs what hashing with the hash's own parameters
+// costs. A hash it cannot read is [ErrMalformedHash], not a mismatch; a
+// password longer than [MaxBytes] is [ErrTooLong], checked before any work.
+func (h *Hasher) Verify(ctx context.Context, password, hash string) (match, rehash bool, err error) {
+	if len(password) > MaxBytes {
+		return false, false, ErrTooLong
+	}
+	p, salt, key, err := parse(hash)
+	if err != nil {
+		return false, false, err
+	}
+	got, err := h.derive(ctx, password, salt, p)
+	if err != nil {
+		return false, false, err
+	}
+	if subtle.ConstantTimeCompare(got, key) != 1 {
+		return false, false, nil
+	}
+	return true, p != h.params, nil
+}
+
+// derive runs argon2id once a slot is free, or fails when ctx ends first.
+func (h *Hasher) derive(ctx context.Context, password string, salt []byte, p Params) ([]byte, error) {
+	select {
+	case h.slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("password: waiting to hash: %w", ctx.Err())
+	}
+	defer func() { <-h.slots }()
+	return argon2.IDKey([]byte(password), salt, p.Time, p.MemoryKiB, p.Threads, p.KeyBytes), nil
+}
+
+// parse reads a PHC string as Hash writes it, within the bounds above.
+func parse(hash string) (Params, []byte, []byte, error) {
+	fields := strings.Split(hash, "$")
+	if len(fields) != 6 || fields[0] != "" || fields[1] != "argon2id" {
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	var version int
+	var p Params
+	if n, err := fmt.Sscanf(fields[2], "v=%d", &version); err != nil || n != 1 || version != argon2.Version {
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	if n, err := fmt.Sscanf(fields[3], "m=%d,t=%d,p=%d", &p.MemoryKiB, &p.Time, &p.Threads); err != nil || n != 3 ||
+		fmt.Sprintf("m=%d,t=%d,p=%d", p.MemoryKiB, p.Time, p.Threads) != fields[3] {
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	b64 := base64.RawStdEncoding
+	salt, err := b64.DecodeString(fields[4])
+	if err != nil {
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	key, err := b64.DecodeString(fields[5])
+	if err != nil {
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	p.SaltBytes, p.KeyBytes = len(salt), uint32(len(key))
+	switch {
+	case p.Time < 1 || p.Time > maxTime,
+		p.Threads < 1,
+		p.MemoryKiB < 8*uint32(p.Threads) || p.MemoryKiB > maxMemoryKiB,
+		len(salt) < minSaltBytes,
+		len(key) < minKeyBytes || len(key) > maxKeyBytes:
+		return Params{}, nil, nil, ErrMalformedHash
+	}
+	return p, salt, key, nil
 }

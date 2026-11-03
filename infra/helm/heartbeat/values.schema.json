@@ -394,6 +394,11 @@
             }
           }
         },
+        "siteOrigin": {
+          "type": "string",
+          "description": "The origin browsers reach the API at, scheme and host without a path, such as https://heartbeat.example.com; unsafe methods need an Origin header equal to it. Empty refuses them all.",
+          "pattern": "^$|^https?://[^/?#@ ]+/?$"
+        },
         "terminationGracePeriodSeconds": {
           "type": "integer",
           "minimum": 0
@@ -401,7 +406,7 @@
         "service": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The api Service, ClusterIP: the API has no authentication yet [4.2].",
+          "description": "The api Service, ClusterIP; an ingress in front of it serves siteOrigin.",
           "properties": {
             "port": {
               "type": "integer",

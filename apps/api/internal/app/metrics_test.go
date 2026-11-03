@@ -23,7 +23,7 @@ func TestRequestMetricsLabelRequestsByRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	failing := httpapi.Check{Name: "postgres", Run: func(context.Context) error { return errors.New("down") }}
-	handler := routes(registry, metrics, httpapi.NewServer(nil, []httpapi.Check{failing}, time.Second))
+	handler := routes(registry, metrics, mustServer(t, httpapi.Options{Checks: []httpapi.Check{failing}, ReadinessTimeout: time.Second}))
 	for _, req := range []struct{ method, path string }{
 		{http.MethodGet, "/healthz"},
 		{http.MethodGet, "/healthz"},
@@ -59,4 +59,15 @@ heartbeat_api_http_requests_total{code="404",method="other",route="unmatched"} 1
 	if got, err := testutil.GatherAndCount(registry, MetricHTTPRequestDuration); err != nil || got != 7 {
 		t.Fatalf("%s has %d series (%v), want 7 (method and route pairs)", MetricHTTPRequestDuration, got, err)
 	}
+}
+
+// mustServer returns httpapi.NewServer(opts), and fails the test on its
+// error.
+func mustServer(t *testing.T, opts httpapi.Options) *httpapi.Server {
+	t.Helper()
+	server, err := httpapi.NewServer(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server
 }

@@ -369,7 +369,7 @@ and collector contracts are prerequisites, and its decisions are recorded
 (ADRs 0013–0017). Deep links [4.9] need YAML templates and datasources [8.1,
 9.3], which exist.
 
-Remaining work, in order, one pull request each: login and sessions [4.2] → users and roles [4.2] →
+Remaining work, in order, one pull request each: users and roles [4.2] →
 inventory [4.3] → telemetry sources [4.4] → database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
 applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
@@ -399,9 +399,9 @@ queue tests alone.
 - [x] When the chart deploys the API: set its telemetry environment variables as the db-collector's, add its Prometheus scrape job, admit it to the Collector's 4319 (and 4318, where its spans go), and check its logs, metrics and traces on kind ([ADR 0018](docs/architecture/decisions/0018-heartbeats-own-telemetry.md)); `HeartbeatServiceDown` covers the API, its pod missing included
 
 ### 4.2 Identity and access
-- [ ] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)). Hashing (`apps/api/internal/password`, with its concurrency cap) and `api users create-admin` are in [4.10]; login verifies and upgrades hashes
+- [x] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)). Hashing (`apps/api/internal/password`, with its concurrency cap) and `api users create-admin` are in [4.10]; `POST`, `GET` and `DELETE /api/v1/session` log in, show and end a `__Host-` cookie session, the login verifies and upgrades hashes, failed logins are limited per account and address, and logins, logouts and failures are audited ([sessions](docs/reference/metrics-and-endpoints.md#logging-in-and-sessions)); kind-e2e logs in through a port-forward
 - [ ] Implement users/roles/user_roles management
-- [ ] Add minimal admin/wallboard access model
+- [x] Add minimal admin/wallboard access model: roles `viewer` < `operator` < `admin` (migration 0003), each operation's least role declared with `security` in `openapi.yaml` and checked before it runs, with the `Origin` of unsafe requests; an operation that declares none stops the API at startup
 - [ ] Defer OIDC/SSO unless required early
 
 ### 4.3 Environment/application inventory
