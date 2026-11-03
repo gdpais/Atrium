@@ -298,7 +298,8 @@ func TestServiceSerialisesChangesThatCanLeaveNoAdmin(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	ctx := context.Background()
-	a := f.create(t, "a@example.com", "admin")
+	// a keeps viewer, so revoking admin is not refused as a's last role.
+	a := f.create(t, "a@example.com", "admin", "viewer")
 	f.create(t, "b@example.com", "admin")
 
 	for name, change := range map[string]func() error{
@@ -316,18 +317,18 @@ func TestServiceSerialisesChangesThatCanLeaveNoAdmin(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A failed test still gives the connection back to the pool,
+			// whose close waits for it.
+			defer func() { _ = tx.Rollback(ctx) }()
 			// As another such change takes it (LockAdminRole).
 			if _, err := tx.Exec(ctx, "select id from roles where name = 'admin' for no key update"); err != nil {
 				t.Fatal(err)
 			}
 			done := make(chan error, 1)
 			go func() { done <- change() }()
-			select {
-			case err := <-done:
-				_ = tx.Rollback(ctx)
-				t.Fatalf("the change finished (%v) while another held the admin role's lock", err)
-			case <-time.After(300 * time.Millisecond):
-			}
+			// It waits for the admin role's lock; without it, it would
+			// finish while another change holds it.
+			waitForLockWaiters(t, f.pool, 1, done)
 			if err := tx.Rollback(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -442,6 +443,14 @@ func TestServiceRoles(t *testing.T) {
 	if r := last[len(last)-1]; roles(r, "before") != "admin,operator" || roles(r, "after") != "operator" {
 		t.Fatalf("revoke record %v", r)
 	}
+	// bob has only operator now: revoking it would leave him none.
+	before := len(f.records(t, users.ActionRevokeRole))
+	if _, err := f.service.Revoke(ctx, admin, id, "operator"); !errors.Is(err, users.ErrLastRole) {
+		t.Fatalf("Revoke(last role) = %v, want ErrLastRole", err)
+	}
+	if got, _ := f.service.Get(ctx, id); strings.Join(got.Roles, ",") != "operator" || len(f.records(t, users.ActionRevokeRole)) != before {
+		t.Fatalf("a refused revoke changed the roles to %v or was audited", got.Roles)
+	}
 	if _, err := f.service.Grant(ctx, admin, id, "owner"); !errors.Is(err, users.ErrUnknownRole) {
 		t.Fatalf("Grant(owner) = %v, want ErrUnknownRole", err)
 	}
@@ -481,6 +490,7 @@ func TestServiceGrantDoesNotDeadlockWithTheAdminLock(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer func() { _ = hold.Rollback(ctx) }()
 			if _, err := hold.Exec(ctx, "select id from users where id = $1 for update", u.ID); err != nil {
 				t.Fatal(err)
 			}
@@ -489,9 +499,9 @@ func TestServiceGrantDoesNotDeadlockWithTheAdminLock(t *testing.T) {
 				_, err := f.service.Grant(ctx, admin, id, "admin")
 				grant <- err
 			}()
-			time.Sleep(200 * time.Millisecond)
+			waitForLockWaiters(t, f.pool, 1, grant)
 			go func() { change <- other(id) }()
-			time.Sleep(200 * time.Millisecond)
+			waitForLockWaiters(t, f.pool, 2, change)
 			if err := hold.Rollback(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -506,5 +516,33 @@ func TestServiceGrantDoesNotDeadlockWithTheAdminLock(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// waitForLockWaiters waits until n sessions of pool's database wait for a
+// lock, or until done delivers, which fails the test: what it waited for
+// ran without waiting for the lock.
+func waitForLockWaiters(t *testing.T, pool *pgxpool.Pool, n int, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var waiting int
+		err := pool.QueryRow(context.Background(),
+			"select count(*) from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'").Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= n {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("finished (%v) without waiting for the lock", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d sessions wait for a lock after 30s, want %d", waiting, n)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

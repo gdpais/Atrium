@@ -1015,6 +1015,9 @@ func TestLoginLosesToAConcurrentChange(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A failed test still gives the connection back to the pool,
+			// whose close waits for it.
+			defer func() { _ = tx.Rollback(ctx) }()
 			if _, err := tx.Exec(ctx, change, userID); err != nil {
 				t.Fatal(err)
 			}
@@ -1028,8 +1031,8 @@ func TestLoginLosesToAConcurrentChange(t *testing.T) {
 				done <- result{token, err}
 			}()
 			// The login reads the committed hash, checks it, then waits for
-			// the row; the change commits meanwhile.
-			time.Sleep(300 * time.Millisecond)
+			// the row; the change commits once it does.
+			waitForLockWaiters(t, f.pool, 1, nil)
 			if err := tx.Commit(ctx); err != nil {
 				t.Fatal(err)
 			}
@@ -1045,5 +1048,33 @@ func TestLoginLosesToAConcurrentChange(t *testing.T) {
 				t.Fatalf("failed-login record %s", r.After)
 			}
 		})
+	}
+}
+
+// waitForLockWaiters waits until n sessions of pool's database wait for a
+// lock, or until done delivers, which fails the test: what it waited for
+// ran without waiting for the lock.
+func waitForLockWaiters(t *testing.T, pool *pgxpool.Pool, n int, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var waiting int
+		err := pool.QueryRow(context.Background(),
+			"select count(*) from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'").Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= n {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("finished (%v) without waiting for the lock", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d sessions wait for a lock after 30s, want %d", waiting, n)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
