@@ -17,7 +17,7 @@ name: scenarios
 # (SCENARIO_ORDER in tools/patientzero/scripts/patientzero.sh); the journals
 # and the summary are kept as the run's artifact.
 #
-# Then the 48 hour backfill, about half an hour: a production-sized log in
+# Then the 48 hour backfill, about 20 minutes: a production-sized log in
 # patientzero_scale, read by a second collector from 48 hours back, and
 # every hour in Loki compared with the log's known answers
 # (tools/patientzero/README.md#in-loki). Its check is in the run's summary
@@ -41,8 +41,8 @@ jobs:
   scenarios:
     name: Every PatientZero scenario on kind
     runs-on: ubuntu-26.04
-    # The scenarios take about 2 h 20 min, the backfill at most its steps'
-    # 85 minutes.
+    # The scenarios take about 2 h 20 min, the backfill about 20 minutes and
+    # at most its steps' 85.
     timeout-minutes: 270
     # Two nightly runs never overlap. On a pull request ci.yml cancels the
     # older run, this job with it.
@@ -81,9 +81,9 @@ jobs:
           SCENARIOS: ${{ inputs.scenarios }}
         run: tools/patientzero/scripts/patientzero.sh scenarios
       # The backfill runs whenever the scenarios ran, passed or failed: it
-      # is a check of its own. Generating 9.8 M rows (3 GB) takes about a
-      # minute on a laptop; the runner's SQL Server is capped at 2 GB
-      # (SQLSERVER_MEMORY_LIMIT_MB) and pages its buffer pool.
+      # is a check of its own. Generating and measuring the log (up to
+      # 9.8 M rows, 3 GB) took 2.5 minutes on 2026-11-02, with the runner's
+      # SQL Server capped at 2 GB (SQLSERVER_MEMORY_LIMIT_MB).
       - name: Generate the production-sized log
         id: scale
         if: ${{ !cancelled() && steps.scenarios.outcome != 'skipped' }}
@@ -96,8 +96,8 @@ jobs:
         if: ${{ !cancelled() && steps.scale.outcome == 'success' }}
         timeout-minutes: 10
         run: make patientzero-scale-collect
-      # Catching up takes about 16 minutes, held to Loki's ingestion rate;
-      # the check waits up to SCALE_WAIT minutes for it.
+      # Catching up took 16.5 minutes, held to Loki's ingestion rate; the
+      # check waits up to SCALE_WAIT minutes for it.
       - name: Check the 48 hours in Loki against the known answers
         if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
         timeout-minutes: 55

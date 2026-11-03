@@ -130,7 +130,7 @@ branches as `gone`, ready for `git branch -d`.
 | `SQL Server probes` | When `services/db-collector`, its test scripts or `tools/patientzero` (outside its chart) change; also runs PatientZero's live test |
 | `Helm chart` | When the chart, its values, its tests, or PatientZero's chart or setup script change; lints, renders and checks PatientZero's chart too |
 | `kind end-to-end` | When a service (the db-collector, the API or the migrations it embeds), the chart or the kind setup changes |
-| `PatientZero scenarios` | On the release pull request only (release-please's branch, not its paths): every scenario and the 48 hour backfill on a fresh kind cluster, about three hours, through `.github/workflows/scenarios.yml` |
+| `PatientZero scenarios` | On the release pull request only (release-please's branch, not its paths): every scenario and the 48 hour backfill on a fresh kind cluster, under three hours, through `.github/workflows/scenarios.yml` |
 | `ci-ok` | Always. Passes only if every job did what the change detection asked for; the only required check |
 
 Any path the script does not list (`go.mod`, `internal/`, `packages/config-schema`,
@@ -184,7 +184,7 @@ one version covers every image and the chart. The rules and reasons are in
 the last release; only `feat`, `fix` and breaking changes make one. Review the
 entries, edit them in that pull request if needed, and merge it when you want
 to release. Its CI runs every PatientZero scenario and the 48 hour backfill
-as well, about three hours, and `ci-ok` waits for them: a tag cannot be
+as well, under three hours, and `ci-ok` waits for them: a tag cannot be
 moved or deleted, so a failing scenario must stop the release before it is
 tagged. release-please
 then tags the merge commit and creates the GitHub

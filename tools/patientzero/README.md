@@ -328,6 +328,12 @@ panel held a tenth of the limit:
 | Active users (5m), busiest | | | 598 |
 | Active sessions (5m), busiest | | | 627 |
 
+On 2026-11-02 the scenarios workflow ran it on CI, on the current export
+path (the db-collector waits for the Collector in the background): all 48
+hours matched again, Loki caught up in 16.5 minutes, and *Users affected*
+over 47 h held 2,629 series
+([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130)).
+
 *Users affected* grows with the range, up to the users who hit an error,
 at most the week's 4,829 at `SCALE=1`; it is the panel to watch on a larger
 installation (`SCALE`) or a longer range.

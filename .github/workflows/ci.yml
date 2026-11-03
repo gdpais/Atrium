@@ -10,7 +10,7 @@ name: ci
 # mistake cannot pass as green.
 #
 # The release pull request also runs every PatientZero scenario and the 48
-# hour backfill (scenarios.yml, about three hours), so no release is tagged
+# hour backfill (scenarios.yml, under three hours), so no release is tagged
 # while one fails. It is chosen by its branch, not its paths, so pushes to master
 # and manual runs of this workflow leave it out; scenarios.yml runs it nightly.
 #
