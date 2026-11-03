@@ -2,9 +2,13 @@ package probedefs
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
+	api "heartbeat/apps/api"
 	"heartbeat/internal/config"
 )
 
@@ -92,6 +96,51 @@ func TestQueryCheckIsTheCollectors(t *testing.T) {
 		}
 		if collectorErr != nil && apiErr != nil && !strings.HasSuffix(apiErr.Error(), collectorErr.Error()) {
 			t.Errorf("query %q: the API says %q, want the collector's reason %q", query, apiErr, collectorErr)
+		}
+	}
+}
+
+// The spec documents the bounds the service enforces: oapi-codegen does not
+// check them, so the two must not drift. timeout_ms's maximum follows the
+// collector's config.MaxProbeTimeout.
+func TestBoundsMatchTheSpec(t *testing.T) {
+	type property struct {
+		Pattern   string `yaml:"pattern"`
+		Minimum   int    `yaml:"minimum"`
+		Maximum   int    `yaml:"maximum"`
+		MaxLength int    `yaml:"maxLength"`
+	}
+	var doc struct {
+		Components struct {
+			Schemas map[string]struct {
+				Enum       []string            `yaml:"enum"`
+				Properties map[string]property `yaml:"properties"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	if err := yaml.Unmarshal(api.Spec, &doc); err != nil {
+		t.Fatal(err)
+	}
+	schemas := doc.Components.Schemas
+	if got := schemas["ProbeEngine"].Enum; !slices.Equal(got, Engines) {
+		t.Errorf("spec schema ProbeEngine enum = %v, want %v", got, Engines)
+	}
+	if got := schemas["NewProbeDefinition"].Properties["name"].Pattern; got != probeName.String() {
+		t.Errorf("spec schema NewProbeDefinition name pattern = %q, want %q", got, probeName)
+	}
+	for _, schema := range []string{"NewProbeDefinition", "ProbeDefinitionContent"} {
+		props := schemas[schema].Properties
+		if p := props["default_interval_seconds"]; p.Minimum != MinIntervalSeconds || p.Maximum != MaxIntervalSeconds {
+			t.Errorf("spec schema %s default_interval_seconds = %+v, want %d to %d", schema, p, MinIntervalSeconds, MaxIntervalSeconds)
+		}
+		if p := props["timeout_ms"]; p.Minimum != 1 || p.Maximum != MaxTimeoutMS {
+			t.Errorf("spec schema %s timeout_ms = %+v, want 1 to %d", schema, p, MaxTimeoutMS)
+		}
+		if p := props["description"]; p.MaxLength != MaxDescriptionRunes {
+			t.Errorf("spec schema %s description = %+v, want maxLength %d", schema, p, MaxDescriptionRunes)
+		}
+		if p := props["query_template"]; p.MaxLength != MaxQueryBytes {
+			t.Errorf("spec schema %s query_template = %+v, want maxLength %d", schema, p, MaxQueryBytes)
 		}
 	}
 }

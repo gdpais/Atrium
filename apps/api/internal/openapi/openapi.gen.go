@@ -105,7 +105,7 @@ type NewProbeDefinition struct {
 	// Examples: waits
 	Overrides string `json:"overrides"`
 
-	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB of UTF-8, counted in bytes.
 	QueryTemplate string `json:"query_template"`
 
 	// TimeoutMs The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
@@ -171,7 +171,7 @@ type ProbeDefinitionContent struct {
 	// Examples: waits
 	Overrides string `json:"overrides"`
 
-	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB of UTF-8, counted in bytes.
 	QueryTemplate string `json:"query_template"`
 
 	// TimeoutMs The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.

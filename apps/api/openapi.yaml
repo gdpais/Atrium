@@ -589,7 +589,7 @@ components:
         query_template:
           type: string
           maxLength: 16384
-          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB of UTF-8, counted in bytes.
         description:
           type: string
           maxLength: 1000
@@ -620,7 +620,7 @@ components:
         query_template:
           type: string
           maxLength: 16384
-          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB of UTF-8, counted in bytes.
         description:
           type: string
           maxLength: 1000
