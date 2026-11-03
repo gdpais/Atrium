@@ -2093,6 +2093,22 @@ func (response DeleteComponent404ApplicationProblemPlusJSONResponse) VisitDelete
 	return err
 }
 
+type DeleteComponent409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteComponent409ApplicationProblemPlusJSONResponse) VisitDeleteComponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteComponentdefaultApplicationProblemPlusJSONResponse struct {
 	Body       Problem
 	StatusCode int

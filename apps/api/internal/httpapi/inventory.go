@@ -493,8 +493,13 @@ func (s *Server) DeleteComponent(ctx context.Context, req openapi.DeleteComponen
 		return nil, err
 	}
 	err = s.inventory.DeleteComponent(ctx, caller, req.Id)
-	if p, ok := failure(err, "component"); ok && p.Status == http.StatusNotFound {
-		return openapi.DeleteComponent404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound(p)}, nil
+	if p, ok := failure(err, "component"); ok {
+		switch p.Status {
+		case http.StatusNotFound:
+			return openapi.DeleteComponent404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound(p)}, nil
+		case http.StatusConflict:
+			return openapi.DeleteComponent409ApplicationProblemPlusJSONResponse{ConflictApplicationProblemPlusJSONResponse: conflict(p)}, nil
+		}
 	}
 	if err != nil {
 		return nil, err

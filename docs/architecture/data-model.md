@@ -361,6 +361,8 @@ What the API keeps true of these rows [4.3]:
 - Deletes follow the foreign keys: refused while any row refers to the
   environment or application. Components have no status and nothing refers
   to them, so they are deleted; environments and applications are disabled.
+  The one cascade: deleting an application deletes its
+  `adaptive_baselines`, which are computed from its telemetry.
 
 ### Database observability
 

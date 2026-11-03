@@ -1,8 +1,12 @@
 package inventory
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -48,16 +52,24 @@ func (p Page) resolve() (int, *position, error) {
 	if err == nil {
 		err = json.Unmarshal(raw, &after)
 	}
-	if err != nil || after.ID == uuid.Nil {
+	// The name is one a list returned: a crafted one that PostgreSQL would
+	// refuse, such as one holding a NUL, is the client's error, not a 500.
+	if err != nil || after.ID == uuid.Nil || !utf8.ValidString(after.Name) ||
+		utf8.RuneCountInString(after.Name) > maxNameRunes || strings.ContainsFunc(after.Name, unicode.IsControl) {
 		return 0, nil, invalid("cursor", "not one this API returned; start again without it")
 	}
 	return limit, &after, nil
 }
 
-// cursor encodes the position after an item.
+// cursor encodes the position after an item. HTML characters are left as
+// they are, so that a cursor stays within the spec's maxLength whatever
+// the name.
 func cursor(name string, id uuid.UUID) string {
-	raw, _ := json.Marshal(position{Name: name, ID: id}) // cannot fail
-	return base64.RawURLEncoding.EncodeToString(raw)
+	var raw bytes.Buffer
+	enc := json.NewEncoder(&raw)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(position{Name: name, ID: id}) // cannot fail
+	return base64.RawURLEncoding.EncodeToString(bytes.TrimSuffix(raw.Bytes(), []byte("\n")))
 }
 
 // page cuts rows, fetched with limit+1, to limit, and returns the cursor of

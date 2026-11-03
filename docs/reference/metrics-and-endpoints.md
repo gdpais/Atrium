@@ -227,7 +227,7 @@ an environment leaves its applications' status as it is.
 | --- | --- |
 | 400 | A field out of its limits or format, an unknown member, a malformed ID, `limit` or `cursor` |
 | 404 | No entity has the ID |
-| 409 | Another environment has the slug, the environment has an application of that name, or the application a component of that name and type; or a `DELETE` while other rows refer to the entity: the detail names them (an environment's applications, database targets or investigations; an application's components, telemetry sources, investigations, alert policies, notification routes, alert events or reports), and nothing is deleted |
+| 409 | Another environment has the slug, the environment has an application of that name, or the application a component of that name and type; or a `DELETE` while other rows refer to the entity: the detail names them (an environment's applications, database targets or investigations; an application's components, telemetry sources, investigations, alert policies, notification routes, alert events or reports), and nothing is deleted. A deleted application's adaptive baselines go with it |
 | 422 | The body's `environment_id` or `application_id` names nothing |
 
 **Audit.** Each change writes one record in its transaction: entity type

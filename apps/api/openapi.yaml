@@ -475,7 +475,9 @@ paths:
         Deletes an application nothing refers to. While it has components,
         telemetry sources, investigations, alert policies, notification
         routes, alert events or reports the answer is 409, and nothing is
-        deleted: disable it instead (`PATCH` with `status: disabled`).
+        deleted: disable it instead (`PATCH` with `status: disabled`). Its
+        adaptive baselines, computed from its telemetry, are deleted with
+        it.
       responses:
         "204":
           description: Deleted.
@@ -627,7 +629,10 @@ paths:
       summary: Delete an application component
       security:
         - session: [operator]
-      description: Components have no status to disable, and nothing refers to them, so they are deleted.
+      description: |
+        Components have no status to disable, so they are deleted. Nothing
+        refers to them yet; once something does, a delete while it does is
+        refused with 409, as for environments and applications.
       responses:
         "204":
           description: Deleted.
@@ -639,6 +644,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
 components:
@@ -681,7 +688,7 @@ components:
       description: Where the page starts; the `next_cursor` of the page before. Left out, the first page.
       schema:
         type: string
-        maxLength: 1024
+        maxLength: 2048
   headers:
     Location:
       description: The new entity's path, such as `/api/v1/environments/{id}`.

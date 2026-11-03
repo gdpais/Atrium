@@ -280,7 +280,8 @@ func TestInventoryErrors(t *testing.T) {
 		{12, notFound, http.StatusNotFound, "no component has this ID"},
 		{13, conflict, http.StatusConflict, "applications"},
 		{14, notFound, http.StatusNotFound, "no component"},
-		{14, conflict, http.StatusInternalServerError, ""}, // deleteComponent declares no 409
+		{14, conflict, http.StatusConflict, "applications"},
+		{14, owner, http.StatusInternalServerError, ""}, // deleteComponent has no owner to name
 		{2, fmt.Errorf("read: %w", context.DeadlineExceeded), http.StatusInternalServerError, ""},
 	} {
 		op := inventoryOperations[tc.op]

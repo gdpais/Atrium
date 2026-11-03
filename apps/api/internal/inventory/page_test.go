@@ -2,9 +2,14 @@ package inventory
 
 import (
 	"encoding/base64"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
+
+	api "heartbeat/apps/api"
 )
 
 func TestPageLimits(t *testing.T) {
@@ -64,5 +69,51 @@ func TestPageCutsAndPointsAtTheLastItem(t *testing.T) {
 	got, next = page(rows, 3, at)
 	if len(got) != 3 || next != "" {
 		t.Fatalf("last page = %d rows, next %q; want 3 and none", len(got), next)
+	}
+}
+
+// A cursor whose name no list could have returned is refused as the
+// client's error: PostgreSQL would refuse a NUL in text, and the request
+// would fail as a server error.
+func TestCursorRefusesANameNoListHolds(t *testing.T) {
+	for _, name := range []string{"Claims\x00", "Claims\n", strings.Repeat("a", maxNameRunes+1)} {
+		raw, err := json.Marshal(position{Name: name, ID: uuid.New()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := (Page{Cursor: base64.RawURLEncoding.EncodeToString(raw)}).resolve(); err == nil {
+			t.Errorf("cursor with name %q accepted", name)
+		}
+	}
+}
+
+// Every cursor the API can issue fits the spec's Cursor maxLength, so a
+// client that checks requests against the spec can send it back.
+func TestCursorsFitTheSpec(t *testing.T) {
+	var doc struct {
+		Components struct {
+			Parameters map[string]struct {
+				Schema struct {
+					MaxLength int `yaml:"maxLength"`
+				} `yaml:"schema"`
+			} `yaml:"parameters"`
+		} `yaml:"components"`
+	}
+	if err := yaml.Unmarshal(api.Spec, &doc); err != nil {
+		t.Fatal(err)
+	}
+	limit := doc.Components.Parameters["Cursor"].Schema.MaxLength
+	if limit == 0 {
+		t.Fatal("the spec's Cursor parameter has no maxLength")
+	}
+	for _, r := range []string{"a", "é", "理", "🦀", "&", "<", `"`, `\`} {
+		name := strings.Repeat(r, maxNameRunes)
+		c := cursor(name, uuid.New())
+		if len(c) > limit {
+			t.Errorf("cursor for 200 × %q is %d characters, over the spec's %d", r, len(c), limit)
+		}
+		if _, after, err := (Page{Cursor: c}).resolve(); err != nil || after.Name != name {
+			t.Errorf("cursor for 200 × %q does not round-trip: %v", r, err)
+		}
 	}
 }
