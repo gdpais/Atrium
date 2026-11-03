@@ -186,3 +186,35 @@ values ('sqlserver', 'waits_lean', 2, 'waits', 30, 'SELECT 1', 'waits');
 		}
 	}
 }
+
+// 0008 makes a database target's name unique in its environment; its down
+// migration drops the index again, so the up migration applies twice.
+func TestDatabaseTargetNamesMigrationUpAndDown(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	stack := newPostgresStack(t, root)
+	stack.ResetDatabase(t)
+	for _, m := range []string{"0001_foundations", "0002_audit_outbox", "0003_login_roles", "0004_probe_definitions"} {
+		stack.ApplyMigration(t, "/migrations/"+m+".up.sql")
+	}
+	stack.PSQL(t, stack.DBName, `insert into environments (id, name, slug, type) values ('11111111-1111-4111-8111-111111111111', 'Prod', 'prod', 'production');`)
+	index := `select coalesce(to_regclass('public.database_targets_environment_name_uq')::text, 'none');`
+	second := `insert into database_targets (environment_id, engine, name, host, port, credential_ref)
+values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-b', 1433, 'env/b');`
+	for round := 1; round <= 2; round++ {
+		stack.PSQL(t, stack.DBName, `delete from database_targets;
+insert into database_targets (environment_id, engine, name, host, port, credential_ref)
+values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-a', 1433, 'env/a');`)
+		stack.ApplyMigration(t, "/migrations/0008_database_target_names.up.sql")
+		if stdout := stack.PSQL(t, stack.DBName, index); !strings.Contains(stdout, "database_targets_environment_name_uq") {
+			t.Fatalf("round %d, after up: %s", round, stdout)
+		}
+		if out, err := stack.PSQLResult(t, stack.DBName, second); err == nil || !strings.Contains(out, "database_targets_environment_name_uq") {
+			t.Fatalf("round %d: a second target named orders in the environment: %v\n%s", round, err, out)
+		}
+		stack.ApplyMigration(t, "/migrations/0008_database_target_names.down.sql")
+		if stdout := stack.PSQL(t, stack.DBName, index); !strings.Contains(stdout, "none") {
+			t.Fatalf("round %d, after down: %s", round, stdout)
+		}
+	}
+}

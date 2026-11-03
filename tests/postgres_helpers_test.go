@@ -88,3 +88,14 @@ func (s *postgresStack) PSQL(t *testing.T, database, query string) string {
 	return s.run(t, "exec", "-T", "postgres", "psql", "-U", "heartbeat", "-d", database,
 		"-v", "ON_ERROR_STOP=1", "-c", query)
 }
+
+// PSQLResult runs query as PSQL does, but returns its output and error
+// instead of failing the test, for a statement that should fail.
+func (s *postgresStack) PSQLResult(t *testing.T, database, query string) (string, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	output, err := s.command(ctx, "exec", "-T", "postgres", "psql", "-U", "heartbeat", "-d", database,
+		"-v", "ON_ERROR_STOP=1", "-c", query).CombinedOutput()
+	return string(output), err
+}
