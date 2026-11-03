@@ -48,6 +48,18 @@ tags:
       Viewers read; operators create, change and delete. Every change is
       audited (ADR 0016). Disable rather than delete: a delete is refused
       with 409 while anything still refers to the entity.
+  - name: telemetry-sources
+    description: |
+      Which telemetry is an application's own (ADR 0017). A source belongs
+      to one application, for good, and its environment is the
+      application's. Its `config` is checked against the JSON Schema of its
+      `source_type` in `packages/config-schema/src/telemetry-sources`, and
+      holds credential references only, never credentials. Within an
+      environment, an `application_name` maps to one application. Each
+      source says whether the DB collector observes it: an agentless
+      OutSystems source is observed when an enabled `outsystems_logs`
+      collector extracts its environment. Viewers read; operators create,
+      change and delete. Every change is audited.
 paths:
   /healthz:
     get:
@@ -648,6 +660,175 @@ paths:
           $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/telemetry-sources:
+    get:
+      operationId: listTelemetrySources
+      tags: [telemetry-sources]
+      summary: List telemetry sources
+      security:
+        - session: [viewer]
+      description: |
+        Sources by `application_name`, a page at a time, each with its
+        observation. The collector is asked once per page at most, and its
+        answer is kept for 15 seconds.
+      parameters:
+        - name: application_id
+          in: query
+          description: Only the sources of this application.
+          schema:
+            type: string
+            format: uuid
+        - name: environment_id
+          in: query
+          description: Only the sources of this environment's applications.
+          schema:
+            type: string
+            format: uuid
+        - name: source_type
+          in: query
+          schema:
+            $ref: "#/components/schemas/SourceType"
+        - $ref: "#/components/parameters/StatusFilter"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of sources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetrySourcePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createTelemetrySource
+      tags: [telemetry-sources]
+      summary: Register a telemetry source
+      security:
+        - session: [operator]
+      description: |
+        Registers a source for the application the body names, which it
+        belongs to for good. A source can be registered before its
+        extraction is set up: its observation then says it is not observed,
+        and nothing is refused for it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewTelemetrySource"
+      responses:
+        "201":
+          description: Registered.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetrySource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/telemetry-sources/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getTelemetrySource
+      tags: [telemetry-sources]
+      summary: Get a telemetry source
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The source and its observation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetrySource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateTelemetrySource
+      tags: [telemetry-sources]
+      summary: Change a telemetry source
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others; `config` is
+        replaced whole and checked again. Its application and source type
+        cannot change. A body that changes nothing is answered with the
+        source as it is, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelemetrySourceUpdate"
+      responses:
+        "200":
+          description: The source after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetrySource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteTelemetrySource
+      tags: [telemetry-sources]
+      summary: Delete a telemetry source
+      security:
+        - session: [operator]
+      description: "Deletes the source; disable it instead (`status: disabled`) to keep it."
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -1061,6 +1242,118 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Component"
+        next_cursor:
+          type: string
+          description: The `cursor` of the next page; absent on the last.
+    SourceType:
+      type: string
+      description: The kind of source, which says what `config` holds (one JSON Schema per type in `packages/config-schema/src/telemetry-sources`).
+      enum: [outsystems]
+    IngestMode:
+      type: string
+      description: "How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`."
+      enum: [otlp, file, api, agentless]
+    SourceConfig:
+      type: object
+      description: |
+        The source type's settings, valid against its JSON Schema. For
+        `outsystems`: `{"application_name": "Claims"}`, the OutSystems
+        `Application_Name`, which is the `service.name` of the application's
+        logs. Never a credential: a schema names one only as a reference,
+        such as `env/finance-prod`.
+      additionalProperties: true
+      examples:
+        - application_name: Claims
+    Observation:
+      type: object
+      additionalProperties: false
+      required: [status, collectors]
+      description: Whether the DB collector observes the source, as its redacted `GET /admin/config` says when the source is read.
+      properties:
+        status:
+          type: string
+          description: "`observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself)."
+          enum: [observed, not_observed, unknown, not_applicable]
+        collectors:
+          type: array
+          description: The IDs of the collectors that extract it.
+          items:
+            type: string
+        checked_at:
+          type: string
+          format: date-time
+          description: When the collector answered; absent when it did not.
+        detail:
+          type: string
+          description: Why the source is not observed, or why that is unknown.
+    TelemetrySource:
+      type: object
+      additionalProperties: false
+      required: [id, application_id, environment_id, source_type, ingest_mode, status, config, observation, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+          description: The application it belongs to, fixed when it was registered.
+        environment_id:
+          type: string
+          format: uuid
+          description: Its application's environment, read through the application; a source has none of its own.
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        ingest_mode:
+          $ref: "#/components/schemas/IngestMode"
+        status:
+          $ref: "#/components/schemas/Status"
+        config:
+          $ref: "#/components/schemas/SourceConfig"
+        observation:
+          $ref: "#/components/schemas/Observation"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NewTelemetrySource:
+      type: object
+      additionalProperties: false
+      required: [application_id, source_type, ingest_mode, config]
+      properties:
+        application_id:
+          type: string
+          format: uuid
+        source_type:
+          $ref: "#/components/schemas/SourceType"
+        ingest_mode:
+          $ref: "#/components/schemas/IngestMode"
+        status:
+          $ref: "#/components/schemas/Status"
+        config:
+          $ref: "#/components/schemas/SourceConfig"
+    TelemetrySourceUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the application and the source type cannot.
+      properties:
+        ingest_mode:
+          $ref: "#/components/schemas/IngestMode"
+        status:
+          $ref: "#/components/schemas/Status"
+        config:
+          $ref: "#/components/schemas/SourceConfig"
+    TelemetrySourcePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelemetrySource"
         next_cursor:
           type: string
           description: The `cursor` of the next page; absent on the last.

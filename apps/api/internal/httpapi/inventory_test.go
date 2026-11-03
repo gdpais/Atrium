@@ -35,6 +35,9 @@ type fakeInventory struct {
 	appChange inventory.ApplicationChange
 	newCmp    inventory.NewComponent
 	cmpChange inventory.ComponentChange
+	srcFilter inventory.SourceFilter
+	newSrc    inventory.NewSource
+	srcChange inventory.SourceChange
 	next      string
 }
 
@@ -51,6 +54,12 @@ var (
 	claims = inventory.Application{
 		ID: appID, EnvironmentID: envID, Name: "Claims", Platform: "outsystems_traditional",
 		Criticality: "high", Status: "active", CreatedAt: when, UpdatedAt: when,
+	}
+	srcID      = uuid.MustParse("1a4f2b6c-5e3d-4a7b-9c8d-3e4f5a6b7c82")
+	claimsLogs = inventory.Source{
+		ID: srcID, ApplicationID: appID, EnvironmentID: envID, SourceType: "outsystems", IngestMode: "agentless",
+		Status: "active", Config: map[string]any{"application_name": "Claims"}, CreatedAt: when, UpdatedAt: when,
+		Observation: inventory.Observation{Status: inventory.Observed, Collectors: []string{"oslogs-prod"}, CheckedAt: when},
 	}
 	claimsWeb = inventory.Component{
 		ID: cmpID, ApplicationID: appID, EnvironmentID: envID, Name: "ClaimsWeb", ComponentType: "module",
@@ -150,6 +159,36 @@ func (f *fakeInventory) DeleteComponent(_ context.Context, c inventory.Caller, i
 	return f.err
 }
 
+func (f *fakeInventory) ListSources(_ context.Context, filter inventory.SourceFilter, p inventory.Page) (inventory.SourcePage, error) {
+	f.called("ListSources")
+	f.srcFilter, f.page = filter, p
+	return inventory.SourcePage{Items: []inventory.Source{claimsLogs}, NextCursor: f.next}, f.err
+}
+
+func (f *fakeInventory) GetSource(_ context.Context, id uuid.UUID) (inventory.Source, error) {
+	f.called("GetSource")
+	f.id = id
+	return claimsLogs, f.err
+}
+
+func (f *fakeInventory) CreateSource(_ context.Context, c inventory.Caller, in inventory.NewSource) (inventory.Source, error) {
+	f.called("CreateSource")
+	f.caller, f.newSrc = c, in
+	return claimsLogs, f.err
+}
+
+func (f *fakeInventory) UpdateSource(_ context.Context, c inventory.Caller, id uuid.UUID, ch inventory.SourceChange) (inventory.Source, error) {
+	f.called("UpdateSource")
+	f.caller, f.id, f.srcChange = c, id, ch
+	return claimsLogs, f.err
+}
+
+func (f *fakeInventory) DeleteSource(_ context.Context, c inventory.Caller, id uuid.UUID) error {
+	f.called("DeleteSource")
+	f.caller, f.id = c, id
+	return f.err
+}
+
 var _ Inventory = (*fakeInventory)(nil)
 
 // inventoryServer is a Server whose sessions have roles.
@@ -181,6 +220,11 @@ var inventoryOperations = []struct {
 	{http.MethodGet, "/api/v1/components/" + cmpID.String(), "", "GetComponent"},
 	{http.MethodPatch, "/api/v1/components/" + cmpID.String(), `{"runtime_name":"ClaimsWeb"}`, "UpdateComponent"},
 	{http.MethodDelete, "/api/v1/components/" + cmpID.String(), "", "DeleteComponent"},
+	{http.MethodGet, "/api/v1/telemetry-sources", "", "ListSources"},
+	{http.MethodPost, "/api/v1/telemetry-sources", `{"application_id":"` + appID.String() + `","source_type":"outsystems","ingest_mode":"agentless","config":{"application_name":"Claims"}}`, "CreateSource"},
+	{http.MethodGet, "/api/v1/telemetry-sources/" + srcID.String(), "", "GetSource"},
+	{http.MethodPatch, "/api/v1/telemetry-sources/" + srcID.String(), `{"status":"disabled"}`, "UpdateSource"},
+	{http.MethodDelete, "/api/v1/telemetry-sources/" + srcID.String(), "", "DeleteSource"},
 }
 
 // Reads need the viewer role and every change the operator role, as the
@@ -242,7 +286,7 @@ func TestInventoryRoles(t *testing.T) {
 
 // patternOf turns a request path into the spec's path, with {id}.
 func patternOf(path string) string {
-	for _, id := range []uuid.UUID{envID, appID, cmpID} {
+	for _, id := range []uuid.UUID{envID, appID, cmpID, srcID} {
 		path = strings.Replace(path, id.String(), "{id}", 1)
 	}
 	return path
@@ -283,6 +327,15 @@ func TestInventoryErrors(t *testing.T) {
 		{14, conflict, http.StatusConflict, "applications"},
 		{14, owner, http.StatusInternalServerError, ""}, // deleteComponent has no owner to name
 		{2, fmt.Errorf("read: %w", context.DeadlineExceeded), http.StatusInternalServerError, ""},
+		{15, invalid, http.StatusBadRequest, "slug: "},
+		{16, invalid, http.StatusBadRequest, "slug: "},
+		{16, conflict, http.StatusConflict, "applications"},
+		{16, owner, http.StatusUnprocessableEntity, "does not exist"},
+		{17, notFound, http.StatusNotFound, "no telemetry source has this ID"},
+		{18, conflict, http.StatusConflict, "applications"},
+		{18, owner, http.StatusInternalServerError, ""}, // updateTelemetrySource has no owner to name
+		{19, notFound, http.StatusNotFound, "no telemetry source"},
+		{19, conflict, http.StatusConflict, "applications"},
 	} {
 		op := inventoryOperations[tc.op]
 		server, fake := inventoryServer(t, &fakeInventory{err: tc.err}, "operator")
@@ -315,6 +368,10 @@ func TestBodiesAreClosed(t *testing.T) {
 		{http.MethodPost, "/api/v1/components", `{"application_id":"` + appID.String() + `","environment_id":"` + envID.String() + `","name":"ClaimsWeb","component_type":"module"}`, "environment_id"},
 		{http.MethodPost, "/api/v1/environments", `{"name":"Production","slug":"prod","type":"production","id":"` + envID.String() + `"}`, "id"},
 		{http.MethodPost, "/api/v1/environments", `{"name":"Production","slug":"prod","type":"production","Name":"x"}`, "Name"},
+		{http.MethodPatch, "/api/v1/telemetry-sources/" + srcID.String(), `{"application_id":"` + uuid.NewString() + `"}`, "application_id"},
+		{http.MethodPatch, "/api/v1/telemetry-sources/" + srcID.String(), `{"source_type":"outsystems"}`, "source_type"},
+		{http.MethodPatch, "/api/v1/telemetry-sources/" + srcID.String(), `{"environment_id":"` + envID.String() + `"}`, "environment_id"},
+		{http.MethodPost, "/api/v1/telemetry-sources", `{"application_id":"` + appID.String() + `","environment_id":"` + envID.String() + `","source_type":"outsystems","ingest_mode":"agentless","config":{"application_name":"Claims"}}`, "environment_id"},
 	} {
 		store := &fakeInventory{}
 		server, fake := inventoryServer(t, store, "operator")
@@ -348,7 +405,7 @@ func TestBodiesAreClosed(t *testing.T) {
 // A creation answers 201 with the entity and its Location; the change is
 // the logged-in user's, in the request whose ID the response carries.
 func TestInventoryCreatesAndAttributes(t *testing.T) {
-	for _, op := range []int{1, 6, 11} {
+	for _, op := range []int{1, 6, 11, 16} {
 		o := inventoryOperations[op]
 		store := &fakeInventory{}
 		server, fake := inventoryServer(t, store, "operator")
@@ -471,4 +528,60 @@ func TestInventoryWithoutAService(t *testing.T) {
 	for _, op := range inventoryOperations {
 		problemOf(t, serveRequest(server, browserRequest(op.method, op.path, op.body, fake.token)), http.StatusInternalServerError)
 	}
+}
+
+// A source shows its derived environment and its observation; what a
+// request says reaches the inventory as it says it.
+func TestTelemetrySourceHandlers(t *testing.T) {
+	t.Run("the observation and the derived environment", func(t *testing.T) {
+		server, fake := inventoryServer(t, &fakeInventory{}, "viewer")
+		rec := serveRequest(server, browserRequest(http.MethodGet, "/api/v1/telemetry-sources/"+srcID.String(), "", fake.token))
+		var got struct {
+			EnvironmentID string         `json:"environment_id"`
+			Config        map[string]any `json:"config"`
+			Observation   struct {
+				Status     string   `json:"status"`
+				Collectors []string `json:"collectors"`
+				CheckedAt  string   `json:"checked_at"`
+				Detail     *string  `json:"detail"`
+			} `json:"observation"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		o := got.Observation
+		if got.EnvironmentID != envID.String() || got.Config["application_name"] != "Claims" ||
+			o.Status != "observed" || len(o.Collectors) != 1 || o.Collectors[0] != "oslogs-prod" || o.CheckedAt == "" || o.Detail != nil {
+			t.Fatalf("source %s", rec.Body)
+		}
+	})
+
+	t.Run("an unknown observation has no checked_at and says why", func(t *testing.T) {
+		unknown := claimsLogs
+		unknown.Observation = inventory.Observation{Status: inventory.ObservationUnknown, Detail: "the collector did not answer"}
+		out := sourceOut(unknown)
+		if out.Observation.CheckedAt != nil || out.Observation.Detail == nil || *out.Observation.Detail != "the collector did not answer" || out.Observation.Collectors == nil {
+			t.Fatalf("observation %+v", out.Observation)
+		}
+	})
+
+	t.Run("create, change and list pass the request on", func(t *testing.T) {
+		store := &fakeInventory{}
+		server, fake := inventoryServer(t, store, "operator")
+		serveRequest(server, browserRequest(http.MethodPost, "/api/v1/telemetry-sources",
+			`{"application_id":"`+appID.String()+`","source_type":"outsystems","ingest_mode":"otlp","config":{"application_name":"Claims"}}`, fake.token))
+		if store.newSrc.ApplicationID != appID || store.newSrc.SourceType != "outsystems" || store.newSrc.IngestMode != "otlp" ||
+			store.newSrc.Status != "" || store.newSrc.Config["application_name"] != "Claims" {
+			t.Fatalf("new source %+v", store.newSrc)
+		}
+		serveRequest(server, browserRequest(http.MethodPatch, "/api/v1/telemetry-sources/"+srcID.String(), `{"config":{"application_name":"Claims2"}}`, fake.token))
+		c := store.srcChange
+		if c.IngestMode != nil || c.Status != nil || c.Config == nil || (*c.Config)["application_name"] != "Claims2" {
+			t.Fatalf("change %+v", c)
+		}
+		serveRequest(server, browserRequest(http.MethodGet, "/api/v1/telemetry-sources?environment_id="+envID.String()+"&source_type=outsystems&status=active&limit=5", "", fake.token))
+		if store.srcFilter != (inventory.SourceFilter{EnvironmentID: envID, SourceType: "outsystems", Status: "active"}) || store.page.Limit != 5 {
+			t.Fatalf("filter %+v page %+v", store.srcFilter, store.page)
+		}
+	})
 }

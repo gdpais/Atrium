@@ -32,6 +32,9 @@
 //	HEARTBEAT_API_TRUSTED_PROXIES          comma-separated addresses or CIDRs of proxies whose
 //	                                       X-Forwarded-For names the client (default: none)
 //	HEARTBEAT_API_SHUTDOWN_DELAY           how long to serve, unready, before draining at shutdown (default 5s)
+//	HEARTBEAT_API_COLLECTOR_URL            the DB collector's base URL, such as http://db-collector:8082, read for
+//	                                       whether telemetry sources are observed (default: none; unknown)
+//	HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN    the collector's admin token, for its GET /admin/config
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
@@ -85,6 +88,8 @@ const (
 	envSessionMaxAge         = "HEARTBEAT_API_SESSION_MAX_AGE"
 	envTrustedProxies        = "HEARTBEAT_API_TRUSTED_PROXIES"
 	envShutdownDelay         = "HEARTBEAT_API_SHUTDOWN_DELAY"
+	envCollectorURL          = "HEARTBEAT_API_COLLECTOR_URL"
+	envCollectorAdminToken   = "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"
 	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
 )
 
@@ -191,6 +196,10 @@ func loadConfig() (app.Config, error) {
 	if cfg.Site, err = siteOrigin(os.Getenv(envSiteOrigin)); err != nil {
 		return app.Config{}, fmt.Errorf("%s: %w", envSiteOrigin, err)
 	}
+	if cfg.CollectorURL, err = collectorURL(os.Getenv(envCollectorURL)); err != nil {
+		return app.Config{}, fmt.Errorf("%s: %w", envCollectorURL, err)
+	}
+	cfg.CollectorAdminToken = strings.TrimSpace(os.Getenv(envCollectorAdminToken))
 	if cfg.SessionIdleTimeout, err = duration(envSessionIdleTimeout, auth.DefaultIdleTimeout, time.Minute, 0); err != nil {
 		return app.Config{}, err
 	}
@@ -280,6 +289,18 @@ func auditEndpoint(value string) (string, error) {
 		return "", fmt.Errorf("%q: want an http or https URL such as http://otel-collector:4318, without credentials or a query", value)
 	}
 	return strings.TrimSuffix(strings.TrimRight(value, "/"), "/v1/logs"), nil
+}
+
+// collectorURL checks the DB collector's base URL: "" for none.
+func collectorURL(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	u, err := url.Parse(value)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Trim(u.Path, "/") != "" {
+		return "", fmt.Errorf("%q: want an http or https base URL such as http://db-collector:8082, without a path, credentials or a query", value)
+	}
+	return strings.TrimRight(value, "/"), nil
 }
 
 // loadMigrateConfig reads what `api migrate` needs: the PostgreSQL settings

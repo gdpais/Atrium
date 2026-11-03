@@ -78,11 +78,18 @@ type Caller struct {
 
 // Service reads and changes the inventory. It is safe for concurrent use.
 type Service struct {
-	db DB
+	db       DB
+	observer Observer
 }
 
 // New returns a Service on db.
-func New(db DB) *Service { return &Service{db: db} }
+func New(db DB, opts ...Option) *Service {
+	s := &Service{db: db}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
 
 // change runs fn in a transaction, with the queries to make the change and
 // a function that audits it through the same transaction.
