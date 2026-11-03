@@ -645,11 +645,13 @@ step "a telemetry source registered through the API is observed by the collector
 # NetworkPolicy admits it to. oslogs-e2e, deployed above, extracts
 # environment local-dev, so an OutSystems source registered there is
 # observed; one in an environment no collector extracts is registered too,
-# and not observed. The admin logs in again: the step above logged out.
-kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward.log" 2>&1 &
+# and not observed. The admin logs in again: the step above logged out. The
+# port-forward logs to a file of its own: the step above's still names the
+# port it forwarded, which is closed now.
+kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward-sources.log" 2>&1 &
 port_forward_pid=$!
-wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward.log"
-api_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/api-forward.log" | head -n 1)
+wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward-sources.log"
+api_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/api-forward-sources.log" | head -n 1)
 code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
 [ "$code" = 201 ] || fail "the admin's second login returned $code: $(cat "$WORK/api-body")"
 (
