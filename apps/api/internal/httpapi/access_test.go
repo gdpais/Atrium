@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	api "heartbeat/apps/api"
 	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/openapi"
@@ -73,6 +75,43 @@ func TestSpecDeclaresTheSessionOperationsRules(t *testing.T) {
 	} {
 		if got, ok := rules[pattern]; !ok || got != want {
 			t.Errorf("%s: rule %+v (%t), want %+v", pattern, got, ok, want)
+		}
+	}
+}
+
+// Each operation declares the refusals the guard can answer it with: 401
+// unless it is public, and 403 when it needs a role (a user may have none)
+// or its method is unsafe (the Origin check).
+func TestSpecDeclaresTheGuardsRefusals(t *testing.T) {
+	rules, err := accessRules(api.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Paths map[string]map[string]yaml.Node `yaml:"paths"`
+	}
+	if err := yaml.Unmarshal(api.Spec, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for path, item := range doc.Paths {
+		for method, node := range item {
+			if !slices.Contains(httpMethods, method) {
+				continue
+			}
+			pattern := strings.ToUpper(method) + " " + path
+			var op struct {
+				Responses map[string]yaml.Node `yaml:"responses"`
+			}
+			if err := node.Decode(&op); err != nil {
+				t.Fatalf("%s: %v", pattern, err)
+			}
+			r := rules[pattern]
+			if _, ok := op.Responses["401"]; !r.public && !ok {
+				t.Errorf("%s declares no 401", pattern)
+			}
+			if _, ok := op.Responses["403"]; (r.role != "" || unsafe(strings.ToUpper(method))) && !ok {
+				t.Errorf("%s declares no 403", pattern)
+			}
 		}
 	}
 }

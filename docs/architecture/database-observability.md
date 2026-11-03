@@ -47,18 +47,27 @@ waits/locks, sessions, storage and regressions. Only
   runs with `LOCK_TIMEOUT` 1s and `DEADLOCK_PRIORITY LOW`
   ([what the collector runs](../guides/database-targets.md#what-the-collector-runs-on-the-server)).
 - Probe definitions are versioned and can be disabled instead of deleted.
-  Today the built-in catalog is versioned with the code and probes are disabled
-  by removing them from a collector's `probes` list; versioned probe
-  definitions come with API-managed probe definitions (TODO §4.5).
+  The built-in catalog is versioned with the code, and the API holds one
+  read-only definition per catalog probe; custom definitions, which replace a
+  built-in's query, are managed through
+  [`/api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions)
+  by admins: each change is a new immutable version, and disabling one
+  disables every version. Until probe assignments are rendered [4.5], a
+  collector still runs what its `probes` list in `integrations.yaml` names.
 - Runtime collector grouping, target activation, probe activation, and scaling live in `config/integrations.yaml` and Kubernetes delivery.
 
 ### Probe review checklist
 
 Apply it to every new or changed probe in the built-in catalog
-([`catalog.go`](../../services/db-collector/internal/probes/sqlserver/catalog.go))
-and to every `query_template` override before it reaches a shared or
-production target. A reviewer other than the author signs it off; an override
-also needs the target's DBAs.
+([`catalog.go`](../../services/db-collector/internal/probes/sqlserver/catalog.go)),
+to every `query_template` override in `integrations.yaml`, and to every
+version of a custom probe definition created through
+[`POST /api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions)
+(or added with `POST /api/v1/probe-definitions/{id}/versions`), before it
+reaches a shared or production target. A reviewer other than the author signs
+it off; an override also needs the target's DBAs. A probe added to the
+built-in catalog also needs a migration that seeds its definition: a test
+fails until one does.
 
 **Read-only and least privilege**
 
@@ -67,9 +76,10 @@ also needs the target's DBAs.
   procedure name does not work either: every batch starts with the session
   settings, so it is no longer sent as a procedure call. Loading the
   configuration rejects a `query_template` that is not one read-only
-  `SELECT` ([rules](../reference/configuration.md#collectors)), and the
-  built-in queries pass the same check in their tests; the check is a safety
-  net, the read-only login is the control.
+  `SELECT` ([rules](../reference/configuration.md#collectors)), the API
+  refuses to store a custom definition whose query fails the same check, and
+  the built-in queries pass it in their tests; the check is a safety net, the
+  read-only login is the control.
 - [ ] Returns a bounded number of rows: well under the probe's `max_rows`
   (default 10000) on the largest target, or the probe fails every cycle.
 - [ ] Needs no grant beyond `VIEW SERVER STATE` and `VIEW ANY DEFINITION`.
