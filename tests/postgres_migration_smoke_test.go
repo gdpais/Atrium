@@ -105,3 +105,44 @@ select concat_ws(',',
 		}
 	}
 }
+
+// 0004 versions probe definitions and seeds the built-ins; its down
+// migration removes them again with every custom definition, so the up
+// migration applies twice.
+func TestProbeDefinitionsMigrationUpAndDown(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	stack := newPostgresStack(t, root)
+	stack.ResetDatabase(t)
+	for _, m := range []string{"0001_foundations", "0002_audit_outbox", "0003_login_roles"} {
+		stack.ApplyMigration(t, "/migrations/"+m+".up.sql")
+	}
+	shape := `
+select concat_ws(',',
+  (select data_type from information_schema.columns where table_name = 'probe_definitions' and column_name = 'version'),
+  (select is_nullable from information_schema.columns where table_name = 'probe_definitions' and column_name = 'query_template'),
+  (select count(*) from probe_definitions where builtin)::text,
+  (select count(*) from probe_definitions where not builtin)::text);
+`
+	// A custom definition, its timeout left to the collector.
+	custom := `
+insert into probe_definitions (engine, name, version, category, default_interval_seconds, query_template, overrides)
+values ('sqlserver', 'waits_lean', 2, 'waits', 30, 'SELECT 1', 'waits');
+`
+	for round := 1; round <= 2; round++ {
+		stack.ApplyMigration(t, "/migrations/0004_probe_definitions.up.sql")
+		stack.PSQL(t, stack.DBName, custom)
+		if stdout := stack.PSQL(t, stack.DBName, shape); !strings.Contains(stdout, "integer,YES,9,1") {
+			t.Fatalf("round %d, after up: %s", round, stdout)
+		}
+		stack.ApplyMigration(t, "/migrations/0004_probe_definitions.down.sql")
+		after := `select concat_ws(',',
+  (select data_type from information_schema.columns where table_name = 'probe_definitions' and column_name = 'version'),
+  (select is_nullable from information_schema.columns where table_name = 'probe_definitions' and column_name = 'query_template'),
+  coalesce((select column_name from information_schema.columns where table_name = 'probe_definitions' and column_name = 'builtin'), 'no builtin'),
+  (select count(*) from probe_definitions)::text);`
+		if stdout := stack.PSQL(t, stack.DBName, after); !strings.Contains(stdout, "text,NO,no builtin,0") {
+			t.Fatalf("round %d, after down: %s", round, stdout)
+		}
+	}
+}

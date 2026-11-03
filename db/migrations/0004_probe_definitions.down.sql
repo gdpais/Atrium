@@ -1,7 +1,8 @@
--- For tests and local use only (ADR 0013 §6). It removes the rows 0001's
--- columns cannot hold: built-in definitions and custom ones without a
--- timeout. It fails while an assignment references one of them.
-delete from probe_definitions where builtin or timeout_ms is null;
+-- For tests and local use only (ADR 0013 §6). It removes every probe
+-- definition: a built-in has no place in 0001's columns, and a custom one
+-- would lose the built-in it overrides. It fails while an assignment
+-- references one.
+delete from probe_definitions;
 
 alter table probe_definitions alter column timeout_ms set not null;
 alter table probe_definitions drop constraint probe_definitions_kind_ck;

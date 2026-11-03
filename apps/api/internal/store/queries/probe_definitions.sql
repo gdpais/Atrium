@@ -30,15 +30,22 @@ select category
 from probe_definitions
 where builtin and enabled and engine = @engine and name = @name;
 
--- name: LockLatestProbeDefinitionVersion :one
--- The latest version of a definition, locked until the transaction ends, so
--- that concurrent changes to it take turns.
-select id, version, builtin, enabled
+-- name: LockProbeDefinition :execrows
+-- Locks a definition until the transaction ends, so that changes to it take
+-- turns: its version 1, which every definition has and keeps. Read its
+-- latest version after this, in another statement, to see one a change
+-- that held the lock committed.
+select 1
+from probe_definitions
+where engine = @engine and name = @name and version = 1
+for update;
+
+-- name: GetLatestProbeDefinitionVersion :one
+select id, version, enabled
 from probe_definitions
 where engine = @engine and name = @name
 order by version desc
-limit 1
-for update;
+limit 1;
 
 -- name: InsertProbeDefinition :one
 -- A version of a custom definition. Fails with a unique violation when the

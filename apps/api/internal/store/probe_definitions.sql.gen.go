@@ -31,6 +31,32 @@ func (q *Queries) GetBuiltinProbeCategory(ctx context.Context, arg GetBuiltinPro
 	return category, err
 }
 
+const getLatestProbeDefinitionVersion = `-- name: GetLatestProbeDefinitionVersion :one
+select id, version, enabled
+from probe_definitions
+where engine = $1 and name = $2
+order by version desc
+limit 1
+`
+
+type GetLatestProbeDefinitionVersionParams struct {
+	Engine string
+	Name   string
+}
+
+type GetLatestProbeDefinitionVersionRow struct {
+	ID      pgtype.UUID
+	Version int32
+	Enabled bool
+}
+
+func (q *Queries) GetLatestProbeDefinitionVersion(ctx context.Context, arg GetLatestProbeDefinitionVersionParams) (GetLatestProbeDefinitionVersionRow, error) {
+	row := q.db.QueryRow(ctx, getLatestProbeDefinitionVersion, arg.Engine, arg.Name)
+	var i GetLatestProbeDefinitionVersionRow
+	err := row.Scan(&i.ID, &i.Version, &i.Enabled)
+	return i, err
+}
+
 const getProbeDefinition = `-- name: GetProbeDefinition :one
 select p.id, p.engine, p.name, p.version, p.category, p.default_interval_seconds, p.timeout_ms, p.query_template, p.enabled, p.created_at, p.updated_at, p.builtin, p.overrides, p.description,
   (p.version = (select max(o.version) from probe_definitions o where o.engine = p.engine and o.name = p.name))::boolean as latest
@@ -225,39 +251,28 @@ func (q *Queries) ListProbeDefinitionVersions(ctx context.Context, id pgtype.UUI
 	return items, nil
 }
 
-const lockLatestProbeDefinitionVersion = `-- name: LockLatestProbeDefinitionVersion :one
-select id, version, builtin, enabled
+const lockProbeDefinition = `-- name: LockProbeDefinition :execrows
+select 1
 from probe_definitions
-where engine = $1 and name = $2
-order by version desc
-limit 1
+where engine = $1 and name = $2 and version = 1
 for update
 `
 
-type LockLatestProbeDefinitionVersionParams struct {
+type LockProbeDefinitionParams struct {
 	Engine string
 	Name   string
 }
 
-type LockLatestProbeDefinitionVersionRow struct {
-	ID      pgtype.UUID
-	Version int32
-	Builtin bool
-	Enabled bool
-}
-
-// The latest version of a definition, locked until the transaction ends, so
-// that concurrent changes to it take turns.
-func (q *Queries) LockLatestProbeDefinitionVersion(ctx context.Context, arg LockLatestProbeDefinitionVersionParams) (LockLatestProbeDefinitionVersionRow, error) {
-	row := q.db.QueryRow(ctx, lockLatestProbeDefinitionVersion, arg.Engine, arg.Name)
-	var i LockLatestProbeDefinitionVersionRow
-	err := row.Scan(
-		&i.ID,
-		&i.Version,
-		&i.Builtin,
-		&i.Enabled,
-	)
-	return i, err
+// Locks a definition until the transaction ends, so that changes to it take
+// turns: its version 1, which every definition has and keeps. Read its
+// latest version after this, in another statement, to see one a change
+// that held the lock committed.
+func (q *Queries) LockProbeDefinition(ctx context.Context, arg LockProbeDefinitionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, lockProbeDefinition, arg.Engine, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setProbeDefinitionEnabled = `-- name: SetProbeDefinitionEnabled :execrows

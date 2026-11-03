@@ -215,11 +215,11 @@ func (s *Service) Create(ctx context.Context, def NewDefinition, actor audit.Act
 		if err != nil {
 			return err
 		}
-		_, err = q.LockLatestProbeDefinitionVersion(ctx, store.LockLatestProbeDefinitionVersionParams{Engine: def.Engine, Name: def.Name})
-		switch {
-		case err == nil:
+		// Another creation of the same name, concurrent with this one, makes
+		// the insert fail with a unique violation instead.
+		if _, err := q.GetLatestProbeDefinitionVersion(ctx, store.GetLatestProbeDefinitionVersionParams{Engine: def.Engine, Name: def.Name}); err == nil {
 			return ErrNameTaken
-		case !errors.Is(err, pgx.ErrNoRows):
+		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("look up the probe definition: %w", err)
 		}
 		created, err = insert(ctx, q, def.Engine, def.Name, 1, category, content)
@@ -279,6 +279,10 @@ func (s *Service) AddVersion(ctx context.Context, from uuid.UUID, content Conten
 			return err
 		}
 		next, err := insert(ctx, q, previous.Engine, previous.Name, previous.Version+1, category, content)
+		if isUniqueViolation(err) {
+			// The lock makes changes take turns; this is the backstop.
+			return &ConflictError{fmt.Sprintf("version %d of probe definition %s was added meanwhile; read it and change it instead", previous.Version+1, previous.Name)}
+		}
 		if err != nil {
 			return err
 		}
@@ -341,19 +345,26 @@ func (s *Service) SetEnabled(ctx context.Context, id uuid.UUID, enabled bool, ac
 	return result, nil
 }
 
-// lockLatest returns version id of a custom definition and its latest
-// version, locked until the transaction ends.
-func lockLatest(ctx context.Context, q *store.Queries, id uuid.UUID) (Definition, store.LockLatestProbeDefinitionVersionRow, error) {
+// lockLatest returns version id of a custom definition and the
+// definition's latest version, with the definition locked until the
+// transaction ends.
+func lockLatest(ctx context.Context, q *store.Queries, id uuid.UUID) (Definition, store.GetLatestProbeDefinitionVersionRow, error) {
+	var none store.GetLatestProbeDefinitionVersionRow
 	def, err := get(ctx, q, id)
 	if err != nil {
-		return Definition{}, store.LockLatestProbeDefinitionVersionRow{}, err
+		return Definition{}, none, err
 	}
 	if def.Builtin {
-		return Definition{}, store.LockLatestProbeDefinitionVersionRow{}, ErrBuiltin
+		return Definition{}, none, ErrBuiltin
 	}
-	latest, err := q.LockLatestProbeDefinitionVersion(ctx, store.LockLatestProbeDefinitionVersionParams{Engine: def.Engine, Name: def.Name})
+	if _, err := q.LockProbeDefinition(ctx, store.LockProbeDefinitionParams{Engine: def.Engine, Name: def.Name}); err != nil {
+		return Definition{}, none, fmt.Errorf("lock the probe definition: %w", err)
+	}
+	// After the lock, in a statement of its own, so that it sees a version
+	// committed while this one waited.
+	latest, err := q.GetLatestProbeDefinitionVersion(ctx, store.GetLatestProbeDefinitionVersionParams{Engine: def.Engine, Name: def.Name})
 	if err != nil {
-		return Definition{}, store.LockLatestProbeDefinitionVersionRow{}, fmt.Errorf("lock the probe definition: %w", err)
+		return Definition{}, none, fmt.Errorf("get the latest version: %w", err)
 	}
 	return def, latest, nil
 }
