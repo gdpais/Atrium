@@ -207,7 +207,7 @@ paths:
         be one read-only `SELECT`, checked as the db-collector checks it when
         it loads its configuration, and `overrides` must name an enabled
         built-in probe of the same engine. Review the query with the
-        [probe review checklist](https://gdpais.github.io/Heartbeat/architecture/database-observability/#probe-review-checklist)
+        [probe review checklist](https://gdpais.github.io/Heartbeat/architecture/database-observability.html#probe-review-checklist)
         before it runs on a shared or production target.
       requestBody:
         required: true
