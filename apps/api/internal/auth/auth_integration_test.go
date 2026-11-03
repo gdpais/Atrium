@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strings"
@@ -328,6 +329,45 @@ func TestLoginIsRateLimitedPerAccount(t *testing.T) {
 	}
 	if _, _, err := f.service.Login(ctx, "other@example.com", secret, client); err != nil {
 		t.Fatalf("another account from the same address: %v", err)
+	}
+}
+
+// Concurrent guesses at one account get AccountFailures checks between
+// them, not one each: a login takes its place in the counts before its
+// password is checked, and the hasher's slots would otherwise queue every
+// guess past a check that saw no failure yet.
+func TestLoginLimitsHoldForConcurrentGuesses(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, cheap)
+	ctx := context.Background()
+	f.addUser(t, f.hasher, "target@example.com", secret, "viewer")
+
+	const guesses = 4 * auth.AccountFailures
+	errs := make(chan error, guesses)
+	for i := range guesses {
+		from := auth.Client{Address: netip.AddrFrom4([4]byte{203, 0, 113, byte(i)}), RequestID: "req-guess"}
+		go func() {
+			_, _, err := f.service.Login(ctx, "target@example.com", "guess", from)
+			errs <- err
+		}()
+	}
+	var checked, limited int
+	for range guesses {
+		var rl *auth.RateLimitedError
+		switch err := <-errs; {
+		case errors.Is(err, auth.ErrInvalidCredentials):
+			checked++
+		case errors.As(err, &rl):
+			limited++
+		default:
+			t.Fatalf("a concurrent guess: %v", err)
+		}
+	}
+	if checked != auth.AccountFailures || limited != guesses-auth.AccountFailures {
+		t.Fatalf("%d concurrent guesses: %d checked, %d rate limited; want %d checked", guesses, checked, limited, auth.AccountFailures)
+	}
+	if n := len(f.records(t, audit.ActionLoginFailed)); n != auth.AccountFailures {
+		t.Fatalf("%d failed-login records, want %d", n, auth.AccountFailures)
 	}
 }
 
@@ -704,75 +744,120 @@ func TestSessions(t *testing.T) {
 	}
 }
 
-// Failures count per account and per address block, in a window that
-// starts at the first failure; a success clears the account's, not the
-// address's; Redis holds no email.
+// A login counts as failed before it is checked, per account and per
+// address block, in a window that starts at the first failure; one past a
+// limit is refused and counts for nothing; a success clears the account's
+// failures and takes its own count back from the address, as an unchecked
+// login does from both; Redis holds no email.
 func TestLimits(t *testing.T) {
 	t.Parallel()
 	_, client := testenv.ValkeyClient(t)
 	ctx := context.Background()
 	limits := &auth.Limits{Redis: client}
-	fail := func(email, address string, n int) {
+	begin := func(email, address string) time.Duration {
 		t.Helper()
-		for range n {
-			if err := limits.Failed(ctx, email, netip.MustParseAddr(address)); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	wait := func(email, address string) time.Duration {
-		t.Helper()
-		d, err := limits.Wait(ctx, email, netip.MustParseAddr(address))
+		d, err := limits.Begin(ctx, email, netip.MustParseAddr(address))
 		if err != nil {
 			t.Fatal(err)
 		}
 		return d
 	}
+	// counted begins a login per email that the limits let through.
+	counted := func(address string, emails ...string) {
+		t.Helper()
+		for _, email := range emails {
+			if d := begin(email, address); d != 0 {
+				t.Fatalf("%s from %s: wait %s, want it counted", email, address, d)
+			}
+		}
+	}
+	distinct := func(prefix string, n int) []string {
+		emails := make([]string, n)
+		for i := range emails {
+			emails[i] = fmt.Sprintf("%s%d@example.com", prefix, i)
+		}
+		return emails
+	}
+	addressCount := func(block string) int {
+		t.Helper()
+		n, err := client.Get(ctx, "heartbeat:login-failures:address:"+block).Int()
+		if err != nil && !errors.Is(err, goredis.Nil) {
+			t.Fatal(err)
+		}
+		return n
+	}
 
 	// Per account, across addresses.
-	fail("a@example.com", "192.0.2.1", auth.AccountFailures-1)
-	if d := wait("a@example.com", "192.0.2.2"); d != 0 {
-		t.Fatalf("below the account limit: wait %s", d)
+	counted("192.0.2.1", slices.Repeat([]string{"a@example.com"}, auth.AccountFailures-1)...)
+	counted("192.0.2.2", "a@example.com")
+	if d := begin("a@example.com", "192.0.2.3"); d <= 0 || d > auth.FailureWindow {
+		t.Fatalf("past the account limit: wait %s, want up to %s", d, auth.FailureWindow)
 	}
-	fail("a@example.com", "192.0.2.3", 1)
-	if d := wait("a@example.com", "192.0.2.4"); d <= 0 || d > auth.FailureWindow {
-		t.Fatalf("at the account limit: wait %s, want up to %s", d, auth.FailureWindow)
+	if n := addressCount("192.0.2.3"); n != 0 {
+		t.Fatalf("a refused login counts %d against its address, want 0", n)
 	}
-	if err := limits.Succeeded(ctx, "a@example.com"); err != nil {
+	// The last login let through succeeds.
+	if err := limits.Succeeded(ctx, "a@example.com", netip.MustParseAddr("192.0.2.2")); err != nil {
 		t.Fatal(err)
 	}
-	if d := wait("a@example.com", "192.0.2.4"); d != 0 {
+	if n := addressCount("192.0.2.2"); n != 0 {
+		t.Fatalf("a successful login still counts %d against its address", n)
+	}
+	if d := begin("a@example.com", "192.0.2.4"); d != 0 {
 		t.Fatalf("after a success: wait %s", d)
 	}
 
+	// A login that was not checked counts for nothing.
+	counted("192.0.2.5", slices.Repeat([]string{"u@example.com"}, auth.AccountFailures)...)
+	if err := limits.Unchecked(ctx, "u@example.com", netip.MustParseAddr("192.0.2.5")); err != nil {
+		t.Fatal(err)
+	}
+	if n := addressCount("192.0.2.5"); n != auth.AccountFailures-1 {
+		t.Fatalf("after an unchecked login the address counts %d, want %d", n, auth.AccountFailures-1)
+	}
+	counted("192.0.2.5", "u@example.com")
+	if d := begin("u@example.com", "192.0.2.5"); d <= 0 {
+		t.Fatal("past the account limit after an unchecked login, but a login may be tried")
+	}
+	// A count taken back after its window ended gets a window of its own.
+	if err := limits.Unchecked(ctx, "gone@example.com", netip.MustParseAddr("192.0.2.6")); err != nil {
+		t.Fatal(err)
+	}
+	if ttl, _ := client.PTTL(ctx, "heartbeat:login-failures:address:192.0.2.6").Result(); ttl <= 0 || ttl > auth.FailureWindow {
+		t.Fatalf("a count taken back after it expired has TTL %s, want up to %s", ttl, auth.FailureWindow)
+	}
+
 	// Per address: an IPv6 address counts as its /64, and a mapped IPv4
-	// address as itself.
-	for i := range auth.AddressFailures {
+	// address as itself. A success takes back its own count, not the
+	// address's failures.
+	for i, email := range distinct("user", auth.AddressFailures-1) {
 		address := "2001:db8::1"
 		if i%2 == 1 {
 			address = "2001:db8::ffff:2"
 		}
-		fail("user"+strings.Repeat("x", i)+"@example.com", address, 1)
+		counted(address, email)
 	}
-	if d := wait("new@example.com", "2001:db8::3"); d <= 0 {
-		t.Fatal("the /64 is past the address limit, but a new address in it may log in")
-	}
-	if d := wait("new@example.com", "2001:db8:0:1::1"); d != 0 {
-		t.Fatalf("another /64: wait %s", d)
-	}
-	if err := limits.Succeeded(ctx, "user@example.com"); err != nil {
+	counted("2001:db8::4", "ok@example.com")
+	if err := limits.Succeeded(ctx, "ok@example.com", netip.MustParseAddr("2001:db8::4")); err != nil {
 		t.Fatal(err)
 	}
-	if d := wait("new@example.com", "2001:db8::3"); d <= 0 {
-		t.Fatal("a success cleared the address's failures")
+	if n := addressCount("2001:db8::/64"); n != auth.AddressFailures-1 {
+		t.Fatalf("after a success the /64 counts %d, want its %d failures", n, auth.AddressFailures-1)
 	}
-	fail("b@example.com", "::ffff:198.51.100.7", auth.AddressFailures)
-	if d := wait("c@example.com", "198.51.100.7"); d <= 0 {
+	counted("2001:db8::5", "last@example.com")
+	if d := begin("new@example.com", "2001:db8::3"); d <= 0 {
+		t.Fatal("the /64 is past the address limit, but a new address in it may log in")
+	}
+	if d := begin("new@example.com", "2001:db8:0:1::1"); d != 0 {
+		t.Fatalf("another /64: wait %s", d)
+	}
+	counted("::ffff:198.51.100.7", distinct("b", auth.AddressFailures)...)
+	if d := begin("c@example.com", "198.51.100.7"); d <= 0 {
 		t.Fatal("a mapped IPv4 address is counted apart from itself")
 	}
 
 	// The window starts at the first failure: later ones do not extend it.
-	fail("d@example.com", "192.0.2.9", 1)
+	counted("192.0.2.9", "d@example.com")
 	keys, _ := client.Keys(ctx, "heartbeat:login-failures:address:192.0.2.9").Result()
 	if len(keys) != 1 {
 		t.Fatalf("address keys %v", keys)
@@ -780,7 +865,7 @@ func TestLimits(t *testing.T) {
 	if err := client.PExpire(ctx, keys[0], 5*time.Second).Err(); err != nil {
 		t.Fatal(err)
 	}
-	fail("d@example.com", "192.0.2.9", 1)
+	counted("192.0.2.9", "d@example.com")
 	if ttl, _ := client.PTTL(ctx, keys[0]).Result(); ttl > 5*time.Second {
 		t.Fatalf("a later failure extended the window to %s", ttl)
 	}
