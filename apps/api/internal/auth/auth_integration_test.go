@@ -539,8 +539,15 @@ func TestLoginDeletesTheSessionWhenTheCommitFails(t *testing.T) {
 // An unknown email, a user without a password and a disabled user take as
 // long to refuse as a wrong password: each checks a hash, so the time
 // tells nothing about which accounts exist.
+//
+// A shared runner's load comes and goes, so one path timed after another
+// can look several times slower (444ms against 93ms once in CI, for a
+// disabled user and a wrong password, which run the same code). So the
+// test runs alone, not beside its package's other tests, which hash too;
+// it warms every path up, times them in turns, round after round, and
+// compares their medians. A refusal that skipped the hash takes a
+// hundredth of the time, far outside the factor of 2 allowed either way.
 func TestFailedLoginsTakeAsLongAsAWrongPassword(t *testing.T) {
-	t.Parallel()
 	f := newFixture(t, password.DefaultParams)
 	ctx := context.Background()
 	f.addUser(t, f.hasher, "active@example.com", secret, "viewer")
@@ -548,35 +555,46 @@ func TestFailedLoginsTakeAsLongAsAWrongPassword(t *testing.T) {
 	f.exec(t, "update users set status = 'disabled' where id = $1", disabled)
 	f.addUser(t, f.hasher, "nopassword@example.com", "", "viewer")
 
-	// The decoy hash is made at the first login that needs it.
-	if _, _, err := f.service.Login(ctx, "warmup@example.com", "guess", client); !errors.Is(err, auth.ErrInvalidCredentials) {
-		t.Fatal(err)
+	paths := []struct{ name, email, secret string }{
+		{"wrong password", "active@example.com", "guess"},
+		{"unknown email", "nobody@example.com", secret},
+		{"no password", "nopassword@example.com", secret},
+		{"disabled user", "disabled@example.com", secret},
 	}
-	const rounds = 5
-	median := func(email, secret string) time.Duration {
-		var took []time.Duration
-		for range rounds {
-			start := time.Now()
-			if _, _, err := f.service.Login(ctx, email, secret, client); !errors.Is(err, auth.ErrInvalidCredentials) {
-				t.Fatalf("%s: %v", email, err)
-			}
-			took = append(took, time.Since(start))
+	login := func(email, secret string) time.Duration {
+		t.Helper()
+		start := time.Now()
+		if _, _, err := f.service.Login(ctx, email, secret, client); !errors.Is(err, auth.ErrInvalidCredentials) {
+			t.Fatalf("%s: %v", email, err)
 		}
-		slices.Sort(took)
-		return took[rounds/2]
+		return time.Since(start)
 	}
-	wrong := median("active@example.com", "guess")
-	for _, email := range []string{"nobody@example.com", "nopassword@example.com", "disabled@example.com"} {
-		pw := "guess"
-		if email == "disabled@example.com" {
-			pw = secret
+	// The decoy hash is made at the first login that needs it, and the
+	// connections open at the first ones.
+	for _, p := range paths {
+		login(p.email, p.secret)
+	}
+	// Within the limits: 8 failures per account, 32 from the address.
+	const rounds = 7
+	took := make([][]time.Duration, len(paths))
+	for round := range rounds {
+		// Each round starts at another path, so none is always timed first.
+		for i := range paths {
+			j := (round + i) % len(paths)
+			took[j] = append(took[j], login(paths[j].email, paths[j].secret))
 		}
-		// Half is far from the noise: skipping the hash takes a
-		// hundredth.
-		got := median(email, pw)
-		t.Logf("%s: %s, wrong password %s", email, got, wrong)
-		if got < wrong/2 {
-			t.Errorf("%s: refused in %s, a wrong password in %s", email, got, wrong)
+	}
+	medians := make([]time.Duration, len(paths))
+	for i := range paths {
+		slices.Sort(took[i])
+		medians[i] = took[i][rounds/2]
+	}
+	wrong := medians[0]
+	for i, p := range paths {
+		ratio := float64(medians[i]) / float64(wrong)
+		t.Logf("%s: median %s, %.2f× a wrong password's", p.name, medians[i].Round(time.Microsecond), ratio)
+		if ratio < 0.5 || ratio > 2 {
+			t.Errorf("%s: refused in %s (median of %d), a wrong password in %s: want within a factor of 2", p.name, medians[i], rounds, wrong)
 		}
 	}
 }

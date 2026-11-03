@@ -312,13 +312,87 @@ func (r CheckResult) Passed() bool {
 	return len(r.Hours) > 0
 }
 
+// selector picks the generated log's streams in Loki.
+func (o CheckOptions) selector() string {
+	return fmt.Sprintf(`deployment_environment_name=%q`, o.Environment)
+}
+
+// hours are the hours of the log a check reads: those from opts.From on.
+func (o CheckOptions) hours(exp *Expected) []Bucket {
+	var out []Bucket
+	for _, b := range exp.Hours {
+		if !b.From.Before(o.From) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// hourRows are the rows per log type Loki holds for hour b. expected.json's
+// hour is [From, To). Read a nanosecond before To, a [1h] range is that hour
+// for the log's millisecond Instants whichever end of the range Loki
+// includes.
+func hourRows(ctx context.Context, loki Loki, sel string, b Bucket) (map[string]int, error) {
+	samples, err := loki.Query(ctx, fmt.Sprintf(`sum by (outsystems_log_type) (count_over_time({%s} [1h]))`, sel), b.To.Add(-time.Nanosecond))
+	if err != nil {
+		return nil, err
+	}
+	rows := map[string]int{}
+	for _, s := range samples {
+		rows[s.Labels["outsystems_log_type"]] = int(s.Value)
+	}
+	return rows, nil
+}
+
+// Progress is how far Loki is through the hours a check reads, while the
+// patientzero-scale collector catches up.
+type Progress struct {
+	Hours int
+	// Complete are the hours Loki holds in full, counted from the first up
+	// to one it does not.
+	Complete int
+	// Done is whether Loki holds the last hour in full. The collector
+	// delivers each log type in order, so it then holds the others too,
+	// unless rows were lost on the way, which the check finds.
+	Done bool
+}
+
+// CaughtUp reads how far Loki is through the log, one rows query an hour: a
+// cheap pass to repeat before Check, which is not.
+func CaughtUp(ctx context.Context, loki Loki, exp *Expected, opts CheckOptions) (Progress, error) {
+	hours := opts.hours(exp)
+	p := Progress{Hours: len(hours)}
+	sel := opts.selector()
+	for _, b := range hours {
+		rows, err := hourRows(ctx, loki, sel, b)
+		if err != nil {
+			return p, err
+		}
+		if !(HourCheck{Expected: b, Rows: rows}).Complete() {
+			break
+		}
+		p.Complete++
+	}
+	if p.Complete == len(hours) {
+		p.Done = true
+		return p, nil
+	}
+	last := hours[len(hours)-1]
+	rows, err := hourRows(ctx, loki, sel, last)
+	if err != nil {
+		return p, err
+	}
+	p.Done = HourCheck{Expected: last, Rows: rows}.Complete()
+	return p, nil
+}
+
 // Check compares what Loki holds for the generated log with its known
 // answers: every hour from opts.From to the log's end, every whole day in
 // it, and the checked panels over 1 hour, 24 hours and the whole range
 // (their [$__range] panels) or at their busiest (the 5-minute ones).
 func Check(ctx context.Context, loki Loki, exp *Expected, panels []Panel, opts CheckOptions) (CheckResult, error) {
 	res := CheckResult{Environment: opts.Environment, From: opts.From, To: exp.End}
-	sel := fmt.Sprintf(`deployment_environment_name=%q`, opts.Environment)
+	sel := opts.selector()
 	value := func(q string, t time.Time) (int, error) {
 		s, err := loki.Query(ctx, q, t)
 		if err != nil {
@@ -337,22 +411,14 @@ func Check(ctx context.Context, loki Loki, exp *Expected, panels []Panel, opts C
 		return fmt.Sprintf(`count(sum by (%s) (count_over_time({%s}%s [1h])))`, by, stream, filter)
 	}
 	users, sessions := ` | User_Id!="" | User_Id!="0"`, ` | Session_Id!=""`
-	for _, b := range exp.Hours {
-		if b.From.Before(opts.From) {
-			continue
-		}
-		// expected.json's hour is [From, To). Read a nanosecond before To,
-		// a [1h] range is that hour for the log's millisecond Instants
-		// whichever end of the range Loki includes.
+	for _, b := range opts.hours(exp) {
+		// The distinct counts are read where hourRows reads the rows.
 		at := b.To.Add(-time.Nanosecond)
-		h := HourCheck{Expected: b, Rows: map[string]int{}}
-		rows, err := loki.Query(ctx, fmt.Sprintf(`sum by (outsystems_log_type) (count_over_time({%s} [1h]))`, sel), at)
+		rows, err := hourRows(ctx, loki, sel, b)
 		if err != nil {
 			return res, err
 		}
-		for _, s := range rows {
-			h.Rows[s.Labels["outsystems_log_type"]] = int(s.Value)
-		}
+		h := HourCheck{Expected: b, Rows: rows}
 		for _, c := range []struct {
 			dst                 *int
 			by, logType, filter string
