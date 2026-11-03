@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -584,19 +585,24 @@ func TestLoginDeletesTheSessionWhenTheCommitFails(t *testing.T) {
 	}
 }
 
-// An unknown email, a user without a password and a disabled user take as
-// long to refuse as a wrong password: each checks a hash, so the time
-// tells nothing about which accounts exist.
+// An unknown email, a user without a password and a disabled user cost as
+// much to refuse as a wrong password: each checks one hash with the
+// hasher's parameters, so neither the answer nor its time tells which
+// accounts exist.
 //
-// A shared runner's load comes and goes, so one path timed after another
-// can look several times slower (444ms against 93ms once in CI, for a
-// disabled user and a wrong password, which run the same code). So the
-// test runs alone, not beside its package's other tests, which hash too;
-// it warms every path up, times them in turns, round after round, and
-// compares their medians. A refusal that skipped the hash takes a
-// hundredth of the time, far outside the factor of 2 allowed either way.
-func TestFailedLoginsTakeAsLongAsAWrongPassword(t *testing.T) {
-	f := newFixture(t, password.DefaultParams)
+// The cost is this process's CPU time, not the time on the clock. On a
+// shared runner, other processes' load makes one login wait longer than
+// another: 444ms against 93ms once in CI, for a wrong password and a
+// disabled user, whose refusals run the same code. Load changes the
+// waiting, not the work. The test runs alone in its package, whose other
+// tests hash too, warms every path up, times them in turns, round after
+// round, and compares their medians. A refusal that skipped the hash
+// costs a tenth or less, far outside the factor of 2 allowed either way.
+// The parameters are cheaper than the defaults, so that the test stays
+// quick under the race detector: what it compares is whether each path
+// does the hash, not how long one hash takes.
+func TestFailedLoginsCostAsMuchAsAWrongPassword(t *testing.T) {
+	f := newFixture(t, password.Params{Time: 2, MemoryKiB: 16 * 1024, Threads: 2, SaltBytes: 16, KeyBytes: 32})
 	ctx := context.Background()
 	f.addUser(t, f.hasher, "active@example.com", secret, "viewer")
 	disabled := f.addUser(t, f.hasher, "disabled@example.com", secret, "viewer")
@@ -609,13 +615,14 @@ func TestFailedLoginsTakeAsLongAsAWrongPassword(t *testing.T) {
 		{"no password", "nopassword@example.com", secret},
 		{"disabled user", "disabled@example.com", secret},
 	}
-	login := func(email, secret string) time.Duration {
+	type cost struct{ cpu, wall time.Duration }
+	login := func(email, secret string) cost {
 		t.Helper()
-		start := time.Now()
+		cpu, start := cpuTime(t), time.Now()
 		if _, _, err := f.service.Login(ctx, email, secret, client); !errors.Is(err, auth.ErrInvalidCredentials) {
 			t.Fatalf("%s: %v", email, err)
 		}
-		return time.Since(start)
+		return cost{cpuTime(t) - cpu, time.Since(start)}
 	}
 	// The decoy hash is made at the first login that needs it, and the
 	// connections open at the first ones.
@@ -624,27 +631,40 @@ func TestFailedLoginsTakeAsLongAsAWrongPassword(t *testing.T) {
 	}
 	// Within the limits: 8 failures per account, 32 from the address.
 	const rounds = 7
-	took := make([][]time.Duration, len(paths))
+	cpu := make([][]time.Duration, len(paths))
+	wall := make([][]time.Duration, len(paths))
 	for round := range rounds {
 		// Each round starts at another path, so none is always timed first.
 		for i := range paths {
 			j := (round + i) % len(paths)
-			took[j] = append(took[j], login(paths[j].email, paths[j].secret))
+			c := login(paths[j].email, paths[j].secret)
+			cpu[j], wall[j] = append(cpu[j], c.cpu), append(wall[j], c.wall)
 		}
 	}
-	medians := make([]time.Duration, len(paths))
-	for i := range paths {
-		slices.Sort(took[i])
-		medians[i] = took[i][rounds/2]
+	median := func(d []time.Duration) time.Duration {
+		d = slices.Clone(d)
+		slices.Sort(d)
+		return d[len(d)/2]
 	}
-	wrong := medians[0]
+	wrong := median(cpu[0])
 	for i, p := range paths {
-		ratio := float64(medians[i]) / float64(wrong)
-		t.Logf("%s: median %s, %.2f× a wrong password's", p.name, medians[i].Round(time.Microsecond), ratio)
+		ratio := float64(median(cpu[i])) / float64(wrong)
+		t.Logf("%s: median CPU %s, %.2f× a wrong password's; on the clock %s", p.name,
+			median(cpu[i]).Round(time.Microsecond), ratio, median(wall[i]).Round(time.Microsecond))
 		if ratio < 0.5 || ratio > 2 {
-			t.Errorf("%s: refused in %s (median of %d), a wrong password in %s: want within a factor of 2", p.name, medians[i], rounds, wrong)
+			t.Errorf("%s: refused for %s of CPU (median of %d), a wrong password for %s: want within a factor of 2", p.name, median(cpu[i]), rounds, wrong)
 		}
 	}
+}
+
+// cpuTime is the CPU time this process has used, user and system.
+func cpuTime(t *testing.T) time.Duration {
+	t.Helper()
+	var usage syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
+		t.Fatal(err)
+	}
+	return time.Duration(usage.Utime.Nano() + usage.Stime.Nano())
 }
 
 // Sessions live under the SHA-256 of their token, expire in Redis at the
