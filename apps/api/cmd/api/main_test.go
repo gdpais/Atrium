@@ -227,6 +227,8 @@ func TestLoadConfigRejectsValuesThatCannotWork(t *testing.T) {
 		{envCollectorURL, "http://db-collector:8082/admin/config"},
 		{envCollectorURL, "http://token@db-collector:8082"},
 		{envCollectorURL, "http://db-collector:8082?x=1"},
+		{envCollectorURL, "http://db-collector:8082/?"},
+		{envCollectorURL, "http://db-collector:8082#admin"},
 		{envSiteOrigin, "heartbeat.example.com"},
 		{envSiteOrigin, "https://heartbeat.example.com/app"},
 		{envSiteOrigin, "https://user@heartbeat.example.com"},

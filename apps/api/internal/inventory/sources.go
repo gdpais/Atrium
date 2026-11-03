@@ -335,14 +335,21 @@ func (s *Service) UpdateSource(ctx context.Context, caller Caller, id uuid.UUID,
 				return err
 			}
 		}
-		config, name, err := sourceConfig(before.SourceType, before.Config)
-		if change.Config != nil {
-			config, name, err = sourceConfig(before.SourceType, *change.Config)
-		}
+		// The stored config is checked when it was written; a change of
+		// status or ingest mode alone does not check it again, so a schema
+		// tightened later never stops an operator disabling a source.
+		beforeConfig, err := json.Marshal(before.Config)
 		if err != nil {
-			return err
+			return fmt.Errorf("config: %w", err)
 		}
-		beforeConfig, _ := json.Marshal(before.Config)
+		config, name := beforeConfig, ""
+		if change.Config != nil {
+			if config, name, err = sourceConfig(before.SourceType, *change.Config); err != nil {
+				return err
+			}
+		} else if name, _ = applicationName(beforeConfig); name == "" {
+			return fmt.Errorf("stored config of source %s has no application_name", before.ID)
+		}
 		if next.IngestMode == before.IngestMode && next.Status == before.Status && jsonEqual(config, beforeConfig) {
 			after = before
 			return nil
@@ -492,8 +499,11 @@ func (s *Service) observe(ctx context.Context, sources []Source) {
 	for i := range sources {
 		src := &sources[i]
 		if src.SourceType != SourceOutSystems || src.IngestMode != IngestAgentless {
-			src.Observation = Observation{Status: NotApplicable, Collectors: []string{},
-				Detail: "an " + src.IngestMode + " source sends its telemetry itself; no collector reads it"}
+			detail := "no Heartbeat collector reads a " + src.SourceType + " " + src.IngestMode + " source"
+			if src.IngestMode == IngestOTLP {
+				detail = "an otlp source sends its telemetry itself; no collector reads it"
+			}
+			src.Observation = Observation{Status: NotApplicable, Collectors: []string{}, Detail: detail}
 			continue
 		}
 		if coverage == nil && askErr == nil {

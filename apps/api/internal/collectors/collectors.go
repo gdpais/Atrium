@@ -103,7 +103,10 @@ func (c *Client) OutSystemsLogs(ctx context.Context) (Coverage, error) {
 	if !c.cachedAt.IsZero() && now().Sub(c.cachedAt) < ttl {
 		return c.cached, c.err
 	}
-	c.cached, c.err = c.fetch(ctx, now)
+	// The answer is shared and kept, so it must not depend on this caller:
+	// a client that gives up does not cancel the request, and its failure
+	// is not kept for everyone. The client's timeout still bounds it.
+	c.cached, c.err = c.fetch(context.WithoutCancel(ctx), now)
 	c.cachedAt = now()
 	return c.cached, c.err
 }

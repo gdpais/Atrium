@@ -140,6 +140,27 @@ func TestSources(t *testing.T) {
 		}
 	})
 
+	t.Run("a schema tightened later does not stop a source being disabled", func(t *testing.T) {
+		legacyApp := f.application(t, prod.ID, "Legacy")
+		var id uuid.UUID
+		// A config valid when it was written and not under today's schema,
+		// as after a release that tightens it.
+		if err := f.pool.QueryRow(ctx, `insert into telemetry_sources (application_id, source_type, ingest_mode, config)
+			values ($1, 'outsystems', 'agentless', '{"application_name":"Legacy","retired_field":1}') returning id`, legacyApp.ID).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		disabled := inventory.StatusDisabled
+		got, err := svc.UpdateSource(ctx, operator, id, inventory.SourceChange{Status: &disabled})
+		if err != nil || got.Status != disabled {
+			t.Fatalf("disable = %+v, %v", got, err)
+		}
+		fixed := map[string]any{"application_name": "Legacy", "retired_field": 1}
+		var invalid *inventory.InvalidError
+		if _, err := svc.UpdateSource(ctx, operator, id, inventory.SourceChange{Config: &fixed}); !errors.As(err, &invalid) {
+			t.Fatalf("a new config is still checked: %v", err)
+		}
+	})
+
 	t.Run("lists filter by environment and page by name", func(t *testing.T) {
 		page, err := svc.ListSources(ctx, inventory.SourceFilter{EnvironmentID: prod.ID}, inventory.Page{Limit: 1})
 		if err != nil {
@@ -160,8 +181,8 @@ func TestSources(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if len(names) != 2 || !strings.HasPrefix(names[0], "Claims/") || !strings.HasPrefix(names[1], "Claims/") {
-			t.Fatalf("prod sources %v, want Claims's agentless and otlp", names)
+		if len(names) != 3 || !strings.HasPrefix(names[0], "Claims/") || !strings.HasPrefix(names[1], "Claims/") || !strings.HasPrefix(names[2], "Legacy/") {
+			t.Fatalf("prod sources %v, want Claims's agentless and otlp, then Legacy's", names)
 		}
 	})
 }

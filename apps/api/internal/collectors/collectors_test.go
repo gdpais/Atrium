@@ -126,3 +126,25 @@ func TestAnswersAreKeptForTTL(t *testing.T) {
 		t.Fatalf("%d requests after the TTL, want 2", calls.Load())
 	}
 }
+
+// A caller that gives up does not decide for everyone: the shared request
+// still completes, and its answer, not the caller's cancellation, is what
+// the next callers get.
+func TestACancelledCallerDoesNotPoisonTheCache(t *testing.T) {
+	server, calls := adminServer(t, http.StatusOK, []heartbeatconfig.CollectorRuntimeConfig{
+		{ID: "oslogs-prod", Kind: KindOutSystemsLogs, Enabled: true, Targets: []heartbeatconfig.TargetRuntimeConfig{target("db", "prod")}},
+	})
+	c := &Client{URL: server.URL, Token: token}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := c.OutSystemsLogs(cancelled); err != nil {
+		t.Fatalf("a cancelled caller's request: %v", err)
+	}
+	got, err := c.OutSystemsLogs(context.Background())
+	if err != nil || len(got.ByEnvironment["prod"]) != 1 {
+		t.Fatalf("the next caller got %+v, %v: the cancellation was kept", got, err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("%d requests, want 1", calls.Load())
+	}
+}

@@ -297,7 +297,7 @@ func collectorURL(value string) (string, error) {
 		return "", nil
 	}
 	u, err := url.Parse(value)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Trim(u.Path, "/") != "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || strings.ContainsAny(value, "?#") || strings.Trim(u.Path, "/") != "" {
 		return "", fmt.Errorf("%q: want an http or https base URL such as http://db-collector:8082, without a path, credentials or a query", value)
 	}
 	return strings.TrimRight(value, "/"), nil

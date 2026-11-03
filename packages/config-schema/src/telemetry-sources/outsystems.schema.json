@@ -8,11 +8,11 @@
   "required": ["application_name"],
   "properties": {
     "application_name": {
-      "description": "The OutSystems Application_Name: the service.name of the application's logs and the application label of its derived metrics. Matched exactly, case included. Within an environment, one name belongs to one application.",
+      "description": "The OutSystems Application_Name: the service.name of the application's logs and the application label of its derived metrics. Matched exactly, case included. Within an environment, one name belongs to one application. Spaces only as ASCII spaces between other characters, and no control or format characters, so that two names that look alike are alike.",
       "type": "string",
       "minLength": 1,
       "maxLength": 200,
-      "pattern": "^[^\\s\\p{Cc}](?:[^\\p{Cc}]*[^\\s\\p{Cc}])?$",
+      "pattern": "^[^\\p{C}\\p{Z}\\s](?:(?:[^\\p{C}\\p{Z}\\s]| )*[^\\p{C}\\p{Z}\\s])?$",
       "examples": ["Claims"]
     }
   }
