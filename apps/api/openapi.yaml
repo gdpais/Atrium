@@ -1490,13 +1490,14 @@ components:
       type: string
       description: |
         A reference to the credential the collector logs in with, never
-        the credential: `kv/`, `secret/` or `env/` and a name of letters,
-        digits, `.`, `_` and `-`, at most 200. The collector reads the
+        the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+        letters, digits and `-`, at most 200, so that each key has one
+        spelling. The collector reads the
         `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
         its mounted credentials Secret, the reference upper-cased with `/`,
         `-` and `.` as `_` (`env/finance-prod` is
         `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
-      pattern: "^(kv|secret|env)/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$"
+      pattern: "^(kv|secret|env)/[a-z0-9][a-z0-9-]{0,199}$"
       examples: [env/finance-prod]
     DatabaseTarget:
       type: object

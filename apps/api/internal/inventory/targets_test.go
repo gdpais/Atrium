@@ -28,6 +28,12 @@ func TestNewDatabaseTargetDefaults(t *testing.T) {
 	if got.Engine != "sqlserver" || got.Port != 1433 || got.Status != StatusActive || got.DatabaseName != "" || len(got.Labels) != 0 {
 		t.Fatalf("newDatabaseTarget() = %+v, want sqlserver, port 1433, active, no database and no labels", got)
 	}
+	for host, want := range map[string]string{"FD00:0:0::7": "fd00::7", "fd00:0000::0007": "fd00::7"} {
+		got, err := targetHost(host)
+		if err != nil || got != want {
+			t.Errorf("targetHost(%q) = %q, %v; want %q", host, got, err, want)
+		}
+	}
 	in := validTarget()
 	in.Host = "SQL01.Finance.Internal"
 	in.DatabaseName = "  Finance  "
@@ -77,13 +83,16 @@ func TestNewDatabaseTargetRejects(t *testing.T) {
 // a credential pasted in its place is refused, and the error does not
 // repeat it.
 func TestCredentialRef(t *testing.T) {
-	for _, ref := range []string{"env/finance-prod", "kv/sqlserver-default", "secret/api.postgres", "env/HEARTBEAT_SQLSERVER", "env/" + strings.Repeat("a", 200)} {
+	for _, ref := range []string{"env/finance-prod", "kv/sqlserver-default", "secret/api-postgres", "env/0-orders", "env/" + strings.Repeat("a", 200)} {
 		if _, err := credentialRef(ref); err != nil {
 			t.Errorf("credentialRef(%q) = %v, want it accepted", ref, err)
 		}
 	}
 	for _, ref := range []string{
 		"", "finance-prod", "vault/finance", "env/", "env/-finance", "env/" + strings.Repeat("a", 201),
+		// Other spellings of keys a reference above has: they would reach
+		// its credential while looking like another reference.
+		"env/Finance-Prod", "env/finance.prod", "env/finance_prod", "env/HEARTBEAT_SQLSERVER", "secret/api.postgres",
 		"env/finance prod", "env/finance/prod", "env/sa:not-a-secret", "sa:not-a-secret", "env/sa@sql01",
 		urlWithCredential("vault.internal/finance"), " env/finance-prod", "env/finance-prod\n", "env/finançe",
 	} {
@@ -105,7 +114,7 @@ func TestCredentialRef(t *testing.T) {
 // Kubernetes Secret key and environment variable name, and every host
 // passes the collector's host check.
 func TestTargetChecksAreNoLooserThanTheCollectors(t *testing.T) {
-	for _, ref := range []string{"env/finance-prod", "kv/a", "secret/A.b_c-d", "env/" + strings.Repeat("x", 200)} {
+	for _, ref := range []string{"env/finance-prod", "kv/a", "secret/a-b--c", "env/" + strings.Repeat("x", 200)} {
 		got, err := credentialRef(ref)
 		if err != nil {
 			t.Fatalf("credentialRef(%q) = %v", ref, err)
@@ -204,4 +213,43 @@ func specSchemas(t *testing.T) map[string]specSchema {
 // secret scanners to flag.
 func urlWithCredential(rest string) string {
 	return "https://" + "sa" + ":" + "not-a-secret" + "@" + rest
+}
+
+// Every key has one spelling: two references the API accepts never resolve
+// to the same credential, so a reference that looks new never reaches
+// another's. Checked over every name of up to three characters from the
+// alphabet, under every prefix.
+func TestCredentialRefsNeverShareAKey(t *testing.T) {
+	// Upper case, '.' and '_' too: the spellings the collector folds into
+	// one key.
+	alphabet := "aA0-._"
+	names, last := []string{}, []string{""}
+	for range 3 {
+		var longer []string
+		for _, n := range last {
+			for _, c := range alphabet {
+				longer = append(longer, n+string(c))
+			}
+		}
+		names, last = append(names, longer...), longer
+	}
+	owner := map[string]string{}
+	accepted := 0
+	for _, prefix := range []string{"kv/", "secret/", "env/"} {
+		for _, n := range names {
+			ref := prefix + n
+			if _, err := credentialRef(ref); err != nil {
+				continue
+			}
+			accepted++
+			key := credentials.Key(ref)
+			if other, ok := owner[key]; ok {
+				t.Fatalf("%q and %q both resolve to %s", other, ref, key)
+			}
+			owner[key] = ref
+		}
+	}
+	if accepted < 50 {
+		t.Fatalf("only %d references accepted: the sample checks too little", accepted)
+	}
 }

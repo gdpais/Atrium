@@ -187,8 +187,9 @@ values ('sqlserver', 'waits_lean', 2, 'waits', 30, 'SELECT 1', 'waits');
 	}
 }
 
-// 0008 makes a database target's name unique in its environment; its down
-// migration drops the index again, so the up migration applies twice.
+// 0005 makes a database target's name unique in its environment and its
+// database name case-insensitive in its identity; its down migration puts
+// the indexes back as they were, so the up migration applies twice.
 func TestDatabaseTargetNamesMigrationUpAndDown(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)
@@ -201,18 +202,24 @@ func TestDatabaseTargetNamesMigrationUpAndDown(t *testing.T) {
 	index := `select coalesce(to_regclass('public.database_targets_environment_name_uq')::text, 'none');`
 	second := `insert into database_targets (environment_id, engine, name, host, port, credential_ref)
 values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-b', 1433, 'env/b');`
+	// The same database as the first target's, its name in another case.
+	sameDatabase := `insert into database_targets (environment_id, engine, name, host, port, database_name, credential_ref)
+values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders-copy', 'orders-a', 1433, 'ORDERS', 'env/c');`
 	for round := 1; round <= 2; round++ {
 		stack.PSQL(t, stack.DBName, `delete from database_targets;
-insert into database_targets (environment_id, engine, name, host, port, credential_ref)
-values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-a', 1433, 'env/a');`)
-		stack.ApplyMigration(t, "/migrations/0008_database_target_names.up.sql")
+insert into database_targets (environment_id, engine, name, host, port, database_name, credential_ref)
+values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-a', 1433, 'Orders', 'env/a');`)
+		stack.ApplyMigration(t, "/migrations/0005_database_targets.up.sql")
 		if stdout := stack.PSQL(t, stack.DBName, index); !strings.Contains(stdout, "database_targets_environment_name_uq") {
 			t.Fatalf("round %d, after up: %s", round, stdout)
 		}
 		if out, err := stack.PSQLResult(t, stack.DBName, second); err == nil || !strings.Contains(out, "database_targets_environment_name_uq") {
 			t.Fatalf("round %d: a second target named orders in the environment: %v\n%s", round, err, out)
 		}
-		stack.ApplyMigration(t, "/migrations/0008_database_target_names.down.sql")
+		if out, err := stack.PSQLResult(t, stack.DBName, sameDatabase); err == nil || !strings.Contains(out, "database_targets_identity_uq") {
+			t.Fatalf("round %d: a target for ORDERS beside one for Orders on the same server: %v\n%s", round, err, out)
+		}
+		stack.ApplyMigration(t, "/migrations/0005_database_targets.down.sql")
 		if stdout := stack.PSQL(t, stack.DBName, index); !strings.Contains(stdout, "none") {
 			t.Fatalf("round %d, after down: %s", round, stdout)
 		}

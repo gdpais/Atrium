@@ -79,8 +79,8 @@ func TestRequiredFoundationFilesExist(t *testing.T) {
 		"db/migrations/0003_login_roles.down.sql",
 		"db/migrations/0004_probe_definitions.up.sql",
 		"db/migrations/0004_probe_definitions.down.sql",
-		"db/migrations/0008_database_target_names.up.sql",
-		"db/migrations/0008_database_target_names.down.sql",
+		"db/migrations/0005_database_targets.up.sql",
+		"db/migrations/0005_database_targets.down.sql",
 	}
 
 	for _, rel := range required {
@@ -232,8 +232,8 @@ func TestMigrationFilesUseSQLExtension(t *testing.T) {
 		"db/migrations/0003_login_roles.down.sql",
 		"db/migrations/0004_probe_definitions.up.sql",
 		"db/migrations/0004_probe_definitions.down.sql",
-		"db/migrations/0008_database_target_names.up.sql",
-		"db/migrations/0008_database_target_names.down.sql",
+		"db/migrations/0005_database_targets.up.sql",
+		"db/migrations/0005_database_targets.down.sql",
 	} {
 		if filepath.Ext(rel) != ".sql" {
 			t.Fatalf("expected .sql file extension for %s", rel)

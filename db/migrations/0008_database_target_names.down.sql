@@ -1,1 +1,0 @@
-drop index if exists database_targets_environment_name_uq;

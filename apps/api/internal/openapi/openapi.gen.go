@@ -254,8 +254,9 @@ type ComponentUpdate struct {
 }
 
 // CredentialRef A reference to the credential the collector logs in with, never
-// the credential: `kv/`, `secret/` or `env/` and a name of letters,
-// digits, `.`, `_` and `-`, at most 200. The collector reads the
+// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+// letters, digits and `-`, at most 200, so that each key has one
+// spelling. The collector reads the
 // `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
 // its mounted credentials Secret, the reference upper-cased with `/`,
 // `-` and `.` as `_` (`env/finance-prod` is
@@ -287,8 +288,9 @@ type DatabaseTarget struct {
 	CreatedAt time.Time `json:"created_at"`
 
 	// CredentialRef A reference to the credential the collector logs in with, never
-	// the credential: `kv/`, `secret/` or `env/` and a name of letters,
-	// digits, `.`, `_` and `-`, at most 200. The collector reads the
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
 	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is
@@ -345,8 +347,9 @@ type DatabaseTargetPage struct {
 // DatabaseTargetUpdate The fields to change; the environment, engine and name cannot.
 type DatabaseTargetUpdate struct {
 	// CredentialRef A reference to the credential the collector logs in with, never
-	// the credential: `kv/`, `secret/` or `env/` and a name of letters,
-	// digits, `.`, `_` and `-`, at most 200. The collector reads the
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
 	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is
@@ -483,8 +486,9 @@ type NewComponent struct {
 // NewDatabaseTarget defines model for NewDatabaseTarget.
 type NewDatabaseTarget struct {
 	// CredentialRef A reference to the credential the collector logs in with, never
-	// the credential: `kv/`, `secret/` or `env/` and a name of letters,
-	// digits, `.`, `_` and `-`, at most 200. The collector reads the
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
 	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is

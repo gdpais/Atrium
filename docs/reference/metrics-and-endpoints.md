@@ -264,10 +264,10 @@ created in, for good, as an application does.
 | --- | --- |
 | `name` | The `target` label of its metrics, beside the environment's: a slug like an environment's (`finance-prod`), unique in its environment, fixed once created. The collector refuses two targets of one environment with one name, since they would write the same series |
 | `engine` | `sqlserver`, the default; fixed |
-| `host` | Checked as the collector checks it: a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; at most 253 characters; stored in lower case |
+| `host` | Checked as the collector checks it: a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; at most 253 characters; stored in lower case, and an IPv6 address in its canonical form |
 | `port` | 1 to 65535; 1433 when left out |
-| `database_name` | Empty for the login's default database; at most 128 characters |
-| `credential_ref` | `kv/`, `secret/` or `env/` and a name of letters, digits, `.`, `_` and `-`, at most 200. The collector reads `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of its credentials Secret ([credential resolution](configuration.md#credential-resolution)): `env/finance-prod` is `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses. A value shaped like a credential is refused, and the problem does not repeat it |
+| `database_name` | Empty for the login's default database; at most 128 characters; compared without regard to case, as SQL Server does by default |
+| `credential_ref` | `kv/`, `secret/` or `env/` and a name of lower-case letters, digits and `-`, at most 200. The collector reads `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of its credentials Secret ([credential resolution](configuration.md#credential-resolution)): `env/finance-prod` is `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses, and each key has one spelling: `env/Finance.Prod`, which the collector would read from the same key, is refused rather than passing for another reference. A value shaped like a credential is refused, and the problem does not repeat it |
 | `status`, `labels` | As for applications |
 
 The environment, engine and host, port and database together are unique:

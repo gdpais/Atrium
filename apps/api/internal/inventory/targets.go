@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -88,14 +89,17 @@ var Engines = []string{config.KindSQLServer}
 var defaultPorts = map[string]int{config.KindSQLServer: 1433}
 
 // CredentialRefPattern is the form of a target's credential reference: kv/,
-// secret/ or env/, then a name of letters, digits, '.', '_' and '-' that
+// secret/ or env/, then a name of lower-case letters, digits and '-' that
 // starts with a letter or a digit, at most 200. It is stricter than the
-// collector's own check (config.ValidSecretRef), which the API runs too:
-// the name maps to a key, credentials.Key(ref) such as
-// HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD, that is a valid Kubernetes Secret
-// key and environment variable name, and it leaves no room for a
-// username:password or a URL pasted in by mistake.
-const CredentialRefPattern = `^(kv|secret|env)/[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`
+// collector's own check (config.ValidSecretRef), which the API runs too.
+// The collector reads the key credentials.Key(ref), the reference
+// upper-cased with '/', '-' and '.' as '_' (env/finance-prod is
+// HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD), so this form gives every key one
+// spelling: env/Finance.Prod cannot reach env/finance-prod's credential
+// while looking like another reference. The key is a valid Kubernetes
+// Secret key and environment variable name, and the form leaves no room
+// for a username:password or a URL pasted in by mistake.
+const CredentialRefPattern = `^(kv|secret|env)/[a-z0-9][a-z0-9-]{0,199}$`
 
 var credentialRefRE = regexp.MustCompile(CredentialRefPattern)
 
@@ -380,10 +384,16 @@ func targetName(v string) (string, error) {
 // targetHost checks a host as the collector does (config.ValidHost), so it
 // joins with the port into a connection URL the driver parses: a DNS name,
 // an IPv4 address or a bare IPv6 address, with no port, brackets,
-// credentials or path. It is stored in lower case, as DNS compares names.
+// credentials or path. It is stored in lower case, as DNS compares names,
+// and an IPv6 address in its canonical form, so that one server has one
+// spelling for the identity index.
 func targetHost(v string) (string, error) {
 	if v == "" || len(v) > maxHostBytes || !config.ValidHost(v) {
 		return "", invalid("host", "want a host name, an IPv4 address or a bare IPv6 address, at most %d characters, with no port, brackets, credentials or path; set the port in port", maxHostBytes)
+	}
+	if strings.Contains(v, ":") {
+		// ValidHost let it through only as an IPv6 address.
+		return net.ParseIP(v).String(), nil
 	}
 	return strings.ToLower(v), nil
 }
@@ -400,7 +410,7 @@ func targetPort(v int) (int, error) {
 // the logs.
 func credentialRef(v string) (string, error) {
 	if !credentialRefRE.MatchString(v) || !config.ValidSecretRef(v) {
-		return "", invalid("credential_ref", "want kv/, secret/ or env/ and a name of letters, digits, '.', '_' and '-', at most 200, such as env/finance-prod: a reference to the collector's credentials Secret, never a username or password")
+		return "", invalid("credential_ref", "want kv/, secret/ or env/ and a name of lower-case letters, digits and '-', at most 200, such as env/finance-prod: a reference to the collector's credentials Secret, never a username or password")
 	}
 	return v, nil
 }

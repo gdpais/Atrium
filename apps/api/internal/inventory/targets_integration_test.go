@@ -70,6 +70,18 @@ func TestDatabaseTargets(t *testing.T) {
 		if _, err := f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: other.ID, Name: "orders", Host: "orders.db.internal", CredentialRef: "env/orders"}); err != nil {
 			t.Fatalf("the same name and database in another environment: %v", err)
 		}
+		// SQL Server compares database names without regard to case, and
+		// an IPv6 address has one canonical spelling.
+		if _, err := f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "sales", Host: "sales", DatabaseName: "Sales", CredentialRef: "env/sales"}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "sales-again", Host: "sales", DatabaseName: "SALES", CredentialRef: "env/sales"})
+		wantConflict(t, err, "a sqlserver target for sales")
+		if _, err := f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "v6", Host: "fd00::7", CredentialRef: "env/v6"}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "v6-again", Host: "FD00:0::7", CredentialRef: "env/v6"})
+		wantConflict(t, err, "a sqlserver target for fd00::7")
 		// Another database on the same server is another target.
 		if _, err := f.svc.CreateDatabaseTarget(ctx, operator, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "orders-archive", Host: "orders.db.internal", DatabaseName: "Archive", CredentialRef: "env/orders"}); err != nil {
 			t.Fatalf("another database on the same server: %v", err)
