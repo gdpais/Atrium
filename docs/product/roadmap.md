@@ -10,7 +10,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | --- | --- | --- |
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
-| 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02 except the 48 hour backfill: the nightly run of every scenario has been green since 2026-10-28. Left: the backfill checked again in that run, the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
+| 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
 | 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; next login and sessions [4.2]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Web UI | Not started |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
@@ -172,18 +172,19 @@ Validated on 2026-11-02, with the nightly runs and `master`'s CI as evidence
 against SQL Server, extraction → Collector → Loki and derived metrics →
 Prometheus on kind, restarts and outages without gaps, and the SLO scenarios
 firing the burn-rate alerts. The first green nightly run was on 2026-10-28.
+The 48 hour backfill matched its known answer in Loki on the current export
+path in the scenarios workflow on 2026-11-02
+([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130): all 48 hours in full, users, sessions and error fingerprints
+exact), and runs after the scenarios from now on [16.5].
 
 Left before the release, in order:
 
-1. The 48 hour backfill, checked again in the nightly run [16.5]. It matched
-   its known answer in Loki by hand on 2026-10-21, before the db-collector
-   began waiting for the Collector in the background; no CI job runs it
-2. The outcome demo: an SRE sees a broken deploy's errors, latency and logs in
+1. The outcome demo: an SRE sees a broken deploy's errors, latency and logs in
    Grafana and the burn-rate alert page. The nightly run checks signals in
    Prometheus, Loki and Alertmanager, not what Grafana shows, and the
    [live demo](../guides/live-demo.md) runs the scenarios without walking
    through the dashboards or the logs [16.5]
-3. The release. **Owner:** create the release GitHub App, needed since
+2. The release. **Owner:** create the release GitHub App, needed since
    2026-10-05 [0.5]
 
 Not in the exit, and done alongside phase 3 before the first production
