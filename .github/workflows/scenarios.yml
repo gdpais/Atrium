@@ -16,6 +16,12 @@ name: scenarios
 # make patientzero-scenarios runs them one after the other in a fixed order
 # (SCENARIO_ORDER in tools/patientzero/scripts/patientzero.sh); the journals
 # and the summary are kept as the run's artifact.
+#
+# Then the 48 hour backfill, about 20 minutes: a production-sized log in
+# patientzero_scale, read by a second collector from 48 hours back, and
+# every hour in Loki compared with the log's known answers
+# (tools/patientzero/README.md#in-loki). Its check is in the run's summary
+# and, with the known answers and the measurement, in its own artifact.
 
 on:
   workflow_call:
@@ -35,7 +41,9 @@ jobs:
   scenarios:
     name: Every PatientZero scenario on kind
     runs-on: ubuntu-26.04
-    timeout-minutes: 240
+    # The scenarios take about 2 h 20 min, the backfill about 20 minutes and
+    # at most its steps' 85.
+    timeout-minutes: 270
     # Two nightly runs never overlap. On a pull request ci.yml cancels the
     # older run, this job with it.
     concurrency:
@@ -68,9 +76,34 @@ jobs:
       # The input reaches the script through the environment, never the
       # command line; the script accepts only scenario names.
       - name: Run the scenarios
+        id: scenarios
         env:
           SCENARIOS: ${{ inputs.scenarios }}
         run: tools/patientzero/scripts/patientzero.sh scenarios
+      # The backfill runs whenever the scenarios ran, passed or failed: it
+      # is a check of its own. Generating and measuring the log (up to
+      # 9.8 M rows, 3 GB) took 2.5 minutes on 2026-11-02, with the runner's
+      # SQL Server capped at 2 GB (SQLSERVER_MEMORY_LIMIT_MB).
+      - name: Generate the production-sized log
+        id: scale
+        if: ${{ !cancelled() && steps.scenarios.outcome != 'skipped' }}
+        timeout-minutes: 20
+        run: |
+          make patientzero-scale
+          df -h /
+      - name: Collect it from 48 hours back
+        id: collect
+        if: ${{ !cancelled() && steps.scale.outcome == 'success' }}
+        timeout-minutes: 10
+        run: make patientzero-scale-collect
+      # Catching up took 16.5 minutes, held to Loki's ingestion rate; the
+      # check waits up to SCALE_WAIT minutes for it.
+      - name: Check the 48 hours in Loki against the known answers
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
+        timeout-minutes: 55
+        env:
+          SCALE_WAIT: "45"
+        run: make patientzero-scale-check
       - name: Show the cluster
         if: failure()
         run: |
@@ -87,5 +120,13 @@ jobs:
         with:
           name: patientzero-scenarios
           path: .tmp/patientzero-scenarios/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Keep the backfill's known answers, measurement and check
+        if: ${{ always() && steps.scale.outcome != 'skipped' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patientzero-scale
+          path: .tmp/patientzero-scale/
           if-no-files-found: warn
           retention-days: 30

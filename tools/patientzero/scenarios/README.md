@@ -136,7 +136,8 @@ extension calls, a consumed REST partner, long-running screens, and
 A backfill within Loki's 168 hours is not a scenario:
 `make patientzero-scale-collect` and `make patientzero-scale-check` backfill
 a generated log through the same extractor, Collector and Loki and check it
-against its known answers ([PatientZero](../README.md#in-loki)).
+against its known answers ([PatientZero](../README.md#in-loki)). The
+scenarios workflow runs it after the scenarios.
 
 ## Format
 
