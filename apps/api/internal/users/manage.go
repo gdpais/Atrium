@@ -36,6 +36,8 @@ var (
 	ErrNotFound = errors.New("users: no user has this ID")
 	// ErrLastAdmin is a change that would leave no active admin.
 	ErrLastAdmin = errors.New("the last active admin cannot be disabled or lose the admin role")
+	// ErrLastRole is a revoke that would leave the user without a role.
+	ErrLastRole = errors.New("a user keeps at least one role; disable them instead")
 	// ErrUnknownRole is a role that does not exist.
 	ErrUnknownRole = errors.New("users: no such role")
 	// ErrStalePassword is a password change whose expected hash is no
@@ -330,7 +332,8 @@ func (s *Service) Grant(ctx context.Context, caller Caller, id uuid.UUID, role s
 
 // Revoke takes role from the user id names and returns the user after it.
 // A role they lack changes nothing; admin cannot be taken from the last
-// active admin ([ErrLastAdmin]).
+// active admin ([ErrLastAdmin]), nor any role from a user who has no other
+// ([ErrLastRole]): as Create, it keeps every user at least one.
 func (s *Service) Revoke(ctx context.Context, caller Caller, id uuid.UUID, role string) (User, error) {
 	return s.role(ctx, caller, id, role, false)
 }
@@ -366,6 +369,10 @@ func (s *Service) role(ctx context.Context, caller Caller, id uuid.UUID, role st
 				if err := lastAdmin(ctx, q, id); err != nil {
 					return err
 				}
+			}
+			// Roles change only under the user's lock: before.Roles holds.
+			if len(before.Roles) == 1 {
+				return ErrLastRole
 			}
 			n, err = q.RevokeRole(ctx, store.RevokeRoleParams{UserID: pgUUID(id), RoleName: role})
 		}

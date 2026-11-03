@@ -896,7 +896,8 @@ paths:
       description: |
         Takes the role from the user. Revoking one they do not have changes
         nothing, and audits nothing. `admin` cannot be taken from the last
-        active admin (409). Their next request goes without it.
+        active admin, nor their only role from any user (409): disable them
+        instead. Their next request goes without it.
       responses:
         "200":
           description: The user after the change.
@@ -992,8 +993,8 @@ components:
       description: |
         The change conflicts with what exists: another entity already has
         the name, slug or email; a delete is refused because other entities
-        still refer to this one; or the change would leave no active admin.
-        The detail says which.
+        still refer to this one; or the change would leave no active admin,
+        or a user without a role. The detail says which.
       content:
         application/problem+json:
           schema:

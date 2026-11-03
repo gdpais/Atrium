@@ -183,6 +183,7 @@ func TestUserOperationsProblems(t *testing.T) {
 		{users.ErrUnknownRole, http.MethodPut, "/api/v1/users/" + userID + "/roles/owner", "", http.StatusNotFound, "no such role"},
 		{users.ErrNotFound, http.MethodPut, "/api/v1/users/" + userID + "/roles/viewer", "", http.StatusNotFound, "no user"},
 		{users.ErrLastAdmin, http.MethodDelete, "/api/v1/users/" + userID + "/roles/admin", "", http.StatusConflict, "last active admin"},
+		{users.ErrLastRole, http.MethodDelete, "/api/v1/users/" + userID + "/roles/viewer", "", http.StatusConflict, "at least one role"},
 		{users.ErrUnknownRole, http.MethodDelete, "/api/v1/users/" + userID + "/roles/owner", "", http.StatusNotFound, "no such role"},
 		{errors.New("dial tcp 10.0.0.9:5432: connection refused"), http.MethodGet, "/api/v1/users", "", http.StatusInternalServerError, requestIDHeader},
 	} {

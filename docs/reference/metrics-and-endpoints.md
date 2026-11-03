@@ -282,8 +282,9 @@ Each operation's least role is its `security` in
   as for a user who has forgotten theirs. Every session of theirs ends.
 - **Roles:** `PUT` and `DELETE /api/v1/users/{id}/roles/{role}` grant and
   revoke one. Granting a role the user has, or revoking one they lack,
-  changes nothing. The user's next request has the new roles; their
-  sessions go on.
+  changes nothing. A user keeps at least one role: revoking their only one
+  is refused (409); disable them instead. The user's next request has the
+  new roles; their sessions go on.
 - **The last active admin** can be neither disabled nor stripped of `admin`
   (409). The check and the change hold a lock on the `admin` role, so two
   admins cannot disable each other at the same moment and leave none.
@@ -301,7 +302,7 @@ its audit record gives the reason `changed_meanwhile`.
 | Status | When |
 | --- | --- |
 | 204 | Changed. Every session of yours ends, this one included, and the cookie is cleared: log in again |
-| 400 | A new password that is too short or too long |
+| 400 | A new password that is too short or too long, or a current one that is empty or over 1,024 bytes |
 | 403 | The current password is wrong, or `Origin` is missing or not the site. A wrong current password counts against the [login limits](#logging-in-and-sessions) as a failed login does, so a stolen session cannot be used to guess the password |
 | 429 | Past those limits; refused without checking |
 

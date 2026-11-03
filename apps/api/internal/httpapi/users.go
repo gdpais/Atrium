@@ -62,6 +62,8 @@ func userProblem(err error, roleInPath bool) (p openapi.Problem, ok bool) {
 		return problem(http.StatusConflict, users.ErrEmailTaken.Error()), true
 	case errors.Is(err, users.ErrLastAdmin):
 		return problem(http.StatusConflict, users.ErrLastAdmin.Error()), true
+	case errors.Is(err, users.ErrLastRole):
+		return problem(http.StatusConflict, users.ErrLastRole.Error()), true
 	}
 	return openapi.Problem{}, false
 }

@@ -172,7 +172,9 @@ func (s *Service) ExpiresAt(session Session) time.Time { return s.sessions.Expir
 // unchecked. The limits count a login before its password is checked, so
 // concurrent logins cannot pass them; one whose password could not be
 // checked, or matched but could not be recorded, as when PostgreSQL does
-// not answer, does not count. A request it
+// not answer, does not count. One whose password matched but whose user's
+// password changed, or who was disabled, before it was recorded fails and
+// counts, as a disabled user's does. A request it
 // cannot check is an [*InvalidError]. A hash made with older parameters is
 // replaced at a successful login.
 //
