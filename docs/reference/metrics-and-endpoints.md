@@ -140,7 +140,7 @@ applies to their next request.
 | 400 | Not JSON, an email that is not an address, or a password that is empty, over 1,024 bytes or not UTF-8. Not counted as a failure |
 | 401 | Wrong password, unknown email, disabled user, a user without a password: the same `wrong email or password` for all, after the same work (an unknown email is checked against a decoy hash), so neither the answer nor its time tells which accounts exist |
 | 403 | `Origin` missing or not the site |
-| 429 | Too many failures: 10 for the account, or 50 from the client address (an IPv6 address counts as its /64), within 15 minutes of the first. Refused without checking the password, even the right one, until the window ends; `Retry-After` says in how many seconds. A success clears the account's count, not the address's |
+| 429 | Too many failures: 10 for the account, or 50 from the client address (an IPv6 address counts as its /64), within 15 minutes of the first. Refused without checking the password, even the right one, until the window ends; `Retry-After` says in how many seconds. A login counts before its password is checked, so concurrent attempts cannot pass the limits. A success clears the account's count, not the address's |
 
 A hash made with older argon2id parameters is replaced with one made with the
 current ones at a successful login.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/netip"
 	"time"
@@ -32,64 +31,98 @@ const (
 )
 
 // Limits counts failed logins per account and per client address in Redis.
-// The counts are checked before a login and raised after it fails, so a
-// burst of concurrent attempts can pass the limits by the few that were
-// already running.
+// A login is counted as failed before its password is checked, and one that
+// succeeds or is not checked to the end takes its count back
+// ([Limits.Succeeded], [Limits.Unchecked]). So concurrent attempts cannot
+// pass the limits: each takes its place in the counts before any of them is
+// checked, and only those within the limits are checked.
 type Limits struct {
 	Redis goredis.Cmdable
 }
 
-// Wait returns how long until a login for email from address may be tried,
-// 0 when it may be tried now.
-func (l *Limits) Wait(ctx context.Context, email string, address netip.Addr) (time.Duration, error) {
-	var wait time.Duration
-	for _, c := range counters(email, address) {
-		count, err := l.Redis.Get(ctx, c.key).Int()
-		if errors.Is(err, goredis.Nil) {
-			continue
-		}
-		if err != nil {
-			return 0, fmt.Errorf("read the failed logins: %w", err)
-		}
-		if count < c.limit {
-			continue
-		}
-		ttl, err := l.Redis.PTTL(ctx, c.key).Result()
-		if err != nil {
-			return 0, fmt.Errorf("read the failed logins: %w", err)
-		}
-		if ttl <= 0 {
-			// Expired since the read, or, never expected, without a TTL.
-			ttl = time.Second
-		}
-		wait = max(wait, ttl)
-	}
-	return wait, nil
-}
-
-// Failed counts a failed login for email from address.
-func (l *Limits) Failed(ctx context.Context, email string, address netip.Addr) error {
+// Begin counts a login for email from address as failed, before it is
+// checked, and returns 0. If that takes either count past its limit, it
+// takes the count back and returns how long until the window that began
+// with the first failure ends: the login is refused unchecked, and counts
+// for nothing.
+func (l *Limits) Begin(ctx context.Context, email string, address netip.Addr) (time.Duration, error) {
+	cs := counters(email, address)
+	counts := make([]*goredis.IntCmd, len(cs))
+	ttls := make([]*goredis.DurationCmd, len(cs))
 	_, err := l.Redis.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
-		for _, c := range counters(email, address) {
-			pipe.Incr(ctx, c.key)
+		for i, c := range cs {
+			counts[i] = pipe.Incr(ctx, c.key)
 			// The window starts at the first failure; later ones keep it.
 			pipe.ExpireNX(ctx, c.key, FailureWindow)
+			ttls[i] = pipe.PTTL(ctx, c.key)
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("count the failed login: %w", err)
+		return 0, fmt.Errorf("count the login: %w", err)
+	}
+	var wait time.Duration
+	for i, c := range cs {
+		if counts[i].Val() <= int64(c.limit) {
+			continue
+		}
+		ttl := ttls[i].Val()
+		if ttl <= 0 {
+			// Never expected: ExpireNX has just set one.
+			ttl = time.Second
+		}
+		wait = max(wait, ttl)
+	}
+	if wait > 0 {
+		if err := l.takeBack(ctx, cs); err != nil {
+			return 0, err
+		}
+	}
+	return wait, nil
+}
+
+// Succeeded clears email's failures and takes the login's count back from
+// address. The address's failures stay, so that a client cannot reset its
+// count by logging in to an account of its own.
+func (l *Limits) Succeeded(ctx context.Context, email string, address netip.Addr) error {
+	_, err := l.Redis.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+		pipe.Del(ctx, accountKey(email))
+		decrement(ctx, pipe, addressKey(address))
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("clear the failed logins: %w", err)
 	}
 	return nil
 }
 
-// Succeeded clears email's failures. The address's stay, so that a client
-// cannot reset its count by logging in to an account of its own.
-func (l *Limits) Succeeded(ctx context.Context, email string) error {
-	if err := l.Redis.Del(ctx, accountKey(email)).Err(); err != nil {
-		return fmt.Errorf("clear the failed logins: %w", err)
+// Unchecked takes back the count of a login that [Limits.Begin] counted
+// but that was not checked to the end, as when PostgreSQL does not answer:
+// it did not fail.
+func (l *Limits) Unchecked(ctx context.Context, email string, address netip.Addr) error {
+	return l.takeBack(ctx, counters(email, address))
+}
+
+// takeBack takes one back from each of cs.
+func (l *Limits) takeBack(ctx context.Context, cs []counter) error {
+	_, err := l.Redis.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+		for _, c := range cs {
+			decrement(ctx, pipe, c.key)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("take back the login's count: %w", err)
 	}
 	return nil
+}
+
+// decrement takes one back from the count at key. A count that expired
+// since it was raised comes back at -1: it gets a window too, so that it
+// is not kept forever, and allows one more login in it, never one fewer.
+func decrement(ctx context.Context, pipe goredis.Pipeliner, key string) {
+	pipe.Decr(ctx, key)
+	pipe.ExpireNX(ctx, key, FailureWindow)
 }
 
 type counter struct {
@@ -100,13 +133,17 @@ type counter struct {
 func counters(email string, address netip.Addr) []counter {
 	return []counter{
 		{accountKey(email), AccountFailures},
-		{addressKeyPrefix + addressBlock(address), AddressFailures},
+		{addressKey(address), AddressFailures},
 	}
 }
 
 func accountKey(email string) string {
 	sum := sha256.Sum256([]byte(email))
 	return accountKeyPrefix + hex.EncodeToString(sum[:])
+}
+
+func addressKey(address netip.Addr) string {
+	return addressKeyPrefix + addressBlock(address)
 }
 
 // addressBlock is what an address is counted as: an IPv4 address, or the

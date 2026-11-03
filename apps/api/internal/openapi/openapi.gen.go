@@ -1369,6 +1369,22 @@ func (response GetSession401ApplicationProblemPlusJSONResponse) VisitGetSessionR
 	return err
 }
 
+type GetSession403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetSession403ApplicationProblemPlusJSONResponse) VisitGetSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSessiondefaultApplicationProblemPlusJSONResponse struct {
 	Body       Problem
 	StatusCode int
