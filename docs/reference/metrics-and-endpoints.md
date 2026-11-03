@@ -88,6 +88,8 @@ served beside it.
 | `POST /api/v1/session` | none; `Origin` | Log in: 201 with the session and its cookie ([below](#logging-in-and-sessions)) |
 | `GET /api/v1/session` | session, `viewer` | 200 with the current session and its user |
 | `DELETE /api/v1/session` | session, `viewer`; `Origin` | Log out: 204, and the cookie is cleared |
+| `GET /api/v1/environments`, `/applications`, `/components` and `GET …/{id}` | session, `viewer` | The inventory ([below](#inventory)) |
+| `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/environments`, `/applications`, `/components` | session, `operator`; `Origin` | Create, change and delete inventory, each audited ([below](#inventory)) |
 | `GET /api/v1/probe-definitions` | session, `viewer` | 200 with the latest version of every probe definition ([below](#probe-definitions)) |
 | `POST /api/v1/probe-definitions` | session, `admin`; `Origin` | Create a custom definition: 201 with version 1 |
 | `GET /api/v1/probe-definitions/{id}` | session, `viewer` | 200 with that version, the latest or an older one |
@@ -129,7 +131,11 @@ site cannot make one with the user's cookie); then, unless the operation is
 public, the session cookie must name a live session (401, and the cookie is
 cleared) whose user is active and has the role (403). The user and their
 roles are read on every request: disabling a user or changing their roles
-applies to their next request.
+applies to their next request. Only then are the path and query parameters
+read (400 for a malformed one), so a request without a session gets 401
+whatever its parameters, and then the body: a JSON object whose members are
+all listed by the operation's schema, spelt exactly, or 400 naming the
+first that is not. A member that cannot be set is refused, never ignored.
 
 **Logging in.** `POST /api/v1/session` with
 `{"email": "...", "password": "..."}`:
@@ -180,6 +186,70 @@ curl -sS -b cookies localhost:8081/api/v1/session                     # the sess
 curl -sS -b cookies -X DELETE -H 'Origin: http://localhost:8081' localhost:8081/api/v1/session
 ```
 
+### Inventory
+
+Environments, their applications, and the applications' components
+([data model](../architecture/data-model.md#environment-and-inventory)),
+under `/api/v1`. Viewers read; operators create, change and delete. The
+fields and their limits are in [`openapi.yaml`](../../apps/api/openapi.yaml).
+
+| Path | Operations | Notes |
+| --- | --- | --- |
+| `/api/v1/environments` | `GET` (`?status=`), `POST` | Listed whole, by name: an organisation has few |
+| `/api/v1/environments/{id}` | `GET`, `PATCH`, `DELETE` | `slug` cannot change |
+| `/api/v1/applications` | `GET` (`?environment_id=`, `?status=`, paged), `POST` | `environment_id` in the body |
+| `/api/v1/applications/{id}` | `GET`, `PATCH`, `DELETE` | `environment_id` cannot change |
+| `/api/v1/components` | `GET` (`?application_id=`, paged), `POST` | `application_id` in the body |
+| `/api/v1/components/{id}` | `GET`, `PATCH`, `DELETE` | `application_id` cannot change |
+
+**One ownership path.** An application belongs to the environment it was
+created in, and a component to its application, for good: the same system
+in another environment is another application. A component's
+`environment_id` is read through its application; it is not stored and
+cannot be set. A `PATCH` or `POST` naming an owner it cannot set is 400.
+
+**Environment slugs** are what the collectors call the environment: each
+collector's `environment`, the `environment` label of the probe metrics and
+the logs' `deployment.environment.name`
+([ADR 0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md)
+§2). Lower-case letters, digits and hyphens, 1 to 63, starting and ending
+with a letter or a digit (`prod`, `local-dev`); unique, and fixed once
+created.
+
+**Pages.** Lists of applications and components hold `limit` items (1 to
+200, 50 by default), by name then ID, and a `next_cursor` while more follow;
+pass it as `cursor` for the next page. The cursor marks a position, not an
+offset, so an item added or removed meanwhile neither repeats nor skips
+another.
+
+**Changes.** `POST` answers 201 with the entity and its `Location`. `PATCH`
+changes the members the body holds and keeps the others; `labels` are
+replaced whole. A `PATCH` that changes nothing answers 200 with the entity
+as it is, keeps `updated_at` and writes no audit record. Disable an
+environment or an application (`status: disabled`) to retire it; disabling
+an environment leaves its applications' status as it is.
+
+| Status | When |
+| --- | --- |
+| 400 | A field out of its limits or format, an unknown member, a malformed ID, `limit` or `cursor` |
+| 404 | No entity has the ID |
+| 409 | Another environment has the slug, the environment has an application of that name, or the application a component of that name and type; or a `DELETE` while other rows refer to the entity: the detail names them (an environment's applications, database targets or investigations; an application's components, telemetry sources, investigations, alert policies, notification routes, alert events or reports), and nothing is deleted. A deleted application's adaptive baselines go with it |
+| 422 | The body's `environment_id` or `application_id` names nothing |
+
+**Audit.** Each change writes one record in its transaction: entity type
+`environment`, `application` or `application_component`, action `create`,
+`update` or `delete`, the entity as the API shows it in `before` and
+`after`, the user as actor. A refused change records nothing.
+
+```bash
+curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{"name": "Production", "slug": "prod", "type": "production"}' localhost:8081/api/v1/environments
+curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{"environment_id": "<id>", "name": "Claims Portal", "platform": "outsystems_traditional"}' \
+  localhost:8081/api/v1/applications
+curl -sS -b cookies 'localhost:8081/api/v1/applications?environment_id=<id>&limit=20'
+```
+
 ### Probe definitions
 
 A probe definition is what a probe assignment will run against a database
@@ -225,7 +295,7 @@ is the control. It does not check which columns the query returns.
 | --- | --- |
 | 201 | Created, or a version added; `Location` is the new version's URL |
 | 200 | From `POST .../versions`: the content equals the version the path names, so nothing was added |
-| 400 | A field out of bounds, an explicit `0` for `default_interval_seconds` or `timeout_ms`, an `overrides` that names no enabled built-in of the engine, a query that is not one read-only `SELECT`, or a malformed ID |
+| 400 | A field out of bounds or an unknown member, an explicit `0` for `default_interval_seconds` or `timeout_ms`, an `overrides` that names no enabled built-in of the engine, a query that is not one read-only `SELECT`, or a malformed ID |
 | 404 | No version has the ID |
 | 409 | The name is taken; the definition is built-in, or disabled (enable it before adding a version); or the version the path names is no longer the latest, because someone added one since it was read: read the latest and change that, so no change is lost |
 
@@ -531,7 +601,7 @@ included. Prometheus scrapes it as job `api`.
 | `heartbeat_api_redis_connection_timeouts_total` | counter | none | Commands that gave up waiting for a connection from the pool |
 
 `route` is the pattern that served the request, without the method
-(`/readyz`; later `/api/v1/applications/{id}`, never the ID itself), or
+(`/readyz`, `/api/v1/applications/{id}`, never the ID itself), or
 `unmatched` when none did: a 404, a 405 or a redirect. `method` is the
 request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
 OPTIONS. A scan of made-up paths and methods therefore lands in the
@@ -550,8 +620,9 @@ table in its own transaction; a drainer in each API replica sends the oldest
 records to the OTel Collector and deletes them once it accepts them
 ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)).
 So far the audited changes are `api users create-admin`
-([configuration](configuration.md#api)) and logins, logouts and failed
-logins ([sessions](#logging-in-and-sessions)).
+([configuration](configuration.md#api)), logins, logouts and failed
+logins ([sessions](#logging-in-and-sessions)), and inventory changes
+([inventory](#inventory)).
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |

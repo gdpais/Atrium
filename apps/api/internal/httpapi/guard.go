@@ -27,6 +27,8 @@ type request struct {
 	client auth.Client
 	// principal is who sent it; nil for an operation that needs no session.
 	principal *auth.Principal
+	// body is the request body, kept by keepBody.
+	body []byte
 }
 
 type requestKey struct{}

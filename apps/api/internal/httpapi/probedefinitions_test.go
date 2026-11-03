@@ -367,3 +367,19 @@ func TestProbeDefinitionsWithoutAService(t *testing.T) {
 		t.Errorf("GET = %d, want 500", rec.Code)
 	}
 }
+
+// A version is the whole content, so a misspelled optional field would
+// silently take its default; the closed request schemas refuse it instead.
+func TestProbeDefinitionBodiesRefuseUnknownMembers(t *testing.T) {
+	for _, tc := range []struct{ method, path, body string }{
+		{http.MethodPost, "/api/v1/probe-definitions", strings.TrimSuffix(newDefinitionBody, "}") + `,"default_interval_second":60}`},
+		{http.MethodPost, "/api/v1/probe-definitions/" + customWaits.ID.String() + "/versions", `{"query_template":"SELECT 1","overrides":"sessions"}`},
+		{http.MethodPatch, "/api/v1/probe-definitions/" + customWaits.ID.String(), `{"enabled":false,"name":"custom_x"}`},
+	} {
+		defs := &fakeProbeDefinitions{def: customWaits, added: true}
+		rec := send(t, probeServer(t, defs), "admin", tc.method, tc.path, tc.body)
+		if rec.Code != http.StatusBadRequest || len(defs.calls) != 0 {
+			t.Errorf("%s %s %s = %d %s, calls %v; want 400 and no call", tc.method, tc.path, tc.body, rec.Code, rec.Body, defs.calls)
+		}
+	}
+}

@@ -1,0 +1,255 @@
+//go:build integration
+
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"heartbeat/apps/api/internal/audit"
+	"heartbeat/apps/api/internal/audit/audittest"
+	"heartbeat/apps/api/internal/httpapi"
+	"heartbeat/apps/api/internal/password"
+	"heartbeat/apps/api/internal/testenv"
+	"heartbeat/apps/api/internal/users"
+	"heartbeat/internal/credentials"
+	"heartbeat/internal/credentials/credentialstest"
+)
+
+// inventoryClient sends requests to the API as a browser on the site does.
+type inventoryClient struct {
+	t    *testing.T
+	base string
+	site string
+}
+
+type inventoryResponse struct {
+	code      int
+	body      string
+	requestID string
+	cookies   []*http.Cookie
+}
+
+func (c inventoryClient) send(method, path, body, token string) inventoryResponse {
+	c.t.Helper()
+	req, err := http.NewRequest(method, c.base+path, strings.NewReader(body))
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if method != http.MethodGet {
+		req.Header.Set("Origin", c.site)
+	}
+	if token != "" {
+		req.AddCookie(&http.Cookie{Name: httpapi.SessionCookie, Value: token})
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	return inventoryResponse{resp.StatusCode, string(data), resp.Header.Get("X-Request-Id"), resp.Cookies()}
+}
+
+// expect sends a request and fails unless it is answered with code; it
+// returns the response, with its body decoded into out when out is set.
+func (c inventoryClient) expect(code int, method, path, body, token string, out any) inventoryResponse {
+	c.t.Helper()
+	r := c.send(method, path, body, token)
+	if r.code != code {
+		c.t.Fatalf("%s %s = %d, want %d: %s", method, path, r.code, code, r.body)
+	}
+	if out != nil {
+		if err := json.Unmarshal([]byte(r.body), out); err != nil {
+			c.t.Fatalf("%s %s: %v: %s", method, path, err, r.body)
+		}
+	}
+	return r
+}
+
+// userWithRole creates a user who has only role and logs them in,
+// returning their ID and session token.
+func userWithRole(t *testing.T, c inventoryClient, pool *pgxpool.Pool, email, role string) (string, string) {
+	t.Helper()
+	const secret = "correct horse battery staple, inventory"
+	ctx := context.Background()
+	created, err := users.CreateAdmin(ctx, pool, password.NewHasher(password.DefaultParams, 1),
+		users.NewAdmin{Email: email, Password: secret}, audit.CLIActor("api users create-admin", "test"), "req-create-"+role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `with dropped as (delete from user_roles where user_id = $1)
+		insert into user_roles (user_id, role_id) select $1, id from roles where name = $2`, created.UserID, role); err != nil {
+		t.Fatal(err)
+	}
+	login := c.expect(http.StatusCreated, http.MethodPost, "/api/v1/session", `{"email":"`+email+`","password":"`+secret+`"}`, "", nil)
+	return created.UserID, login.cookies[0].Value
+}
+
+// Onboarding an environment, an application and a component through the
+// server Run builds, against PostgreSQL and Valkey, with real sessions: a
+// viewer reads but changes nothing, an operator makes each change, the
+// ownership path holds, and each change has its audit record, by the
+// operator, in its request.
+func TestRunManagesTheInventory(t *testing.T) {
+	t.Parallel()
+	const site = "https://heartbeat.example.com"
+	pg, pgCfg, pool := testenv.MigratedPostgres(t)
+	valkey, redisCfg := testenv.Valkey(t)
+	dir := t.TempDir()
+	credentialstest.WriteSecretVolume(t, dir, map[string]string{
+		credentials.Key(testenv.PostgresRef): pg.Credential.Username + ":" + pg.Credential.Password + "\n",
+		credentials.Key(testenv.RedisRef):    valkey.Credential.Username + ":" + valkey.Credential.Password + "\n",
+	})
+	deps, err := newRunDeps(Config{
+		ListenAddr: "127.0.0.1:0", Postgres: pgCfg, Redis: redisCfg, CredentialsDir: dir, Site: site,
+		Logger: slog.New(slog.DiscardHandler),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := make(chan net.Addr, 1)
+	deps.onListen = func(a net.Addr) { addr <- a }
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- run(ctx, deps) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-result; err != nil {
+			t.Errorf("run returned %v", err)
+		}
+	})
+	c := inventoryClient{t: t, base: "http://" + (<-addr).String(), site: site}
+	waitReadyz(t, c.base+"/readyz", http.StatusOK, "migrated")
+
+	operatorID, operator := userWithRole(t, c, pool, "operator@example.com", "operator")
+	_, viewer := userWithRole(t, c, pool, "viewer@example.com", "viewer")
+	var mark int64
+	if err := pool.QueryRow(ctx, "select max(seq) from audit_outbox").Scan(&mark); err != nil {
+		t.Fatal(err)
+	}
+
+	c.expect(http.StatusUnauthorized, http.MethodGet, "/api/v1/environments", "", "", nil)
+	c.expect(http.StatusForbidden, http.MethodPost, "/api/v1/environments", `{"name":"Production","slug":"prod","type":"production"}`, viewer, nil)
+
+	var env, other struct{ ID string }
+	createdEnv := c.expect(http.StatusCreated, http.MethodPost, "/api/v1/environments", `{"name":"Production","slug":"prod","type":"production"}`, operator, &env)
+	c.expect(http.StatusCreated, http.MethodPost, "/api/v1/environments", `{"name":"Staging","slug":"staging","type":"staging"}`, operator, &other)
+	c.expect(http.StatusConflict, http.MethodPost, "/api/v1/environments", `{"name":"Again","slug":"prod","type":"production"}`, operator, nil)
+	c.expect(http.StatusBadRequest, http.MethodPost, "/api/v1/environments", `{"name":"Prod","slug":"Prod","type":"production"}`, operator, nil)
+
+	var app struct {
+		ID            string `json:"id"`
+		EnvironmentID string `json:"environment_id"`
+		Criticality   string `json:"criticality"`
+	}
+	createdApp := c.expect(http.StatusCreated, http.MethodPost, "/api/v1/applications",
+		`{"environment_id":"`+env.ID+`","name":"Claims Portal","platform":"outsystems_traditional","criticality":"high"}`, operator, &app)
+	if app.EnvironmentID != env.ID {
+		t.Fatalf("application %+v: want it in %s", app, env.ID)
+	}
+	c.expect(http.StatusUnprocessableEntity, http.MethodPost, "/api/v1/applications",
+		`{"environment_id":"00000000-0000-4000-8000-000000000000","name":"Orphan","platform":"dotnet"}`, operator, nil)
+
+	var component struct {
+		ID            string `json:"id"`
+		ApplicationID string `json:"application_id"`
+		EnvironmentID string `json:"environment_id"`
+	}
+	createdComponent := c.expect(http.StatusCreated, http.MethodPost, "/api/v1/components",
+		`{"application_id":"`+app.ID+`","name":"ClaimsWeb","component_type":"module","runtime_name":"ClaimsWeb"}`, operator, &component)
+	if component.ApplicationID != app.ID || component.EnvironmentID != env.ID {
+		t.Fatalf("component %+v: want application %s in environment %s", component, app.ID, env.ID)
+	}
+
+	// The ownership path cannot move: the PATCH is refused whole, and the
+	// application stays where it was, unchanged.
+	c.expect(http.StatusBadRequest, http.MethodPatch, "/api/v1/applications/"+app.ID, `{"criticality":"low","environment_id":"`+other.ID+`"}`, operator, nil)
+	c.expect(http.StatusOK, http.MethodGet, "/api/v1/applications/"+app.ID, "", viewer, &app)
+	if app.EnvironmentID != env.ID || app.Criticality != "high" {
+		t.Fatalf("after a refused move, application %+v", app)
+	}
+	changedApp := c.expect(http.StatusOK, http.MethodPatch, "/api/v1/applications/"+app.ID, `{"criticality":"critical"}`, operator, &app)
+	c.expect(http.StatusForbidden, http.MethodPatch, "/api/v1/applications/"+app.ID, `{"criticality":"low"}`, viewer, nil)
+
+	// Deletes follow the foreign keys.
+	refused := c.expect(http.StatusConflict, http.MethodDelete, "/api/v1/environments/"+env.ID, "", operator, nil)
+	if !strings.Contains(refused.body, "still has applications") {
+		t.Fatalf("refused delete: %s", refused.body)
+	}
+	c.expect(http.StatusConflict, http.MethodDelete, "/api/v1/applications/"+app.ID, "", operator, nil)
+
+	var page struct {
+		Items []struct {
+			ID            string `json:"id"`
+			EnvironmentID string `json:"environment_id"`
+		} `json:"items"`
+	}
+	c.expect(http.StatusOK, http.MethodGet, "/api/v1/components?application_id="+app.ID, "", viewer, &page)
+	if len(page.Items) != 1 || page.Items[0].EnvironmentID != env.ID {
+		t.Fatalf("components of the application: %+v", page)
+	}
+	c.expect(http.StatusOK, http.MethodGet, "/api/v1/applications?environment_id="+other.ID, "", viewer, &page)
+	if len(page.Items) != 0 {
+		t.Fatalf("staging lists %+v", page.Items)
+	}
+
+	deletedComponent := c.expect(http.StatusNoContent, http.MethodDelete, "/api/v1/components/"+component.ID, "", operator, nil)
+	c.expect(http.StatusNotFound, http.MethodGet, "/api/v1/components/"+component.ID, "", viewer, nil)
+
+	rows, err := pool.Query(ctx, "select record::text from audit_outbox where seq > $1 order by seq", mark)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var steps []string
+	for _, record := range records {
+		audittest.Validate(t, []byte(record))
+		audittest.NoSecrets(t, []byte(record), operator, viewer)
+		var head struct {
+			Action     string      `json:"action"`
+			EntityType string      `json:"entity_type"`
+			RequestID  string      `json:"request_id"`
+			Actor      audit.Actor `json:"actor"`
+		}
+		if err := json.Unmarshal([]byte(record), &head); err != nil {
+			t.Fatal(err)
+		}
+		if head.Actor != audit.UserActor(operatorID, "operator@example.com") {
+			t.Errorf("record by %+v, want the operator: %s", head.Actor, record)
+		}
+		steps = append(steps, head.Action+" "+head.EntityType+" "+head.RequestID)
+	}
+	want := []string{
+		"create environment " + createdEnv.requestID,
+		"create environment", // staging
+		"create application " + createdApp.requestID,
+		"create application_component " + createdComponent.requestID,
+		"update application " + changedApp.requestID,
+		"delete application_component " + deletedComponent.requestID,
+	}
+	if len(steps) != len(want) {
+		t.Fatalf("audit records %v, want %v: refusals record nothing", steps, want)
+	}
+	for i := range want {
+		if !strings.HasPrefix(steps[i], want[i]) {
+			t.Errorf("record %d = %q, want %q", i, steps[i], want[i])
+		}
+	}
+}

@@ -36,21 +36,29 @@ const (
 	// EntitySession is a login session. Its ID is the session's ID, which
 	// identifies it but cannot log in, never its token.
 	EntitySession = "session"
+	// EntityEnvironment, EntityApplication and EntityComponent are the
+	// inventory (package inventory); before and after are the entity as the
+	// API shows it.
+	EntityEnvironment = "environment"
+	EntityApplication = "application"
+	EntityComponent   = "application_component"
 	// EntityProbeDefinition is one version of a probe definition, by the
 	// version's ID.
 	EntityProbeDefinition = "probe_definition"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession, EntityProbeDefinition}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityProbeDefinition}
 
 // Actions.
 const (
 	ActionCreate = "create"
-	// ActionUpdate replaces an entity's state. A probe definition is updated
-	// by a new version: the record's entity is the new version, its before
-	// the version it follows.
+	// ActionUpdate changes an entity; its record has both before and after.
+	// A probe definition is updated by a new version: the record's entity is
+	// the new version, its before the version it follows.
 	ActionUpdate = "update"
+	// ActionDelete removes one; its record's before is what was removed.
+	ActionDelete = "delete"
 	// ActionDisable and ActionEnable switch an entity off and on again
 	// without deleting it.
 	ActionDisable = "disable"

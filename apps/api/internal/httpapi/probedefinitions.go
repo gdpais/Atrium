@@ -61,15 +61,15 @@ func (s *Server) CreateProbeDefinition(ctx context.Context, req openapi.CreatePr
 		Engine: string(body.Engine), Name: body.Name, Overrides: body.Overrides, Content: c,
 	}, actor, requestID)
 	var invalid *probedefs.InvalidError
-	var conflict *probedefs.ConflictError
+	var refused *probedefs.ConflictError
 	switch {
 	case errors.As(err, &invalid):
 		return openapi.CreateProbeDefinition400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(problem(http.StatusBadRequest, invalid.Error())),
 		}, nil
-	case errors.As(err, &conflict):
+	case errors.As(err, &refused):
 		return openapi.CreateProbeDefinition409ApplicationProblemPlusJSONResponse{
-			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, conflict.Error())),
+			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, refused.Error())),
 		}, nil
 	case err != nil:
 		return nil, err
@@ -89,7 +89,7 @@ func (s *Server) GetProbeDefinition(ctx context.Context, req openapi.GetProbeDef
 	switch {
 	case errors.Is(err, probedefs.ErrNotFound):
 		return openapi.GetProbeDefinition404ApplicationProblemPlusJSONResponse{
-			NotFoundApplicationProblemPlusJSONResponse: notFound(),
+			NotFoundApplicationProblemPlusJSONResponse: notFound(problem(http.StatusNotFound, "no probe definition has this ID")),
 		}, nil
 	case err != nil:
 		return nil, err
@@ -110,15 +110,15 @@ func (s *Server) UpdateProbeDefinition(ctx context.Context, req openapi.UpdatePr
 		}, nil
 	}
 	def, err := s.probeDefinitions.SetEnabled(ctx, req.Id, *req.Body.Enabled, actor, requestID)
-	var conflict *probedefs.ConflictError
+	var refused *probedefs.ConflictError
 	switch {
 	case errors.Is(err, probedefs.ErrNotFound):
 		return openapi.UpdateProbeDefinition404ApplicationProblemPlusJSONResponse{
-			NotFoundApplicationProblemPlusJSONResponse: notFound(),
+			NotFoundApplicationProblemPlusJSONResponse: notFound(problem(http.StatusNotFound, "no probe definition has this ID")),
 		}, nil
-	case errors.As(err, &conflict):
+	case errors.As(err, &refused):
 		return openapi.UpdateProbeDefinition409ApplicationProblemPlusJSONResponse{
-			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, conflict.Error())),
+			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, refused.Error())),
 		}, nil
 	case err != nil:
 		return nil, err
@@ -136,7 +136,7 @@ func (s *Server) ListProbeDefinitionVersions(ctx context.Context, req openapi.Li
 	switch {
 	case errors.Is(err, probedefs.ErrNotFound):
 		return openapi.ListProbeDefinitionVersions404ApplicationProblemPlusJSONResponse{
-			NotFoundApplicationProblemPlusJSONResponse: notFound(),
+			NotFoundApplicationProblemPlusJSONResponse: notFound(problem(http.StatusNotFound, "no probe definition has this ID")),
 		}, nil
 	case err != nil:
 		return nil, err
@@ -160,7 +160,7 @@ func (s *Server) CreateProbeDefinitionVersion(ctx context.Context, req openapi.C
 	}
 	def, added, err := s.probeDefinitions.AddVersion(ctx, req.Id, c, actor, requestID)
 	var invalid *probedefs.InvalidError
-	var conflict *probedefs.ConflictError
+	var refused *probedefs.ConflictError
 	switch {
 	case errors.As(err, &invalid):
 		return openapi.CreateProbeDefinitionVersion400ApplicationProblemPlusJSONResponse{
@@ -168,11 +168,11 @@ func (s *Server) CreateProbeDefinitionVersion(ctx context.Context, req openapi.C
 		}, nil
 	case errors.Is(err, probedefs.ErrNotFound):
 		return openapi.CreateProbeDefinitionVersion404ApplicationProblemPlusJSONResponse{
-			NotFoundApplicationProblemPlusJSONResponse: notFound(),
+			NotFoundApplicationProblemPlusJSONResponse: notFound(problem(http.StatusNotFound, "no probe definition has this ID")),
 		}, nil
-	case errors.As(err, &conflict):
+	case errors.As(err, &refused):
 		return openapi.CreateProbeDefinitionVersion409ApplicationProblemPlusJSONResponse{
-			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, conflict.Error())),
+			ConflictApplicationProblemPlusJSONResponse: openapi.ConflictApplicationProblemPlusJSONResponse(problem(http.StatusConflict, refused.Error())),
 		}, nil
 	case err != nil:
 		return nil, err
@@ -221,10 +221,6 @@ func content(query string, description *string, interval, timeout *int) (probede
 		c.TimeoutMS = *timeout
 	}
 	return c, ""
-}
-
-func notFound() openapi.NotFoundApplicationProblemPlusJSONResponse {
-	return openapi.NotFoundApplicationProblemPlusJSONResponse(problem(http.StatusNotFound, "no probe definition has this ID"))
 }
 
 func probeDefinitionList(defs []probedefs.Definition) openapi.ProbeDefinitionList {

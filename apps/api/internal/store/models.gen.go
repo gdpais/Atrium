@@ -8,6 +8,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Application struct {
+	ID            pgtype.UUID
+	EnvironmentID pgtype.UUID
+	Name          string
+	Platform      string
+	OwnerTeam     string
+	Criticality   string
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type ApplicationComponent struct {
+	ID            pgtype.UUID
+	ApplicationID pgtype.UUID
+	Name          string
+	ComponentType string
+	RuntimeName   string
+	Labels        []byte
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type Environment struct {
+	ID          pgtype.UUID
+	Name        string
+	Slug        string
+	Type        string
+	Description string
+	Status      string
+	Labels      []byte
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type ProbeDefinition struct {
 	ID                     pgtype.UUID
 	Engine                 string
