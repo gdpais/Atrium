@@ -31,6 +31,7 @@ import (
 	"heartbeat/apps/api/internal/probedefs"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
+	"heartbeat/apps/api/internal/users"
 	"heartbeat/internal/credentials"
 	"heartbeat/internal/otlp"
 	"heartbeat/internal/telemetry"
@@ -151,6 +152,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		auth:             deps.auth,
 		inventory:        deps.inventory,
 		probeDefinitions: deps.probeDefinitions,
+		users:            deps.users,
 		drain:            deps.drain,
 		closeDeps:        deps.close,
 		timeouts:         t,
@@ -172,6 +174,8 @@ type connected struct {
 	// inventory reads and changes environments, applications and
 	// components.
 	inventory *inventory.Service
+	// users serves the admins' user and role operations.
+	users *users.Service
 	// probeDefinitions reads and changes probe definitions.
 	probeDefinitions *probedefs.Service
 	// drain delivers audit records until its context ends; nil without an
@@ -230,13 +234,15 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		IdleTimeout: cmp.Or(cfg.SessionIdleTimeout, auth.DefaultIdleTimeout),
 		MaxAge:      cmp.Or(cfg.SessionMaxAge, auth.DefaultMaxAge),
 	}
+	// One hasher, so logins and password changes share its cap.
+	hasher := password.NewHasher(password.DefaultParams, password.DefaultConcurrency)
 	result := connected{
 		checks: []httpapi.Check{
 			{Name: checkPostgreSQL, Run: schema.Check},
 			{Name: checkRedis, Run: func(ctx context.Context) error { return redis.Ping(ctx, client) }},
 		},
-		auth: auth.NewService(pool, password.NewHasher(password.DefaultParams, password.DefaultConcurrency),
-			sessions, &auth.Limits{Redis: client}, attempts, logger),
+		auth:             auth.NewService(pool, hasher, sessions, &auth.Limits{Redis: client}, attempts, logger),
+		users:            users.NewService(pool, hasher, sessions),
 		inventory:        inventory.New(pool, inventory.WithObserver(observer(cfg, logger))),
 		probeDefinitions: probedefs.NewService(pool),
 		close: func() {
@@ -278,6 +284,8 @@ type runDeps struct {
 	auth *auth.Service
 	// inventory, when set, serves the inventory operations.
 	inventory *inventory.Service
+	// users, when set, serves the user and role operations.
+	users *users.Service
 	// probeDefinitions, when set, serves the probe definition operations.
 	probeDefinitions *probedefs.Service
 	// drain, when set, runs beside the HTTP server until shutdown: the
@@ -336,6 +344,9 @@ func run(ctx context.Context, deps runDeps) error {
 	if deps.inventory != nil {
 		opts.Inventory = deps.inventory
 		opts.DatabaseTargets = deps.inventory
+	}
+	if deps.users != nil {
+		opts.Users = deps.users
 	}
 	if deps.probeDefinitions != nil {
 		opts.ProbeDefinitions = deps.probeDefinitions

@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
@@ -76,6 +77,27 @@ func (h harness) login(t *testing.T, ctx context.Context, email, secret string) 
 }
 
 var client = auth.Client{Address: netip.MustParseAddr("198.51.100.7"), RequestID: "req-session"}
+
+// users is the admins' user service on h; its password changes end
+// sessions in h's Redis.
+func (h harness) users() *users.Service {
+	sessions := &auth.Sessions{Redis: h.redis, IdleTimeout: auth.DefaultIdleTimeout, MaxAge: auth.DefaultMaxAge}
+	return users.NewService(h.pool, password.NewHasher(password.DefaultParams, 1), sessions)
+}
+
+// byAdmin is an admin making a change through the API.
+var byAdmin = users.Caller{Actor: audit.UserActor("0b4e7a52-8f43-4d0e-a1b6-3c9d2e5f7a10", "root@example.com"), RequestID: "req-users"}
+
+// user creates a user who logs in with secret, through the API's service,
+// and returns their ID and password hash.
+func (h harness) user(t *testing.T, ctx context.Context, email, secret string) (uuid.UUID, string) {
+	t.Helper()
+	u, err := h.users().Create(ctx, byAdmin, users.NewUser{Email: email, Password: secret, Roles: []string{"viewer"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return uuid.MustParse(u.ID), h.hash(t, ctx, u.ID)
+}
 
 // operator logs a new user in, as the inventory's changes come from one,
 // and returns who they are as a change's caller and the secrets of their
@@ -182,6 +204,89 @@ var auditedChanges = []auditedChange{
 				t.Fatal(err)
 			}
 			return append(session, secret, hash)
+		},
+	},
+	{
+		name:   "create a user",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
+			const secret = "correct horse battery staple, created"
+			_, hash := h.user(t, ctx, "created@example.com", secret)
+			return []string{secret, hash}
+		},
+	},
+	{
+		name:   "rename and disable a user",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret = "correct horse battery staple, disabled"
+			id, hash := h.user(t, ctx, "disabled@example.com", secret)
+			_, session := h.login(t, ctx, "disabled@example.com", secret)
+			begin()
+			disabled, name := users.StatusDisabled, "Disabled"
+			if _, err := h.users().Update(ctx, byAdmin, id, users.Change{DisplayName: &name, Status: &disabled}); err != nil {
+				t.Fatal(err)
+			}
+			return append(session, secret, hash)
+		},
+	},
+	{
+		name:   "set a user's password",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret, next = "correct horse battery staple, forgot", "correct horse battery staple, reset"
+			id, old := h.user(t, ctx, "forgot@example.com", secret)
+			_, session := h.login(t, ctx, "forgot@example.com", secret)
+			begin()
+			if err := h.users().SetPassword(ctx, byAdmin, id, next); err != nil {
+				t.Fatal(err)
+			}
+			return append(session, secret, next, old, h.hash(t, ctx, id.String()))
+		},
+	},
+	{
+		name:   "change your own password",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret, next = "correct horse battery staple, mine", "correct horse battery staple, mine too"
+			id, old := h.user(t, ctx, "mine@example.com", secret)
+			principal, session := h.login(t, ctx, "mine@example.com", secret)
+			begin()
+			if err := h.sessions().ChangePassword(ctx, principal, secret, next, client); err != nil {
+				t.Fatal(err)
+			}
+			return append(session, secret, next, old, h.hash(t, ctx, id.String()))
+		},
+	},
+	{
+		name:   "change your own password, refused",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret, wrong = "correct horse battery staple, kept", "correct horse battery staple, guessed again"
+			_, hash := h.user(t, ctx, "kept@example.com", secret)
+			principal, session := h.login(t, ctx, "kept@example.com", secret)
+			begin()
+			err := h.sessions().ChangePassword(ctx, principal, wrong, "correct horse battery staple, never set", client)
+			if !errors.Is(err, auth.ErrWrongPassword) {
+				t.Fatalf("ChangePassword = %v, want ErrWrongPassword", err)
+			}
+			return append(session, secret, wrong, "correct horse battery staple, never set", hash)
+		},
+	},
+	{
+		name:   "grant and revoke a role",
+		entity: audit.EntityUser,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret = "correct horse battery staple, roles"
+			id, hash := h.user(t, ctx, "roles@example.com", secret)
+			begin()
+			if _, err := h.users().Grant(ctx, byAdmin, id, "operator"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.users().Revoke(ctx, byAdmin, id, "viewer"); err != nil {
+				t.Fatal(err)
+			}
+			return []string{secret, hash}
 		},
 	},
 	{

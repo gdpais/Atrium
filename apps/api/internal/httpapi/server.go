@@ -34,6 +34,7 @@ type Server struct {
 	rules          map[string]rule
 	auth           Authenticator
 	inventory      Inventory
+	users          Users
 	site           string
 	trustedProxies []netip.Prefix
 	// probeDefinitions serves /api/v1/probe-definitions.
@@ -52,6 +53,9 @@ type Authenticator interface {
 	Login(ctx context.Context, email, secret string, client auth.Client) (auth.Principal, string, error)
 	Authenticate(ctx context.Context, token string) (auth.Principal, error)
 	Logout(ctx context.Context, p auth.Principal, client auth.Client) error
+	// ChangePassword sets p's user's password, given their current one,
+	// and ends all their sessions.
+	ChangePassword(ctx context.Context, p auth.Principal, current, next string, client auth.Client) error
 	// ExpiresAt is when session ends however active it is.
 	ExpiresAt(session auth.Session) time.Time
 }
@@ -78,6 +82,9 @@ type Options struct {
 	// Inventory serves the environment, application and component
 	// operations. Without it, they fail with 500.
 	Inventory Inventory
+	// Users serves the admins' user and role operations. Without it, they
+	// fail with 500.
+	Users Users
 	// ProbeDefinitions serves the probe definition operations; without it
 	// they fail.
 	ProbeDefinitions ProbeDefinitions
@@ -104,6 +111,7 @@ func NewServer(opts Options) (*Server, error) {
 		auth:             opts.Auth,
 		inventory:        opts.Inventory,
 		probeDefinitions: opts.ProbeDefinitions,
+		users:            opts.Users,
 		databaseTargets:  opts.DatabaseTargets,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,

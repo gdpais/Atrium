@@ -76,6 +76,13 @@ tags:
       custom ones replace a built-in's query and are versioned. Anyone
       logged in reads them; only admins change them, since they carry SQL
       that runs on monitored databases.
+  - name: users
+    description: |
+      Local users and their roles (ADR 0013 §7–8), for admins; and each
+      user's own password. A user is disabled, never deleted. Disabling a
+      user or setting their password ends every session they have. The
+      last active admin can be neither disabled nor stripped of `admin`.
+      Every change is audited (ADR 0016), never with a password or a hash.
 paths:
   /healthz:
     get:
@@ -1211,6 +1218,268 @@ paths:
           $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/account/password:
+    put:
+      operationId: changeOwnPassword
+      tags: [users]
+      summary: Change your own password
+      security:
+        - session: [viewer]
+      description: |
+        Sets a new password for the session's user, given the current one.
+        Every session of the user ends, this one included, so the response
+        clears the cookie: log in again with the new password. A wrong
+        current password counts against the same limits as a failed login,
+        and past them the answer is 429 without checking it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChange"
+      responses:
+        "204":
+          description: Changed; every session of the user has ended.
+          headers:
+            Set-Cookie:
+              description: Clears the session cookie.
+              required: true
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The current password is wrong, or the `Origin` header is not the configured site.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/TooManyFailures"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      security:
+        - session: [admin]
+      description: |
+        Every user, by email. Not paged: an organisation has tens of
+        users, not thousands.
+      parameters:
+        - $ref: "#/components/parameters/StatusFilter"
+      responses:
+        "200":
+          description: The users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      security:
+        - session: [admin]
+      description: |
+        Creates an active user with a password and at least one role. The
+        password is stored only as its argon2id hash, and neither appears
+        in logs or audit records.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewUser"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user
+      security:
+        - session: [admin]
+      responses:
+        "200":
+          description: The user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Change a user
+      security:
+        - session: [admin]
+      description: |
+        Changes the fields the body holds and keeps the others. Disabling a
+        user ends every session they have; the last active admin cannot be
+        disabled (409). A body that changes nothing is answered with the
+        user as they are, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: The user after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/users/{id}/password:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    put:
+      operationId: setUserPassword
+      tags: [users]
+      summary: Set a user's password
+      security:
+        - session: [admin]
+      description: |
+        Replaces the user's password, as when they have forgotten it, and
+        ends every session they have.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPassword"
+      responses:
+        "204":
+          description: Set; every session of the user has ended.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/users/{id}/roles/{role}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+      - name: role
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/Role"
+    put:
+      operationId: grantRole
+      tags: [users]
+      summary: Grant a role
+      security:
+        - session: [admin]
+      description: |
+        Gives the user the role. Granting one they have changes nothing,
+        and audits nothing. Their next request has it.
+      responses:
+        "200":
+          description: The user after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: revokeRole
+      tags: [users]
+      summary: Revoke a role
+      security:
+        - session: [admin]
+      description: |
+        Takes the role from the user. Revoking one they do not have changes
+        nothing, and audits nothing. `admin` cannot be taken from the last
+        active admin, nor their only role from any user (409): disable them
+        instead. Their next request goes without it.
+      responses:
+        "200":
+          description: The user after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -1294,9 +1563,10 @@ components:
     Conflict:
       description: |
         The change conflicts with what exists: another entity already has
-        the name or slug, or a delete is refused because other entities
+        the name, slug or email; a delete is refused because other entities
         still refer to this one; for a probe definition, it is built-in or
-        disabled, or the version is no longer the latest. The detail says
+        disabled, or the version is no longer the latest; or the change would
+        leave no active admin, or a user without a role. The detail says
         which.
       content:
         application/problem+json:
@@ -1304,6 +1574,19 @@ components:
             $ref: "#/components/schemas/Problem"
     NoOwner:
       description: The body names an environment or application that does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TooManyFailures:
+      description: Too many failed attempts for this account or from this address.
+      headers:
+        Retry-After:
+          description: Seconds until the limit resets.
+          required: true
+          schema:
+            type: integer
+            minimum: 1
       content:
         application/problem+json:
           schema:
@@ -2021,6 +2304,100 @@ components:
         enabled:
           type: boolean
           description: "`false` disables the definition, `true` enables it again."
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, display_name, status, roles, last_login_at, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          description: The login, in lower case; unique whatever its case.
+        display_name:
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        last_login_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UserList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    Email:
+      type: string
+      description: A bare address such as `alice@example.com`, stored in lower case.
+      maxLength: 254
+    DisplayName:
+      type: string
+      description: Leading and trailing spaces are dropped; then at most 200 characters, without control characters.
+      maxLength: 200
+    Password:
+      type: string
+      description: 15 characters to 1,024 bytes of UTF-8. Stored only as its argon2id hash.
+      minLength: 15
+      maxLength: 1024
+    NewUser:
+      type: object
+      additionalProperties: false
+      required: [email, password, roles]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        display_name:
+          $ref: "#/components/schemas/DisplayName"
+        password:
+          $ref: "#/components/schemas/Password"
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Role"
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change. Roles and the password have their own operations.
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        display_name:
+          $ref: "#/components/schemas/DisplayName"
+        status:
+          $ref: "#/components/schemas/Status"
+    NewPassword:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          $ref: "#/components/schemas/Password"
+    PasswordChange:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          description: The password the user logs in with now.
+        new_password:
+          $ref: "#/components/schemas/Password"
     Problem:
       type: object
       description: An error, as RFC 9457 describes it.

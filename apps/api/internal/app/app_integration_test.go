@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/audit/audittest"
@@ -192,74 +193,17 @@ func TestRunDeliversAuditRecords(t *testing.T) {
 // with the request's ID and without a secret, and counted.
 func TestRunLogsInAndOut(t *testing.T) {
 	t.Parallel()
-	const site, secret = "https://heartbeat.example.com", "correct horse battery staple, admin"
-	pg, pgCfg, pool := testenv.MigratedPostgres(t)
-	valkey, redisCfg := testenv.Valkey(t)
-	dir := t.TempDir()
-	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		credentials.Key(testenv.PostgresRef): pg.Credential.Username + ":" + pg.Credential.Password + "\n",
-		credentials.Key(testenv.RedisRef):    valkey.Credential.Username + ":" + valkey.Credential.Password + "\n",
-	})
-	var logs syncBuffer
-	deps, err := newRunDeps(Config{
-		ListenAddr:     "127.0.0.1:0",
-		Postgres:       pgCfg,
-		Redis:          redisCfg,
-		CredentialsDir: dir,
-		Site:           site,
-		Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
-	})
-	if err != nil {
-		t.Fatal(err)
+	const secret = "correct horse battery staple, admin"
+	a := startAPI(t)
+	base, pool, logs := a.base, a.pool, a.logs
+	send := func(method, path, body, token, origin string) response {
+		t.Helper()
+		return a.send(t, method, path, body, token, origin)
 	}
-	addr := make(chan net.Addr, 1)
-	deps.onListen = func(a net.Addr) { addr <- a }
-	ctx, cancel := context.WithCancel(context.Background())
-	result := make(chan error, 1)
-	go func() { result <- run(ctx, deps) }()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-result; err != nil {
-			t.Errorf("run returned %v", err)
-		}
-	})
-	base := "http://" + (<-addr).String()
-	waitReadyz(t, base+"/readyz", http.StatusOK, "migrated")
 	created, err := users.CreateAdmin(context.Background(), pool, password.NewHasher(password.DefaultParams, 1),
 		users.NewAdmin{Email: "admin@example.com", Password: secret}, audit.CLIActor("api users create-admin", "test"), "req-create")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	type response struct {
-		code      int
-		body      string
-		requestID string
-		cookies   []*http.Cookie
-	}
-	send := func(method, path, body, token, origin string) response {
-		t.Helper()
-		req, err := http.NewRequest(method, base+path, strings.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		if origin != "" {
-			req.Header.Set("Origin", origin)
-		}
-		if token != "" {
-			req.AddCookie(&http.Cookie{Name: httpapi.SessionCookie, Value: token})
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer resp.Body.Close()
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return response{resp.StatusCode, string(data), resp.Header.Get("X-Request-Id"), resp.Cookies()}
 	}
 	form := `{"email":"Admin@Example.com","password":"` + secret + `"}`
 
@@ -339,6 +283,236 @@ func TestRunLogsInAndOut(t *testing.T) {
 	for _, s := range []string{secret, token, hash} {
 		if strings.Contains(logs.String(), s) {
 			t.Fatal("the logs hold a secret")
+		}
+	}
+}
+
+// site is the origin the API under test serves.
+const site = "https://heartbeat.example.com"
+
+// api is the API, run against its own PostgreSQL and Valkey, with site
+// as its origin.
+type api struct {
+	base string
+	pool *pgxpool.Pool
+	logs *syncBuffer
+}
+
+func startAPI(t *testing.T) api {
+	t.Helper()
+	pg, pgCfg, pool := testenv.MigratedPostgres(t)
+	valkey, redisCfg := testenv.Valkey(t)
+	dir := t.TempDir()
+	credentialstest.WriteSecretVolume(t, dir, map[string]string{
+		credentials.Key(testenv.PostgresRef): pg.Credential.Username + ":" + pg.Credential.Password + "\n",
+		credentials.Key(testenv.RedisRef):    valkey.Credential.Username + ":" + valkey.Credential.Password + "\n",
+	})
+	logs := &syncBuffer{}
+	deps, err := newRunDeps(Config{
+		ListenAddr:     "127.0.0.1:0",
+		Postgres:       pgCfg,
+		Redis:          redisCfg,
+		CredentialsDir: dir,
+		Site:           site,
+		Logger:         slog.New(slog.NewJSONHandler(logs, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := make(chan net.Addr, 1)
+	deps.onListen = func(a net.Addr) { addr <- a }
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- run(ctx, deps) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-result; err != nil {
+			t.Errorf("run returned %v", err)
+		}
+	})
+	a := api{base: "http://" + (<-addr).String(), pool: pool, logs: logs}
+	waitReadyz(t, a.base+"/readyz", http.StatusOK, "migrated")
+	return a
+}
+
+// response is what send got back.
+type response struct {
+	code      int
+	body      string
+	requestID string
+	cookies   []*http.Cookie
+}
+
+// send sends a JSON request with the session cookie token, when set, and
+// an Origin header, when set.
+func (a api) send(t *testing.T, method, path, body, token, origin string) response {
+	t.Helper()
+	req, err := http.NewRequest(method, a.base+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if origin != "" {
+		req.Header.Set("Origin", origin)
+	}
+	if token != "" {
+		req.AddCookie(&http.Cookie{Name: httpapi.SessionCookie, Value: token})
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response{resp.StatusCode, string(data), resp.Header.Get("X-Request-Id"), resp.Cookies()}
+}
+
+// login logs email in and returns the session cookie's value.
+func (a api) login(t *testing.T, email, secret string) string {
+	t.Helper()
+	r := a.send(t, http.MethodPost, "/api/v1/session", `{"email":"`+email+`","password":"`+secret+`"}`, "", site)
+	if r.code != http.StatusCreated || len(r.cookies) != 1 {
+		t.Fatalf("login as %s = %d: %s", email, r.code, r.body)
+	}
+	return r.cookies[0].Value
+}
+
+// Admins manage users end to end, through the server Run builds: a new
+// operator logs in but may not manage users; disabling them ends their
+// session; a new password ends it too and replaces the old one; a user
+// changes their own; the last active admin keeps the role. Each change is
+// audited without a secret.
+func TestRunManagesUsers(t *testing.T) {
+	t.Parallel()
+	const rootPW, bobPW, resetPW, ownPW = "correct horse battery staple, root", "correct horse battery staple, bob",
+		"correct horse battery staple, reset", "correct horse battery staple, own"
+	a := startAPI(t)
+	send := func(method, path, body, token string) response {
+		t.Helper()
+		return a.send(t, method, path, body, token, site)
+	}
+	root, err := users.CreateAdmin(context.Background(), a.pool, password.NewHasher(password.DefaultParams, 1),
+		users.NewAdmin{Email: "root@example.com", Password: rootPW}, audit.CLIActor("api users create-admin", "test"), "req-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := a.login(t, "root@example.com", rootPW)
+
+	r := send(http.MethodPost, "/api/v1/users", `{"email":"Bob@Example.com","display_name":"Bob","password":"`+bobPW+`","roles":["operator"]}`, admin)
+	if r.code != http.StatusCreated || !strings.Contains(r.body, `"email":"bob@example.com"`) || !strings.Contains(r.body, `"roles":["operator"]`) {
+		t.Fatalf("create bob = %d: %s", r.code, r.body)
+	}
+	var bob struct{ ID string }
+	if err := json.Unmarshal([]byte(r.body), &bob); err != nil {
+		t.Fatal(err)
+	}
+	if r := send(http.MethodPost, "/api/v1/users", `{"email":"BOB@example.com","password":"`+bobPW+`","roles":["viewer"]}`, admin); r.code != http.StatusConflict {
+		t.Fatalf("create a second bob = %d, want 409", r.code)
+	}
+
+	bobSession := a.login(t, "bob@example.com", bobPW)
+	if r := send(http.MethodGet, "/api/v1/users", "", bobSession); r.code != http.StatusForbidden {
+		t.Fatalf("an operator lists users = %d, want 403", r.code)
+	}
+	if r := send(http.MethodGet, "/api/v1/users?status=active", "", admin); r.code != http.StatusOK || !strings.Contains(r.body, "bob@example.com") {
+		t.Fatalf("list = %d: %s", r.code, r.body)
+	}
+
+	// Disabled: the session ends at once, and logins are refused.
+	if r := send(http.MethodPatch, "/api/v1/users/"+bob.ID, `{"status":"disabled"}`, admin); r.code != http.StatusOK || !strings.Contains(r.body, `"status":"disabled"`) {
+		t.Fatalf("disable bob = %d: %s", r.code, r.body)
+	}
+	if r := send(http.MethodGet, "/api/v1/session", "", bobSession); r.code != http.StatusUnauthorized {
+		t.Fatalf("bob's session after disabling = %d, want 401", r.code)
+	}
+	if r := send(http.MethodPost, "/api/v1/session", `{"email":"bob@example.com","password":"`+bobPW+`"}`, ""); r.code != http.StatusUnauthorized {
+		t.Fatalf("a disabled user's login = %d, want 401", r.code)
+	}
+	if r := send(http.MethodPatch, "/api/v1/users/"+bob.ID, `{"status":"active"}`, admin); r.code != http.StatusOK {
+		t.Fatalf("enable bob = %d", r.code)
+	}
+
+	// A new password ends the session and replaces the old one.
+	bobSession = a.login(t, "bob@example.com", bobPW)
+	if r := send(http.MethodPut, "/api/v1/users/"+bob.ID+"/password", `{"password":"`+resetPW+`"}`, admin); r.code != http.StatusNoContent {
+		t.Fatalf("set bob's password = %d: %s", r.code, r.body)
+	}
+	if r := send(http.MethodGet, "/api/v1/session", "", bobSession); r.code != http.StatusUnauthorized {
+		t.Fatalf("bob's session after a new password = %d, want 401", r.code)
+	}
+	if r := send(http.MethodPost, "/api/v1/session", `{"email":"bob@example.com","password":"`+bobPW+`"}`, ""); r.code != http.StatusUnauthorized {
+		t.Fatalf("login with the old password = %d, want 401", r.code)
+	}
+
+	// Bob changes his own: this session ends too.
+	bobSession = a.login(t, "bob@example.com", resetPW)
+	if r := send(http.MethodPut, "/api/v1/account/password", `{"current_password":"wrong horse","new_password":"`+ownPW+`"}`, bobSession); r.code != http.StatusForbidden {
+		t.Fatalf("own password with a wrong current one = %d, want 403", r.code)
+	}
+	r = send(http.MethodPut, "/api/v1/account/password", `{"current_password":"`+resetPW+`","new_password":"`+ownPW+`"}`, bobSession)
+	if r.code != http.StatusNoContent || len(r.cookies) != 1 || r.cookies[0].MaxAge >= 0 {
+		t.Fatalf("own password = %d %v: %s", r.code, r.cookies, r.body)
+	}
+	if r := send(http.MethodGet, "/api/v1/session", "", bobSession); r.code != http.StatusUnauthorized {
+		t.Fatalf("bob's session after changing his password = %d, want 401", r.code)
+	}
+	a.login(t, "bob@example.com", ownPW)
+
+	// Roles: bob becomes a viewer; root cannot lose admin, being the only one.
+	if r := send(http.MethodPut, "/api/v1/users/"+bob.ID+"/roles/viewer", "", admin); r.code != http.StatusOK || !strings.Contains(r.body, `"roles":["operator","viewer"]`) {
+		t.Fatalf("grant viewer = %d: %s", r.code, r.body)
+	}
+	if r := send(http.MethodDelete, "/api/v1/users/"+bob.ID+"/roles/operator", "", admin); r.code != http.StatusOK || !strings.Contains(r.body, `"roles":["viewer"]`) {
+		t.Fatalf("revoke operator = %d: %s", r.code, r.body)
+	}
+	if r := send(http.MethodDelete, "/api/v1/users/"+root.UserID+"/roles/admin", "", admin); r.code != http.StatusConflict || !strings.Contains(r.body, "last active admin") {
+		t.Fatalf("revoke the last admin's role = %d: %s", r.code, r.body)
+	}
+	if r := send(http.MethodPatch, "/api/v1/users/"+root.UserID, `{"status":"disabled"}`, admin); r.code != http.StatusConflict {
+		t.Fatalf("disable the last admin = %d, want 409", r.code)
+	}
+
+	var hashes []string
+	rows, err := a.pool.Query(context.Background(), "select password_hash from users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hashes, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = a.pool.Query(context.Background(), "select record::text from audit_outbox order by seq")
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actions []string
+	for _, record := range records {
+		audittest.Validate(t, []byte(record))
+		audittest.NoSecrets(t, []byte(record), append(hashes, rootPW, bobPW, resetPW, ownPW, admin, bobSession)...)
+		var head struct {
+			Action     string `json:"action"`
+			EntityType string `json:"entity_type"`
+		}
+		if err := json.Unmarshal([]byte(record), &head); err != nil {
+			t.Fatal(err)
+		}
+		if head.EntityType == "user" {
+			actions = append(actions, head.Action)
+		}
+	}
+	want := []string{"create", "create", "update", "update", "set_password", "set_password_failed", "set_password", "grant_role", "revoke_role"}
+	if !slices.Equal(actions, want) {
+		t.Fatalf("user audit records %v, want %v", actions, want)
+	}
+	for _, s := range []string{rootPW, bobPW, resetPW, ownPW} {
+		if strings.Contains(a.logs.String(), s) {
+			t.Fatal("the logs hold a password")
 		}
 	}
 }

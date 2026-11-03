@@ -41,6 +41,10 @@ func (roleAuth) Authenticate(_ context.Context, token string) (auth.Principal, e
 
 func (roleAuth) Logout(context.Context, auth.Principal, auth.Client) error { return nil }
 
+func (roleAuth) ChangePassword(context.Context, auth.Principal, string, string, auth.Client) error {
+	return nil
+}
+
 func (roleAuth) ExpiresAt(s auth.Session) time.Time { return s.Created.Add(time.Hour) }
 
 // fakeProbeDefinitions answers each call with its fields and records the

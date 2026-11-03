@@ -100,6 +100,11 @@ served beside it.
 | `PATCH /api/v1/probe-definitions/{id}` | session, `admin`; `Origin` | `{"enabled": false}` disables a custom definition, every version of it; `true` enables it again |
 | `GET /api/v1/probe-definitions/{id}/versions` | session, `viewer` | 200 with every version of the definition, the newest first |
 | `POST /api/v1/probe-definitions/{id}/versions` | session, `admin`; `Origin` | Change a custom definition: 201 with the next version |
+| `PUT /api/v1/account/password` | session, `viewer`; `Origin` | Change your own password: 204, every session of yours ends and the cookie is cleared ([below](#users-and-roles)) |
+| `GET /api/v1/users`, `GET /api/v1/users/{id}` | session, `admin` | The users, by email (`?status=active` or `disabled`), or one |
+| `POST /api/v1/users`, `PATCH /api/v1/users/{id}` | session, `admin`; `Origin` | Create a user, or change their email, name or status |
+| `PUT /api/v1/users/{id}/password` | session, `admin`; `Origin` | Set a user's password: 204, and every session of theirs ends |
+| `PUT`, `DELETE /api/v1/users/{id}/roles/{role}` | session, `admin`; `Origin` | Grant or revoke a role |
 
 On `SIGTERM` or `SIGINT` the API answers `GET /readyz` with 503 and keeps
 serving for `HEARTBEAT_API_SHUTDOWN_DELAY` (5s), while its Service stops
@@ -114,8 +119,8 @@ one; records the Collector already accepted are still deleted, within 5s.
 Local users log in with their email and password and get a cookie session
 ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)
 §7–8). The first admin comes from
-[`api users create-admin`](configuration.md#api); managing other users and
-their roles through the API is the next part of [4.2].
+[`api users create-admin`](configuration.md#api); admins make the other users
+and give them roles through the API ([users and roles](#users-and-roles)).
 
 **Who may call what.** Every operation in
 [`openapi.yaml`](../../apps/api/openapi.yaml) declares it with `security`:
@@ -170,7 +175,7 @@ of entity type `session` ([audit delivery](#audit-delivery)): `login` with
 the session in `after` and the user as actor, `logout` with it in `before`,
 `login_failed` with the email tried, the user's ID when it exists and the
 reason (`wrong_password`, `unknown_email`, `disabled`, `no_password`,
-`unreadable_hash`) in `after`, and the client's address as actor (`client`).
+`unreadable_hash`, `changed_meanwhile`) in `after`, and the client's address as actor (`client`).
 The client is never told the reason. No record holds a password, a hash, the
 token or its SHA-256. A login is written in one transaction with its record
 and the user's `last_login_at`; the session is created in Redis before it
@@ -407,6 +412,77 @@ jq -n '{engine: "sqlserver", name: "custom_waits_lean", overrides: "waits",
   curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
     --data @- localhost:8081/api/v1/probe-definitions
 ```
+
+### Users and roles
+
+**What each role may do.** Each user has one or more roles; a role allows
+what the roles below it do, and a user may call what any of their roles
+allows.
+
+| Role | May | For |
+| --- | --- | --- |
+| `viewer` | Read everything the API serves: inventory, telemetry sources, database targets, probes and their assignments. Show their own session, log out, change their own password. Nothing else changes | Wallboards and people who only look. A wallboard logs in as a user of its own with only `viewer`, so its session, left on a shared screen, can change nothing |
+| `operator` | What a viewer may, and create, change and delete inventory, telemetry sources, database targets and probe assignments | The SREs who onboard applications and databases |
+| `admin` | What an operator may, and manage custom probe definitions, whose SQL runs on monitored databases ([below](#probe-definitions)), and users and roles | Whoever runs Heartbeat. The first comes from `api users create-admin` |
+
+Each operation's least role is its `security` in
+[`openapi.yaml`](../../apps/api/openapi.yaml), and the roles are rows in
+`roles` (migrations `0002` and `0003`).
+
+**Managing users** takes `admin`. Users are never deleted: disable them.
+
+- **Create:** `POST /api/v1/users` with
+  `{"email", "display_name", "password", "roles": [...]}`. `display_name`
+  defaults to the email's local part, and at least one role is needed. The
+  email is stored in lower case and must not belong to another user in any
+  case (409). The password is 15 characters to 1,024 bytes and is stored
+  only as its argon2id hash. It appears in no response, log or audit record.
+- **Change:** `PATCH /api/v1/users/{id}` with any of `email`,
+  `display_name` and `status`.
+  - Disabling a user ends every session they have at once, and refuses their
+    logins until they are active again.
+  - A body that changes nothing changes and audits nothing.
+- **Set a password:** `PUT /api/v1/users/{id}/password` with `{"password"}`,
+  as for a user who has forgotten theirs. Every session of theirs ends.
+- **Roles:** `PUT` and `DELETE /api/v1/users/{id}/roles/{role}` grant and
+  revoke one. Granting a role the user has, or revoking one they lack,
+  changes nothing. A user keeps at least one role: revoking their only one
+  is refused (409); disable them instead. The user's next request has the
+  new roles; their sessions go on.
+- **The last active admin** can be neither disabled nor stripped of `admin`
+  (409). The check and the change hold a lock on the `admin` role, so two
+  admins cannot disable each other at the same moment and leave none.
+
+A password change and its sessions' end are one step. The change locks the
+user's row and ends their sessions in Redis before it commits; if the
+sessions cannot end, nothing changes. A login records itself only while the
+user is active and still has the hash it checked. So a login that checked
+the old password just before the change gets 401 instead of a session, and
+its audit record gives the reason `changed_meanwhile`.
+
+**Your own password:** `PUT /api/v1/account/password` with
+`{"current_password", "new_password"}` takes any role.
+
+| Status | When |
+| --- | --- |
+| 204 | Changed. Every session of yours ends, this one included, and the cookie is cleared: log in again |
+| 400 | A new password that is too short or too long, or a current one that is empty or over 1,024 bytes |
+| 403 | The current password is wrong, or `Origin` is missing or not the site. A wrong current password counts against the [login limits](#logging-in-and-sessions) as a failed login does, so a stolen session cannot be used to guess the password |
+| 429 | Past those limits; refused without checking |
+
+**Audit.** Each change writes a record of entity type `user`, with the
+admin, or the user themselves, as actor:
+
+| Action | Change | Record |
+| --- | --- | --- |
+| `create` | a user created | the user in `after` |
+| `update` | a user changed | the user in `before` and `after`: `email`, `display_name`, `status`, `roles` |
+| `grant_role`, `revoke_role` | a role granted or revoked | the user in `before` and `after` |
+| `set_password` | a password set, by an admin or the user | `after` is the user's `id`, their `email` and `sessions_ended: true` |
+| `set_password_failed` | a refused change of your own password | the `reason` `wrong_password` |
+
+No record holds a password, a hash or a session token: the
+[secrets test](#audit-delivery) makes each of these changes and checks.
 
 ## Metrics
 
@@ -712,9 +788,12 @@ table in its own transaction; a drainer in each API replica sends the oldest
 records to the OTel Collector and deletes them once it accepts them
 ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)).
 So far the audited changes are `api users create-admin`
-([configuration](configuration.md#api)), logins, logouts and failed
-logins ([sessions](#logging-in-and-sessions)), inventory changes
-([inventory](#inventory)) and telemetry sources ([telemetry sources](#telemetry-sources)).
+([configuration](configuration.md#api)), logins, logouts and failed logins
+([sessions](#logging-in-and-sessions)), inventory changes
+([inventory](#inventory)), telemetry sources
+([telemetry sources](#telemetry-sources)), and users and their roles
+([users and roles](#users-and-roles)). A test makes each audited change and
+fails if a record holds a password, a hash or a session token.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |

@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,7 +58,15 @@ const (
 	ReasonWrongPassword  = "wrong_password"
 	ReasonDisabled       = "disabled"
 	ReasonUnreadableHash = "unreadable_hash"
+	// ReasonChangedMeanwhile is a login whose password matched, but whose
+	// user's password changed, or who was disabled, before it could be
+	// recorded: the change wins.
+	ReasonChangedMeanwhile = "changed_meanwhile"
 )
+
+// ActionSetPasswordFailed is a refused change of a user's own password: the
+// current password given was wrong. Its record says so, never the password.
+const ActionSetPasswordFailed = "set_password_failed"
 
 // statusActive is the users.status of a user who may log in.
 const statusActive = "active"
@@ -65,6 +74,14 @@ const statusActive = "active"
 // ErrInvalidCredentials is a failed login: a wrong password, an unknown
 // email or a disabled user, which the client is not told apart.
 var ErrInvalidCredentials = errors.New("auth: wrong email or password")
+
+// ErrWrongPassword is a change of a user's own password whose current
+// password is wrong.
+var ErrWrongPassword = errors.New("auth: the current password is wrong")
+
+// errChangedMeanwhile is a login that could not be recorded: the user's
+// password changed, or they were disabled, since the login checked it.
+var errChangedMeanwhile = errors.New("auth: the user changed during the login")
 
 // InvalidError is a login request that cannot be checked, such as an email
 // that is not an address.
@@ -155,7 +172,9 @@ func (s *Service) ExpiresAt(session Session) time.Time { return s.sessions.Expir
 // unchecked. The limits count a login before its password is checked, so
 // concurrent logins cannot pass them; one whose password could not be
 // checked, or matched but could not be recorded, as when PostgreSQL does
-// not answer, does not count. A request it
+// not answer, does not count. One whose password matched but whose user's
+// password changed, or who was disabled, before it was recorded fails and
+// counts, as a disabled user's does. A request it
 // cannot check is an [*InvalidError]. A hash made with older parameters is
 // replaced at a successful login.
 //
@@ -216,6 +235,9 @@ func (s *Service) Login(ctx context.Context, email, secret string, client Client
 		return Principal{}, "", s.fail(ctx, email, user.ID, reason, client)
 	}
 	principal, token, err := s.succeed(ctx, email, user, secret, rehash, client)
+	if errors.Is(err, errChangedMeanwhile) {
+		return Principal{}, "", s.fail(ctx, email, user.ID, ReasonChangedMeanwhile, client)
+	}
 	if err != nil {
 		// The password matched: whatever stopped the login, it did not
 		// fail, so an outage cannot lock the account.
@@ -296,8 +318,16 @@ func (s *Service) succeed(ctx context.Context, email string, login store.GetLogi
 	)
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		q := store.New(tx)
-		if err := q.RecordLogin(ctx, login.ID); err != nil {
+		// Only while the user still has the hash this login checked and is
+		// active: a password change or a disabling that holds the user's
+		// row, or committed since, ends their sessions, and this login must
+		// not start one after it.
+		n, err := q.RecordLogin(ctx, store.RecordLoginParams{ID: login.ID, PasswordHash: login.PasswordHash})
+		if err != nil {
 			return fmt.Errorf("record the login: %w", err)
+		}
+		if n == 0 {
+			return errChangedMeanwhile
 		}
 		if newHash != "" {
 			n, err := q.UpgradePasswordHash(ctx, store.UpgradePasswordHashParams{
@@ -417,5 +447,91 @@ func (s *Service) record(p Principal) sessionRecord {
 type failedLogin struct {
 	Email  string `json:"email"`
 	UserID string `json:"user_id,omitempty"`
+	Reason string `json:"reason"`
+}
+
+// ChangePassword sets a new password for p's user, given their current one,
+// and ends every session of theirs, p's included. The current password is
+// checked as a login's is, against the same limits: a wrong one is
+// [ErrWrongPassword], counts as a failure and is audited; past the limits
+// the change is a [*RateLimitedError], refused unchecked. A password that
+// is not acceptable is an [*InvalidError].
+func (s *Service) ChangePassword(ctx context.Context, p Principal, current, next string, client Client) error {
+	if current == "" || len(current) > password.MaxBytes || !utf8.ValidString(current) {
+		return &InvalidError{reason: fmt.Sprintf("current_password: want 1 to %d bytes of UTF-8", password.MaxBytes)}
+	}
+	if err := password.Check(next); err != nil {
+		return &InvalidError{reason: "new_" + err.Error()}
+	}
+	email := p.User.Email
+	wait, err := s.limits.Begin(ctx, email, client.Address)
+	if err != nil {
+		return err
+	}
+	if wait > 0 {
+		return &RateLimitedError{RetryAfter: wait}
+	}
+	id, err := uuid.Parse(p.User.ID)
+	if err != nil {
+		return s.unchecked(ctx, email, client, fmt.Errorf("session %s: user ID: %w", p.Session.ID, err))
+	}
+	// By the session's user ID: the email may belong to someone else by now.
+	hash, err := store.New(s.db).GetPasswordHash(ctx, pgtype.UUID{Bytes: id, Valid: true})
+	if err != nil {
+		return s.unchecked(ctx, email, client, fmt.Errorf("look up the user: %w", err))
+	}
+	var match bool
+	if hash.Valid {
+		match, _, err = s.verify(ctx, current, hash.String)
+		if err != nil && !errors.Is(err, password.ErrMalformedHash) {
+			return s.unchecked(ctx, email, client, err)
+		}
+	}
+	actor := audit.UserActor(p.User.ID, email)
+	if !match {
+		return s.wrongPassword(ctx, actor, p.User.ID, email, client)
+	}
+	err = users.SetPassword(ctx, s.db, s.hasher, s.sessions,
+		users.Caller{Actor: actor, RequestID: client.RequestID},
+		users.PasswordChange{UserID: id, Password: next, IfHash: hash.String})
+	if errors.Is(err, users.ErrStalePassword) {
+		// Changed since it was checked: the current password given is
+		// not the current one any more.
+		return s.wrongPassword(ctx, actor, p.User.ID, email, client)
+	}
+	if err != nil {
+		return s.unchecked(ctx, email, client, err)
+	}
+	if err := s.limits.Succeeded(context.WithoutCancel(ctx), email, client.Address); err != nil {
+		s.logger.WarnContext(ctx, "auth: clear the account's failed logins", "user_id", p.User.ID, "error", err)
+	}
+	return nil
+}
+
+// wrongPassword audits a refused change of a user's own password, which the
+// limits counted as a failure, and returns ErrWrongPassword.
+func (s *Service) wrongPassword(ctx context.Context, actor audit.Actor, userID, email string, client Client) error {
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		_, err := audit.Write(ctx, store.New(tx), audit.Change{
+			RequestID:  client.RequestID,
+			Actor:      actor,
+			Action:     ActionSetPasswordFailed,
+			EntityType: audit.EntityUser,
+			EntityID:   userID,
+			After:      failedPasswordChange{ID: userID, Email: email, Reason: ReasonWrongPassword},
+		})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("audit the refused password change: %w", err)
+	}
+	return ErrWrongPassword
+}
+
+// failedPasswordChange is a refused change of a user's own password as its
+// audit record shows it: never the password tried.
+type failedPasswordChange struct {
+	ID     string `json:"id"`
+	Email  string `json:"email"`
 	Reason string `json:"reason"`
 }

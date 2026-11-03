@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOtherActiveAdmins = `-- name: CountOtherActiveAdmins :one
+select count(*) from users u
+join user_roles ur on ur.user_id = u.id
+join roles r on r.id = ur.role_id
+where r.name = 'admin' and u.status = 'active' and u.id <> $1
+`
+
+func (q *Queries) CountOtherActiveAdmins(ctx context.Context, id pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countOtherActiveAdmins, id)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 insert into users (email, display_name, password_hash)
 values ($1, $2, $3)
@@ -69,6 +83,19 @@ func (q *Queries) GetLoginUser(ctx context.Context, email string) (GetLoginUserR
 	return i, err
 }
 
+const getPasswordHash = `-- name: GetPasswordHash :one
+select password_hash from users where id = $1
+`
+
+// The user's password hash, for a user changing their own password: by ID,
+// as the session names them, never by an email that may have moved.
+func (q *Queries) GetPasswordHash(ctx context.Context, id pgtype.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getPasswordHash, id)
+	var password_hash pgtype.Text
+	err := row.Scan(&password_hash)
+	return password_hash, err
+}
+
 const getSessionUser = `-- name: GetSessionUser :one
 select u.id, u.email, u.display_name, u.status,
   coalesce(array_agg(r.name order by r.name) filter (where r.name is not null), '{}')::text[] as roles
@@ -101,6 +128,44 @@ func (q *Queries) GetSessionUser(ctx context.Context, id pgtype.UUID) (GetSessio
 	return i, err
 }
 
+const getUser = `-- name: GetUser :one
+select u.id, u.email, u.display_name, u.status, u.last_login_at, u.created_at, u.updated_at,
+  coalesce(array_agg(r.name order by r.name) filter (where r.name is not null), '{}')::text[] as roles
+from users u
+left join user_roles ur on ur.user_id = u.id
+left join roles r on r.id = ur.role_id
+where u.id = $1
+group by u.id
+`
+
+type GetUserRow struct {
+	ID          pgtype.UUID
+	Email       string
+	DisplayName string
+	Status      string
+	LastLoginAt pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	Roles       []string
+}
+
+// A user with the names of their roles.
+func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (GetUserRow, error) {
+	row := q.db.QueryRow(ctx, getUser, id)
+	var i GetUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.Status,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Roles,
+	)
+	return i, err
+}
+
 const grantRole = `-- name: GrantRole :one
 insert into user_roles (user_id, role_id)
 select $1, id
@@ -122,12 +187,210 @@ func (q *Queries) GrantRole(ctx context.Context, arg GrantRoleParams) (pgtype.UU
 	return role_id, err
 }
 
-const recordLogin = `-- name: RecordLogin :exec
-update users set last_login_at = now() where id = $1
+const grantRoleIfMissing = `-- name: GrantRoleIfMissing :execrows
+insert into user_roles (user_id, role_id)
+select $1, id from roles where name = $2
+on conflict do nothing
 `
 
-func (q *Queries) RecordLogin(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, recordLogin, id)
+type GrantRoleIfMissingParams struct {
+	UserID   pgtype.UUID
+	RoleName string
+}
+
+// Grants the role; 0 rows when the user has it already or it does not
+// exist.
+func (q *Queries) GrantRoleIfMissing(ctx context.Context, arg GrantRoleIfMissingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, grantRoleIfMissing, arg.UserID, arg.RoleName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listUsers = `-- name: ListUsers :many
+select u.id, u.email, u.display_name, u.status, u.last_login_at, u.created_at, u.updated_at,
+  coalesce(array_agg(r.name order by r.name) filter (where r.name is not null), '{}')::text[] as roles
+from users u
+left join user_roles ur on ur.user_id = u.id
+left join roles r on r.id = ur.role_id
+where $1::text is null or u.status = $1
+group by u.id
+order by u.email
+`
+
+type ListUsersRow struct {
+	ID          pgtype.UUID
+	Email       string
+	DisplayName string
+	Status      string
+	LastLoginAt pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	Roles       []string
+}
+
+// Every user with the names of their roles, by email; only those with
+// status when it is not null.
+func (q *Queries) ListUsers(ctx context.Context, status pgtype.Text) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersRow
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.DisplayName,
+			&i.Status,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Roles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockAdminRole = `-- name: LockAdminRole :one
+select id from roles where name = 'admin' for no key update
+`
+
+// Serialises every change that could leave no active admin: each takes this
+// lock first, then counts the others (CountOtherActiveAdmins). No key
+// update, not update: a grant of admin locks the user's row and then, for
+// its user_roles row's foreign key, takes a key-share lock on this row,
+// which this lock must not exclude, or a grant and a disabling of the same
+// user would deadlock.
+func (q *Queries) LockAdminRole(ctx context.Context) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockAdminRole)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockUser = `-- name: LockUser :one
+select id from users where id = $1 for update
+`
+
+// Locks the user's row until the transaction ends: a login racing the
+// change waits for it (RecordLogin).
+func (q *Queries) LockUser(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUser, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const recordLogin = `-- name: RecordLogin :execrows
+update users set last_login_at = now()
+where id = $1 and password_hash = $2 and status = 'active'
+`
+
+type RecordLoginParams struct {
+	ID           pgtype.UUID
+	PasswordHash pgtype.Text
+}
+
+// Records a login, only while the user is active and has the password hash
+// the login checked. A password change or a disabling that committed since
+// the check, or holds the row now, wins: the login records nothing and
+// fails, so it cannot start a session the change has already ended.
+func (q *Queries) RecordLogin(ctx context.Context, arg RecordLoginParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordLogin, arg.ID, arg.PasswordHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeRole = `-- name: RevokeRole :execrows
+delete from user_roles
+where user_id = $1 and role_id = (select id from roles where name = $2)
+`
+
+type RevokeRoleParams struct {
+	UserID   pgtype.UUID
+	RoleName string
+}
+
+func (q *Queries) RevokeRole(ctx context.Context, arg RevokeRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeRole, arg.UserID, arg.RoleName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const roleExists = `-- name: RoleExists :one
+select exists (select 1 from roles where name = $1)
+`
+
+func (q *Queries) RoleExists(ctx context.Context, name string) (bool, error) {
+	row := q.db.QueryRow(ctx, roleExists, name)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const setPasswordHash = `-- name: SetPasswordHash :execrows
+update users set password_hash = $1, updated_at = now()
+where id = $2 and ($3::text is null or password_hash = $3)
+`
+
+type SetPasswordHashParams struct {
+	NewHash pgtype.Text
+	ID      pgtype.UUID
+	IfHash  pgtype.Text
+}
+
+// Replaces the user's hash; when if_hash is not null, only if it is still
+// that one, as when the user changes their own password.
+func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPasswordHash, arg.NewHash, arg.ID, arg.IfHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const touchUser = `-- name: TouchUser :exec
+update users set updated_at = now() where id = $1
+`
+
+func (q *Queries) TouchUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchUser, id)
+	return err
+}
+
+const updateUser = `-- name: UpdateUser :exec
+update users set email = $1, display_name = $2, status = $3, updated_at = now()
+where id = $4
+`
+
+type UpdateUserParams struct {
+	Email       string
+	DisplayName string
+	Status      string
+	ID          pgtype.UUID
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
+	_, err := q.db.Exec(ctx, updateUser,
+		arg.Email,
+		arg.DisplayName,
+		arg.Status,
+		arg.ID,
+	)
 	return err
 }
 

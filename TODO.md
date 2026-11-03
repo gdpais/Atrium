@@ -369,7 +369,7 @@ and collector contracts are prerequisites, and its decisions are recorded
 (ADRs 0013–0017). Deep links [4.9] need YAML templates and datasources [8.1,
 9.3], which exist.
 
-Remaining work, in order, one pull request each: users and roles [4.2] →
+Remaining work, in order, one pull request each:
 database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
 applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
@@ -400,7 +400,7 @@ queue tests alone.
 
 ### 4.2 Identity and access
 - [x] Implement local auth for MVP: argon2id password hashes, cookie sessions in Redis ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md)). Hashing (`apps/api/internal/password`, with its concurrency cap) and `api users create-admin` are in [4.10]; `POST`, `GET` and `DELETE /api/v1/session` log in, show and end a `__Host-` cookie session, the login verifies and upgrades hashes, failed logins are limited per account and address, and logins, logouts and failures are audited ([sessions](docs/reference/metrics-and-endpoints.md#logging-in-and-sessions)); kind-e2e logs in through a port-forward
-- [ ] Implement users/roles/user_roles management
+- [x] Implement users/roles/user_roles management: admins list, create, change and disable users, set their passwords and grant or revoke roles under `/api/v1/users`; any user changes their own password (`PUT /api/v1/account/password`). Disabling a user or setting a password ends all their sessions; the last active admin can be neither disabled nor stripped of `admin`; every change is audited without a secret ([users and roles](docs/reference/metrics-and-endpoints.md#users-and-roles))
 - [x] Add minimal admin/wallboard access model: roles `viewer` < `operator` < `admin` (migration 0003), each operation's least role declared with `security` in `openapi.yaml` and checked before it runs, with the `Origin` of unsafe requests; an operation that declares none stops the API at startup
 - [ ] Defer OIDC/SSO unless required early
 

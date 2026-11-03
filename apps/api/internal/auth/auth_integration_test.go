@@ -905,3 +905,196 @@ func TestLimits(t *testing.T) {
 		}
 	}
 }
+
+// A user changes their own password with the current one: every session of
+// theirs ends, the new password logs in and the old does not. A wrong
+// current password counts as a failed login, is audited, and changes
+// nothing; past the limits the change is refused unchecked.
+func TestChangePassword(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, cheap)
+	ctx := context.Background()
+	const next = "a new horse battery staple, wallboard"
+	userID := f.addUser(t, f.hasher, "wall@example.com", secret, "viewer")
+	principal, token, err := f.service.Login(ctx, "wall@example.com", secret, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, other, err := f.service.Login(ctx, "wall@example.com", secret, auth.Client{Address: netip.MustParseAddr("198.51.100.9"), RequestID: "req-other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := f.hash(t, userID)
+
+	change := auth.Client{Address: client.Address, RequestID: "req-change"}
+	if err := f.service.ChangePassword(ctx, principal, "guess", next, change); !errors.Is(err, auth.ErrWrongPassword) {
+		t.Fatalf("ChangePassword with a wrong current password = %v, want ErrWrongPassword", err)
+	}
+	if f.hash(t, userID) != old || len(f.sessionKeys(t)) != 2 {
+		t.Fatal("a refused change changed the hash or ended sessions")
+	}
+	refused := f.records(t, auth.ActionSetPasswordFailed)
+	if len(refused) != 1 || refused[0].Actor != audit.UserActor(userID, "wall@example.com") || field(t, refused[0].After, "reason") != auth.ReasonWrongPassword {
+		t.Fatalf("refused-change records %+v", refused)
+	}
+	var invalid *auth.InvalidError
+	if err := f.service.ChangePassword(ctx, principal, secret, "short", change); !errors.As(err, &invalid) {
+		t.Fatalf("ChangePassword to a short password = %v, want an InvalidError", err)
+	}
+
+	if err := f.service.ChangePassword(ctx, principal, secret, next, change); err != nil {
+		t.Fatal(err)
+	}
+	for _, tok := range []string{token, other} {
+		if _, err := f.service.Authenticate(ctx, tok); !errors.Is(err, auth.ErrNoSession) {
+			t.Fatalf("a session after the change: %v, want ErrNoSession", err)
+		}
+	}
+	if _, _, err := f.service.Login(ctx, "wall@example.com", secret, client); !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("login with the old password = %v", err)
+	}
+	if _, _, err := f.service.Login(ctx, "wall@example.com", next, client); err != nil {
+		t.Fatalf("login with the new password: %v", err)
+	}
+	set := f.records(t, "set_password")
+	if len(set) != 1 || set[0].RequestID != "req-change" || set[0].Actor != audit.UserActor(userID, "wall@example.com") {
+		t.Fatalf("set_password records %+v", set)
+	}
+	for _, r := range append(set, refused...) {
+		encoded, _ := json.Marshal(r)
+		audittest.NoSecrets(t, encoded, secret, next, "guess", old, f.hash(t, userID), token, other)
+	}
+
+	// Guessing the current password from a stolen session meets the
+	// login limits.
+	p, _, err := f.service.Login(ctx, "wall@example.com", next, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var limited *auth.RateLimitedError
+	for i := 0; ; i++ {
+		err := f.service.ChangePassword(ctx, p, "guess", "another horse battery staple", change)
+		if errors.As(err, &limited) {
+			if i != auth.AccountFailures {
+				t.Fatalf("rate limited after %d wrong passwords, want %d", i, auth.AccountFailures)
+			}
+			break
+		}
+		if !errors.Is(err, auth.ErrWrongPassword) || i > auth.AccountFailures {
+			t.Fatalf("guess %d: %v", i+1, err)
+		}
+	}
+}
+
+// The change is the session's user's, found by ID: an email that has
+// moved to another user since the session began names nobody here.
+func TestChangePasswordFollowsTheSessionsUser(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, cheap)
+	ctx := context.Background()
+	const otherSecret, next = "correct horse battery staple, other", "a new horse battery staple, mine"
+	mine := f.addUser(t, f.hasher, "mine@example.com", secret, "viewer")
+	principal, _, err := f.service.Login(ctx, "mine@example.com", secret, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An admin moves the email to a new user before the next request reads
+	// the session's user again.
+	f.exec(t, "update users set email = 'renamed@example.com' where id = $1", mine)
+	other := f.addUser(t, f.hasher, "mine@example.com", otherSecret, "viewer")
+	otherHash := f.hash(t, other)
+
+	if err := f.service.ChangePassword(ctx, principal, secret, next, client); err != nil {
+		t.Fatalf("ChangePassword with the session user's password: %v", err)
+	}
+	if f.hash(t, other) != otherHash {
+		t.Fatal("the change replaced the password of the user who has the email now")
+	}
+	if _, _, err := f.service.Login(ctx, "renamed@example.com", next, client); err != nil {
+		t.Fatalf("the session's user cannot log in with the new password: %v", err)
+	}
+}
+
+// A login that checked the password before a password change or a
+// disabling committed, and records itself after, fails: it starts no
+// session the change has already ended.
+func TestLoginLosesToAConcurrentChange(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, cheap)
+	ctx := context.Background()
+	for name, change := range map[string]string{
+		"password": "update users set password_hash = 'changed' where id = $1",
+		"disabled": "update users set status = 'disabled' where id = $1",
+	} {
+		t.Run(name, func(t *testing.T) {
+			email := name + "@example.com"
+			userID := f.addUser(t, f.hasher, email, secret, "viewer")
+			// The change holds the user's row, as users.SetPassword and
+			// users.Service.Update do while they end the sessions.
+			tx, err := f.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A failed test still gives the connection back to the pool,
+			// whose close waits for it.
+			defer func() { _ = tx.Rollback(ctx) }()
+			if _, err := tx.Exec(ctx, change, userID); err != nil {
+				t.Fatal(err)
+			}
+			type result struct {
+				token string
+				err   error
+			}
+			done := make(chan result, 1)
+			go func() {
+				_, token, err := f.service.Login(ctx, email, secret, client)
+				done <- result{token, err}
+			}()
+			// The login reads the committed hash, checks it, then waits for
+			// the row; the change commits once it does.
+			waitForLockWaiters(t, f.pool, 1, nil)
+			if err := tx.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			got := <-done
+			if !errors.Is(got.err, auth.ErrInvalidCredentials) || got.token != "" {
+				t.Fatalf("Login racing the change = %q, %v; want ErrInvalidCredentials", got.token, got.err)
+			}
+			if members, _ := f.redis.SMembers(ctx, "heartbeat:user-sessions:"+userID).Result(); len(members) != 0 {
+				t.Fatalf("the login started a session: %v", members)
+			}
+			failed := f.records(t, audit.ActionLoginFailed)
+			if r := failed[len(failed)-1]; field(t, r.After, "email") != email || field(t, r.After, "reason") != auth.ReasonChangedMeanwhile {
+				t.Fatalf("failed-login record %s", r.After)
+			}
+		})
+	}
+}
+
+// waitForLockWaiters waits until n sessions of pool's database wait for a
+// lock, or until done delivers, which fails the test: what it waited for
+// ran without waiting for the lock.
+func waitForLockWaiters(t *testing.T, pool *pgxpool.Pool, n int, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var waiting int
+		err := pool.QueryRow(context.Background(),
+			"select count(*) from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'").Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting >= n {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("finished (%v) without waiting for the lock", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d sessions wait for a lock after 30s, want %d", waiting, n)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

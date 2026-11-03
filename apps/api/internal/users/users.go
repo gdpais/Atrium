@@ -1,7 +1,9 @@
-// Package users manages Heartbeat's local users (ADR 0013 §7). So far it
-// creates admins, for `api users create-admin`: the first admin, since there
-// is no default password, and a way back in for whoever can run a command in
-// an API container.
+// Package users manages Heartbeat's local users and their roles (ADR 0013
+// §7–8). [Service] serves the API's admin operations; [SetPassword] also
+// serves a user changing their own password; [CreateAdmin] makes admins for
+// `api users create-admin`: the first admin, since there is no default
+// password, and a way back in for whoever can run a command in an API
+// container.
 package users
 
 import (
@@ -10,6 +12,7 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -53,13 +56,17 @@ type Created struct {
 	AuditRecord audit.Record
 }
 
-// User is a user as an audit record shows it: never the password hash.
+// User is a user. Its JSON is how audit records show it: never the
+// password hash, and without the times, which a change does not make.
 type User struct {
 	ID          string   `json:"id"`
 	Email       string   `json:"email"`
 	DisplayName string   `json:"display_name"`
 	Status      string   `json:"status"`
 	Roles       []string `json:"roles"`
+
+	LastLoginAt          *time.Time `json:"-"`
+	CreatedAt, UpdatedAt time.Time  `json:"-"`
 }
 
 // CreateAdmin creates a user with the admin role, and the audit record of
