@@ -575,16 +575,22 @@ components:
           $ref: "#/components/schemas/ProbeEngine"
         name:
           type: string
-          pattern: "^[a-z][a-z0-9_]{0,62}$"
-          description: Lower-case letters, digits and underscores, starting with a letter; it cannot change.
-          examples: [waits_without_hadr]
+          pattern: "^custom_[a-z0-9][a-z0-9_]{0,55}$"
+          description: |
+            `custom_` and then lower-case letters, digits and underscores, at
+            most 63 characters in all. No built-in's name starts with
+            `custom_`, so one added to the collector later never clashes
+            with a custom definition. It cannot change.
+          examples: [custom_waits_lean]
         overrides:
           type: string
           description: |
             The built-in probe whose query this one replaces, such as
             `waits`. Its metric descriptors decode the rows, so the query
-            must return the same columns, in the same units. A target runs
-            one definition per built-in probe.
+            must return the same columns, in the same units, and the
+            definition takes its category. It cannot change: every version
+            overrides the same built-in. A target runs one definition per
+            built-in probe.
           examples: [waits]
         query_template:
           type: string
@@ -607,16 +613,9 @@ components:
     ProbeDefinitionContent:
       type: object
       additionalProperties: false
-      required: [overrides, query_template]
+      description: A version's content. The engine, name and `overrides` stay the definition's.
+      required: [query_template]
       properties:
-        overrides:
-          type: string
-          description: |
-            The built-in probe whose query this one replaces, such as
-            `waits`. Its metric descriptors decode the rows, so the query
-            must return the same columns, in the same units. A target runs
-            one definition per built-in probe.
-          examples: [waits]
         query_template:
           type: string
           maxLength: 16384

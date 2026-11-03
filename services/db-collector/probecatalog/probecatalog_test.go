@@ -2,6 +2,7 @@ package probecatalog
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"heartbeat/services/db-collector/internal/probes/sqlserver"
@@ -25,5 +26,16 @@ func TestBuiltinsListTheSQLServerCatalog(t *testing.T) {
 	}
 	if !slices.Equal(names, catalog.Names()) {
 		t.Errorf("Builtins() names = %v, want the catalog's, sorted: %v", names, catalog.Names())
+	}
+}
+
+// Custom probe definitions' names start with custom_ (the API's
+// probedefs.CustomPrefix), so a built-in's may not: its seed migration would
+// clash with a definition an admin made.
+func TestNoBuiltinTakesTheCustomPrefix(t *testing.T) {
+	for _, probe := range Builtins() {
+		if strings.HasPrefix(probe.Name, "custom_") {
+			t.Errorf("built-in probe %q starts with custom_, which custom probe definitions' names start with; rename it", probe.Name)
+		}
 	}
 }

@@ -60,7 +60,18 @@ var MaxTimeoutMS = int(config.MaxProbeTimeout.Milliseconds())
 // renders assignments to (ADR 0014).
 var Engines = []string{config.KindSQLServer}
 
-// probeName matches a definition's name and the built-in probe it
+// CustomPrefix starts every custom definition's name. No built-in probe's
+// name starts with it (a test of the collector's catalog fails if one
+// does), so a probe added to the catalog later never clashes with a custom
+// definition: its seed migration cannot be skipped or fail on a name an
+// admin took.
+const CustomPrefix = "custom_"
+
+// customName matches a custom definition's name: [CustomPrefix] and
+// lower-case snake_case, at most 63 characters in all.
+var customName = regexp.MustCompile(`^custom_[a-z0-9][a-z0-9_]{0,55}$`)
+
+// probeName matches the name of the built-in probe a custom definition
 // overrides: lower-case snake_case, as the collector's catalog names them.
 var probeName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 
@@ -124,10 +135,6 @@ type Definition struct {
 // Content is what a version of a custom definition holds, as a client sets
 // it.
 type Content struct {
-	// Overrides names the built-in probe whose query this one replaces. Its
-	// metric descriptors decode the rows, so the query must return the
-	// same columns, in the same units.
-	Overrides   string
 	Description string
 	// DefaultIntervalSeconds is 0 for [DefaultIntervalSeconds].
 	DefaultIntervalSeconds int
@@ -136,10 +143,16 @@ type Content struct {
 	QueryTemplate string
 }
 
-// NewDefinition is a custom definition to create.
+// NewDefinition is a custom definition to create. Its engine, name and
+// the built-in it overrides are set once, for every version.
 type NewDefinition struct {
 	Engine string
 	Name   string
+	// Overrides names the built-in probe whose query this one replaces. Its
+	// metric descriptors decode the rows, so the query must return the
+	// same columns, in the same units, and the definition takes its
+	// category.
+	Overrides string
 	Content
 }
 
@@ -201,8 +214,11 @@ func (s *Service) Create(ctx context.Context, def NewDefinition, actor audit.Act
 	if !slices.Contains(Engines, def.Engine) {
 		return Definition{}, invalid("engine %q: want one of %s", def.Engine, strings.Join(Engines, ", "))
 	}
-	if !probeName.MatchString(def.Name) {
-		return Definition{}, invalid("name %q: want lower-case letters, digits and underscores, starting with a letter, at most 63", def.Name)
+	if !customName.MatchString(def.Name) {
+		return Definition{}, invalid("name %q: want %s and then lower-case letters, digits and underscores, at most 63 in all, such as %swaits_lean", def.Name, CustomPrefix, CustomPrefix)
+	}
+	if !probeName.MatchString(def.Overrides) {
+		return Definition{}, invalid("overrides %q: want the name of a built-in probe, such as waits", def.Overrides)
 	}
 	content, err := normalize(def.Content)
 	if err != nil {
@@ -211,7 +227,7 @@ func (s *Service) Create(ctx context.Context, def NewDefinition, actor audit.Act
 	var created Definition
 	err = pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		q := store.New(tx)
-		category, err := builtinCategory(ctx, q, def.Engine, content.Overrides)
+		category, err := builtinCategory(ctx, q, def.Engine, def.Overrides)
 		if err != nil {
 			return err
 		}
@@ -222,7 +238,7 @@ func (s *Service) Create(ctx context.Context, def NewDefinition, actor audit.Act
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("look up the probe definition: %w", err)
 		}
-		created, err = insert(ctx, q, def.Engine, def.Name, 1, category, content)
+		created, err = insert(ctx, q, def.Engine, def.Name, def.Overrides, 1, category, content)
 		if isUniqueViolation(err) {
 			return ErrNameTaken
 		}
@@ -244,7 +260,8 @@ func (s *Service) Create(ctx context.Context, def NewDefinition, actor audit.Act
 
 // AddVersion stores the next version of the custom definition whose latest
 // version is from, holding content, and its audit record, in one
-// transaction. It returns the new version and true, or from and false when
+// transaction. The version keeps the definition's engine, name and
+// overrides. It returns the new version and true, or from and false when
 // content is what from holds already, which writes nothing.
 //
 // It fails with [ErrNotFound], an [*InvalidError], [ErrBuiltin], [ErrDisabled],
@@ -274,11 +291,13 @@ func (s *Service) AddVersion(ctx context.Context, from uuid.UUID, content Conten
 			result = previous
 			return nil
 		}
-		category, err := builtinCategory(ctx, q, previous.Engine, content.Overrides)
+		// The built-in must still be there: one the collector no longer has
+		// is disabled, and an override of it would not load.
+		category, err := builtinCategory(ctx, q, previous.Engine, previous.Overrides)
 		if err != nil {
 			return err
 		}
-		next, err := insert(ctx, q, previous.Engine, previous.Name, previous.Version+1, category, content)
+		next, err := insert(ctx, q, previous.Engine, previous.Name, previous.Overrides, previous.Version+1, category, content)
 		if isUniqueViolation(err) {
 			// The lock makes changes take turns; this is the backstop.
 			return &ConflictError{fmt.Sprintf("version %d of probe definition %s was added meanwhile; read it and change it instead", previous.Version+1, previous.Name)}
@@ -393,10 +412,10 @@ func builtinCategory(ctx context.Context, q *store.Queries, engine, overrides st
 	return category, nil
 }
 
-func insert(ctx context.Context, q *store.Queries, engine, name string, version int, category string, c Content) (Definition, error) {
+func insert(ctx context.Context, q *store.Queries, engine, name, overrides string, version int, category string, c Content) (Definition, error) {
 	row, err := q.InsertProbeDefinition(ctx, store.InsertProbeDefinitionParams{
 		Engine: engine, Name: name, Version: int32(version), Category: category,
-		Overrides:              pgtype.Text{String: c.Overrides, Valid: true},
+		Overrides:              pgtype.Text{String: overrides, Valid: true},
 		Description:            c.Description,
 		DefaultIntervalSeconds: int32(c.DefaultIntervalSeconds),
 		TimeoutMs:              pgtype.Int4{Int32: int32(c.TimeoutMS), Valid: c.TimeoutMS != 0},
@@ -409,12 +428,8 @@ func insert(ctx context.Context, q *store.Queries, engine, name string, version 
 }
 
 // normalize returns c with its defaults applied, or an [*InvalidError] for
-// a field that cannot be stored. Whether the built-in it overrides exists
-// is checked against the database.
+// a field that cannot be stored.
 func normalize(c Content) (Content, error) {
-	if !probeName.MatchString(c.Overrides) {
-		return Content{}, invalid("overrides %q: want the name of a built-in probe, such as waits", c.Overrides)
-	}
 	if !utf8.ValidString(c.Description) || utf8.RuneCountInString(c.Description) > MaxDescriptionRunes ||
 		strings.ContainsFunc(c.Description, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\t' }) {
 		return Content{}, invalid("description: want at most %d characters, without control characters other than newlines and tabs", MaxDescriptionRunes)
@@ -443,7 +458,7 @@ func normalize(c Content) (Content, error) {
 // contentOf returns what a custom definition's version holds.
 func contentOf(d Definition) Content {
 	return Content{
-		Overrides: d.Overrides, Description: d.Description, DefaultIntervalSeconds: d.DefaultIntervalSeconds,
+		Description: d.Description, DefaultIntervalSeconds: d.DefaultIntervalSeconds,
 		TimeoutMS: d.TimeoutMS, QueryTemplate: d.QueryTemplate,
 	}
 }

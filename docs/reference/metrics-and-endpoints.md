@@ -203,14 +203,16 @@ what was approved, and nothing is ever deleted.
   [probe review checklist](../architecture/database-observability.md#probe-review-checklist).
 
 `POST /api/v1/probe-definitions` takes `engine` (`sqlserver`), `name`
-(lower-case snake_case, at most 63 characters, unique per engine across
-built-in and custom), `overrides`, `query_template` and, optionally,
+(`custom_` and then lower-case snake_case, at most 63 characters: no
+built-in's name starts with `custom_`, so a probe the collector adds later
+never clashes with one), `overrides`, `query_template` and, optionally,
 `description` (at most 1,000 characters), `default_interval_seconds` (5 to
 3,600; 30, the collector's default, when left out) and `timeout_ms` (1 to
 25,000; left out, the collector's default, half the interval and at most
-10 s). `POST /api/v1/probe-definitions/{id}/versions` takes the same content
-without `engine` and `name`: a version is the whole content, so a field left
-out takes its default, not the previous version's value.
+10 s). `engine`, `name` and `overrides` are set once: every version
+overrides the same built-in. `POST /api/v1/probe-definitions/{id}/versions`
+takes the rest: a version is the whole content, so a field left out takes
+its default, not the previous version's value.
 
 The query must be one read-only `SELECT`, checked by the same function the
 db-collector runs when it loads `integrations.yaml`
@@ -237,7 +239,7 @@ record's `entity_id`, with the version it follows in `before`; `disable` and
 
 ```bash
 curl -sS -b cookies localhost:8081/api/v1/probe-definitions | jq '.items[] | {id, name, version, builtin}'
-jq -n '{engine: "sqlserver", name: "waits_lean", overrides: "waits",
+jq -n '{engine: "sqlserver", name: "custom_waits_lean", overrides: "waits",
         description: "Waits over 1 ms only",
         query_template: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms > 1"}' |
   curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \

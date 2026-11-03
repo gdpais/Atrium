@@ -91,15 +91,21 @@ type NewProbeDefinition struct {
 	// Engine The kind of collector that runs the probe.
 	Engine ProbeEngine `json:"engine"`
 
-	// Name Lower-case letters, digits and underscores, starting with a letter; it cannot change.
+	// Name `custom_` and then lower-case letters, digits and underscores, at
+	// most 63 characters in all. No built-in's name starts with
+	// `custom_`, so one added to the collector later never clashes
+	// with a custom definition. It cannot change.
 	//
-	// Examples: waits_without_hadr
+	//
+	// Examples: custom_waits_lean
 	Name string `json:"name"`
 
 	// Overrides The built-in probe whose query this one replaces, such as
 	// `waits`. Its metric descriptors decode the rows, so the query
-	// must return the same columns, in the same units. A target runs
-	// one definition per built-in probe.
+	// must return the same columns, in the same units, and the
+	// definition takes its category. It cannot change: every version
+	// overrides the same built-in. A target runs one definition per
+	// built-in probe.
 	//
 	//
 	// Examples: waits
@@ -154,22 +160,13 @@ type ProbeDefinition struct {
 	Version   int       `json:"version"`
 }
 
-// ProbeDefinitionContent defines model for ProbeDefinitionContent.
+// ProbeDefinitionContent A version's content. The engine, name and `overrides` stay the definition's.
 type ProbeDefinitionContent struct {
 	// DefaultIntervalSeconds The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
 	DefaultIntervalSeconds *int `json:"default_interval_seconds,omitempty"`
 
 	// Description Why the override exists, for its reviewers. Defaults to empty.
 	Description *string `json:"description,omitempty"`
-
-	// Overrides The built-in probe whose query this one replaces, such as
-	// `waits`. Its metric descriptors decode the rows, so the query
-	// must return the same columns, in the same units. A target runs
-	// one definition per built-in probe.
-	//
-	//
-	// Examples: waits
-	Overrides string `json:"overrides"`
 
 	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB of UTF-8, counted in bytes.
 	QueryTemplate string `json:"query_template"`

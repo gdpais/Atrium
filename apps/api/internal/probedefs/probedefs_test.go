@@ -14,7 +14,7 @@ import (
 
 // valid is content every check accepts.
 func valid() Content {
-	return Content{Overrides: "sessions", QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"}
+	return Content{QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"}
 }
 
 func TestNormalizeAppliesDefaults(t *testing.T) {
@@ -38,8 +38,6 @@ func TestNormalizeRejects(t *testing.T) {
 		change func(*Content)
 		want   string
 	}{
-		{"no overrides", func(c *Content) { c.Overrides = "" }, "overrides"},
-		{"overrides not a probe name", func(c *Content) { c.Overrides = "Waits" }, "overrides"},
 		{"interval too short", func(c *Content) { c.DefaultIntervalSeconds = MinIntervalSeconds - 1 }, "default_interval_seconds"},
 		{"interval too long", func(c *Content) { c.DefaultIntervalSeconds = MaxIntervalSeconds + 1 }, "default_interval_seconds"},
 		{"negative interval", func(c *Content) { c.DefaultIntervalSeconds = -1 }, "default_interval_seconds"},
@@ -125,8 +123,11 @@ func TestBoundsMatchTheSpec(t *testing.T) {
 	if got := schemas["ProbeEngine"].Enum; !slices.Equal(got, Engines) {
 		t.Errorf("spec schema ProbeEngine enum = %v, want %v", got, Engines)
 	}
-	if got := schemas["NewProbeDefinition"].Properties["name"].Pattern; got != probeName.String() {
-		t.Errorf("spec schema NewProbeDefinition name pattern = %q, want %q", got, probeName)
+	if got := schemas["NewProbeDefinition"].Properties["name"].Pattern; got != customName.String() {
+		t.Errorf("spec schema NewProbeDefinition name pattern = %q, want %q", got, customName)
+	}
+	if _, ok := schemas["ProbeDefinitionContent"].Properties["overrides"]; ok {
+		t.Error("spec schema ProbeDefinitionContent has overrides: a version keeps its definition's")
 	}
 	for _, schema := range []string{"NewProbeDefinition", "ProbeDefinitionContent"} {
 		props := schemas[schema].Properties

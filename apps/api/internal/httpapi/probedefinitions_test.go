@@ -96,7 +96,7 @@ var (
 		CreatedAt: time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC),
 	}
 	customWaits = probedefs.Definition{
-		ID: uuid.MustParse("7c9e6679-7425-40de-944b-e07fc1f90ae7"), Engine: "sqlserver", Name: "waits_lean", Version: 2,
+		ID: uuid.MustParse("7c9e6679-7425-40de-944b-e07fc1f90ae7"), Engine: "sqlserver", Name: "custom_waits_lean", Version: 2,
 		Overrides: "waits", Category: "waits", Description: "fewer wait types", DefaultIntervalSeconds: 60, TimeoutMS: 5000,
 		QueryTemplate: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats", Enabled: true, Latest: true,
 		CreatedAt: time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC),
@@ -132,7 +132,7 @@ func send(t *testing.T, server *Server, role, method, path, body string) *httpte
 	return rec
 }
 
-const newDefinitionBody = `{"engine":"sqlserver","name":"waits_lean","overrides":"waits","query_template":"SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats"}`
+const newDefinitionBody = `{"engine":"sqlserver","name":"custom_waits_lean","overrides":"waits","query_template":"SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats"}`
 
 // Anyone logged in reads probe definitions; only admins change them, since
 // they carry SQL.
@@ -147,7 +147,7 @@ func TestProbeDefinitionOperationsNeedTheirRole(t *testing.T) {
 		{http.MethodGet, "/api/v1/probe-definitions/" + id, "", auth.Viewer, http.StatusOK},
 		{http.MethodGet, "/api/v1/probe-definitions/" + id + "/versions", "", auth.Viewer, http.StatusOK},
 		{http.MethodPost, "/api/v1/probe-definitions", newDefinitionBody, auth.Admin, http.StatusCreated},
-		{http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"overrides":"waits","query_template":"SELECT 1"}`, auth.Admin, http.StatusCreated},
+		{http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"query_template":"SELECT 1"}`, auth.Admin, http.StatusCreated},
 		{http.MethodPatch, "/api/v1/probe-definitions/" + id, `{"enabled":false}`, auth.Admin, http.StatusOK},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
@@ -172,15 +172,15 @@ func TestProbeDefinitionOperationsNeedTheirRole(t *testing.T) {
 func TestCreateProbeDefinition(t *testing.T) {
 	defs := &fakeProbeDefinitions{def: customWaits}
 	rec := send(t, probeServer(t, defs), "admin", http.MethodPost, "/api/v1/probe-definitions",
-		`{"engine":"sqlserver","name":"waits_lean","overrides":"waits","query_template":"SELECT 1","description":"d","default_interval_seconds":60,"timeout_ms":5000}`)
+		`{"engine":"sqlserver","name":"custom_waits_lean","overrides":"waits","query_template":"SELECT 1","description":"d","default_interval_seconds":60,"timeout_ms":5000}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("POST = %d %s, want 201", rec.Code, rec.Body)
 	}
 	if got, want := rec.Header().Get("Location"), "/api/v1/probe-definitions/"+customWaits.ID.String(); got != want {
 		t.Errorf("Location = %q, want %q", got, want)
 	}
-	want := probedefs.NewDefinition{Engine: "sqlserver", Name: "waits_lean", Content: probedefs.Content{
-		Overrides: "waits", QueryTemplate: "SELECT 1", Description: "d", DefaultIntervalSeconds: 60, TimeoutMS: 5000,
+	want := probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_waits_lean", Overrides: "waits", Content: probedefs.Content{
+		QueryTemplate: "SELECT 1", Description: "d", DefaultIntervalSeconds: 60, TimeoutMS: 5000,
 	}}
 	if defs.newDef != want {
 		t.Errorf("Create(%+v), want %+v", defs.newDef, want)
@@ -225,10 +225,10 @@ func TestProbeDefinitionErrors(t *testing.T) {
 		{"create: name taken", http.MethodPost, "/api/v1/probe-definitions", newDefinitionBody, probedefs.ErrNameTaken, http.StatusConflict},
 		{"get: not found", http.MethodGet, "/api/v1/probe-definitions/" + id, "", probedefs.ErrNotFound, http.StatusNotFound},
 		{"versions: not found", http.MethodGet, "/api/v1/probe-definitions/" + id + "/versions", "", probedefs.ErrNotFound, http.StatusNotFound},
-		{"add version: invalid", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"overrides":"waits","query_template":"x"}`, invalid, http.StatusBadRequest},
-		{"add version: not found", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"overrides":"waits","query_template":"x"}`, probedefs.ErrNotFound, http.StatusNotFound},
-		{"add version: built-in", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"overrides":"waits","query_template":"x"}`, probedefs.ErrBuiltin, http.StatusConflict},
-		{"add version: disabled", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"overrides":"waits","query_template":"x"}`, probedefs.ErrDisabled, http.StatusConflict},
+		{"add version: invalid", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"query_template":"x"}`, invalid, http.StatusBadRequest},
+		{"add version: not found", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"query_template":"x"}`, probedefs.ErrNotFound, http.StatusNotFound},
+		{"add version: built-in", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"query_template":"x"}`, probedefs.ErrBuiltin, http.StatusConflict},
+		{"add version: disabled", http.MethodPost, "/api/v1/probe-definitions/" + id + "/versions", `{"query_template":"x"}`, probedefs.ErrDisabled, http.StatusConflict},
 		{"patch: not found", http.MethodPatch, "/api/v1/probe-definitions/" + id, `{"enabled":false}`, probedefs.ErrNotFound, http.StatusNotFound},
 		{"patch: built-in", http.MethodPatch, "/api/v1/probe-definitions/" + id, `{"enabled":false}`, probedefs.ErrBuiltin, http.StatusConflict},
 		{"list: failure", http.MethodGet, "/api/v1/probe-definitions", "", context.DeadlineExceeded, http.StatusInternalServerError},
@@ -321,14 +321,14 @@ func TestProbeDefinitionBody(t *testing.T) {
 
 func TestCreateProbeDefinitionVersion(t *testing.T) {
 	path := "/api/v1/probe-definitions/" + builtinWaits.ID.String() + "/versions"
-	body := `{"overrides":"waits","query_template":"SELECT 1","timeout_ms":2000}`
+	body := `{"query_template":"SELECT 1","timeout_ms":2000}`
 
 	defs := &fakeProbeDefinitions{def: customWaits, added: true}
 	rec := send(t, probeServer(t, defs), "admin", http.MethodPost, path, body)
 	if rec.Code != http.StatusCreated || rec.Header().Get("Location") != "/api/v1/probe-definitions/"+customWaits.ID.String() {
 		t.Fatalf("added: %d, Location %q; want 201 and the new version's URL", rec.Code, rec.Header().Get("Location"))
 	}
-	if defs.id != builtinWaits.ID || defs.content != (probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1", TimeoutMS: 2000}) {
+	if defs.id != builtinWaits.ID || defs.content != (probedefs.Content{QueryTemplate: "SELECT 1", TimeoutMS: 2000}) {
 		t.Errorf("AddVersion(%s, %+v)", defs.id, defs.content)
 	}
 

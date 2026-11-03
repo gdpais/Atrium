@@ -177,13 +177,13 @@ var auditedChanges = []auditedChange{
 		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
 			s := probedefs.NewService(h.pool)
 			actor := audit.UserActor("6f1c0e8a-3c55-4f0b-9d2b-4a7e8c1d2e3f", "admin@example.com")
-			v1, err := s.Create(ctx, probedefs.NewDefinition{Engine: "sqlserver", Name: "sessions_by_status",
-				Content: probedefs.Content{Overrides: "sessions", QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"},
+			v1, err := s.Create(ctx, probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_sessions_by_status", Overrides: "sessions",
+				Content: probedefs.Content{QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"},
 			}, actor, "req-create-probe")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "sessions", QueryTemplate: "SELECT status, COUNT_BIG(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"}, actor, "req-version-probe"); err != nil {
+			if _, _, err := s.AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: "SELECT status, COUNT_BIG(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"}, actor, "req-version-probe"); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := s.SetEnabled(ctx, v1.ID, false, actor, "req-disable-probe"); err != nil {

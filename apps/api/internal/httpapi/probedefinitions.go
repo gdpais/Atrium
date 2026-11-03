@@ -51,13 +51,15 @@ func (s *Server) CreateProbeDefinition(ctx context.Context, req openapi.CreatePr
 		return nil, err
 	}
 	body := req.Body
-	c, detail := content(body.Overrides, body.QueryTemplate, body.Description, body.DefaultIntervalSeconds, body.TimeoutMs)
+	c, detail := content(body.QueryTemplate, body.Description, body.DefaultIntervalSeconds, body.TimeoutMs)
 	if detail != "" {
 		return openapi.CreateProbeDefinition400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(problem(http.StatusBadRequest, detail)),
 		}, nil
 	}
-	def, err := s.probeDefinitions.Create(ctx, probedefs.NewDefinition{Engine: string(body.Engine), Name: body.Name, Content: c}, actor, requestID)
+	def, err := s.probeDefinitions.Create(ctx, probedefs.NewDefinition{
+		Engine: string(body.Engine), Name: body.Name, Overrides: body.Overrides, Content: c,
+	}, actor, requestID)
 	var invalid *probedefs.InvalidError
 	var conflict *probedefs.ConflictError
 	switch {
@@ -150,7 +152,7 @@ func (s *Server) CreateProbeDefinitionVersion(ctx context.Context, req openapi.C
 		return nil, err
 	}
 	body := req.Body
-	c, detail := content(body.Overrides, body.QueryTemplate, body.Description, body.DefaultIntervalSeconds, body.TimeoutMs)
+	c, detail := content(body.QueryTemplate, body.Description, body.DefaultIntervalSeconds, body.TimeoutMs)
 	if detail != "" {
 		return openapi.CreateProbeDefinitionVersion400ApplicationProblemPlusJSONResponse{
 			BadRequestApplicationProblemPlusJSONResponse: openapi.BadRequestApplicationProblemPlusJSONResponse(problem(http.StatusBadRequest, detail)),
@@ -200,8 +202,8 @@ func (s *Server) probeDefinitionChange(ctx context.Context) (audit.Actor, string
 // detail of a 400 problem: a field left out is zero, which takes its
 // default, so an explicit zero, which the spec does not allow either, is
 // refused here.
-func content(overrides, query string, description *string, interval, timeout *int) (probedefs.Content, string) {
-	c := probedefs.Content{Overrides: overrides, QueryTemplate: query}
+func content(query string, description *string, interval, timeout *int) (probedefs.Content, string) {
+	c := probedefs.Content{QueryTemplate: query}
 	if description != nil {
 		c.Description = *description
 	}

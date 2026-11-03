@@ -357,9 +357,11 @@ Targets belong to an environment; `credential_ref` is a reference only.
   change to what runs is a new row, so an assignment pins the version it was
   approved with. Built-in rows (`builtin`) are the db-collector's SQL Server
   catalog, seeded by `0004` with no `query_template`, and read-only; a test
-  fails when they and the catalog differ. A custom row names the built-in it
-  `overrides`, takes its category, and carries a `query_template` checked as
-  one read-only `SELECT` (a check constraint keeps the two kinds apart).
+  fails when they and the catalog differ. A custom row's name starts with
+  `custom_`, which no built-in's does, so a later seed never meets one; it
+  names the built-in it `overrides`, the same in every version, takes its
+  category, and carries a `query_template` checked as one read-only `SELECT`
+  (a check constraint keeps the two kinds apart).
   `timeout_ms` is null for the collector's default. Managed through
   [`/api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions).
 - Deleting a target cascades only to its assignments.

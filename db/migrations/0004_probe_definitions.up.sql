@@ -30,7 +30,9 @@ alter table probe_definitions alter column timeout_ms drop not null;
 -- collector's default scrape interval. A test fails when these rows and the
 -- catalog differ: a probe added to the catalog needs a migration that seeds
 -- it, and one removed is disabled, never deleted, since assignments may
--- reference it.
+-- reference it. Custom definitions' names start with custom_, which no
+-- built-in's does, so a seed never meets one; any clash fails the migration
+-- rather than skipping the row.
 insert into probe_definitions (engine, name, version, category, default_interval_seconds, builtin, description)
 values
   ('sqlserver', 'blocking', 1, 'blocking', 30, true, 'Blocked requests per blocking session, from sys.dm_exec_requests'),
@@ -41,5 +43,4 @@ values
   ('sqlserver', 'sessions', 1, 'sessions', 30, true, 'Sessions by status, from sys.dm_exec_sessions'),
   ('sqlserver', 'storage', 1, 'storage', 30, true, 'Database file sizes, from sys.master_files'),
   ('sqlserver', 'throughput', 1, 'throughput', 30, true, 'Batch requests and transactions, from sys.dm_os_performance_counters'),
-  ('sqlserver', 'waits', 1, 'waits', 30, true, 'Wait time by wait type, without idle and background waits, from sys.dm_os_wait_stats')
-on conflict (engine, name, version) do nothing;
+  ('sqlserver', 'waits', 1, 'waits', 30, true, 'Wait time by wait type, without idle and background waits, from sys.dm_os_wait_stats');

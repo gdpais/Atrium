@@ -121,8 +121,8 @@ func builtin(t *testing.T, s *probedefs.Service, name string) probedefs.Definiti
 func create(t *testing.T, s *probedefs.Service, name string) probedefs.Definition {
 	t.Helper()
 	def, err := s.Create(context.Background(), probedefs.NewDefinition{
-		Engine: "sqlserver", Name: name,
-		Content: probedefs.Content{Overrides: "waits", QueryTemplate: leanWaits, Description: "fewer waits"},
+		Engine: "sqlserver", Name: name, Overrides: "waits",
+		Content: probedefs.Content{QueryTemplate: leanWaits, Description: "fewer waits"},
 	}, admin, "req-create")
 	if err != nil {
 		t.Fatal(err)
@@ -134,9 +134,9 @@ func TestCreate(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
 	ctx := context.Background()
-	def := create(t, s, "waits_lean")
+	def := create(t, s, "custom_waits_lean")
 	want := probedefs.Definition{
-		ID: def.ID, Engine: "sqlserver", Name: "waits_lean", Version: 1, Overrides: "waits", Category: "waits",
+		ID: def.ID, Engine: "sqlserver", Name: "custom_waits_lean", Version: 1, Overrides: "waits", Category: "waits",
 		Description: "fewer waits", DefaultIntervalSeconds: probedefs.DefaultIntervalSeconds, QueryTemplate: leanWaits,
 		Enabled: true, Latest: true, CreatedAt: def.CreatedAt, UpdatedAt: def.UpdatedAt,
 	}
@@ -169,15 +169,14 @@ func TestCreateRefuses(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
 	ctx := context.Background()
-	create(t, s, "waits_lean")
-	content := probedefs.Content{Overrides: "waits", QueryTemplate: leanWaits}
+	create(t, s, "custom_waits_lean")
+	content := probedefs.Content{QueryTemplate: leanWaits}
 	for _, tc := range []struct {
 		name string
 		def  probedefs.NewDefinition
 		want error
 	}{
-		{"a custom definition's name", probedefs.NewDefinition{Engine: "sqlserver", Name: "waits_lean", Content: content}, probedefs.ErrNameTaken},
-		{"a built-in's name", probedefs.NewDefinition{Engine: "sqlserver", Name: "waits", Content: content}, probedefs.ErrNameTaken},
+		{"a custom definition's name", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_waits_lean", Overrides: "waits", Content: content}, probedefs.ErrNameTaken},
 	} {
 		if _, err := s.Create(ctx, tc.def, admin, "req"); !errors.Is(err, tc.want) {
 			t.Errorf("%s: Create() = %v, want %v", tc.name, err, tc.want)
@@ -188,10 +187,17 @@ func TestCreateRefuses(t *testing.T) {
 		def  probedefs.NewDefinition
 		want string
 	}{
-		{"another engine", probedefs.NewDefinition{Engine: "postgres", Name: "x", Content: content}, "engine"},
-		{"a bad name", probedefs.NewDefinition{Engine: "sqlserver", Name: "Lean Waits", Content: content}, "name"},
-		{"an unknown built-in", probedefs.NewDefinition{Engine: "sqlserver", Name: "x", Content: probedefs.Content{Overrides: "deadlocks", QueryTemplate: leanWaits}}, `overrides "deadlocks"`},
-		{"a write", probedefs.NewDefinition{Engine: "sqlserver", Name: "x", Content: probedefs.Content{Overrides: "waits", QueryTemplate: "DELETE FROM t"}}, "query_template must be one read-only SELECT"},
+		{"another engine", probedefs.NewDefinition{Engine: "postgres", Name: "custom_x", Overrides: "waits", Content: content}, "engine"},
+		{"a bad name", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_Lean Waits", Overrides: "waits", Content: content}, "name"},
+		// A built-in's name, or any other without the prefix: a probe the
+		// collector adds later could have it.
+		{"a built-in's name", probedefs.NewDefinition{Engine: "sqlserver", Name: "waits", Overrides: "waits", Content: content}, `name "waits": want custom_`},
+		{"no prefix", probedefs.NewDefinition{Engine: "sqlserver", Name: "waits_lean", Overrides: "waits", Content: content}, `name "waits_lean": want custom_`},
+		{"no overrides", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_x", Content: content}, `overrides ""`},
+		{"overrides not a probe name", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_x", Overrides: "Waits", Content: content}, `overrides "Waits"`},
+		{"an unknown built-in", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_x", Overrides: "deadlocks", Content: content}, `overrides "deadlocks"`},
+		{"a custom definition as the built-in", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_x", Overrides: "custom_waits_lean", Content: content}, `overrides "custom_waits_lean"`},
+		{"a write", probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_x", Overrides: "waits", Content: probedefs.Content{QueryTemplate: "DELETE FROM t"}}, "query_template must be one read-only SELECT"},
 	} {
 		_, err := s.Create(ctx, tc.def, admin, "req")
 		var invalid *probedefs.InvalidError
@@ -211,8 +217,8 @@ func TestChangesRollBackWithoutTheirRecord(t *testing.T) {
 	s, pool := newService(t)
 	ctx := context.Background()
 	noActor := audit.Actor{}
-	if _, err := s.Create(ctx, probedefs.NewDefinition{Engine: "sqlserver", Name: "waits_lean",
-		Content: probedefs.Content{Overrides: "waits", QueryTemplate: leanWaits}}, noActor, "req"); err == nil {
+	if _, err := s.Create(ctx, probedefs.NewDefinition{Engine: "sqlserver", Name: "custom_waits_lean", Overrides: "waits",
+		Content: probedefs.Content{QueryTemplate: leanWaits}}, noActor, "req"); err == nil {
 		t.Fatal("Create() with an actor the record refuses succeeded")
 	}
 	var n int
@@ -220,8 +226,8 @@ func TestChangesRollBackWithoutTheirRecord(t *testing.T) {
 		t.Fatalf("%d custom definitions (%v), want none", n, err)
 	}
 
-	def := create(t, s, "waits_lean")
-	if _, _, err := s.AddVersion(ctx, def.ID, probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1"}, noActor, "req"); err == nil {
+	def := create(t, s, "custom_waits_lean")
+	if _, _, err := s.AddVersion(ctx, def.ID, probedefs.Content{QueryTemplate: "SELECT 1"}, noActor, "req"); err == nil {
 		t.Fatal("AddVersion() with an actor the record refuses succeeded")
 	}
 	if _, err := s.SetEnabled(ctx, def.ID, false, noActor, "req"); err == nil {
@@ -240,13 +246,13 @@ func TestAddVersion(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
 	ctx := context.Background()
-	v1 := create(t, s, "waits_lean")
-	changed := probedefs.Content{Overrides: "waits", QueryTemplate: leanWaits + " AND wait_type <> N'CXPACKET'", DefaultIntervalSeconds: 60, TimeoutMS: 5000}
+	v1 := create(t, s, "custom_waits_lean")
+	changed := probedefs.Content{QueryTemplate: leanWaits + " AND wait_type <> N'CXPACKET'", DefaultIntervalSeconds: 60, TimeoutMS: 5000}
 	v2, added, err := s.AddVersion(ctx, v1.ID, changed, admin, "req-v2")
 	if err != nil || !added {
 		t.Fatalf("AddVersion() = %+v, %t, %v; want a new version", v2, added, err)
 	}
-	if v2.ID == v1.ID || v2.Version != 2 || v2.Name != v1.Name || v2.QueryTemplate != changed.QueryTemplate ||
+	if v2.ID == v1.ID || v2.Version != 2 || v2.Name != v1.Name || v2.Overrides != "waits" || v2.Category != "waits" || v2.QueryTemplate != changed.QueryTemplate ||
 		v2.DefaultIntervalSeconds != 60 || v2.TimeoutMS != 5000 || v2.Description != "" || !v2.Latest {
 		t.Fatalf("AddVersion() = %+v", v2)
 	}
@@ -264,8 +270,8 @@ func TestAddVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if i := slices.IndexFunc(list, func(d probedefs.Definition) bool { return d.Name == "waits_lean" }); i < 0 || list[i].ID != v2.ID {
-		t.Errorf("List() = %+v, want version 2 of waits_lean", list)
+	if i := slices.IndexFunc(list, func(d probedefs.Definition) bool { return d.Name == "custom_waits_lean" }); i < 0 || list[i].ID != v2.ID {
+		t.Errorf("List() = %+v, want version 2 of custom_waits_lean", list)
 	}
 	versions, err := s.Versions(ctx, v1.ID)
 	if err != nil || len(versions) != 2 || versions[0].ID != v2.ID || versions[1].ID != v1.ID || !versions[0].Latest || versions[1].Latest {
@@ -279,7 +285,7 @@ func TestAddVersion(t *testing.T) {
 	}
 
 	// A change from an older version would lose version 2's.
-	_, _, err = s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1"}, admin, "req-stale")
+	_, _, err = s.AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: "SELECT 1"}, admin, "req-stale")
 	var conflict *probedefs.ConflictError
 	if !errors.As(err, &conflict) || !strings.Contains(err.Error(), "not the latest") {
 		t.Errorf("AddVersion() from version 1 = %v, want a conflict: not the latest", err)
@@ -303,14 +309,14 @@ func TestAddVersionRefuses(t *testing.T) {
 	t.Parallel()
 	s, _ := newService(t)
 	ctx := context.Background()
-	content := probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1"}
+	content := probedefs.Content{QueryTemplate: "SELECT 1"}
 	if _, _, err := s.AddVersion(ctx, builtin(t, s, "waits").ID, content, admin, "req"); !errors.Is(err, probedefs.ErrBuiltin) {
 		t.Errorf("AddVersion() of a built-in = %v, want %v", err, probedefs.ErrBuiltin)
 	}
 	if _, _, err := s.AddVersion(ctx, uuid.New(), content, admin, "req"); !errors.Is(err, probedefs.ErrNotFound) {
 		t.Errorf("AddVersion() of an unknown ID = %v, want %v", err, probedefs.ErrNotFound)
 	}
-	def := create(t, s, "waits_lean")
+	def := create(t, s, "custom_waits_lean")
 	if _, err := s.SetEnabled(ctx, def.ID, false, admin, "req"); err != nil {
 		t.Fatal(err)
 	}
@@ -325,13 +331,13 @@ func TestConcurrentVersionsTakeTurns(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
 	ctx := context.Background()
-	v1 := create(t, s, "waits_lean")
+	v1 := create(t, s, "custom_waits_lean")
 	const writers = 8
 	var wg sync.WaitGroup
 	errs := make([]error, writers)
 	for i := range writers {
 		wg.Go(func() {
-			_, _, errs[i] = s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "waits", QueryTemplate: fmt.Sprintf("SELECT %d AS wait_time_ms", i)}, admin, "req")
+			_, _, errs[i] = s.AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: fmt.Sprintf("SELECT %d AS wait_time_ms", i)}, admin, "req")
 		})
 	}
 	wg.Wait()
@@ -362,11 +368,11 @@ func TestDisableAndAddVersionTakeTurns(t *testing.T) {
 	s, _ := newService(t)
 	ctx := context.Background()
 	for i := range 30 {
-		v1 := create(t, s, fmt.Sprintf("waits_race_%d", i))
+		v1 := create(t, s, fmt.Sprintf("custom_waits_race_%d", i))
 		var wg sync.WaitGroup
 		var addErr, disableErr error
 		wg.Go(func() {
-			_, _, addErr = s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1 AS wait_time_ms"}, admin, "req")
+			_, _, addErr = s.AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: "SELECT 1 AS wait_time_ms"}, admin, "req")
 		})
 		wg.Go(func() { _, disableErr = s.SetEnabled(ctx, v1.ID, false, admin, "req") })
 		wg.Wait()
@@ -389,8 +395,8 @@ func TestSetEnabled(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
 	ctx := context.Background()
-	v1 := create(t, s, "waits_lean")
-	v2, _, err := s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1 AS wait_time_ms"}, admin, "req")
+	v1 := create(t, s, "custom_waits_lean")
+	v2, _, err := s.AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: "SELECT 1 AS wait_time_ms"}, admin, "req")
 	if err != nil {
 		t.Fatal(err)
 	}
