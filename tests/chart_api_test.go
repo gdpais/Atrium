@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The API (ADR 0013) and its bundled PostgreSQL and Valkey (ADR 0015), as
@@ -97,8 +98,9 @@ type podSpec struct {
 	Replicas *int `yaml:"replicas"`
 	Template struct {
 		Spec struct {
-			AutomountServiceAccountToken *bool `yaml:"automountServiceAccountToken"`
-			SecurityContext              struct {
+			AutomountServiceAccountToken  *bool `yaml:"automountServiceAccountToken"`
+			TerminationGracePeriodSeconds *int  `yaml:"terminationGracePeriodSeconds"`
+			SecurityContext               struct {
 				RunAsNonRoot bool `yaml:"runAsNonRoot"`
 				RunAsUser    int  `yaml:"runAsUser"`
 			} `yaml:"securityContext"`
@@ -330,8 +332,50 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 			t.Fatal(err)
 		}
 		if spec.Type != "ClusterIP" {
-			t.Errorf("Service/api is %s; the API has no authentication yet [4.2]", spec.Type)
+			t.Errorf("Service/api is %s; an ingress in front of it serves the site, the Service stays ClusterIP", spec.Type)
 		}
+	}
+}
+
+// The API's shutdown, after SIGTERM: it serves unready for
+// HEARTBEAT_API_SHUTDOWN_DELAY (5s unless set) while its Service drops it,
+// drains HTTP for up to 10s and waits for the audit drainer's last delete,
+// up to 5s (apps/api/internal/app), then sends its last logs, about 3s.
+const apiShutdownAfterDelay = 18 * time.Second
+
+// checkAPISessions checks what logging in needs from the chart: the site's
+// origin, which unsafe requests must come from, set as the profile expects
+// (empty: unset, so every login is refused) on the API alone; and a grace
+// period that covers the API's whole shutdown, so a rolling update never
+// kills a pod with requests or audit deletes in flight.
+func checkAPISessions(t *testing.T, objects map[string]object, wantSite string) {
+	t.Helper()
+	deployment, ok := objects["Deployment/api"]
+	if !ok {
+		return
+	}
+	spec := decodePodSpec(t, deployment)
+	pod := spec.Template.Spec
+	api, migrate := pod.Containers[0].env(), pod.InitContainers[0].env()
+	if got, set := api["HEARTBEAT_API_SITE_ORIGIN"]; got != wantSite || set != (wantSite != "") {
+		t.Errorf("HEARTBEAT_API_SITE_ORIGIN = %q (set %t), want %q", got, set, wantSite)
+	}
+	if _, set := migrate["HEARTBEAT_API_SITE_ORIGIN"]; set {
+		t.Error("migrate sets HEARTBEAT_API_SITE_ORIGIN; `api migrate up` serves no requests")
+	}
+	delay := 5 * time.Second
+	if value, set := api["HEARTBEAT_API_SHUTDOWN_DELAY"]; set {
+		d, err := time.ParseDuration(value)
+		if err != nil {
+			t.Fatalf("HEARTBEAT_API_SHUTDOWN_DELAY %q: %v", value, err)
+		}
+		delay = d
+	}
+	if pod.TerminationGracePeriodSeconds == nil {
+		t.Fatal("the API's pods take the default grace period")
+	}
+	if grace, want := time.Duration(*pod.TerminationGracePeriodSeconds)*time.Second, delay+apiShutdownAfterDelay; grace < want {
+		t.Errorf("terminationGracePeriodSeconds %s, want at least %s: a %s shutdown delay and %s after it", grace, want, delay, apiShutdownAfterDelay)
 	}
 }
 

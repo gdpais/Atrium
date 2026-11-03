@@ -181,9 +181,17 @@ api:
     # TLS, verified against the image's system CAs. Empty (null): off for
     # the bundled Valkey, on for any other address.
     tls: null
-  # HTTP drain 10s, then 3s to send the service's last logs.
-  terminationGracePeriodSeconds: 20
-  # A ClusterIP Service: the API has no authentication yet [4.2].
+  # The origin browsers reach the API at, such as
+  # https://heartbeat.example.com: POST, PUT, PATCH and DELETE need an Origin
+  # header equal to it, logging in included (ADR 0013 §8). Empty refuses
+  # them all, so nobody can log in.
+  siteOrigin: ""
+  # Serving unready 5s (HEARTBEAT_API_SHUTDOWN_DELAY) while the Service drops
+  # the pod, HTTP drain 10s, the audit drainer's last delete 5s, then 3s to
+  # send the service's last logs. Raise it with the delay.
+  terminationGracePeriodSeconds: 30
+  # A ClusterIP Service. An ingress in front of it serves the site's origin
+  # (siteOrigin) and is added to networkPolicy.peers.
   service:
     port: 8081
   # Ingress NetworkPolicy for the API's port 8081. The bundled Prometheus

@@ -210,6 +210,51 @@ func TestRunDrainsInFlightRequestsBeforeReturning(t *testing.T) {
 	}
 }
 
+// Once shutdown begins, GET /readyz answers 503 while the API keeps
+// accepting connections and serving them for the shutdown delay, so its
+// Service drops it before it stops listening; then it drains and returns.
+func TestRunServesUnreadyForTheShutdownDelay(t *testing.T) {
+	const delay = time.Second
+	var logs syncBuffer
+	f := startRun(t, nil, func(deps *runDeps) {
+		deps.timeouts.shutdownDelay = delay
+		deps.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	})
+	if code, _ := get(t, f.url+"/readyz"); code != http.StatusOK {
+		t.Fatalf("GET /readyz before shutdown = %d, want 200", code)
+	}
+	start := time.Now()
+	f.cancel()
+	// A new connection for each request: the listener must still accept.
+	fresh := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+	status := func(path string) int {
+		resp, err := fresh.Get(f.url + path)
+		if err != nil {
+			t.Fatalf("GET %s during the shutdown delay: %v", path, err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	eventually(t, func() bool { return status("/readyz") == http.StatusServiceUnavailable }, "GET /readyz still answers 200 once shutdown has begun")
+	if code := status("/healthz"); code != http.StatusOK {
+		t.Fatalf("GET /healthz during the shutdown delay = %d, want 200", code)
+	}
+	select {
+	case err := <-f.result:
+		if err != nil {
+			t.Fatalf("run returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run did not return after the shutdown delay")
+	}
+	if elapsed := time.Since(start); elapsed < delay {
+		t.Fatalf("run returned %s after shutdown began, before the %s delay", elapsed, delay)
+	}
+	if !strings.Contains(logs.String(), `msg="shutdown: serving unready before draining" delay=1s`) {
+		t.Fatalf("logs do not show the delay:\n%s", logs.String())
+	}
+}
+
 func TestRunShutdownIsBoundedWhenARequestHangs(t *testing.T) {
 	check, reached, release := blockingCheck()
 	t.Cleanup(release)

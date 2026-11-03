@@ -276,9 +276,15 @@ kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &
 curl localhost:8081/readyz                                                      # {"status":"ready"}
 kubectl --context kind-heartbeat -n heartbeat exec -it postgresql-0 -- psql -U heartbeat
 # The first admin; its audit record reaches Loki as {service_name="heartbeat-api"}
-openssl rand -hex 16 | kubectl --context kind-heartbeat -n heartbeat exec -i deployment/api -c api -- \
-  /app/api users create-admin --email admin@example.com
+(umask 077; openssl rand -hex 16 >admin-password)
+kubectl --context kind-heartbeat -n heartbeat exec -i deployment/api -c api -- \
+  /app/api users create-admin --email admin@example.com <admin-password
 ```
+
+Log in as that admin through the same port-forward, from the origin the kind
+values set (`http://localhost:8081`), as
+[logging in and sessions](../reference/metrics-and-endpoints.md#logging-in-and-sessions)
+shows.
 
 On a new cluster the `migrate` init container fails a few times, about a
 minute in all, until PostgreSQL accepts connections; Kubernetes retries it.
