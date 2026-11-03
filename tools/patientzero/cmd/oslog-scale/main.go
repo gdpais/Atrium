@@ -40,6 +40,12 @@ import (
 // errBehind is caught-up's answer while the collector is still catching up.
 var errBehind = errors.New("Loki does not hold the log's last hour in full yet")
 
+// caughtUpTimeout bounds one caught-up pass, which took at most 10 seconds
+// on CI on 2026-11-02. A port-forward that stalls would otherwise hold the
+// pass, and with it SCALE_WAIT's loop, until the step's timeout, and the
+// check would never run.
+const caughtUpTimeout = 2 * time.Minute
+
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log, os.Args[1:]); err != nil {
@@ -212,6 +218,8 @@ func caughtUp(ctx context.Context, log *slog.Logger, out string, loki scale.Loki
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, caughtUpTimeout)
+	defer cancel()
 	p, err := scale.CaughtUp(ctx, loki, exp, opts)
 	if err != nil {
 		return err
