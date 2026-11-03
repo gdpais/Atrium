@@ -26,6 +26,7 @@ import (
 	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/password"
+	"heartbeat/apps/api/internal/probedefs"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
@@ -132,15 +133,16 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	t := defaultTimeouts()
 	t.shutdownDelay = cfg.ShutdownDelay
 	return runDeps{
-		cfg:            cfg,
-		logger:         logger,
-		registry:       registry,
-		requestMetrics: requestMetrics,
-		checks:         deps.checks,
-		auth:           deps.auth,
-		drain:          deps.drain,
-		closeDeps:      deps.close,
-		timeouts:       t,
+		cfg:              cfg,
+		logger:           logger,
+		registry:         registry,
+		requestMetrics:   requestMetrics,
+		checks:           deps.checks,
+		auth:             deps.auth,
+		probeDefinitions: deps.probeDefinitions,
+		drain:            deps.drain,
+		closeDeps:        deps.close,
+		timeouts:         t,
 	}, nil
 }
 
@@ -156,6 +158,8 @@ type connected struct {
 	checks []httpapi.Check
 	// auth logs users in and authenticates their sessions.
 	auth *auth.Service
+	// probeDefinitions reads and changes probe definitions.
+	probeDefinitions *probedefs.Service
 	// drain delivers audit records until its context ends; nil without an
 	// audit endpoint.
 	drain func(context.Context)
@@ -219,6 +223,7 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		},
 		auth: auth.NewService(pool, password.NewHasher(password.DefaultParams, password.DefaultConcurrency),
 			sessions, &auth.Limits{Redis: client}, attempts, logger),
+		probeDefinitions: probedefs.NewService(pool),
 		close: func() {
 			pool.Close()
 			if err := client.Close(); err != nil {
@@ -256,6 +261,8 @@ type runDeps struct {
 	checks []httpapi.Check
 	// auth, when set, serves the session operations.
 	auth *auth.Service
+	// probeDefinitions, when set, serves the probe definition operations.
+	probeDefinitions *probedefs.Service
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
@@ -308,6 +315,9 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.auth != nil {
 		opts.Auth = deps.auth
+	}
+	if deps.probeDefinitions != nil {
+		opts.ProbeDefinitions = deps.probeDefinitions
 	}
 	api, err := httpapi.NewServer(opts)
 	if err != nil {

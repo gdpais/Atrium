@@ -34,6 +34,8 @@ type Server struct {
 	auth           Authenticator
 	site           string
 	trustedProxies []netip.Prefix
+	// probeDefinitions serves /api/v1/probe-definitions.
+	probeDefinitions ProbeDefinitions
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -69,6 +71,9 @@ type Options struct {
 	Site string
 	// TrustedProxies are the peers whose X-Forwarded-For names the client.
 	TrustedProxies []netip.Prefix
+	// ProbeDefinitions serves the probe definition operations; without it
+	// they fail.
+	ProbeDefinitions ProbeDefinitions
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -83,12 +88,13 @@ func NewServer(opts Options) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		readiness:      &readiness{checks: opts.Checks, timeout: opts.ReadinessTimeout, logger: logger},
-		logger:         logger,
-		rules:          rules,
-		auth:           opts.Auth,
-		site:           opts.Site,
-		trustedProxies: opts.TrustedProxies,
+		readiness:        &readiness{checks: opts.Checks, timeout: opts.ReadinessTimeout, logger: logger},
+		logger:           logger,
+		rules:            rules,
+		auth:             opts.Auth,
+		site:             opts.Site,
+		trustedProxies:   opts.TrustedProxies,
+		probeDefinitions: opts.ProbeDefinitions,
 	}, nil
 }
 

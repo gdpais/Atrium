@@ -34,6 +34,13 @@ tags:
     description: Probes for Kubernetes. They need no login and say nothing about why.
   - name: session
     description: Logging in and out with a local user's email and password (ADR 0013 §7–8).
+  - name: probe-definitions
+    description: |
+      What a probe assignment runs against a database target (TODO 4.5).
+      Built-in definitions are the db-collector's catalog and read-only;
+      custom ones replace a built-in's query and are versioned. Anyone
+      logged in reads them; only admins change them, since they carry SQL
+      that runs on monitored databases.
 paths:
   /healthz:
     get:
@@ -170,6 +177,208 @@ paths:
           $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/probe-definitions:
+    get:
+      operationId: listProbeDefinitions
+      tags: [probe-definitions]
+      summary: List probe definitions
+      security:
+        - session: [viewer]
+      description: The latest version of every definition, built-in and custom, sorted by engine and name.
+      responses:
+        "200":
+          description: The definitions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinitionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createProbeDefinition
+      tags: [probe-definitions]
+      summary: Create a custom probe definition
+      security:
+        - session: [admin]
+      description: |
+        Stores version 1 of a custom definition. Its `query_template` must
+        be one read-only `SELECT`, checked as the db-collector checks it when
+        it loads its configuration, and `overrides` must name an enabled
+        built-in probe of the same engine. Review the query with the
+        [probe review checklist](https://gdpais.github.io/Heartbeat/architecture/database-observability/#probe-review-checklist)
+        before it runs on a shared or production target.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewProbeDefinition"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              description: The new version's URL.
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-definitions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ProbeDefinitionID"
+    get:
+      operationId: getProbeDefinition
+      tags: [probe-definitions]
+      summary: Get a probe definition version
+      security:
+        - session: [viewer]
+      description: One version, the latest or an older one an assignment pins.
+      responses:
+        "200":
+          description: The version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateProbeDefinition
+      tags: [probe-definitions]
+      summary: Enable or disable a custom probe definition
+      security:
+        - session: [admin]
+      description: |
+        Disables, or enables again, the custom definition this is a version
+        of: every version of it. Definitions are disabled, never deleted,
+        since assignments may pin their versions. Built-in definitions are
+        read-only (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeDefinitionPatch"
+      responses:
+        "200":
+          description: The version, as it is now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-definitions/{id}/versions:
+    parameters:
+      - $ref: "#/components/parameters/ProbeDefinitionID"
+    get:
+      operationId: listProbeDefinitionVersions
+      tags: [probe-definitions]
+      summary: List a probe definition's versions
+      security:
+        - session: [viewer]
+      description: Every version of the definition this is a version of, the newest first.
+      responses:
+        "200":
+          description: The versions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinitionList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createProbeDefinitionVersion
+      tags: [probe-definitions]
+      summary: Change a custom probe definition
+      security:
+        - session: [admin]
+      description: |
+        Adds the next version of the custom definition whose latest version
+        this is, holding the request's content: a version is the whole
+        content, so a field left out takes its default, not the previous
+        version's value. The query is checked as on creation. Older versions
+        stay as they were, for the assignments that pin them.
+
+        The path names the version the change starts from; when it is no
+        longer the latest, because someone added a version since it was
+        read, the change is refused (409), so no change is lost. Content
+        equal to that version's adds nothing (200). Built-in and disabled
+        definitions get no versions (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeDefinitionContent"
+      responses:
+        "201":
+          description: The new version.
+          headers:
+            Location:
+              description: The new version's URL.
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinition"
+        "200":
+          description: Nothing changed; the version the path names.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -182,6 +391,15 @@ components:
         after 8 hours without a request or 7 days after login, whichever
         comes first (both configurable), at logout, and when its user is
         disabled.
+  parameters:
+    ProbeDefinitionID:
+      name: id
+      in: path
+      required: true
+      description: A version's ID.
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
       description: The request is not one the operation accepts.
@@ -197,6 +415,18 @@ components:
             $ref: "#/components/schemas/Problem"
     Forbidden:
       description: The `Origin` header is not the configured site, or the user's roles do not allow the operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: The resource's current state does not allow the change.
       content:
         application/problem+json:
           schema:
@@ -265,6 +495,145 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Role"
+    ProbeEngine:
+      type: string
+      description: The kind of collector that runs the probe.
+      enum: [sqlserver]
+    ProbeDefinition:
+      type: object
+      additionalProperties: false
+      required: [id, engine, name, version, builtin, overrides, category, description, default_interval_seconds, timeout_ms, query_template, enabled, latest, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: This version's ID; an assignment pins it.
+        engine:
+          $ref: "#/components/schemas/ProbeEngine"
+        name:
+          type: string
+          description: Unique per engine across built-in and custom definitions.
+        version:
+          type: integer
+          minimum: 1
+        builtin:
+          type: boolean
+          description: A probe of the db-collector's catalog, read-only.
+        overrides:
+          type: [string, "null"]
+          description: The built-in probe whose query a custom definition replaces; null for a built-in.
+        category:
+          type: string
+          description: The overridden built-in's category, for a custom definition.
+        description:
+          type: string
+        default_interval_seconds:
+          type: integer
+        timeout_ms:
+          type: [integer, "null"]
+          description: Null for the collector's default, half the interval, at most 10 s.
+        query_template:
+          type: [string, "null"]
+          description: Null for a built-in, which runs the collector's own query.
+        enabled:
+          type: boolean
+          description: The definition's, the same for all its versions.
+        latest:
+          type: boolean
+          description: Whether this is the definition's highest version.
+        created_at:
+          type: string
+          format: date-time
+          description: When this version was stored.
+        updated_at:
+          type: string
+          format: date-time
+          description: When it was last enabled or disabled, or stored.
+    ProbeDefinitionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProbeDefinition"
+    NewProbeDefinition:
+      type: object
+      required: [engine, name, overrides, query_template]
+      properties:
+        engine:
+          $ref: "#/components/schemas/ProbeEngine"
+        name:
+          type: string
+          pattern: "^[a-z][a-z0-9_]{0,62}$"
+          description: Lower-case letters, digits and underscores, starting with a letter; it cannot change.
+          examples: [waits_without_hadr]
+        overrides:
+          type: string
+          description: |
+            The built-in probe whose query this one replaces, such as
+            `waits`. Its metric descriptors decode the rows, so the query
+            must return the same columns, in the same units. A target runs
+            one definition per built-in probe.
+          examples: [waits]
+        query_template:
+          type: string
+          maxLength: 16384
+          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+        description:
+          type: string
+          maxLength: 1000
+          description: Why the override exists, for its reviewers. Defaults to empty.
+        default_interval_seconds:
+          type: integer
+          minimum: 5
+          maximum: 3600
+          description: The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
+        timeout_ms:
+          type: integer
+          minimum: 1
+          maximum: 25000
+          description: The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
+    ProbeDefinitionContent:
+      type: object
+      required: [overrides, query_template]
+      properties:
+        overrides:
+          type: string
+          description: |
+            The built-in probe whose query this one replaces, such as
+            `waits`. Its metric descriptors decode the rows, so the query
+            must return the same columns, in the same units. A target runs
+            one definition per built-in probe.
+          examples: [waits]
+        query_template:
+          type: string
+          maxLength: 16384
+          description: One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+        description:
+          type: string
+          maxLength: 1000
+          description: Why the override exists, for its reviewers. Defaults to empty.
+        default_interval_seconds:
+          type: integer
+          minimum: 5
+          maximum: 3600
+          description: The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
+        timeout_ms:
+          type: integer
+          minimum: 1
+          maximum: 25000
+          description: The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
+    ProbeDefinitionPatch:
+      type: object
+      description: The fields to change; `enabled` is the only one.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          description: "`false` disables the definition, `true` enables it again."
     Problem:
       type: object
       description: An error, as RFC 9457 describes it.

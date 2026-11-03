@@ -17,6 +17,21 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for ProbeEngine.
+const (
+	Sqlserver ProbeEngine = "sqlserver"
+)
+
+// Valid indicates whether the value is a known member of the ProbeEngine enum.
+func (e ProbeEngine) Valid() bool {
+	switch e {
+	case Sqlserver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReadinessStatus.
 const (
 	NotReady ReadinessStatus = "not_ready"
@@ -65,6 +80,118 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+// NewProbeDefinition defines model for NewProbeDefinition.
+type NewProbeDefinition struct {
+	// DefaultIntervalSeconds The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
+	DefaultIntervalSeconds *int `json:"default_interval_seconds,omitempty"`
+
+	// Description Why the override exists, for its reviewers. Defaults to empty.
+	Description *string `json:"description,omitempty"`
+
+	// Engine The kind of collector that runs the probe.
+	Engine ProbeEngine `json:"engine"`
+
+	// Name Lower-case letters, digits and underscores, starting with a letter; it cannot change.
+	//
+	// Examples: waits_without_hadr
+	Name string `json:"name"`
+
+	// Overrides The built-in probe whose query this one replaces, such as
+	// `waits`. Its metric descriptors decode the rows, so the query
+	// must return the same columns, in the same units. A target runs
+	// one definition per built-in probe.
+	//
+	//
+	// Examples: waits
+	Overrides string `json:"overrides"`
+
+	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+	QueryTemplate string `json:"query_template"`
+
+	// TimeoutMs The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
+	TimeoutMs *int `json:"timeout_ms,omitempty"`
+}
+
+// ProbeDefinition defines model for ProbeDefinition.
+type ProbeDefinition struct {
+	// Builtin A probe of the db-collector's catalog, read-only.
+	Builtin bool `json:"builtin"`
+
+	// Category The overridden built-in's category, for a custom definition.
+	Category string `json:"category"`
+
+	// CreatedAt When this version was stored.
+	CreatedAt              time.Time `json:"created_at"`
+	DefaultIntervalSeconds int       `json:"default_interval_seconds"`
+	Description            string    `json:"description"`
+
+	// Enabled The definition's, the same for all its versions.
+	Enabled bool `json:"enabled"`
+
+	// Engine The kind of collector that runs the probe.
+	Engine ProbeEngine `json:"engine"`
+
+	// Id This version's ID; an assignment pins it.
+	Id openapi_types.UUID `json:"id"`
+
+	// Latest Whether this is the definition's highest version.
+	Latest bool `json:"latest"`
+
+	// Name Unique per engine across built-in and custom definitions.
+	Name string `json:"name"`
+
+	// Overrides The built-in probe whose query a custom definition replaces; null for a built-in.
+	Overrides *string `json:"overrides"`
+
+	// QueryTemplate Null for a built-in, which runs the collector's own query.
+	QueryTemplate *string `json:"query_template"`
+
+	// TimeoutMs Null for the collector's default, half the interval, at most 10 s.
+	TimeoutMs *int `json:"timeout_ms"`
+
+	// UpdatedAt When it was last enabled or disabled, or stored.
+	UpdatedAt time.Time `json:"updated_at"`
+	Version   int       `json:"version"`
+}
+
+// ProbeDefinitionContent defines model for ProbeDefinitionContent.
+type ProbeDefinitionContent struct {
+	// DefaultIntervalSeconds The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
+	DefaultIntervalSeconds *int `json:"default_interval_seconds,omitempty"`
+
+	// Description Why the override exists, for its reviewers. Defaults to empty.
+	Description *string `json:"description,omitempty"`
+
+	// Overrides The built-in probe whose query this one replaces, such as
+	// `waits`. Its metric descriptors decode the rows, so the query
+	// must return the same columns, in the same units. A target runs
+	// one definition per built-in probe.
+	//
+	//
+	// Examples: waits
+	Overrides string `json:"overrides"`
+
+	// QueryTemplate One read-only T-SQL `SELECT`, optionally led by `WITH`; at most 16 KiB.
+	QueryTemplate string `json:"query_template"`
+
+	// TimeoutMs The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
+	TimeoutMs *int `json:"timeout_ms,omitempty"`
+}
+
+// ProbeDefinitionList defines model for ProbeDefinitionList.
+type ProbeDefinitionList struct {
+	Items []ProbeDefinition `json:"items"`
+}
+
+// ProbeDefinitionPatch The fields to change; `enabled` is the only one.
+type ProbeDefinitionPatch struct {
+	// Enabled `false` disables the definition, `true` enables it again.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// ProbeEngine The kind of collector that runs the probe.
+type ProbeEngine string
+
 // Problem An error, as RFC 9457 describes it.
 type Problem struct {
 	Detail *string `json:"detail,omitempty"`
@@ -106,8 +233,14 @@ type SessionUser struct {
 	Roles       []Role             `json:"roles"`
 }
 
+// ProbeDefinitionID defines model for ProbeDefinitionID.
+type ProbeDefinitionID = openapi_types.UUID
+
 // BadRequest An error, as RFC 9457 describes it.
 type BadRequest = Problem
+
+// Conflict An error, as RFC 9457 describes it.
+type Conflict = Problem
 
 // Error An error, as RFC 9457 describes it.
 type Error = Problem
@@ -115,14 +248,44 @@ type Error = Problem
 // Forbidden An error, as RFC 9457 describes it.
 type Forbidden = Problem
 
+// NotFound An error, as RFC 9457 describes it.
+type NotFound = Problem
+
 // Unauthorized An error, as RFC 9457 describes it.
 type Unauthorized = Problem
+
+// CreateProbeDefinitionJSONRequestBody defines body for CreateProbeDefinition for application/json ContentType.
+type CreateProbeDefinitionJSONRequestBody = NewProbeDefinition
+
+// UpdateProbeDefinitionJSONRequestBody defines body for UpdateProbeDefinition for application/json ContentType.
+type UpdateProbeDefinitionJSONRequestBody = ProbeDefinitionPatch
+
+// CreateProbeDefinitionVersionJSONRequestBody defines body for CreateProbeDefinitionVersion for application/json ContentType.
+type CreateProbeDefinitionVersionJSONRequestBody = ProbeDefinitionContent
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = Credentials
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListProbeDefinitions List probe definitions
+	// (GET /api/v1/probe-definitions)
+	ListProbeDefinitions(w http.ResponseWriter, r *http.Request)
+	// CreateProbeDefinition Create a custom probe definition
+	// (POST /api/v1/probe-definitions)
+	CreateProbeDefinition(w http.ResponseWriter, r *http.Request)
+	// GetProbeDefinition Get a probe definition version
+	// (GET /api/v1/probe-definitions/{id})
+	GetProbeDefinition(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID)
+	// UpdateProbeDefinition Enable or disable a custom probe definition
+	// (PATCH /api/v1/probe-definitions/{id})
+	UpdateProbeDefinition(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID)
+	// ListProbeDefinitionVersions List a probe definition's versions
+	// (GET /api/v1/probe-definitions/{id}/versions)
+	ListProbeDefinitionVersions(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID)
+	// CreateProbeDefinitionVersion Change a custom probe definition
+	// (POST /api/v1/probe-definitions/{id}/versions)
+	CreateProbeDefinitionVersion(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID)
 	// DeleteSession Log out
 	// (DELETE /api/v1/session)
 	DeleteSession(w http.ResponseWriter, r *http.Request)
@@ -148,6 +311,138 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListProbeDefinitions operation middleware
+func (siw *ServerInterfaceWrapper) ListProbeDefinitions(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProbeDefinitions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateProbeDefinition operation middleware
+func (siw *ServerInterfaceWrapper) CreateProbeDefinition(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProbeDefinition(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProbeDefinition operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeDefinition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProbeDefinitionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeDefinition(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProbeDefinition operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProbeDefinition(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProbeDefinitionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProbeDefinition(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProbeDefinitionVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListProbeDefinitionVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProbeDefinitionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProbeDefinitionVersions(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateProbeDefinitionVersion operation middleware
+func (siw *ServerInterfaceWrapper) CreateProbeDefinitionVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ProbeDefinitionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProbeDefinitionVersion(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // DeleteSession operation middleware
 func (siw *ServerInterfaceWrapper) DeleteSession(w http.ResponseWriter, r *http.Request) {
@@ -344,17 +639,628 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/session", wrapper.DeleteSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/session", wrapper.GetSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/session", wrapper.CreateSession)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.ListProbeDefinitions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.CreateProbeDefinition)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions/{id}", wrapper.GetProbeDefinition)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/probe-definitions/{id}", wrapper.UpdateProbeDefinition)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions/{id}/versions", wrapper.ListProbeDefinitionVersions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-definitions/{id}/versions", wrapper.CreateProbeDefinitionVersion)
 
 	return m
 }
 
 type BadRequestApplicationProblemPlusJSONResponse Problem
 
+type ConflictApplicationProblemPlusJSONResponse Problem
+
 type ErrorApplicationProblemPlusJSONResponse Problem
 
 type ForbiddenApplicationProblemPlusJSONResponse Problem
 
+type NotFoundApplicationProblemPlusJSONResponse Problem
+
 type UnauthorizedApplicationProblemPlusJSONResponse Problem
+
+type ListProbeDefinitionsRequestObject struct {
+}
+
+type ListProbeDefinitionsResponseObject interface {
+	VisitListProbeDefinitionsResponse(w http.ResponseWriter) error
+}
+
+type ListProbeDefinitions200JSONResponse ProbeDefinitionList
+
+func (response ListProbeDefinitions200JSONResponse) VisitListProbeDefinitionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitions401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeDefinitions401ApplicationProblemPlusJSONResponse) VisitListProbeDefinitionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListProbeDefinitionsdefaultApplicationProblemPlusJSONResponse) VisitListProbeDefinitionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionRequestObject struct {
+	Body *CreateProbeDefinitionJSONRequestBody
+}
+
+type CreateProbeDefinitionResponseObject interface {
+	VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error
+}
+
+type CreateProbeDefinition201ResponseHeaders struct {
+	Location string
+}
+
+type CreateProbeDefinition201JSONResponse struct {
+	Body    ProbeDefinition
+	Headers CreateProbeDefinition201ResponseHeaders
+}
+
+func (response CreateProbeDefinition201JSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinition400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinition400ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinition401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinition401ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinition403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinition403ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinition409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinition409ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateProbeDefinitiondefaultApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeDefinitionRequestObject struct {
+	Id ProbeDefinitionID `json:"id"`
+}
+
+type GetProbeDefinitionResponseObject interface {
+	VisitGetProbeDefinitionResponse(w http.ResponseWriter) error
+}
+
+type GetProbeDefinition200JSONResponse ProbeDefinition
+
+func (response GetProbeDefinition200JSONResponse) VisitGetProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeDefinition400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeDefinition400ApplicationProblemPlusJSONResponse) VisitGetProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeDefinition401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeDefinition401ApplicationProblemPlusJSONResponse) VisitGetProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeDefinition404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeDefinition404ApplicationProblemPlusJSONResponse) VisitGetProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeDefinitiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetProbeDefinitiondefaultApplicationProblemPlusJSONResponse) VisitGetProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinitionRequestObject struct {
+	Id   ProbeDefinitionID `json:"id"`
+	Body *UpdateProbeDefinitionJSONRequestBody
+}
+
+type UpdateProbeDefinitionResponseObject interface {
+	VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error
+}
+
+type UpdateProbeDefinition200JSONResponse ProbeDefinition
+
+func (response UpdateProbeDefinition200JSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinition400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeDefinition400ApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinition401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeDefinition401ApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinition403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeDefinition403ApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinition404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeDefinition404ApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinition409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeDefinition409ApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeDefinitiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateProbeDefinitiondefaultApplicationProblemPlusJSONResponse) VisitUpdateProbeDefinitionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionVersionsRequestObject struct {
+	Id ProbeDefinitionID `json:"id"`
+}
+
+type ListProbeDefinitionVersionsResponseObject interface {
+	VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error
+}
+
+type ListProbeDefinitionVersions200JSONResponse ProbeDefinitionList
+
+func (response ListProbeDefinitionVersions200JSONResponse) VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionVersions400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeDefinitionVersions400ApplicationProblemPlusJSONResponse) VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionVersions401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeDefinitionVersions401ApplicationProblemPlusJSONResponse) VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionVersions404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeDefinitionVersions404ApplicationProblemPlusJSONResponse) VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeDefinitionVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListProbeDefinitionVersionsdefaultApplicationProblemPlusJSONResponse) VisitListProbeDefinitionVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersionRequestObject struct {
+	Id   ProbeDefinitionID `json:"id"`
+	Body *CreateProbeDefinitionVersionJSONRequestBody
+}
+
+type CreateProbeDefinitionVersionResponseObject interface {
+	VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error
+}
+
+type CreateProbeDefinitionVersion200JSONResponse ProbeDefinition
+
+func (response CreateProbeDefinitionVersion200JSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion201ResponseHeaders struct {
+	Location string
+}
+
+type CreateProbeDefinitionVersion201JSONResponse struct {
+	Body    ProbeDefinition
+	Headers CreateProbeDefinitionVersion201ResponseHeaders
+}
+
+func (response CreateProbeDefinitionVersion201JSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinitionVersion400ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinitionVersion401ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinitionVersion403ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinitionVersion404ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersion409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeDefinitionVersion409ApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeDefinitionVersiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateProbeDefinitionVersiondefaultApplicationProblemPlusJSONResponse) VisitCreateProbeDefinitionVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type DeleteSessionRequestObject struct {
 }
@@ -652,6 +1558,24 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListProbeDefinitions List probe definitions
+	// (GET /api/v1/probe-definitions)
+	ListProbeDefinitions(ctx context.Context, request ListProbeDefinitionsRequestObject) (ListProbeDefinitionsResponseObject, error)
+	// CreateProbeDefinition Create a custom probe definition
+	// (POST /api/v1/probe-definitions)
+	CreateProbeDefinition(ctx context.Context, request CreateProbeDefinitionRequestObject) (CreateProbeDefinitionResponseObject, error)
+	// GetProbeDefinition Get a probe definition version
+	// (GET /api/v1/probe-definitions/{id})
+	GetProbeDefinition(ctx context.Context, request GetProbeDefinitionRequestObject) (GetProbeDefinitionResponseObject, error)
+	// UpdateProbeDefinition Enable or disable a custom probe definition
+	// (PATCH /api/v1/probe-definitions/{id})
+	UpdateProbeDefinition(ctx context.Context, request UpdateProbeDefinitionRequestObject) (UpdateProbeDefinitionResponseObject, error)
+	// ListProbeDefinitionVersions List a probe definition's versions
+	// (GET /api/v1/probe-definitions/{id}/versions)
+	ListProbeDefinitionVersions(ctx context.Context, request ListProbeDefinitionVersionsRequestObject) (ListProbeDefinitionVersionsResponseObject, error)
+	// CreateProbeDefinitionVersion Change a custom probe definition
+	// (POST /api/v1/probe-definitions/{id}/versions)
+	CreateProbeDefinitionVersion(ctx context.Context, request CreateProbeDefinitionVersionRequestObject) (CreateProbeDefinitionVersionResponseObject, error)
 	// DeleteSession Log out
 	// (DELETE /api/v1/session)
 	DeleteSession(ctx context.Context, request DeleteSessionRequestObject) (DeleteSessionResponseObject, error)
@@ -706,6 +1630,179 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListProbeDefinitions operation middleware
+func (sh *strictHandler) ListProbeDefinitions(w http.ResponseWriter, r *http.Request) {
+	var request ListProbeDefinitionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProbeDefinitions(ctx, request.(ListProbeDefinitionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProbeDefinitions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProbeDefinitionsResponseObject); ok {
+		if err := validResponse.VisitListProbeDefinitionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateProbeDefinition operation middleware
+func (sh *strictHandler) CreateProbeDefinition(w http.ResponseWriter, r *http.Request) {
+	var request CreateProbeDefinitionRequestObject
+
+	var body CreateProbeDefinitionJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProbeDefinition(ctx, request.(CreateProbeDefinitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProbeDefinition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProbeDefinitionResponseObject); ok {
+		if err := validResponse.VisitCreateProbeDefinitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeDefinition operation middleware
+func (sh *strictHandler) GetProbeDefinition(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID) {
+	var request GetProbeDefinitionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeDefinition(ctx, request.(GetProbeDefinitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeDefinition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeDefinitionResponseObject); ok {
+		if err := validResponse.VisitGetProbeDefinitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateProbeDefinition operation middleware
+func (sh *strictHandler) UpdateProbeDefinition(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID) {
+	var request UpdateProbeDefinitionRequestObject
+
+	request.Id = id
+
+	var body UpdateProbeDefinitionJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProbeDefinition(ctx, request.(UpdateProbeDefinitionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProbeDefinition")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProbeDefinitionResponseObject); ok {
+		if err := validResponse.VisitUpdateProbeDefinitionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProbeDefinitionVersions operation middleware
+func (sh *strictHandler) ListProbeDefinitionVersions(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID) {
+	var request ListProbeDefinitionVersionsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProbeDefinitionVersions(ctx, request.(ListProbeDefinitionVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProbeDefinitionVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProbeDefinitionVersionsResponseObject); ok {
+		if err := validResponse.VisitListProbeDefinitionVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateProbeDefinitionVersion operation middleware
+func (sh *strictHandler) CreateProbeDefinitionVersion(w http.ResponseWriter, r *http.Request, id ProbeDefinitionID) {
+	var request CreateProbeDefinitionVersionRequestObject
+
+	request.Id = id
+
+	var body CreateProbeDefinitionVersionJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProbeDefinitionVersion(ctx, request.(CreateProbeDefinitionVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProbeDefinitionVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProbeDefinitionVersionResponseObject); ok {
+		if err := validResponse.VisitCreateProbeDefinitionVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // DeleteSession operation middleware
