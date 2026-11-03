@@ -540,7 +540,9 @@ func (tx failingTx) Commit(ctx context.Context) error {
 
 // The session is created in Redis before the login's transaction commits;
 // if the commit fails, the session is deleted again and no token is
-// returned, so no session exists without its audit record.
+// returned, so no session exists without its audit record. The right
+// password stopped by a failing commit does not count as a failure, so an
+// outage cannot lock the account.
 func TestLoginDeletesTheSessionWhenTheCommitFails(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, cheap)
@@ -568,6 +570,12 @@ func TestLoginDeletesTheSessionWhenTheCommitFails(t *testing.T) {
 	}
 	if got := testutil.ToFloat64(f.attempts.WithLabelValues("succeeded")); got != 0 {
 		t.Fatalf("succeeded logins = %v, want 0", got)
+	}
+	for i := range auth.AccountFailures {
+		var limited *auth.RateLimitedError
+		if _, _, err := service.Login(ctx, "wall@example.com", secret, client); err == nil || errors.As(err, &limited) {
+			t.Fatalf("retry %d with a failing commit = %v, want the commit's error: it must not count against the limits", i+1, err)
+		}
 	}
 
 	db.fail = false

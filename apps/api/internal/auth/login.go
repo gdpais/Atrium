@@ -154,7 +154,8 @@ func (s *Service) ExpiresAt(session Session) time.Time { return s.sessions.Expir
 // against the limits; past them a login is a [*RateLimitedError], refused
 // unchecked. The limits count a login before its password is checked, so
 // concurrent logins cannot pass them; one whose password could not be
-// checked, as when PostgreSQL does not answer, does not count. A request it
+// checked, or matched but could not be recorded, as when PostgreSQL does
+// not answer, does not count. A request it
 // cannot check is an [*InvalidError]. A hash made with older parameters is
 // replaced at a successful login.
 //
@@ -214,7 +215,13 @@ func (s *Service) Login(ctx context.Context, email, secret string, client Client
 	if reason != "" {
 		return Principal{}, "", s.fail(ctx, email, user.ID, reason, client)
 	}
-	return s.succeed(ctx, email, user, secret, rehash, client)
+	principal, token, err := s.succeed(ctx, email, user, secret, rehash, client)
+	if err != nil {
+		// The password matched: whatever stopped the login, it did not
+		// fail, so an outage cannot lock the account.
+		return Principal{}, "", s.unchecked(ctx, email, client, err)
+	}
+	return principal, token, nil
 }
 
 // verify checks secret against hash in a span of its own: it is most of a
@@ -225,9 +232,10 @@ func (s *Service) verify(ctx context.Context, secret, hash string) (bool, bool, 
 	return s.hasher.Verify(ctx, secret, hash)
 }
 
-// unchecked takes back the limits' count of a login whose password could
-// not be checked, and returns err. Once the password is checked, the login
-// counts until it succeeds.
+// unchecked takes back the limits' count of a login that did not fail but
+// was not completed: its password could not be checked, or it matched and
+// the login could not be recorded. It returns err. A login whose password
+// was checked and did not match keeps its count.
 func (s *Service) unchecked(ctx context.Context, email string, client Client, err error) error {
 	if err := s.limits.Unchecked(context.WithoutCancel(ctx), email, client.Address); err != nil {
 		s.logger.WarnContext(ctx, "auth: take back the count of a login that was not checked", "error", err)
