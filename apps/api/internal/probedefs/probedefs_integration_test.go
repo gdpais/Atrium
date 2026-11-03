@@ -354,6 +354,37 @@ func TestConcurrentVersionsTakeTurns(t *testing.T) {
 	}
 }
 
+// A version added while the definition is being disabled ends up disabled
+// too, or is refused: the two take turns, so no version is left enabled
+// beside disabled ones.
+func TestDisableAndAddVersionTakeTurns(t *testing.T) {
+	t.Parallel()
+	s, _ := newService(t)
+	ctx := context.Background()
+	for i := range 30 {
+		v1 := create(t, s, fmt.Sprintf("waits_race_%d", i))
+		var wg sync.WaitGroup
+		var addErr, disableErr error
+		wg.Go(func() {
+			_, _, addErr = s.AddVersion(ctx, v1.ID, probedefs.Content{Overrides: "waits", QueryTemplate: "SELECT 1 AS wait_time_ms"}, admin, "req")
+		})
+		wg.Go(func() { _, disableErr = s.SetEnabled(ctx, v1.ID, false, admin, "req") })
+		wg.Wait()
+		if disableErr != nil || (addErr != nil && !errors.Is(addErr, probedefs.ErrDisabled)) {
+			t.Fatalf("round %d: AddVersion() = %v, SetEnabled() = %v; want success or ErrDisabled, and success", i, addErr, disableErr)
+		}
+		versions, err := s.Versions(ctx, v1.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range versions {
+			if v.Enabled {
+				t.Fatalf("round %d: version %d of %d is enabled after the definition was disabled", i, v.Version, len(versions))
+			}
+		}
+	}
+}
+
 func TestSetEnabled(t *testing.T) {
 	t.Parallel()
 	s, pool := newService(t)
