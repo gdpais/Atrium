@@ -422,8 +422,8 @@ queue tests alone.
 
 ### 4.5 Database target management
 - [ ] Implement database targets CRUD
-- [ ] Implement probe definition management/versioning
-- [ ] Seed the built-in probe definitions from the collector's catalogs, with no `query_template` (an expand migration makes it nullable); a test fails when the seed and the catalogs differ. Custom definitions carry a versioned `query_template`, checked as one read-only `SELECT` with the collector's validator
+- [x] Implement probe definition management/versioning: `/api/v1/probe-definitions`, read by viewers, changed by admins; a change is a new immutable version, disabling disables every version
+- [x] Seed the built-in probe definitions from the collector's catalog, with no `query_template` (an expand migration makes it nullable); a test fails when the seed and the catalog differ. Custom definitions carry a versioned `query_template`, checked as one read-only `SELECT` with the collector's validator. The OutSystems log types are not seeded: their collectors stay in YAML (ADR 0017)
 - [ ] Implement probe assignment management, with approval states ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [ ] Validate target config and safe probe policies
 - [ ] Store credential refs only
