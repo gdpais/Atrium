@@ -15,8 +15,12 @@ services:
       - /var/lib/postgresql
     volumes:
       - ../db/migrations:/migrations:ro
+    # Over TCP: while initdb runs, the entrypoint starts a temporary server
+    # on the Unix socket only, then stops it and starts the real one. A
+    # check over the socket can pass on the temporary server and let the
+    # tests in before the real one is up (as testenv's does, internal/testenv).
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U heartbeat -d heartbeat"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U heartbeat -d heartbeat"]
       interval: 1s
       timeout: 5s
       retries: 60
