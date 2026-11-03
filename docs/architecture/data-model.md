@@ -10,8 +10,9 @@ page and the migrations disagree, the migrations win; please fix this page.
 
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
 > writes `users`, `user_roles` and `audit_outbox` so far, through
-> `api users create-admin` and logins (`users.last_login_at`, upgraded
-> password hashes); the other tables wait for its later endpoints. The
+> `api users create-admin`, logins (`users.last_login_at`, upgraded
+> password hashes) and the users API; the other tables wait for its later
+> endpoints. The
 > DB collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
@@ -312,8 +313,13 @@ stored in lower case, and `users_email_lower_uq` (`unique (lower(email))`) keeps
 one user per address in any case, whoever writes the row. Migration `0002` adds the `admin` role, which
 `api users create-admin` grants, and `0003` adds `operator` and `viewer`.
 They rank `viewer` < `operator` < `admin`, and each API operation declares
-the least one it needs ([who may call what](../reference/metrics-and-endpoints.md#logging-in-and-sessions)).
-A login sets `users.last_login_at`. Sessions are not here: they live in Redis.
+the least one it needs ([what each role may do](../reference/metrics-and-endpoints.md#users-and-roles)).
+Admins manage users and their roles through the API; `users.updated_at`
+moves with every change to a user, their roles included.
+A login sets `users.last_login_at`, only while the user is active and still
+has the hash it checked: a password change or a disabling locks the row,
+ends the user's sessions and wins over a login racing it. Sessions are not
+here: they live in Redis.
 
 ### Audit outbox
 
