@@ -9,12 +9,13 @@
 //	oslog-scale [flags] measure    run every log query over the busiest minute and 1 h, 1 day and 7 day backlogs; writes report.md
 //	oslog-scale [flags] drop       drop the database
 //	oslog-scale [flags] check      compare what Loki holds for the log with expected.json; writes check.md
+//	oslog-scale [flags] caught-up  exit 0 once Loki holds the log's last hour in full, 3 before
 //
 // PATIENTZERO_SCALE_SQLSERVER is a sqlserver:// URL for a login that may
 // create databases (the sandbox's sa), without a database; it is read from
-// the environment so the password stays off the command line. check needs
-// no SQL Server, only Loki (-loki) and the collector that read the log
-// (-environment, -collected-from, -lookback).
+// the environment so the password stays off the command line. check and
+// caught-up need no SQL Server, only Loki (-loki) and the collector that
+// read the log (-environment, -collected-from, -lookback).
 package main
 
 import (
@@ -36,9 +37,21 @@ import (
 	"heartbeat/tools/patientzero/internal/scale"
 )
 
+// errBehind is caught-up's answer while the collector is still catching up.
+var errBehind = errors.New("Loki does not hold the log's last hour in full yet")
+
+// caughtUpTimeout bounds one caught-up pass, which took at most 10 seconds
+// on CI on 2026-11-02. A port-forward that stalls would otherwise hold the
+// pass, and with it SCALE_WAIT's loop, until the step's timeout, and the
+// check would never run.
+const caughtUpTimeout = 2 * time.Minute
+
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log, os.Args[1:]); err != nil {
+		if errors.Is(err, errBehind) {
+			os.Exit(3)
+		}
 		log.Error("oslog-scale failed", "err", err)
 		os.Exit(1)
 	}
@@ -65,12 +78,15 @@ func run(log *slog.Logger, args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return errors.New("want one action: generate, measure, drop or check")
+		return errors.New("want one action: generate, measure, drop, check or caught-up")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if fs.Arg(0) == "check" {
+	switch fs.Arg(0) {
+	case "check":
 		return check(ctx, log, *out, *dashboards, scale.Loki{URL: *lokiURL}, *environment, *collectedFrom, *lookback)
+	case "caught-up":
+		return caughtUp(ctx, log, *out, scale.Loki{URL: *lokiURL}, *environment, *collectedFrom, *lookback)
 	}
 	server := os.Getenv("PATIENTZERO_SCALE_SQLSERVER")
 	if server == "" {
@@ -172,32 +188,60 @@ func run(log *slog.Logger, args []string) error {
 		log.Info("report written", "path", path)
 		return f.Close()
 	default:
-		return fmt.Errorf("unknown action %q: want generate, measure, drop or check", fs.Arg(0))
+		return fmt.Errorf("unknown action %q: want generate, measure, drop, check or caught-up", fs.Arg(0))
 	}
 }
 
-func check(ctx context.Context, log *slog.Logger, out, dashboards string, loki scale.Loki, environment, collectedFrom string, lookback time.Duration) error {
+// collected reads expected.json and where the collector that read the log
+// started, for check and caught-up.
+func collected(out, environment, collectedFrom string, lookback time.Duration) (*scale.Expected, scale.CheckOptions, error) {
 	if environment == "" || collectedFrom == "" {
-		return errors.New("check needs -environment and -collected-from")
+		return nil, scale.CheckOptions{}, errors.New("check and caught-up need -environment and -collected-from")
 	}
 	started, err := time.Parse(time.RFC3339, collectedFrom)
 	if err != nil {
-		return fmt.Errorf("-collected-from: %w", err)
+		return nil, scale.CheckOptions{}, fmt.Errorf("-collected-from: %w", err)
 	}
 	b, err := os.ReadFile(filepath.Join(out, "expected.json"))
 	if err != nil {
-		return err
+		return nil, scale.CheckOptions{}, err
 	}
 	var exp scale.Expected
 	if err := json.Unmarshal(b, &exp); err != nil {
+		return nil, scale.CheckOptions{}, err
+	}
+	return &exp, scale.CheckOptions{Environment: environment, From: started.Add(-lookback)}, nil
+}
+
+func caughtUp(ctx context.Context, log *slog.Logger, out string, loki scale.Loki, environment, collectedFrom string, lookback time.Duration) error {
+	exp, opts, err := collected(out, environment, collectedFrom, lookback)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, caughtUpTimeout)
+	defer cancel()
+	p, err := scale.CaughtUp(ctx, loki, exp, opts)
+	if err != nil {
+		return err
+	}
+	log.Info("in Loki", "environment", environment, "hours_in_full", p.Complete, "hours", p.Hours, "last_hour_in_full", p.Done)
+	if !p.Done {
+		return errBehind
+	}
+	return nil
+}
+
+func check(ctx context.Context, log *slog.Logger, out, dashboards string, loki scale.Loki, environment, collectedFrom string, lookback time.Duration) error {
+	exp, opts, err := collected(out, environment, collectedFrom, lookback)
+	if err != nil {
 		return err
 	}
 	panels, err := scale.LoadPanels(dashboards)
 	if err != nil {
 		return err
 	}
-	log.Info("checking", "environment", environment, "from", started.Add(-lookback).Format(time.RFC3339), "to", exp.End.Format(time.RFC3339))
-	res, err := scale.Check(ctx, loki, &exp, panels, scale.CheckOptions{Environment: environment, From: started.Add(-lookback)})
+	log.Info("checking", "environment", environment, "from", opts.From.Format(time.RFC3339), "to", exp.End.Format(time.RFC3339))
+	res, err := scale.Check(ctx, loki, exp, panels, opts)
 	if err != nil {
 		return err
 	}

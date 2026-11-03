@@ -51,13 +51,14 @@ type fakeRule struct {
 	value string
 }
 
-// fakeLoki answers the hourly rows query from rows and any other query
-// from the first rule that matches it, and records the instants it was
-// asked at.
+// fakeLoki answers the hourly rows query from rowsAt for its instant, else
+// from rows, and any other query from the first rule that matches it, and
+// records the instants it was asked at.
 type fakeLoki struct {
-	rules []fakeRule
-	rows  map[string]string
-	times []string
+	rules  []fakeRule
+	rows   map[string]string
+	rowsAt map[string]map[string]string
+	times  []string
 }
 
 func (f *fakeLoki) rule(value string, parts ...string) {
@@ -82,8 +83,12 @@ func (f *fakeLoki) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.times = append(f.times, t)
 	}
 	if strings.Contains(q, "sum by (outsystems_log_type)") {
+		rows, ok := f.rowsAt[r.URL.Query().Get("time")]
+		if !ok {
+			rows = f.rows
+		}
 		var result []map[string]any
-		for logType, n := range f.rows {
+		for logType, n := range rows {
 			result = append(result, map[string]any{"metric": map[string]string{"outsystems_log_type": logType}, "value": []any{0, n}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"resultType": "vector", "result": result}})
@@ -186,6 +191,46 @@ func TestCheckFailsOnAMismatchAnIncompleteHourOrAFailedPanel(t *testing.T) {
 			}
 			if !strings.Contains(b.String(), "The check failed.") {
 				t.Errorf("report does not say it failed:\n%s", b.String())
+			}
+		})
+	}
+}
+
+func TestCaughtUpCountsTheHoursInFullAndIsDoneWithTheLast(t *testing.T) {
+	from := time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC)
+	exp := &Expected{End: from.Add(3 * time.Hour)}
+	for i := range 3 {
+		h := from.Add(time.Duration(i) * time.Hour)
+		exp.Hours = append(exp.Hours, Bucket{From: h, To: h.Add(time.Hour), Rows: map[string]int{"screen": 100, "error": 3}})
+	}
+	// The hour before opts.From is not read.
+	opts := CheckOptions{Environment: "scale-x", From: from.Add(time.Hour)}
+	at := func(i int) string { return exp.Hours[i].To.Add(-time.Nanosecond).Format(time.RFC3339Nano) }
+	full := map[string]string{"screen": "100", "error": "3"}
+	for name, c := range map[string]struct {
+		second, third map[string]string
+		want          Progress
+	}{
+		"catching up":          {full, map[string]string{"screen": "40"}, Progress{Hours: 2, Complete: 1}},
+		"a type behind":        {full, map[string]string{"screen": "100"}, Progress{Hours: 2, Complete: 1}},
+		"caught up":            {full, full, Progress{Hours: 2, Complete: 2, Done: true}},
+		"rows lost on the way": {map[string]string{"screen": "99", "error": "3"}, full, Progress{Hours: 2, Done: true}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeLoki{rowsAt: map[string]map[string]string{at(0): {}, at(1): c.second, at(2): c.third}}
+			srv := httptest.NewServer(f)
+			defer srv.Close()
+			got, err := CaughtUp(context.Background(), Loki{URL: srv.URL}, exp, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != c.want {
+				t.Fatalf("got %+v, want %+v", got, c.want)
+			}
+			for _, tm := range f.times {
+				if tm == at(0) {
+					t.Fatalf("read the hour before opts.From")
+				}
 			}
 		})
 	}

@@ -285,7 +285,12 @@ table.
 ```bash
 make patientzero-scale-collect            # a collector reads patientzero_scale (SCALE_LOOKBACK, default 48h)
 make patientzero-scale-check              # compare Loki with expected.json; writes check.md
+make patientzero-scale-check SCALE_WAIT=45  # first wait up to 45 minutes for the collector to catch up
 ```
+
+The [scenarios workflow](../../.github/workflows/scenarios.yml) runs all
+three after the scenarios, nightly and on the release pull request, with
+`SCALE_WAIT=45`; `check.md` is in the run's summary.
 
 `patientzero-scale-collect` redeploys Heartbeat with a second
 `outsystems_logs` collector, `patientzero-scale`, next to PatientZero's. Its
@@ -297,7 +302,10 @@ Loki takes rows up to 168 hours old, so a lookback of more than about six
 days loses the oldest.
 
 `patientzero-scale-check` reads Loki through a port-forward and needs no SQL
-Server. For every hour from the collector's start minus its lookback, Loki
+Server. With `SCALE_WAIT`, it first reads once a minute how many hours Loki
+holds in full, each time through a new port-forward, until it holds the
+last one (the collector delivers each log type in order) or the minutes run
+out. For every hour from the collector's start minus its lookback, Loki
 must hold every row, and the distinct users and sessions on screen rows
 (where a request starts, as `expected.json` counts them) and the distinct
 error fingerprints must match; so must each whole day's fingerprints. It
@@ -319,6 +327,12 @@ panel held a tenth of the limit:
 | Top errors (rows before `topk`) | 128 | 507 | 563 |
 | Active users (5m), busiest | | | 598 |
 | Active sessions (5m), busiest | | | 627 |
+
+On 2026-11-02 the scenarios workflow ran it on CI, on the current export
+path (the db-collector waits for the Collector in the background): all 48
+hours matched again, Loki caught up in 16.5 minutes, and *Users affected*
+over 47 h held 2,629 series
+([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130)).
 
 *Users affected* grows with the range, up to the users who hit an error,
 at most the week's 4,829 at `SCALE=1`; it is the panel to watch on a larger
