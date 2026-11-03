@@ -25,6 +25,7 @@ import (
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/httpapi"
+	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
@@ -138,6 +139,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		requestMetrics: requestMetrics,
 		checks:         deps.checks,
 		auth:           deps.auth,
+		inventory:      deps.inventory,
 		drain:          deps.drain,
 		closeDeps:      deps.close,
 		timeouts:       t,
@@ -156,6 +158,9 @@ type connected struct {
 	checks []httpapi.Check
 	// auth logs users in and authenticates their sessions.
 	auth *auth.Service
+	// inventory reads and changes environments, applications and
+	// components.
+	inventory *inventory.Service
 	// drain delivers audit records until its context ends; nil without an
 	// audit endpoint.
 	drain func(context.Context)
@@ -219,6 +224,7 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		},
 		auth: auth.NewService(pool, password.NewHasher(password.DefaultParams, password.DefaultConcurrency),
 			sessions, &auth.Limits{Redis: client}, attempts, logger),
+		inventory: inventory.New(pool),
 		close: func() {
 			pool.Close()
 			if err := client.Close(); err != nil {
@@ -256,6 +262,8 @@ type runDeps struct {
 	checks []httpapi.Check
 	// auth, when set, serves the session operations.
 	auth *auth.Service
+	// inventory, when set, serves the inventory operations.
+	inventory *inventory.Service
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
@@ -308,6 +316,9 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.auth != nil {
 		opts.Auth = deps.auth
+	}
+	if deps.inventory != nil {
+		opts.Inventory = deps.inventory
 	}
 	api, err := httpapi.NewServer(opts)
 	if err != nil {

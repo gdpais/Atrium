@@ -24,6 +24,11 @@ info:
     equal to the site the API is configured for; any other is refused with
     403, before the operation runs.
 
+    **Request bodies** are JSON objects with the fields their schema lists:
+    a field the schema does not list is refused with 400, never ignored, so
+    a client that tries to change what cannot change (an application's
+    environment, an environment's slug) learns it did not.
+
     **Errors** are `application/problem+json` (RFC 9457).
 servers:
   - url: /
@@ -34,6 +39,15 @@ tags:
     description: Probes for Kubernetes. They need no login and say nothing about why.
   - name: session
     description: Logging in and out with a local user's email and password (ADR 0013 §7–8).
+  - name: inventory
+    description: |
+      Environments, their applications, and the applications' components
+      (ADR 0001, ADR 0013 §2). Each application belongs to one environment,
+      set when it is created and never changed; a component belongs to one
+      application the same way, and its environment is its application's.
+      Viewers read; operators create, change and delete. Every change is
+      audited (ADR 0016). Disable rather than delete: a delete is refused
+      with 409 while anything still refers to the entity.
 paths:
   /healthz:
     get:
@@ -172,6 +186,468 @@ paths:
           $ref: "#/components/responses/Forbidden"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/environments:
+    get:
+      operationId: listEnvironments
+      tags: [inventory]
+      summary: List environments
+      security:
+        - session: [viewer]
+      description: |
+        Every environment, by name. Not paged: an organisation runs a
+        handful of environments, not thousands.
+      parameters:
+        - $ref: "#/components/parameters/StatusFilter"
+      responses:
+        "200":
+          description: The environments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createEnvironment
+      tags: [inventory]
+      summary: Create an environment
+      security:
+        - session: [operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewEnvironment"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/environments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getEnvironment
+      tags: [inventory]
+      summary: Get an environment
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The environment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateEnvironment
+      tags: [inventory]
+      summary: Change an environment
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others. The slug
+        cannot change: it is how the collectors and the telemetry name the
+        environment. A body that changes nothing is answered with the
+        environment as it is, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnvironmentUpdate"
+      responses:
+        "200":
+          description: The environment after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteEnvironment
+      tags: [inventory]
+      summary: Delete an environment
+      security:
+        - session: [operator]
+      description: |
+        Deletes an environment nothing refers to. While it has
+        applications, database targets or investigations the answer is
+        409, and nothing is deleted: disable it instead
+        (`PATCH` with `status: disabled`).
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/applications:
+    get:
+      operationId: listApplications
+      tags: [inventory]
+      summary: List applications
+      security:
+        - session: [viewer]
+      description: |
+        Applications by name, a page at a time: an installation can hold
+        hundreds. Filter by environment to list one environment's.
+      parameters:
+        - name: environment_id
+          in: query
+          description: Only the applications of this environment.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/StatusFilter"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of applications.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createApplication
+      tags: [inventory]
+      summary: Create an application
+      security:
+        - session: [operator]
+      description: |
+        Creates an application in the environment the body names, which
+        it belongs to for good: the same system in another environment is
+        another application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewApplication"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/applications/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getApplication
+      tags: [inventory]
+      summary: Get an application
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The application.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateApplication
+      tags: [inventory]
+      summary: Change an application
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others. Its
+        environment cannot change. A body that changes nothing is answered
+        with the application as it is, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationUpdate"
+      responses:
+        "200":
+          description: The application after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteApplication
+      tags: [inventory]
+      summary: Delete an application
+      security:
+        - session: [operator]
+      description: |
+        Deletes an application nothing refers to. While it has components,
+        telemetry sources, investigations, alert policies, notification
+        routes, alert events or reports the answer is 409, and nothing is
+        deleted: disable it instead (`PATCH` with `status: disabled`). Its
+        adaptive baselines, computed from its telemetry, are deleted with
+        it.
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/components:
+    get:
+      operationId: listComponents
+      tags: [inventory]
+      summary: List application components
+      security:
+        - session: [viewer]
+      description: Components by name, a page at a time; filter by application to list one application's.
+      parameters:
+        - name: application_id
+          in: query
+          description: Only the components of this application.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of components.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComponentPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createComponent
+      tags: [inventory]
+      summary: Create an application component
+      security:
+        - session: [operator]
+      description: |
+        Creates a component of the application the body names, which it
+        belongs to for good. Its environment is the application's.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewComponent"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Component"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/components/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getComponent
+      tags: [inventory]
+      summary: Get an application component
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The component.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Component"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateComponent
+      tags: [inventory]
+      summary: Change an application component
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others. Its
+        application cannot change. A body that changes nothing is answered
+        with the component as it is, and audits nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComponentUpdate"
+      responses:
+        "200":
+          description: The component after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Component"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteComponent
+      tags: [inventory]
+      summary: Delete an application component
+      security:
+        - session: [operator]
+      description: |
+        Components have no status to disable, so they are deleted. Nothing
+        refers to them yet; once something does, a delete while it does is
+        refused with 409, as for environments and applications.
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     session:
@@ -184,6 +660,41 @@ components:
         after 8 hours without a request or 7 days after login, whichever
         comes first (both configurable), at logout, and when its user is
         disabled.
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StatusFilter:
+      name: status
+      in: query
+      description: Only the active, or only the disabled, ones.
+      schema:
+        $ref: "#/components/schemas/Status"
+    Limit:
+      name: limit
+      in: query
+      description: The most items a page holds; 50 when left out.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    Cursor:
+      name: cursor
+      in: query
+      description: Where the page starts; the `next_cursor` of the page before. Left out, the first page.
+      schema:
+        type: string
+        maxLength: 2048
+  headers:
+    Location:
+      description: The new entity's path, such as `/api/v1/environments/{id}`.
+      required: true
+      schema:
+        type: string
   responses:
     BadRequest:
       description: The request is not one the operation accepts.
@@ -199,6 +710,27 @@ components:
             $ref: "#/components/schemas/Problem"
     Forbidden:
       description: The `Origin` header is not the configured site, or the user's roles do not allow the operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: No entity has this ID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: |
+        The change conflicts with what exists: another entity already has
+        the name or slug, or a delete is refused because other entities
+        still refer to this one. The detail says which.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NoOwner:
+      description: The body names an environment or application that does not exist.
       content:
         application/problem+json:
           schema:
@@ -220,6 +752,7 @@ components:
           enum: [ready, not_ready]
     Credentials:
       type: object
+      additionalProperties: false
       required: [email, password]
       properties:
         email:
@@ -267,6 +800,270 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Role"
+    Status:
+      type: string
+      description: "`disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status."
+      enum: [active, disabled]
+    EnvironmentType:
+      type: string
+      enum: [production, staging, development, test]
+    Criticality:
+      type: string
+      enum: [low, medium, high, critical]
+    Name:
+      type: string
+      description: Leading and trailing spaces are dropped; then 1 to 200 characters, without control characters.
+      minLength: 1
+      maxLength: 200
+    Slug:
+      type: string
+      description: |
+        The environment as the collectors and the telemetry name it: each
+        collector's `environment` setting, the `environment` label of
+        Heartbeat's metrics and the `deployment.environment.name` of logs
+        (ADR 0017 §2). Lower-case letters, digits and hyphens, 1 to 63,
+        starting and ending with a letter or a digit, so that it works as a
+        label value, in a URL and as a Kubernetes name. Unique, and fixed
+        once created.
+      pattern: "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+      examples: [prod]
+    Labels:
+      type: object
+      description: At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
+      additionalProperties:
+        type: string
+        maxLength: 256
+      maxProperties: 64
+    Environment:
+      type: object
+      additionalProperties: false
+      required: [id, name, slug, type, description, status, labels, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/Name"
+        slug:
+          $ref: "#/components/schemas/Slug"
+        type:
+          $ref: "#/components/schemas/EnvironmentType"
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NewEnvironment:
+      type: object
+      additionalProperties: false
+      required: [name, slug, type]
+      properties:
+        name:
+          $ref: "#/components/schemas/Name"
+        slug:
+          $ref: "#/components/schemas/Slug"
+        type:
+          $ref: "#/components/schemas/EnvironmentType"
+        description:
+          type: string
+          description: At most 2000 characters; empty when left out.
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+    EnvironmentUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the slug cannot.
+      properties:
+        name:
+          $ref: "#/components/schemas/Name"
+        type:
+          $ref: "#/components/schemas/EnvironmentType"
+        description:
+          type: string
+          maxLength: 2000
+        status:
+          $ref: "#/components/schemas/Status"
+        labels:
+          $ref: "#/components/schemas/Labels"
+    EnvironmentList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Environment"
+    Application:
+      type: object
+      additionalProperties: false
+      required: [id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        environment_id:
+          type: string
+          format: uuid
+          description: The environment it belongs to, fixed when it was created.
+        name:
+          $ref: "#/components/schemas/Name"
+        platform:
+          $ref: "#/components/schemas/Platform"
+        owner_team:
+          type: string
+        criticality:
+          $ref: "#/components/schemas/Criticality"
+        status:
+          $ref: "#/components/schemas/Status"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Platform:
+      type: string
+      pattern: "^[a-z][a-z0-9_]{0,62}$"
+      description: What the application runs on, such as `outsystems_traditional`, `outsystems_reactive` or `dotnet`. Lower-case letters, digits and underscores, starting with a letter; at most 63.
+      examples: [outsystems_traditional]
+    NewApplication:
+      type: object
+      additionalProperties: false
+      required: [environment_id, name, platform]
+      properties:
+        environment_id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/Name"
+        platform:
+          $ref: "#/components/schemas/Platform"
+        owner_team:
+          type: string
+          description: At most 200 characters; empty when left out.
+          maxLength: 200
+        criticality:
+          $ref: "#/components/schemas/Criticality"
+        status:
+          $ref: "#/components/schemas/Status"
+    ApplicationUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the environment cannot.
+      properties:
+        name:
+          $ref: "#/components/schemas/Name"
+        platform:
+          $ref: "#/components/schemas/Platform"
+        owner_team:
+          type: string
+          maxLength: 200
+        criticality:
+          $ref: "#/components/schemas/Criticality"
+        status:
+          $ref: "#/components/schemas/Status"
+    ApplicationPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Application"
+        next_cursor:
+          type: string
+          description: The `cursor` of the next page; absent on the last.
+    Component:
+      type: object
+      additionalProperties: false
+      required: [id, application_id, environment_id, name, component_type, runtime_name, labels, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        application_id:
+          type: string
+          format: uuid
+          description: The application it belongs to, fixed when it was created.
+        environment_id:
+          type: string
+          format: uuid
+          description: Its application's environment, read through the application; a component has none of its own.
+        name:
+          $ref: "#/components/schemas/Name"
+        component_type:
+          $ref: "#/components/schemas/ComponentType"
+        runtime_name:
+          type: string
+        labels:
+          $ref: "#/components/schemas/Labels"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ComponentType:
+      type: string
+      pattern: "^[a-z][a-z0-9_]{0,62}$"
+      description: What part of the application it is, such as `module`, `screen_flow` or `worker`. Lower-case letters, digits and underscores, starting with a letter; at most 63. Unique with the name within an application.
+      examples: [module]
+    NewComponent:
+      type: object
+      additionalProperties: false
+      required: [application_id, name, component_type]
+      properties:
+        application_id:
+          type: string
+          format: uuid
+        name:
+          $ref: "#/components/schemas/Name"
+        component_type:
+          $ref: "#/components/schemas/ComponentType"
+        runtime_name:
+          type: string
+          description: What the telemetry calls it, such as an OutSystems module's `Module_Name`; at most 200 characters, empty when left out.
+          maxLength: 200
+        labels:
+          $ref: "#/components/schemas/Labels"
+    ComponentUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the application cannot.
+      properties:
+        name:
+          $ref: "#/components/schemas/Name"
+        component_type:
+          $ref: "#/components/schemas/ComponentType"
+        runtime_name:
+          type: string
+          maxLength: 200
+        labels:
+          $ref: "#/components/schemas/Labels"
+    ComponentPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Component"
+        next_cursor:
+          type: string
+          description: The `cursor` of the next page; absent on the last.
     Problem:
       type: object
       description: An error, as RFC 9457 describes it.
