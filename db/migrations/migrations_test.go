@@ -2,6 +2,8 @@ package migrations
 
 import (
 	"io/fs"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -46,6 +48,37 @@ func TestEmbeddedMigrationsArePairedAndOrdered(t *testing.T) {
 	for version, name := range downs {
 		if ups[version] != name {
 			t.Errorf("%s.down.sql has no matching %s.up.sql", name, name)
+		}
+	}
+}
+
+// golang-migrate applies only versions above the database's own, so a
+// migration numbered below one already applied is skipped for good, with
+// no error. Versions are therefore consecutive: a gap means a number was
+// taken out of turn, and the migration that fills it later would be
+// skipped on every database already past it. Renumber to the next free
+// version before merging.
+func TestEmbeddedMigrationVersionsAreConsecutive(t *testing.T) {
+	entries, err := fs.ReadDir(FS, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var versions []int
+	for _, entry := range entries {
+		m := fileName.FindStringSubmatch(entry.Name())
+		if m == nil || m[2] != "up" {
+			continue
+		}
+		v, err := strconv.Atoi(m[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		versions = append(versions, v)
+	}
+	slices.Sort(versions)
+	for i, v := range versions {
+		if v != i+1 {
+			t.Fatalf("up migration versions %v: want 1 to %d with no gap; renumber %04d to %04d", versions, len(versions), v, i+1)
 		}
 	}
 }

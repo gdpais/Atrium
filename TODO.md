@@ -421,12 +421,12 @@ queue tests alone.
 - [x] Store secret refs only: the schemas are closed and name a credential only as a `credential-ref` (`env/`, `kv/`, `secret/`); a test fails on a schema with a credential-like property that is not one
 
 ### 4.5 Database target management
-- [ ] Implement database targets CRUD
+- [x] Implement database targets CRUD: `/api/v1/database-targets`, read by viewers, changed by operators; a target belongs to one environment, its name is unique there, and a delete is refused while it has probe assignments. The API never connects to a target: the collector reports reachability once an assignment renders it
 - [x] Implement probe definition management/versioning: `/api/v1/probe-definitions`, read by viewers, changed by admins; a change is a new immutable version, disabling disables every version
 - [x] Seed the built-in probe definitions from the collector's catalog, with no `query_template` (an expand migration makes it nullable); a test fails when the seed and the catalog differ. Custom definitions carry a versioned `query_template`, checked as one read-only `SELECT` with the collector's validator. The OutSystems log types are not seeded: their collectors stay in YAML (ADR 0017)
 - [ ] Implement probe assignment management, with approval states ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
-- [ ] Validate target config and safe probe policies
-- [ ] Store credential refs only
+- [ ] Validate target config and safe probe policies. Target config: done (host as the collector checks it, port, engine, database name, credential reference); probe policies (interval, timeout and row limits of an assignment) come with probe assignments
+- [x] Store credential refs only: a target holds `kv/`, `secret/` or `env/` and a name whose key `HEARTBEAT_CREDENTIAL_<REF>` is a valid Secret key, checked with the collector's own rule as well; a value shaped like a credential is refused and never echoed
 
 ### 4.6 Investigations API
 

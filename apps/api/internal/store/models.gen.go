@@ -31,6 +31,21 @@ type ApplicationComponent struct {
 	UpdatedAt     pgtype.Timestamptz
 }
 
+type DatabaseTarget struct {
+	ID            pgtype.UUID
+	EnvironmentID pgtype.UUID
+	Engine        string
+	Name          string
+	Host          string
+	Port          int32
+	DatabaseName  pgtype.Text
+	Status        string
+	CredentialRef string
+	Labels        []byte
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
 type Environment struct {
 	ID          pgtype.UUID
 	Name        string

@@ -42,6 +42,21 @@ func (e Criticality) Valid() bool {
 	}
 }
 
+// Defines values for DatabaseEngine.
+const (
+	DatabaseEngineSqlserver DatabaseEngine = "sqlserver"
+)
+
+// Valid indicates whether the value is a known member of the DatabaseEngine enum.
+func (e DatabaseEngine) Valid() bool {
+	switch e {
+	case DatabaseEngineSqlserver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EnvironmentType.
 const (
 	Development EnvironmentType = "development"
@@ -116,13 +131,13 @@ func (e ObservationStatus) Valid() bool {
 
 // Defines values for ProbeEngine.
 const (
-	Sqlserver ProbeEngine = "sqlserver"
+	ProbeEngineSqlserver ProbeEngine = "sqlserver"
 )
 
 // Valid indicates whether the value is a known member of the ProbeEngine enum.
 func (e ProbeEngine) Valid() bool {
 	switch e {
-	case Sqlserver:
+	case ProbeEngineSqlserver:
 		return true
 	default:
 		return false
@@ -301,6 +316,18 @@ type ComponentUpdate struct {
 	RuntimeName *string `json:"runtime_name,omitempty"`
 }
 
+// CredentialRef A reference to the credential the collector logs in with, never
+// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+// letters, digits and `-`, at most 200, so that each key has one
+// spelling. The collector reads the
+// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+// its mounted credentials Secret, the reference upper-cased with `/`,
+// `-` and `.` as `_` (`env/finance-prod` is
+// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+//
+// Examples: env/finance-prod
+type CredentialRef = string
+
 // Credentials defines model for Credentials.
 type Credentials struct {
 	// Email Examples: admin@example.com
@@ -312,6 +339,107 @@ type Credentials struct {
 
 // Criticality defines model for Criticality.
 type Criticality string
+
+// DatabaseEngine The database's engine, which the collector of the same kind monitors.
+type DatabaseEngine string
+
+// DatabaseName The database to connect to; empty for the login's default. At most 128 characters, without control characters.
+type DatabaseName = string
+
+// DatabaseTarget defines model for DatabaseTarget.
+type DatabaseTarget struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// CredentialRef A reference to the credential the collector logs in with, never
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
+	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// its mounted credentials Secret, the reference upper-cased with `/`,
+	// `-` and `.` as `_` (`env/finance-prod` is
+	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	//
+	//
+	// Examples: env/finance-prod
+	CredentialRef CredentialRef `json:"credential_ref"`
+
+	// DatabaseName The database to connect to; empty for the login's default. At most 128 characters, without control characters.
+	DatabaseName DatabaseName `json:"database_name"`
+
+	// Engine The database's engine, which the collector of the same kind monitors.
+	Engine DatabaseEngine `json:"engine"`
+
+	// EnvironmentId The environment it belongs to, fixed when it was created.
+	EnvironmentId openapi_types.UUID `json:"environment_id"`
+
+	// Host A host name, an IPv4 address or a bare IPv6 address, as the
+	// collector accepts it: no port, brackets, credentials or path. At
+	// most 253 characters; stored in lower case.
+	//
+	//
+	// Examples: sql01.finance.internal
+	Host Host               `json:"host"`
+	Id   openapi_types.UUID `json:"id"`
+
+	// Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
+	Labels Labels `json:"labels"`
+
+	// Name The `target` label of the target's metrics, beside the
+	// environment's. Lower-case letters, digits and hyphens, 1 to 63,
+	// starting and ending with a letter or a digit. Unique in its
+	// environment, and fixed once created.
+	//
+	//
+	// Examples: finance-prod
+	Name TargetName `json:"name"`
+	Port Port       `json:"port"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status    Status    `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// DatabaseTargetPage defines model for DatabaseTargetPage.
+type DatabaseTargetPage struct {
+	Items []DatabaseTarget `json:"items"`
+
+	// NextCursor The `cursor` of the next page; absent on the last.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
+
+// DatabaseTargetUpdate The fields to change; the environment, engine and name cannot.
+type DatabaseTargetUpdate struct {
+	// CredentialRef A reference to the credential the collector logs in with, never
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
+	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// its mounted credentials Secret, the reference upper-cased with `/`,
+	// `-` and `.` as `_` (`env/finance-prod` is
+	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	//
+	//
+	// Examples: env/finance-prod
+	CredentialRef *CredentialRef `json:"credential_ref,omitempty"`
+
+	// DatabaseName The database to connect to; empty for the login's default. At most 128 characters, without control characters.
+	DatabaseName *DatabaseName `json:"database_name,omitempty"`
+
+	// Host A host name, an IPv4 address or a bare IPv6 address, as the
+	// collector accepts it: no port, brackets, credentials or path. At
+	// most 253 characters; stored in lower case.
+	//
+	//
+	// Examples: sql01.finance.internal
+	Host *Host `json:"host,omitempty"`
+
+	// Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
+	Labels *Labels `json:"labels,omitempty"`
+	Port   *Port   `json:"port,omitempty"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status *Status `json:"status,omitempty"`
+}
 
 // Environment defines model for Environment.
 type Environment struct {
@@ -366,6 +494,13 @@ type EnvironmentUpdate struct {
 	Type   *EnvironmentType `json:"type,omitempty"`
 }
 
+// Host A host name, an IPv4 address or a bare IPv6 address, as the
+// collector accepts it: no port, brackets, credentials or path. At
+// most 253 characters; stored in lower case.
+//
+// Examples: sql01.finance.internal
+type Host = string
+
 // IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
 type IngestMode string
 
@@ -412,6 +547,55 @@ type NewComponent struct {
 
 	// RuntimeName What the telemetry calls it, such as an OutSystems module's `Module_Name`; at most 200 characters, empty when left out.
 	RuntimeName *string `json:"runtime_name,omitempty"`
+}
+
+// NewDatabaseTarget defines model for NewDatabaseTarget.
+type NewDatabaseTarget struct {
+	// CredentialRef A reference to the credential the collector logs in with, never
+	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
+	// letters, digits and `-`, at most 200, so that each key has one
+	// spelling. The collector reads the
+	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// its mounted credentials Secret, the reference upper-cased with `/`,
+	// `-` and `.` as `_` (`env/finance-prod` is
+	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	//
+	//
+	// Examples: env/finance-prod
+	CredentialRef CredentialRef `json:"credential_ref"`
+
+	// DatabaseName The database to connect to; empty for the login's default. At most 128 characters, without control characters.
+	DatabaseName *DatabaseName `json:"database_name,omitempty"`
+
+	// Engine The database's engine, which the collector of the same kind monitors.
+	Engine        *DatabaseEngine    `json:"engine,omitempty"`
+	EnvironmentId openapi_types.UUID `json:"environment_id"`
+
+	// Host A host name, an IPv4 address or a bare IPv6 address, as the
+	// collector accepts it: no port, brackets, credentials or path. At
+	// most 253 characters; stored in lower case.
+	//
+	//
+	// Examples: sql01.finance.internal
+	Host Host `json:"host"`
+
+	// Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Name The `target` label of the target's metrics, beside the
+	// environment's. Lower-case letters, digits and hyphens, 1 to 63,
+	// starting and ending with a letter or a digit. Unique in its
+	// environment, and fixed once created.
+	//
+	//
+	// Examples: finance-prod
+	Name TargetName `json:"name"`
+
+	// Port Defaults to the engine's, 1433 for SQL Server.
+	Port *Port `json:"port,omitempty"`
+
+	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
+	Status *Status `json:"status,omitempty"`
 }
 
 // NewEnvironment defines model for NewEnvironment.
@@ -526,6 +710,9 @@ type ObservationStatus string
 //
 // Examples: outsystems_traditional
 type Platform = string
+
+// Port defines model for Port.
+type Port = int
 
 // ProbeDefinition defines model for ProbeDefinition.
 type ProbeDefinition struct {
@@ -665,6 +852,14 @@ type SourceType string
 // Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
 type Status string
 
+// TargetName The `target` label of the target's metrics, beside the
+// environment's. Lower-case letters, digits and hyphens, 1 to 63,
+// starting and ending with a letter or a digit. Unique in its
+// environment, and fixed once created.
+//
+// Examples: finance-prod
+type TargetName = string
+
 // TelemetrySource defines model for TelemetrySource.
 type TelemetrySource struct {
 	// ApplicationId The application it belongs to, fixed when it was registered.
@@ -789,6 +984,21 @@ type ListComponentsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// ListDatabaseTargetsParams defines parameters for ListDatabaseTargets.
+type ListDatabaseTargetsParams struct {
+	// EnvironmentId Only the targets of this environment.
+	EnvironmentId *openapi_types.UUID `form:"environment_id,omitempty" json:"environment_id,omitempty"`
+
+	// Status Only the active, or only the disabled, ones.
+	Status *StatusFilter `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit The most items a page holds; 50 when left out.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Where the page starts; the `next_cursor` of the page before. Left out, the first page.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListEnvironmentsParams defines parameters for ListEnvironments.
 type ListEnvironmentsParams struct {
 	// Status Only the active, or only the disabled, ones.
@@ -825,6 +1035,12 @@ type CreateComponentJSONRequestBody = NewComponent
 
 // UpdateComponentJSONRequestBody defines body for UpdateComponent for application/json ContentType.
 type UpdateComponentJSONRequestBody = ComponentUpdate
+
+// CreateDatabaseTargetJSONRequestBody defines body for CreateDatabaseTarget for application/json ContentType.
+type CreateDatabaseTargetJSONRequestBody = NewDatabaseTarget
+
+// UpdateDatabaseTargetJSONRequestBody defines body for UpdateDatabaseTarget for application/json ContentType.
+type UpdateDatabaseTargetJSONRequestBody = DatabaseTargetUpdate
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody = NewEnvironment
@@ -882,6 +1098,21 @@ type ServerInterface interface {
 	// UpdateComponent Change an application component
 	// (PATCH /api/v1/components/{id})
 	UpdateComponent(w http.ResponseWriter, r *http.Request, id ID)
+	// ListDatabaseTargets List database targets
+	// (GET /api/v1/database-targets)
+	ListDatabaseTargets(w http.ResponseWriter, r *http.Request, params ListDatabaseTargetsParams)
+	// CreateDatabaseTarget Create a database target
+	// (POST /api/v1/database-targets)
+	CreateDatabaseTarget(w http.ResponseWriter, r *http.Request)
+	// DeleteDatabaseTarget Delete a database target
+	// (DELETE /api/v1/database-targets/{id})
+	DeleteDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID)
+	// GetDatabaseTarget Get a database target
+	// (GET /api/v1/database-targets/{id})
+	GetDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID)
+	// UpdateDatabaseTarget Change a database target
+	// (PATCH /api/v1/database-targets/{id})
+	UpdateDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID)
 	// ListEnvironments List environments
 	// (GET /api/v1/environments)
 	ListEnvironments(w http.ResponseWriter, r *http.Request, params ListEnvironmentsParams)
@@ -1262,6 +1493,170 @@ func (siw *ServerInterfaceWrapper) UpdateComponent(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateComponent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDatabaseTargets operation middleware
+func (siw *ServerInterfaceWrapper) ListDatabaseTargets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDatabaseTargetsParams
+
+	// ------------- Optional query parameter "environment_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "environment_id", r.URL.Query(), &params.EnvironmentId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "environment_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDatabaseTargets(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDatabaseTarget operation middleware
+func (siw *ServerInterfaceWrapper) CreateDatabaseTarget(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDatabaseTarget(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDatabaseTarget operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDatabaseTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDatabaseTarget(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDatabaseTarget operation middleware
+func (siw *ServerInterfaceWrapper) GetDatabaseTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDatabaseTarget(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateDatabaseTarget operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDatabaseTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateDatabaseTarget(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1933,6 +2328,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.DeleteTelemetrySource)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.GetTelemetrySource)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/telemetry-sources/{id}", wrapper.UpdateTelemetrySource)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/database-targets", wrapper.ListDatabaseTargets)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/database-targets", wrapper.CreateDatabaseTarget)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.DeleteDatabaseTarget)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.GetDatabaseTarget)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.UpdateDatabaseTarget)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.ListProbeDefinitions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.CreateProbeDefinition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions/{id}", wrapper.GetProbeDefinition)
@@ -3046,6 +3446,556 @@ type UpdateComponentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response UpdateComponentdefaultApplicationProblemPlusJSONResponse) VisitUpdateComponentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDatabaseTargetsRequestObject struct {
+	Params ListDatabaseTargetsParams
+}
+
+type ListDatabaseTargetsResponseObject interface {
+	VisitListDatabaseTargetsResponse(w http.ResponseWriter) error
+}
+
+type ListDatabaseTargets200JSONResponse DatabaseTargetPage
+
+func (response ListDatabaseTargets200JSONResponse) VisitListDatabaseTargetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDatabaseTargets400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListDatabaseTargets400ApplicationProblemPlusJSONResponse) VisitListDatabaseTargetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDatabaseTargets401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListDatabaseTargets401ApplicationProblemPlusJSONResponse) VisitListDatabaseTargetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDatabaseTargets403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListDatabaseTargets403ApplicationProblemPlusJSONResponse) VisitListDatabaseTargetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDatabaseTargetsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListDatabaseTargetsdefaultApplicationProblemPlusJSONResponse) VisitListDatabaseTargetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTargetRequestObject struct {
+	Body *CreateDatabaseTargetJSONRequestBody
+}
+
+type CreateDatabaseTargetResponseObject interface {
+	VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error
+}
+
+type CreateDatabaseTarget201ResponseHeaders struct {
+	Location string
+}
+
+type CreateDatabaseTarget201JSONResponse struct {
+	Body    DatabaseTarget
+	Headers CreateDatabaseTarget201ResponseHeaders
+}
+
+func (response CreateDatabaseTarget201JSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTarget400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateDatabaseTarget400ApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTarget401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateDatabaseTarget401ApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTarget403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response CreateDatabaseTarget403ApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTarget409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateDatabaseTarget409ApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTarget422ApplicationProblemPlusJSONResponse struct {
+	NoOwnerApplicationProblemPlusJSONResponse
+}
+
+func (response CreateDatabaseTarget422ApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateDatabaseTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateDatabaseTargetdefaultApplicationProblemPlusJSONResponse) VisitCreateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTargetRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteDatabaseTargetResponseObject interface {
+	VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error
+}
+
+type DeleteDatabaseTarget204Response struct {
+}
+
+func (response DeleteDatabaseTarget204Response) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDatabaseTarget400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteDatabaseTarget400ApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTarget401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteDatabaseTarget401ApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTarget403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteDatabaseTarget403ApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTarget404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteDatabaseTarget404ApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTarget409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteDatabaseTarget409ApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDatabaseTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteDatabaseTargetdefaultApplicationProblemPlusJSONResponse) VisitDeleteDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetDatabaseTargetResponseObject interface {
+	VisitGetDatabaseTargetResponse(w http.ResponseWriter) error
+}
+
+type GetDatabaseTarget200JSONResponse DatabaseTarget
+
+func (response GetDatabaseTarget200JSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTarget400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTarget400ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTarget401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTarget401ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTarget403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTarget403ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTarget404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTarget404ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetDatabaseTargetdefaultApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTargetRequestObject struct {
+	Id   ID `json:"id"`
+	Body *UpdateDatabaseTargetJSONRequestBody
+}
+
+type UpdateDatabaseTargetResponseObject interface {
+	VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error
+}
+
+type UpdateDatabaseTarget200JSONResponse DatabaseTarget
+
+func (response UpdateDatabaseTarget200JSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTarget400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateDatabaseTarget400ApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTarget401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateDatabaseTarget401ApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTarget403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateDatabaseTarget403ApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTarget404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateDatabaseTarget404ApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTarget409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateDatabaseTarget409ApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDatabaseTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateDatabaseTargetdefaultApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5116,6 +6066,21 @@ type StrictServerInterface interface {
 	// UpdateComponent Change an application component
 	// (PATCH /api/v1/components/{id})
 	UpdateComponent(ctx context.Context, request UpdateComponentRequestObject) (UpdateComponentResponseObject, error)
+	// ListDatabaseTargets List database targets
+	// (GET /api/v1/database-targets)
+	ListDatabaseTargets(ctx context.Context, request ListDatabaseTargetsRequestObject) (ListDatabaseTargetsResponseObject, error)
+	// CreateDatabaseTarget Create a database target
+	// (POST /api/v1/database-targets)
+	CreateDatabaseTarget(ctx context.Context, request CreateDatabaseTargetRequestObject) (CreateDatabaseTargetResponseObject, error)
+	// DeleteDatabaseTarget Delete a database target
+	// (DELETE /api/v1/database-targets/{id})
+	DeleteDatabaseTarget(ctx context.Context, request DeleteDatabaseTargetRequestObject) (DeleteDatabaseTargetResponseObject, error)
+	// GetDatabaseTarget Get a database target
+	// (GET /api/v1/database-targets/{id})
+	GetDatabaseTarget(ctx context.Context, request GetDatabaseTargetRequestObject) (GetDatabaseTargetResponseObject, error)
+	// UpdateDatabaseTarget Change a database target
+	// (PATCH /api/v1/database-targets/{id})
+	UpdateDatabaseTarget(ctx context.Context, request UpdateDatabaseTargetRequestObject) (UpdateDatabaseTargetResponseObject, error)
 	// ListEnvironments List environments
 	// (GET /api/v1/environments)
 	ListEnvironments(ctx context.Context, request ListEnvironmentsRequestObject) (ListEnvironmentsResponseObject, error)
@@ -5497,6 +6462,148 @@ func (sh *strictHandler) UpdateComponent(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateComponentResponseObject); ok {
 		if err := validResponse.VisitUpdateComponentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListDatabaseTargets operation middleware
+func (sh *strictHandler) ListDatabaseTargets(w http.ResponseWriter, r *http.Request, params ListDatabaseTargetsParams) {
+	var request ListDatabaseTargetsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDatabaseTargets(ctx, request.(ListDatabaseTargetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDatabaseTargets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDatabaseTargetsResponseObject); ok {
+		if err := validResponse.VisitListDatabaseTargetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateDatabaseTarget operation middleware
+func (sh *strictHandler) CreateDatabaseTarget(w http.ResponseWriter, r *http.Request) {
+	var request CreateDatabaseTargetRequestObject
+
+	var body CreateDatabaseTargetJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateDatabaseTarget(ctx, request.(CreateDatabaseTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateDatabaseTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateDatabaseTargetResponseObject); ok {
+		if err := validResponse.VisitCreateDatabaseTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDatabaseTarget operation middleware
+func (sh *strictHandler) DeleteDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteDatabaseTargetRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDatabaseTarget(ctx, request.(DeleteDatabaseTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDatabaseTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDatabaseTargetResponseObject); ok {
+		if err := validResponse.VisitDeleteDatabaseTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDatabaseTarget operation middleware
+func (sh *strictHandler) GetDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetDatabaseTargetRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDatabaseTarget(ctx, request.(GetDatabaseTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDatabaseTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDatabaseTargetResponseObject); ok {
+		if err := validResponse.VisitGetDatabaseTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateDatabaseTarget operation middleware
+func (sh *strictHandler) UpdateDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UpdateDatabaseTargetRequestObject
+
+	request.Id = id
+
+	var body UpdateDatabaseTargetJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateDatabaseTarget(ctx, request.(UpdateDatabaseTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateDatabaseTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateDatabaseTargetResponseObject); ok {
+		if err := validResponse.VisitUpdateDatabaseTargetResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -92,6 +92,8 @@ served beside it.
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/environments`, `/applications`, `/components` | session, `operator`; `Origin` | Create, change and delete inventory, each audited ([below](#inventory)) |
 | `GET /api/v1/telemetry-sources` and `GET …/{id}` | session, `viewer` | Telemetry sources, each with its observation ([below](#telemetry-sources)) |
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/telemetry-sources` | session, `operator`; `Origin` | Register, change and delete telemetry sources, each audited ([below](#telemetry-sources)) |
+| `GET /api/v1/database-targets` and `GET /api/v1/database-targets/{id}` | session, `viewer` | Monitored databases ([below](#database-targets)) |
+| `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/database-targets` | session, `operator`; `Origin` | Create, change and delete them |
 | `GET /api/v1/probe-definitions` | session, `viewer` | 200 with the latest version of every probe definition ([below](#probe-definitions)) |
 | `POST /api/v1/probe-definitions` | session, `admin`; `Origin` | Create a custom definition: 201 with version 1 |
 | `GET /api/v1/probe-definitions/{id}` | session, `viewer` | 200 with that version, the latest or an older one |
@@ -294,6 +296,51 @@ audited as entity type `telemetry_source`.
 
 The observation is not stored or audited: it is read with the source.
 
+
+### Database targets
+
+The databases the collector monitors [4.5], under `/api/v1/database-targets`
+(`GET` with `?environment_id=`, `?status=` and pages like applications';
+`POST`; `GET`, `PATCH` and `DELETE` on `/{id}`). Viewers read; operators
+create, change and delete. A target belongs to the environment it was
+created in, for good, as an application does.
+
+| Field | Rule |
+| --- | --- |
+| `name` | The `target` label of its metrics, beside the environment's: a slug like an environment's (`finance-prod`), unique in its environment, fixed once created. The collector refuses two targets of one environment with one name, since they would write the same series |
+| `engine` | `sqlserver`, the default; fixed |
+| `host` | Checked as the collector checks it: a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; at most 253 characters; stored in lower case, and an IPv6 address in its canonical form |
+| `port` | 1 to 65535; 1433 when left out |
+| `database_name` | Empty for the login's default database; at most 128 characters; compared without regard to case, as SQL Server does by default |
+| `credential_ref` | `kv/`, `secret/` or `env/` and a name of lower-case letters, digits and `-`, at most 200. The collector reads `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of its credentials Secret ([credential resolution](configuration.md#credential-resolution)): `env/finance-prod` is `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses, and each key has one spelling: `env/Finance.Prod`, which the collector would read from the same key, is refused rather than passing for another reference. A value shaped like a credential is refused, and the problem does not repeat it |
+| `status`, `labels` | As for applications |
+
+The environment, engine and host, port and database together are unique:
+a second target for the same database in one environment is 409.
+
+**Credentials and reachability.** The API stores the reference only and
+never connects to a target (ADR 0013 §1): it has no credential to connect
+with. The credential reaches the collector on its own path, a Secret key
+([database targets guide](../guides/database-targets.md#3-provide-the-credential)).
+Whether a target is reachable is the collector's to report, once a probe
+assignment renders it into a collector [4.5]: its
+`heartbeat_collector_target_up`, and its state and driver error in
+`GET /admin/config` (`readiness.collectors[].targets[]`), which the API
+will read to mark the assignment applied (ADR 0014 §4).
+
+**Deletes.** A target's probe assignments would be deleted with it, so a
+delete is refused (409) while it has any: disable it instead
+(`status: disabled`).
+
+**Audit.** Each change writes one record in its transaction: entity type
+`database_target`, action `create`, `update` or `delete`, the target as the
+API shows it, credential reference included, in `before` and `after`.
+
+```bash
+curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{"environment_id": "<id>", "name": "finance-prod", "host": "sql01.finance.internal", "credential_ref": "env/finance-prod"}' \
+  localhost:8081/api/v1/database-targets
+```
 
 ### Probe definitions
 
