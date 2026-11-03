@@ -185,9 +185,8 @@ func TestDrainerSendsEachRecordAsAnOTLPLogRecord(t *testing.T) {
 			t.Errorf("record %d: body id %s at %v, log record time %d", i, head.ID, head.Time, record.TimeUnixNano)
 		}
 	}
-	if got := testutil.ToFloat64(d.Delivered); got != 3 {
-		t.Fatalf("%s = %v, want 3", audit.MetricRecordsDelivered, got)
-	}
+	// Run counts a round after Drain returns, so after the outbox empties.
+	eventually(t, func() bool { return testutil.ToFloat64(d.Delivered) == 3 }, audit.MetricRecordsDelivered+" did not reach 3")
 }
 
 // A full batch means more may wait: the next round starts at once instead
@@ -237,13 +236,13 @@ func TestDrainerKeepsRecordsWhileTheCollectorFails(t *testing.T) {
 			if got := len(collector.Records()); got != 2 {
 				t.Fatalf("delivered %d records, want 2", got)
 			}
-			text := logs.String()
-			if strings.Count(text, "audit: delivery failed") != 1 || !strings.Contains(text, "audit: delivery resumed") {
-				t.Fatalf("logs: want one failure and the recovery:\n%s", text)
+			// Run logs the recovery and counts the round after Drain
+			// returns, so after the outbox empties.
+			eventually(t, func() bool { return strings.Contains(logs.String(), "audit: delivery resumed") }, "the recovery was not logged")
+			if text := logs.String(); strings.Count(text, "audit: delivery failed") != 1 {
+				t.Fatalf("logs: want one failure:\n%s", text)
 			}
-			if got := testutil.ToFloat64(d.Delivered); got != 2 {
-				t.Fatalf("%s = %v, want 2", audit.MetricRecordsDelivered, got)
-			}
+			eventually(t, func() bool { return testutil.ToFloat64(d.Delivered) == 2 }, audit.MetricRecordsDelivered+" did not reach 2")
 		})
 	}
 }

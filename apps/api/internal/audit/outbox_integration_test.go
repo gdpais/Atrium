@@ -131,9 +131,8 @@ func TestOutboxAgainstPostgres(t *testing.T) {
 	if got := scrape(t, registry, audit.MetricOutboxOldestAge); got != 0 {
 		t.Fatalf("%s = %v with an empty outbox, want 0", audit.MetricOutboxOldestAge, got)
 	}
-	if !strings.Contains(logs.String(), "audit: delivery resumed") {
-		t.Fatalf("logs lack the recovery:\n%s", logs.String())
-	}
+	// Logged after the round commits, so after the outbox empties.
+	eventually(t, func() bool { return strings.Contains(logs.String(), "audit: delivery resumed") }, "the recovery was not logged")
 }
 
 // Replicas drain the same outbox at once: FOR UPDATE SKIP LOCKED gives each
