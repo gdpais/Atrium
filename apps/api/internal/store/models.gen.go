@@ -43,6 +43,23 @@ type Environment struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type ProbeDefinition struct {
+	ID                     pgtype.UUID
+	Engine                 string
+	Name                   string
+	Version                int32
+	Category               string
+	DefaultIntervalSeconds int32
+	TimeoutMs              pgtype.Int4
+	QueryTemplate          pgtype.Text
+	Enabled                bool
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	Builtin                bool
+	Overrides              pgtype.Text
+	Description            string
+}
+
 type SchemaMigration struct {
 	Version int64
 	Dirty   bool

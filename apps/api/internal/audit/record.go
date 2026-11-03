@@ -45,18 +45,27 @@ const (
 	// EntityTelemetrySource is a telemetry source (ADR 0017); before and
 	// after are the source as the API shows it, without its observation.
 	EntityTelemetrySource = "telemetry_source"
+	// EntityProbeDefinition is one version of a probe definition, by the
+	// version's ID.
+	EntityProbeDefinition = "probe_definition"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityTelemetrySource}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityTelemetrySource, EntityProbeDefinition}
 
 // Actions.
 const (
 	ActionCreate = "create"
 	// ActionUpdate changes an entity; its record has both before and after.
+	// A probe definition is updated by a new version: the record's entity is
+	// the new version, its before the version it follows.
 	ActionUpdate = "update"
 	// ActionDelete removes one; its record's before is what was removed.
 	ActionDelete = "delete"
+	// ActionDisable and ActionEnable switch an entity off and on again
+	// without deleting it.
+	ActionDisable = "disable"
+	ActionEnable  = "enable"
 	// ActionLogin starts a session; its record's after is the session.
 	ActionLogin = "login"
 	// ActionLogout ends one; its record's before is the session.

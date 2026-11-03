@@ -25,7 +25,7 @@ dependencies:
     repository: https://grafana-community.github.io/helm-charts
     condition: grafana.enabled
   - name: loki
-    version: 18.17.1
+    version: 20.2.2
     repository: https://grafana-community.github.io/helm-charts
     condition: loki.enabled
   - name: tempo

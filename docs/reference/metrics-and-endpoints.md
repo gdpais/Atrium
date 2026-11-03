@@ -92,6 +92,12 @@ served beside it.
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/environments`, `/applications`, `/components` | session, `operator`; `Origin` | Create, change and delete inventory, each audited ([below](#inventory)) |
 | `GET /api/v1/telemetry-sources` and `GET …/{id}` | session, `viewer` | Telemetry sources, each with its observation ([below](#telemetry-sources)) |
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/telemetry-sources` | session, `operator`; `Origin` | Register, change and delete telemetry sources, each audited ([below](#telemetry-sources)) |
+| `GET /api/v1/probe-definitions` | session, `viewer` | 200 with the latest version of every probe definition ([below](#probe-definitions)) |
+| `POST /api/v1/probe-definitions` | session, `admin`; `Origin` | Create a custom definition: 201 with version 1 |
+| `GET /api/v1/probe-definitions/{id}` | session, `viewer` | 200 with that version, the latest or an older one |
+| `PATCH /api/v1/probe-definitions/{id}` | session, `admin`; `Origin` | `{"enabled": false}` disables a custom definition, every version of it; `true` enables it again |
+| `GET /api/v1/probe-definitions/{id}/versions` | session, `viewer` | 200 with every version of the definition, the newest first |
+| `POST /api/v1/probe-definitions/{id}/versions` | session, `admin`; `Origin` | Change a custom definition: 201 with the next version |
 
 On `SIGTERM` or `SIGINT` the API answers `GET /readyz` with 503 and keeps
 serving for `HEARTBEAT_API_SHUTDOWN_DELAY` (5s), while its Service stops
@@ -288,6 +294,72 @@ audited as entity type `telemetry_source`.
 
 The observation is not stored or audited: it is read with the source.
 
+
+### Probe definitions
+
+A probe definition is what a probe assignment will run against a database
+target [4.5]. It is versioned: each version is immutable once stored, except
+whether its definition is enabled, so an assignment that pins a version keeps
+what was approved, and nothing is ever deleted.
+
+- **Built-in** definitions are the db-collector's
+  [SQL Server catalog](#sql-server-probe-metrics), one per probe, version 1,
+  seeded by migration 0004 with no query: the collector runs its own. They
+  are read-only (409) and change only with the collector; a test fails when
+  the seed and the catalog differ. The OutSystems log types are not
+  definitions: their collectors stay in YAML
+  ([ADR 0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md)).
+- **Custom** definitions replace the query of the built-in they
+  `overrides`, as a [`query_template`](configuration.md#collectors) does:
+  that built-in's metric descriptors decode the rows, so the query returns the
+  same columns in the same units, and the definition takes its category.
+  Only admins create and change them, since their SQL runs on monitored
+  databases; review each one with the
+  [probe review checklist](../architecture/database-observability.md#probe-review-checklist).
+
+`POST /api/v1/probe-definitions` takes `engine` (`sqlserver`), `name`
+(`custom_` and then lower-case snake_case, at most 63 characters: no
+built-in's name starts with `custom_`, so a probe the collector adds later
+never clashes with one), `overrides`, `query_template` and, optionally,
+`description` (at most 1,000 characters), `default_interval_seconds` (5 to
+3,600; 30, the collector's default, when left out) and `timeout_ms` (1 to
+25,000; left out, the collector's default, half the interval and at most
+10 s). `engine`, `name` and `overrides` are set once: every version
+overrides the same built-in. `POST /api/v1/probe-definitions/{id}/versions`
+takes the rest: a version is the whole content, so a field left out takes
+its default, not the previous version's value.
+
+The query must be one read-only `SELECT`, checked by the same function the
+db-collector runs when it loads `integrations.yaml`
+(`config.ValidateReadOnlySelect`), so the API stores no query the collector
+would refuse; the problem's detail says why, without quoting the query. As in
+the collector, the check is a safety net and the collector's read-only login
+is the control. It does not check which columns the query returns.
+
+| Status | When |
+| --- | --- |
+| 201 | Created, or a version added; `Location` is the new version's URL |
+| 200 | From `POST .../versions`: the content equals the version the path names, so nothing was added |
+| 400 | A field out of bounds or an unknown member, an explicit `0` for `default_interval_seconds` or `timeout_ms`, an `overrides` that names no enabled built-in of the engine, a query that is not one read-only `SELECT`, or a malformed ID |
+| 404 | No version has the ID |
+| 409 | The name is taken; the definition is built-in, or disabled (enable it before adding a version); or the version the path names is no longer the latest, because someone added one since it was read: read the latest and change that, so no change is lost |
+
+Changes to one definition take turns: each locks the definition until it
+commits. **Audit.** Every change writes an audit record of entity type
+`probe_definition` in the same transaction ([audit delivery](#audit-delivery)),
+with the admin as actor and the versions in full, query included: `create`
+with version 1 in `after`; `update` for a new version, whose ID is the
+record's `entity_id`, with the version it follows in `before`; `disable` and
+`enable` with the version the request named.
+
+```bash
+curl -sS -b cookies localhost:8081/api/v1/probe-definitions | jq '.items[] | {id, name, version, builtin}'
+jq -n '{engine: "sqlserver", name: "custom_waits_lean", overrides: "waits",
+        description: "Waits over 1 ms only",
+        query_template: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms > 1"}' |
+  curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/probe-definitions
+```
 
 ## Metrics
 
