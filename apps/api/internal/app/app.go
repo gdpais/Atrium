@@ -28,6 +28,7 @@ import (
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
+	"heartbeat/apps/api/internal/users"
 	"heartbeat/internal/credentials"
 	"heartbeat/internal/otlp"
 	"heartbeat/internal/telemetry"
@@ -138,6 +139,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		requestMetrics: requestMetrics,
 		checks:         deps.checks,
 		auth:           deps.auth,
+		users:          deps.users,
 		drain:          deps.drain,
 		closeDeps:      deps.close,
 		timeouts:       t,
@@ -156,6 +158,8 @@ type connected struct {
 	checks []httpapi.Check
 	// auth logs users in and authenticates their sessions.
 	auth *auth.Service
+	// users serves the admins' user and role operations.
+	users *users.Service
 	// drain delivers audit records until its context ends; nil without an
 	// audit endpoint.
 	drain func(context.Context)
@@ -212,13 +216,15 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		IdleTimeout: cmp.Or(cfg.SessionIdleTimeout, auth.DefaultIdleTimeout),
 		MaxAge:      cmp.Or(cfg.SessionMaxAge, auth.DefaultMaxAge),
 	}
+	// One hasher, so logins and password changes share its cap.
+	hasher := password.NewHasher(password.DefaultParams, password.DefaultConcurrency)
 	result := connected{
 		checks: []httpapi.Check{
 			{Name: checkPostgreSQL, Run: schema.Check},
 			{Name: checkRedis, Run: func(ctx context.Context) error { return redis.Ping(ctx, client) }},
 		},
-		auth: auth.NewService(pool, password.NewHasher(password.DefaultParams, password.DefaultConcurrency),
-			sessions, &auth.Limits{Redis: client}, attempts, logger),
+		auth:  auth.NewService(pool, hasher, sessions, &auth.Limits{Redis: client}, attempts, logger),
+		users: users.NewService(pool, hasher, sessions),
 		close: func() {
 			pool.Close()
 			if err := client.Close(); err != nil {
@@ -256,6 +262,8 @@ type runDeps struct {
 	checks []httpapi.Check
 	// auth, when set, serves the session operations.
 	auth *auth.Service
+	// users, when set, serves the user and role operations.
+	users *users.Service
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
@@ -308,6 +316,9 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.auth != nil {
 		opts.Auth = deps.auth
+	}
+	if deps.users != nil {
+		opts.Users = deps.users
 	}
 	api, err := httpapi.NewServer(opts)
 	if err != nil {

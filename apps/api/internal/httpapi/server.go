@@ -32,6 +32,7 @@ type Server struct {
 	// rules are the operations' access rules, by ServeMux pattern.
 	rules          map[string]rule
 	auth           Authenticator
+	users          Users
 	site           string
 	trustedProxies []netip.Prefix
 }
@@ -46,6 +47,9 @@ type Authenticator interface {
 	Login(ctx context.Context, email, secret string, client auth.Client) (auth.Principal, string, error)
 	Authenticate(ctx context.Context, token string) (auth.Principal, error)
 	Logout(ctx context.Context, p auth.Principal, client auth.Client) error
+	// ChangePassword sets p's user's password, given their current one,
+	// and ends all their sessions.
+	ChangePassword(ctx context.Context, p auth.Principal, current, next string, client auth.Client) error
 	// ExpiresAt is when session ends however active it is.
 	ExpiresAt(session auth.Session) time.Time
 }
@@ -69,6 +73,9 @@ type Options struct {
 	Site string
 	// TrustedProxies are the peers whose X-Forwarded-For names the client.
 	TrustedProxies []netip.Prefix
+	// Users serves the admins' user and role operations. Without it, they
+	// fail with 500.
+	Users Users
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -87,6 +94,7 @@ func NewServer(opts Options) (*Server, error) {
 		logger:         logger,
 		rules:          rules,
 		auth:           opts.Auth,
+		users:          opts.Users,
 		site:           opts.Site,
 		trustedProxies: opts.TrustedProxies,
 	}, nil
@@ -95,6 +103,10 @@ func NewServer(opts Options) (*Server, error) {
 // Register serves every operation of the spec on mux, under the method and
 // path patterns the spec declares (GET /healthz, POST /api/v1/session, ...),
 // each behind the guard.
+//
+// The guard wraps what the generated code registers, so it runs before
+// the path and query parameters are bound: a request without a session is
+// answered 401, never 400 for a malformed ID.
 func (s *Server) Register(mux *http.ServeMux) {
 	strict := openapi.NewStrictHandlerWithOptions(s, nil, openapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
@@ -107,12 +119,23 @@ func (s *Server) Register(mux *http.ServeMux) {
 		},
 	})
 	openapi.HandlerWithOptions(strict, openapi.StdHTTPServerOptions{
-		BaseRouter:  mux,
-		Middlewares: []openapi.MiddlewareFunc{s.guard},
+		BaseRouter: guardedMux{ServeMux: mux, guard: s.guard},
 		ErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 		},
 	})
+}
+
+// guardedMux registers each handler behind guard. The ServeMux sets
+// r.Pattern before it calls the handler, so the guard finds the
+// operation's rule.
+type guardedMux struct {
+	*http.ServeMux
+	guard func(http.Handler) http.Handler
+}
+
+func (m guardedMux) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	m.ServeMux.Handle(pattern, m.guard(http.HandlerFunc(handler)))
 }
 
 // Drain makes GET /readyz answer 503 from now on, so that the API leaves

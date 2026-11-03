@@ -21,12 +21,19 @@ const site = "https://heartbeat.example.com"
 type fakeAuth struct {
 	principal auth.Principal
 	token     string
-	// loginErr and authErr, when set, are what Login and Authenticate
-	// return.
-	loginErr, authErr, logoutErr error
+	// loginErr, authErr, logoutErr and changeErr, when set, are what
+	// Login, Authenticate, Logout and ChangePassword return.
+	loginErr, authErr, logoutErr, changeErr error
 
 	logins  []loginCall
 	logouts []logoutCall
+	changes []changeCall
+}
+
+type changeCall struct {
+	principal     auth.Principal
+	current, next string
+	client        auth.Client
 }
 
 type loginCall struct {
@@ -75,6 +82,11 @@ func (f *fakeAuth) Authenticate(_ context.Context, token string) (auth.Principal
 func (f *fakeAuth) Logout(_ context.Context, p auth.Principal, client auth.Client) error {
 	f.logouts = append(f.logouts, logoutCall{p, client})
 	return f.logoutErr
+}
+
+func (f *fakeAuth) ChangePassword(_ context.Context, p auth.Principal, current, next string, client auth.Client) error {
+	f.changes = append(f.changes, changeCall{p, current, next, client})
+	return f.changeErr
 }
 
 func (f *fakeAuth) ExpiresAt(s auth.Session) time.Time { return time.Now().Add(7 * 24 * time.Hour) }
