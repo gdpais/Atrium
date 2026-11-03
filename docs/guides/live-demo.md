@@ -428,7 +428,7 @@ These checks come back empty or trivial today, and that is expected:
 | --- | --- | --- |
 | `hb_k get --raw /api/v1/namespaces/heartbeat/services/loki:3100/proxy/loki/api/v1/labels` (a pod of your own would time out: Loki admits only its clients) | `{"status":"success"}` with no labels: nothing writes to Loki | Phase 2 |
 | Evidence from `blocking` and `sessions` | discarded by the default sink | Phase 7 (TODO §12.4) |
-| PostgreSQL | not deployed; the schema exists only in migrations (`make test-integration`) | Phase 3 |
+| `hb_k exec postgresql-0 -- psql -U heartbeat -Atc 'SELECT version FROM schema_migrations'` | the newest migration's number; the tables are empty: the API has no endpoint that writes yet | Phase 3 (TODO §4.2–4.5) |
 | Probe assignments from the API | config comes only from YAML | Phase 3 (TODO §2.5) |
 
 ## What to judge

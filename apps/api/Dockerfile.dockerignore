@@ -1,0 +1,14 @@
+# The API image's build context: the root .dockerignore, but with
+# db/migrations, which the API embeds (package heartbeat/db/migrations).
+# BuildKit reads this file instead of the root one for apps/api/Dockerfile.
+.git
+.github
+.tmp
+.env*
+docs
+infra
+scripts
+tests
+db
+!db/migrations
+*.md
