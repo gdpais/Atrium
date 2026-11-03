@@ -603,7 +603,7 @@ func validate(cfg RuntimeConfig) error {
 		return err
 	}
 	for key, ref := range cfg.CredentialRefs {
-		if ref != "" && !validSecretRef(ref) {
+		if ref != "" && !ValidSecretRef(ref) {
 			return fmt.Errorf("credential_refs.%s must be a secret reference", key)
 		}
 	}
@@ -622,7 +622,7 @@ func validate(cfg RuntimeConfig) error {
 		if collector.ScrapeInterval <= 0 {
 			return fmt.Errorf("collector %s must have positive scrape interval", collector.ID)
 		}
-		if collector.CredentialRef != "" && !validSecretRef(collector.CredentialRef) {
+		if collector.CredentialRef != "" && !ValidSecretRef(collector.CredentialRef) {
 			return fmt.Errorf("collector %s credential_ref must be a secret reference", collector.ID)
 		}
 		if err := validateTargets(collector); err != nil {
@@ -658,7 +658,7 @@ func validate(cfg RuntimeConfig) error {
 		if targetRefCredentials(channel.TargetRef) {
 			return fmt.Errorf("notification channel %s target_ref %s", channel.ID, embeddedCredentialsHint)
 		}
-		if channel.CredentialRef != "" && !validSecretRef(channel.CredentialRef) {
+		if channel.CredentialRef != "" && !ValidSecretRef(channel.CredentialRef) {
 			return fmt.Errorf("notification channel %s credential_ref must be a secret reference", channel.ID)
 		}
 	}
@@ -678,13 +678,13 @@ func validateTargets(collector CollectorRuntimeConfig) error {
 		if target.Host == "" {
 			return fmt.Errorf("collector %s target %s host is required", collector.ID, target.Name)
 		}
-		if !validHost(target.Host) {
+		if !ValidHost(target.Host) {
 			return fmt.Errorf("collector %s target %s host must be a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; set the port in port", collector.ID, target.Name)
 		}
 		if target.Port < 1 || target.Port > 65535 {
 			return fmt.Errorf("collector %s target %s port must be between 1 and 65535", collector.ID, target.Name)
 		}
-		if target.CredentialRef != "" && !validSecretRef(target.CredentialRef) {
+		if target.CredentialRef != "" && !ValidSecretRef(target.CredentialRef) {
 			return fmt.Errorf("collector %s target %s credential_ref must be a secret reference", collector.ID, target.Name)
 		}
 		for _, probe := range target.Probes {
@@ -1053,14 +1053,14 @@ func redactTargetRef(ref string) string {
 	return ref
 }
 
-// validHost reports whether host is safe to join with a port into the
-// connection URL: a DNS name or IPv4 address made of letters, digits, '.',
+// ValidHost reports whether host is safe to join with a port into the
+// connection URL, for the collector and for the API's database targets: a DNS name or IPv4 address made of letters, digits, '.',
 // '-' and '_', or a bare IPv6 literal (net.JoinHostPort adds the brackets, so
 // a bracketed value would be double-bracketed). Anything else, such as
 // "db:1433", "user@db", "db/instance", "db\instance", whitespace or control
 // characters, makes the driver fail to parse the connection URL, and its
 // parse error would quote the URL, password included.
-func validHost(host string) bool {
+func ValidHost(host string) bool {
 	if strings.Contains(host, ":") {
 		ip := net.ParseIP(host)
 		return ip != nil && ip.To4() == nil
@@ -1075,7 +1075,12 @@ func validHost(host string) bool {
 	return true
 }
 
-func validSecretRef(ref string) bool {
+// ValidSecretRef reports whether ref is a credential reference: kv/, secret/
+// or env/ and a name, which the collector resolves from the key
+// credentials.Key(ref) of its mounted credentials Secret. The API checks
+// database targets' references with it, and more strictly (package
+// inventory), so it stores none the collector would refuse.
+func ValidSecretRef(ref string) bool {
 	return strings.HasPrefix(ref, "kv/") || strings.HasPrefix(ref, "secret/") || strings.HasPrefix(ref, "env/")
 }
 

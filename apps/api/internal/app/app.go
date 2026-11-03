@@ -326,6 +326,7 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.inventory != nil {
 		opts.Inventory = deps.inventory
+		opts.DatabaseTargets = deps.inventory
 	}
 	if deps.probeDefinitions != nil {
 		opts.ProbeDefinitions = deps.probeDefinitions

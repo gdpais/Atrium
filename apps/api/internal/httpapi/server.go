@@ -38,6 +38,8 @@ type Server struct {
 	trustedProxies []netip.Prefix
 	// probeDefinitions serves /api/v1/probe-definitions.
 	probeDefinitions ProbeDefinitions
+	// databaseTargets serves /api/v1/database-targets.
+	databaseTargets DatabaseTargets
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -79,6 +81,9 @@ type Options struct {
 	// ProbeDefinitions serves the probe definition operations; without it
 	// they fail.
 	ProbeDefinitions ProbeDefinitions
+	// DatabaseTargets serves the database target operations; without it
+	// they fail.
+	DatabaseTargets DatabaseTargets
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -99,6 +104,7 @@ func NewServer(opts Options) (*Server, error) {
 		auth:             opts.Auth,
 		inventory:        opts.Inventory,
 		probeDefinitions: opts.ProbeDefinitions,
+		databaseTargets:  opts.DatabaseTargets,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,
 	}, nil

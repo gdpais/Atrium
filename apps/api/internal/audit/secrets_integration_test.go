@@ -260,6 +260,37 @@ var auditedChanges = []auditedChange{
 		},
 	},
 	{
+		name:   "database target created, changed and deleted",
+		entity: audit.EntityDatabaseTarget,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "target-operator@example.com")
+			svc := inventory.New(h.pool)
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Finance", Slug: "finance", Type: "production"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			begin()
+			// The credential behind the reference: the API never sees it,
+			// and a record must never hold anything like it.
+			const credential = "sqlmonitor:Corr3ct-Horse-Battery"
+			if _, err := svc.CreateDatabaseTarget(ctx, caller, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "refused", Host: "refused", CredentialRef: credential}); err == nil {
+				t.Fatal("a credential was accepted as the reference")
+			}
+			tg, err := svc.CreateDatabaseTarget(ctx, caller, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "finance-prod", Host: "sql01.finance.internal", CredentialRef: "env/finance-prod"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ref := "kv/finance-prod"
+			if _, err := svc.UpdateDatabaseTarget(ctx, caller, tg.ID, inventory.DatabaseTargetChange{CredentialRef: &ref}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteDatabaseTarget(ctx, caller, tg.ID); err != nil {
+				t.Fatal(err)
+			}
+			return append(secrets, credential)
+		},
+	},
+	{
 		name:   "probe definition created, changed and disabled",
 		entity: audit.EntityProbeDefinition,
 		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
