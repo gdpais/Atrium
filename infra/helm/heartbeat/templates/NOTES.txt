@@ -12,6 +12,16 @@ instead of checking that they exist.
 {{- if and $c.enabled $c.credentials.existingSecret -}}
 {{- $secrets = append $secrets (list $c.credentials.existingSecret "a HEARTBEAT_CREDENTIAL_<REF> key per credential_ref" "the SQL Server logins") -}}
 {{- end -}}
+{{- $a := .Values.api -}}
+{{- if and $a.enabled $a.credentials.existingSecret -}}
+{{- $secrets = append $secrets (list $a.credentials.existingSecret "keys HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES, HEARTBEAT_CREDENTIAL_SECRET_API_REDIS" "the API's logins, as username:password") -}}
+{{- end -}}
+{{- if .Values.postgresql.enabled -}}
+{{- $secrets = append $secrets (list .Values.postgresql.auth.existingSecret (printf "key %s" .Values.postgresql.auth.passwordKey) (printf "the bundled PostgreSQL's password, for the role %s" .Values.postgresql.auth.username)) -}}
+{{- end -}}
+{{- if .Values.valkey.enabled -}}
+{{- $secrets = append $secrets (list .Values.valkey.auth.existingSecret (printf "key %s" .Values.valkey.auth.passwordKey) "the bundled Valkey's password, for the user default") -}}
+{{- end -}}
 {{- if and .Values.grafana.enabled .Values.grafana.admin.existingSecret -}}
 {{- $keys := printf "keys %s, %s" (.Values.grafana.admin.userKey | default "admin-user") (.Values.grafana.admin.passwordKey | default "admin-password") -}}
 {{- $secrets = append $secrets (list .Values.grafana.admin.existingSecret $keys "the Grafana login") -}}
@@ -43,6 +53,10 @@ Check the install:
    kubectl -n {{ $ns }} port-forward svc/db-collector 8082:{{ $c.service.port }}
    curl -s localhost:8082/readyz      # in another terminal: {"status":"ready"}
 {{- end }}
+{{- if $a.enabled }}
+   kubectl -n {{ $ns }} rollout status deployment/api
+   kubectl -n {{ $ns }} logs deployment/api -c migrate   # the migrations it applied
+{{- end }}
 {{- if .Values.grafana.enabled }}
 
 Grafana:
@@ -50,6 +64,11 @@ Grafana:
    kubectl -n {{ $ns }} port-forward svc/grafana 3000:{{ .Values.grafana.service.port }}
    Open http://localhost:3000 and log in with the user and password in the
    {{ .Values.grafana.admin.existingSecret | default "grafana" }} Secret.
+{{- end }}
+{{- if or .Values.postgresql.enabled .Values.valkey.enabled }}
+
+The bundled {{ if and .Values.postgresql.enabled .Values.valkey.enabled }}PostgreSQL and Valkey are{{ else if .Values.postgresql.enabled }}PostgreSQL is{{ else }}Valkey is{{ end }} for kind and CI: one replica, no
+backups. Production points api.postgres and api.redis at managed services.
 {{- end }}
 {{- if and $c.enabled (eq $targets 0) }}
 

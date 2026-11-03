@@ -129,7 +129,7 @@ branches as `gone`, ready for `git branch -d`.
 | `test` | Always: generated code is current, Go tests with the race detector, vet, Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
 | `SQL Server probes` | When `services/db-collector`, its test scripts or `tools/patientzero` (outside its chart) change; also runs PatientZero's live test |
 | `Helm chart` | When the chart, its values, its tests, or PatientZero's chart or setup script change; lints, renders and checks PatientZero's chart too |
-| `kind end-to-end` | When a service, the chart or the kind setup changes |
+| `kind end-to-end` | When a service (the db-collector, the API or the migrations it embeds), the chart or the kind setup changes |
 | `PatientZero scenarios` | On the release pull request only (release-please's branch, not its paths): every scenario on a fresh kind cluster, about 2.5 hours, through `.github/workflows/scenarios.yml` |
 | `ci-ok` | Always. Passes only if every job did what the change detection asked for; the only required check |
 
@@ -170,7 +170,7 @@ one weekly `GitHub Actions` pull request; majors wait for approval on the
 ## Releases
 
 A release is a `vX.Y.Z` tag on `master` with [Semantic Versioning](https://semver.org/);
-one version covers both images and the chart. The rules and reasons are in
+one version covers every image and the chart. The rules and reasons are in
 [ADR 0006](docs/architecture/decisions/0006-trunk-based-development-and-tagged-releases.md).
 
 **Cutting a release.** Google's [release-please](https://github.com/googleapis/release-please)
@@ -187,8 +187,9 @@ release, and the tag starts `.github/workflows/release.yml`, which:
 
 1. checks the tag is on `master`, matches the chart version and passed the
    required CI check (`ci-ok`);
-2. builds `ghcr.io/gdpais/heartbeat/db-collector` for `linux/amd64` and
-   `linux/arm64`, and pushes the chart to `oci://ghcr.io/gdpais/charts/heartbeat`;
+2. builds `ghcr.io/gdpais/heartbeat/db-collector` and
+   `ghcr.io/gdpais/heartbeat/api` for `linux/amd64` and `linux/arm64`, and
+   pushes the chart to `oci://ghcr.io/gdpais/charts/heartbeat`;
 3. lists every artifact with its digest in the GitHub release.
 
 While the version is `0.y.z`, every release is marked *Pre-release* on GitHub:

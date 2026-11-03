@@ -87,7 +87,8 @@ func Postgres(t *testing.T) (Container, store.Config) {
 	password := randomHex(t)
 	c := start(t, postgresImage(t), "5432/tcp",
 		[]string{"POSTGRES_USER=heartbeat", "POSTGRES_DB=heartbeat", "POSTGRES_PASSWORD=" + password},
-		"--tmpfs", "/var/lib/postgresql/data",
+		// postgres 18's data directory is under /var/lib/postgresql.
+		"--tmpfs", "/var/lib/postgresql",
 		"-e", "POSTGRES_USER", "-e", "POSTGRES_DB", "-e", "POSTGRES_PASSWORD",
 		// Over TCP: the entrypoint's temporary server during initdb
 		// listens on the Unix socket only.

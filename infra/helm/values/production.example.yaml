@@ -63,6 +63,42 @@ dbCollector:
   credentials:
     existingSecret: heartbeat-sqlserver-credentials
 
+# The API on Amazon RDS for PostgreSQL and Amazon ElastiCache for Valkey, both
+# with TLS (ADR 0015); the chart's bundled postgresql and valkey are off.
+api:
+  image:
+    repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/api
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  # ExternalSecret-managed: HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES and
+  # HEARTBEAT_CREDENTIAL_SECRET_API_REDIS, each <login>:<password> (the
+  # ElastiCache user, or "default" and the AUTH token). Read on every new
+  # connection, like the collector's: a rotation needs no restart.
+  credentials:
+    existingSecret: heartbeat-api-credentials
+  postgres:
+    host: heartbeat.<id>.<region>.rds.amazonaws.com
+    database: heartbeat
+    sslMode: verify-full
+    # Amazon RDS's certificates are not in the image's system CAs: the RDS
+    # CA bundle (global-bundle.pem, from AWS) in a ConfigMap, mounted below.
+    sslRootCert: /etc/heartbeat/rds-ca/global-bundle.pem
+  redis:
+    # The replication group's primary endpoint, in-transit encryption on.
+    addr: master.heartbeat.<id>.<region>.cache.amazonaws.com:6379
+    tls: true
+  extraVolumes:
+    - name: rds-ca
+      configMap:
+        name: rds-ca-bundle
+  extraVolumeMounts:
+    - name: rds-ca
+      mountPath: /etc/heartbeat/rds-ca
+      readOnly: true
+postgresql:
+  enabled: false
+valkey:
+  enabled: false
+
 integrations:
   platform: grafana
   dashboards:

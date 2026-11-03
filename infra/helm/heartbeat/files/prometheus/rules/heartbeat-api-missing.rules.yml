@@ -1,0 +1,19 @@
+# The API's missing-target alert, like the db-collector's
+# (heartbeat-collector-missing.rules.yml): included only when the release has
+# the API and the bundled Prometheus scrapes its job as api.
+groups:
+  - name: heartbeat-api-missing-alerts
+    rules:
+      # Prometheus finds the API's pods through DNS on its headless Service
+      # (values.yaml, prometheus.scrapeConfigs.api). With no pod, scaled to 0
+      # or never scheduled, there is no up series for the up == 0 rule in
+      # heartbeat.rules.yml. A pod waiting on its init container (migrations)
+      # has an address and is scraped, failing, so that rule fires instead.
+      - alert: HeartbeatServiceDown
+        expr: absent(up{job="api"})
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Heartbeat service {{ $labels.job }} is down"
+          description: "Prometheus has found no API pod to scrape for at least 2 minutes: its Deployment runs no pod. Nothing can be read or changed through the API meanwhile; collection goes on."

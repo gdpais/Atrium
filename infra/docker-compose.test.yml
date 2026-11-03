@@ -2,13 +2,17 @@
 # No host ports or durable volumes: never share the developer database.
 services:
   postgres:
-    image: postgres:17.11@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
+    # The newest major Amazon RDS supports, and the chart's postgresql
+    # (ADR 0015; tests/chart_engines_test.go).
+    image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     environment:
       POSTGRES_DB: heartbeat
       POSTGRES_USER: heartbeat
       POSTGRES_PASSWORD: heartbeat-test-only
+    # postgres 18 keeps its data under /var/lib/postgresql/18/docker and
+    # refuses to start with a mount at /var/lib/postgresql/data.
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     volumes:
       - ../db/migrations:/migrations:ro
     healthcheck:

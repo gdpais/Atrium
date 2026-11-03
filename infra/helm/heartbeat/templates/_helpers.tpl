@@ -104,13 +104,13 @@ render them: name, instance and, for the Prometheus server, component. They
 follow each subchart's nameOverride (the OTel Collector's default name is its
 alias). Used as a NetworkPolicy's podSelector and as a peer, so a pod of
 another release or chart never matches. Call with (dict "root" $ "engine"
-"prometheus"); engine is prometheus, alertmanager, grafana, loki or
-otelCollector, or db-collector for Heartbeat's own collector.
+"prometheus"); engine is prometheus, alertmanager, grafana, loki, tempo or
+otelCollector, or db-collector or api for Heartbeat's own services.
 */}}
 {{- define "heartbeat.enginePodLabels" -}}
 {{- $v := .root.Values }}
-{{- if eq .engine "db-collector" }}
-{{- include "heartbeat.selectorLabels" (dict "root" .root "component" "db-collector") }}
+{{- if has .engine (list "db-collector" "api") }}
+{{- include "heartbeat.selectorLabels" (dict "root" .root "component" .engine) }}
 {{- else if eq .engine "prometheus" }}
 {{- /* The prometheus.server.matchLabels helper. */}}
 app.kubernetes.io/name: {{ $v.prometheus.nameOverride | default "prometheus" | trunc 63 | trimSuffix "-" }}
@@ -157,4 +157,64 @@ Call with (dict "root" $ "job" "loki").
 {{- if and $p.enabled (kindIs "map" $job) }}
 {{- if or (not (hasKey $job "enabled")) $job.enabled }}true{{ end }}
 {{- end }}
+{{- end }}
+
+{{/*
+The OpenTelemetry variables of a Heartbeat service (ADR 0018), as container
+env entries: its own logs to the Collector's otlp-self port and pipeline,
+never 4318; its spans to OTLP/HTTP, sampled by ratio; and the environment it
+runs in. Empty when there is nothing to set. Call with the root context.
+*/}}
+{{- define "heartbeat.telemetryEnv" -}}
+{{- $v := .Values }}
+{{- $ports := $v.otelCollector.ports | default dict }}
+{{- if and $v.telemetry.enabled $v.otelCollector.enabled }}
+# The port and pipeline of Heartbeat's own logs, never 4318 (ADR 0018).
+- name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+  value: http://{{ $v.otelCollector.fullnameOverride }}:{{ dig "otlp-self" "servicePort" 4319 $ports }}/v1/logs
+{{- end }}
+{{- if and $v.telemetry.enabled $v.telemetry.traces.enabled $v.otelCollector.enabled }}
+- name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  value: http://{{ $v.otelCollector.fullnameOverride }}:{{ dig "otlp-http" "servicePort" 4318 $ports }}/v1/traces
+- name: OTEL_TRACES_SAMPLER
+  value: parentbased_traceidratio
+- name: OTEL_TRACES_SAMPLER_ARG
+  value: {{ $v.telemetry.traces.sampleRatio | quote }}
+{{- end }}
+{{- with $v.telemetry.environment }}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: deployment.environment.name={{ . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Where the API finds PostgreSQL and Redis (Valkey), as a dict: postgresHost,
+postgresPort, postgresDatabase, sslMode, redisAddr and redisTLS. Empty
+api.postgres.host and api.redis.addr mean the bundled postgresql and valkey,
+without TLS; any other server gets TLS unless the values turn it off. Fails
+when the API has neither a server nor the bundled one. Read it back with
+fromYaml.
+*/}}
+{{- define "heartbeat.apiDependencies" -}}
+{{- $v := .Values }}
+{{- $pg := $v.api.postgres }}
+{{- $redis := $v.api.redis }}
+{{- $out := dict "postgresHost" $pg.host "postgresPort" (int $pg.port) "postgresDatabase" $pg.database "sslMode" ($pg.sslMode | default "verify-full") "redisAddr" $redis.addr "redisTLS" (ternary true $redis.tls (kindIs "invalid" $redis.tls)) }}
+{{- if not $pg.host }}
+{{- if not $v.postgresql.enabled }}
+{{- fail "api.postgres.host is required when postgresql.enabled is false: the PostgreSQL server the API uses, such as an Amazon RDS endpoint" }}
+{{- end }}
+{{- $_ := set $out "postgresHost" "postgresql" }}
+{{- $_ := set $out "postgresPort" 5432 }}
+{{- $_ := set $out "postgresDatabase" $v.postgresql.auth.database }}
+{{- $_ := set $out "sslMode" ($pg.sslMode | default "disable") }}
+{{- end }}
+{{- if not $redis.addr }}
+{{- if not $v.valkey.enabled }}
+{{- fail "api.redis.addr is required when valkey.enabled is false: the Redis (Valkey) server the API uses, as host:port, such as an Amazon ElastiCache endpoint" }}
+{{- end }}
+{{- $_ := set $out "redisAddr" "valkey:6379" }}
+{{- $_ := set $out "redisTLS" (ternary false $redis.tls (kindIs "invalid" $redis.tls)) }}
+{{- end }}
+{{- toYaml $out }}
 {{- end }}

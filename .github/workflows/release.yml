@@ -1,7 +1,7 @@
 name: release
 
 # Publishes a vX.Y.Z tag (ADR 0006): checks the tag is on master and passed CI,
-# builds both service images for linux/amd64 and linux/arm64 and the Helm chart,
+# builds the service images for linux/amd64 and linux/arm64 and the Helm chart,
 # pushes them to GitHub Container Registry, and lists their digests in the
 # GitHub release. release-please creates the tags. Run it by hand to publish a
 # tag whose run failed, or one created before this workflow existed (v0.1.0).
@@ -62,7 +62,13 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [db-collector]
+        # Each image the chart deploys, with its Dockerfile
+        # (tests/chart_release_test.go).
+        include:
+          - service: db-collector
+            dockerfile: services/db-collector/Dockerfile
+          - service: api
+            dockerfile: apps/api/Dockerfile
     env:
       REF: ghcr.io/${{ github.repository_owner }}/heartbeat/${{ matrix.service }}:${{ needs.verify.outputs.version }}
     steps:
@@ -89,7 +95,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: services/${{ matrix.service }}/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REF }}
@@ -179,8 +185,8 @@ jobs:
             echo
             echo "| Artifact | Reference |"
             echo "| --- | --- |"
-            for service in db-collector; do
-              digest=$(awk -v s="$service" '$1 == s {print $2}' digest-*.txt)
+            # One digest file per image of the matrix, sorted by name.
+            cat digest-*.txt | awk '$1 != "chart"' | sort | while read -r service digest; do
               echo "| \`$service\` image | \`$IMAGE_PREFIX/$service:$VERSION@$digest\` |"
             done
             digest=$(awk '$1 == "chart" {print $2}' digest-*.txt)

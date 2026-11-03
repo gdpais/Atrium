@@ -20,7 +20,7 @@ import (
 
 func discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-// golang-migrate applies every embedded migration to an empty postgres:17
+// golang-migrate applies every embedded migration to an empty postgres:18
 // database, records the version, and the schema it builds is the one the
 // psql-applied tests in tests/ check. Running it again changes nothing.
 func TestMigrateUpAppliesTheMigrations(t *testing.T) {

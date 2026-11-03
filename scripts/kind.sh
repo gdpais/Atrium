@@ -9,7 +9,8 @@
 #   up               create the cluster if needed, build and load images, deploy
 #   down             delete the kind cluster (and only it)
 #   cluster          create the cluster if it does not exist
-#   images           build both images, tag them by content, load them into kind
+#   images           build the service images, tag them by content, load them
+#                    into kind
 #   deploy           rebuild images if the Go sources are newer, create the
 #                    local Secrets and helm upgrade --install
 #   status           show pods and services
@@ -78,17 +79,20 @@ node_arch() {
 
 # Builds for the node's own architecture and tags each image by its content
 # (image ID), so a code change always yields a new tag and a stale image
-# cannot hide behind a reused one like :local.
+# cannot hide behind a reused one like :local. Each entry is
+# <image>:<Dockerfile>; the build context is the repository root.
+SERVICE_IMAGES="db-collector:services/db-collector/Dockerfile api:apps/api/Dockerfile"
 cmd_images() {
 	cluster_exists || die "kind cluster $CLUSTER does not exist; run make kind-up"
 	arch=$(node_arch)
 	mkdir -p "$STATE_DIR"
 	: >"$STATE_DIR/images.env.tmp"
-	for svc in db-collector; do
+	for entry in $SERVICE_IMAGES; do
+		svc=${entry%%:*}
 		log "building heartbeat/$svc for linux/$arch"
 		# --provenance=false keeps a single-platform image that kind can load.
 		docker build --quiet --platform "linux/$arch" --provenance=false \
-			-t "heartbeat/$svc:build" -f "services/$svc/Dockerfile" . >/dev/null
+			-t "heartbeat/$svc:build" -f "${entry#*:}" . >/dev/null
 		id=$(docker image inspect -f '{{.Id}}' "heartbeat/$svc:build")
 		built_arch=$(docker image inspect -f '{{.Architecture}}' "heartbeat/$svc:build")
 		[ "$built_arch" = "$arch" ] || die "heartbeat/$svc is $built_arch, node is $arch"
@@ -109,11 +113,52 @@ apply_secret() {
 	kubectl_ -n "$NAMESPACE" create secret generic "$name" "$@" --dry-run=client -o yaml | kubectl_ apply -f - >/dev/null
 }
 
+# Prints a Secret's key, or nothing when the Secret or key does not exist.
+# Fails when kubectl does: piped straight into base64, its failure would read
+# as "no password" (sh has no pipefail), and a new one would replace the kept
+# one.
+secret_value() {
+	encoded=$(kubectl_ -n "$NAMESPACE" get secret "$1" --ignore-not-found -o "jsonpath={.data.$2}") || return 1
+	printf '%s' "$encoded" | base64 -d
+}
+
+# Applies a Secret from key=value lines on standard input, through a 0600
+# file, so a password never reaches a command line. The file is removed even
+# when kubectl fails.
+apply_secret_env() {
+	name=$1
+	env_file=$(mktemp "${TMPDIR:-/tmp}/heartbeat-$name.XXXXXX")
+	cat >"$env_file"
+	apply_secret "$name" --from-env-file="$env_file" || { rm -f "$env_file"; return 1; }
+	rm -f "$env_file"
+}
+
+# The bundled PostgreSQL's and Valkey's passwords (ADR 0015), and the API's
+# logins to both. Generated once and then kept: PostgreSQL reads its password
+# only when it creates the database, so a new one would lock the API out of
+# the existing volume. The API's Secret is derived from the other two on
+# every deploy, so the three always agree.
+cmd_api_secrets() {
+	postgres_password=$(secret_value heartbeat-postgresql password) || die "cannot read Secret heartbeat-postgresql"
+	if [ -z "$postgres_password" ]; then
+		postgres_password=$(openssl rand -hex 24)
+		printf 'password=%s\n' "$postgres_password" | apply_secret_env heartbeat-postgresql
+	fi
+	valkey_password=$(secret_value heartbeat-valkey password) || die "cannot read Secret heartbeat-valkey"
+	if [ -z "$valkey_password" ]; then
+		valkey_password=$(openssl rand -hex 24)
+		printf 'password=%s\n' "$valkey_password" | apply_secret_env heartbeat-valkey
+	fi
+	printf 'HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES=heartbeat:%s\nHEARTBEAT_CREDENTIAL_SECRET_API_REDIS=default:%s\n' \
+		"$postgres_password" "$valkey_password" | apply_secret_env heartbeat-api-credentials
+}
+
 # Local-only Secrets. Production creates these outside the chart (ADR 0005).
 cmd_secrets() {
 	kubectl_ create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl_ apply -f - >/dev/null
 	apply_secret heartbeat-runtime --from-literal=admin-token=local-admin-token
 	apply_secret grafana-admin --from-literal=admin-user=admin --from-literal=admin-password=admin
+	cmd_api_secrets
 }
 
 chart_deps() {
@@ -123,10 +168,16 @@ chart_deps() {
 	fi
 }
 
-# True when the collector's sources changed after the last `images` run (a pull
-# or a branch switch), so its tags in images.env are older than the code.
+# True when the services' sources changed after the last `images` run (a pull
+# or a branch switch), so their tags in images.env are older than the code.
+# The API embeds db/migrations. An image images.env has no tag for (one added
+# since) counts as stale too.
 images_stale() {
-	[ -n "$(find services internal go.mod go.sum -newer "$STATE_DIR/images.env" 2>/dev/null | head -n 1)" ]
+	for entry in $SERVICE_IMAGES; do
+		var=$(printf '%s' "${entry%%:*}" | tr 'a-z-' 'A-Z_')_TAG
+		grep -q "^$var=" "$STATE_DIR/images.env" || return 0
+	done
+	[ -n "$(find services apps db internal go.mod go.sum -newer "$STATE_DIR/images.env" 2>/dev/null | head -n 1)" ]
 }
 
 helm_upgrade() {
@@ -134,6 +185,7 @@ helm_upgrade() {
 		--kube-context "$CONTEXT" --namespace "$NAMESPACE" \
 		"$@" \
 		--set "dbCollector.image.tag=$DB_COLLECTOR_TAG" \
+		--set "api.image.tag=$API_TAG" \
 		--wait --timeout 10m
 }
 
@@ -150,7 +202,7 @@ migrate_collector_policy() {
 	"" | Parallel) return 0 ;;
 	esac
 	helm template "$RELEASE" "$CHART" --namespace "$NAMESPACE" "$@" \
-		--set "dbCollector.image.tag=$DB_COLLECTOR_TAG" >/dev/null
+		--set "dbCollector.image.tag=$DB_COLLECTOR_TAG" --set "api.image.tag=$API_TAG" >/dev/null
 	log "recreating StatefulSet db-collector with podManagementPolicy Parallel (was $policy); its pod keeps running until the deploy replaces it"
 	kubectl_ -n "$NAMESPACE" delete statefulset db-collector --cascade=orphan --wait >/dev/null
 }
@@ -162,7 +214,7 @@ cmd_deploy() {
 	if [ ! -f "$STATE_DIR/images.env" ]; then
 		cmd_images
 	elif images_stale; then
-		log "collector sources changed since the last image build; rebuilding"
+		log "service sources changed since the last image build; rebuilding"
 		cmd_images
 	fi
 	# shellcheck disable=SC1090
