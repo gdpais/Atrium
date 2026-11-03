@@ -568,6 +568,7 @@ components:
             $ref: "#/components/schemas/ProbeDefinition"
     NewProbeDefinition:
       type: object
+      additionalProperties: false
       required: [engine, name, overrides, query_template]
       properties:
         engine:
@@ -605,6 +606,7 @@ components:
           description: The longest one run may take. Left out, the collector's default applies; half the interval, at most 10 s.
     ProbeDefinitionContent:
       type: object
+      additionalProperties: false
       required: [overrides, query_template]
       properties:
         overrides:
