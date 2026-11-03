@@ -37,6 +37,8 @@ type Server struct {
 	users          Users
 	site           string
 	trustedProxies []netip.Prefix
+	// probeDefinitions serves /api/v1/probe-definitions.
+	probeDefinitions ProbeDefinitions
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -81,6 +83,9 @@ type Options struct {
 	// Users serves the admins' user and role operations. Without it, they
 	// fail with 500.
 	Users Users
+	// ProbeDefinitions serves the probe definition operations; without it
+	// they fail.
+	ProbeDefinitions ProbeDefinitions
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -95,14 +100,15 @@ func NewServer(opts Options) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		readiness:      &readiness{checks: opts.Checks, timeout: opts.ReadinessTimeout, logger: logger},
-		logger:         logger,
-		rules:          rules,
-		auth:           opts.Auth,
-		inventory:      opts.Inventory,
-		users:          opts.Users,
-		site:           opts.Site,
-		trustedProxies: opts.TrustedProxies,
+		readiness:        &readiness{checks: opts.Checks, timeout: opts.ReadinessTimeout, logger: logger},
+		logger:           logger,
+		rules:            rules,
+		auth:             opts.Auth,
+		inventory:        opts.Inventory,
+		probeDefinitions: opts.ProbeDefinitions,
+		users:            opts.Users,
+		site:             opts.Site,
+		trustedProxies:   opts.TrustedProxies,
 	}, nil
 }
 

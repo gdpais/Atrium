@@ -5,7 +5,7 @@ inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
 The schema is defined by the migrations in [`db/migrations`](../../db/migrations)
-(`0001_foundations`, `0002_audit_outbox`, then `0003_login_roles`), which are authoritative. If this
+(`0001_foundations`, `0002_audit_outbox`, `0003_login_roles`, then `0004_probe_definitions`), which are authoritative. If this
 page and the migrations disagree, the migrations win; please fix this page.
 
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
@@ -168,11 +168,14 @@ erDiagram
     uuid id PK
     text engine
     text name
-    text version
+    integer version
+    boolean builtin
+    text overrides "nullable"
     text category
+    text description
     integer default_interval_seconds
-    integer timeout_ms
-    text query_template
+    integer timeout_ms "nullable"
+    text query_template "nullable"
     boolean enabled
   }
   probe_assignments {
@@ -376,7 +379,19 @@ databases and versioned probe policies for the future control-plane workflow.
 Targets belong to an environment; `credential_ref` is a reference only.
 
 - Probe definitions are versioned and disabled rather than deleted
-  (`probe_assignments → probe_definitions` is `RESTRICT`).
+  (`probe_assignments → probe_definitions` is `RESTRICT`). Each row is one
+  version, numbered from 1 per engine and name, and never changes except
+  `enabled`, which the API sets on every version of a definition at once; a
+  change to what runs is a new row, so an assignment pins the version it was
+  approved with. Built-in rows (`builtin`) are the db-collector's SQL Server
+  catalog, seeded by `0004` with no `query_template`, and read-only; a test
+  fails when they and the catalog differ. A custom row's name starts with
+  `custom_`, which no built-in's does, so a later seed never meets one; it
+  names the built-in it `overrides`, the same in every version, takes its
+  category, and carries a `query_template` checked as one read-only `SELECT`
+  (a check constraint keeps the two kinds apart).
+  `timeout_ms` is null for the collector's default. Managed through
+  [`/api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions).
 - Deleting a target cascades only to its assignments.
 - Every probe must be reviewed for non-blocking behavior before being assigned
   to a production target.
@@ -426,7 +441,7 @@ Environment-level reports are a later aggregation across applications.
 | `normalization_rules` → `users` (`created_by`) | set null | Unique `(source_type, version)`; system rules have no creator |
 | `database_targets` → `environments` | restrict | Unique `(environment_id, engine, host, port, coalesce(database_name,''))` |
 | `probe_assignments` → `database_targets` | cascade | Unique `(database_target_id, probe_definition_id)` |
-| `probe_assignments` → `probe_definitions` | restrict | Definitions unique by `(engine, name, version)` |
+| `probe_assignments` → `probe_definitions` | restrict | Definitions unique by `(engine, name, version)`; an assignment pins a version |
 | `investigations` → `applications`, `environments`, `users` | restrict | `time_end >= time_start` |
 | `investigation_jobs`, `investigation_results`, `evidence_links` → `investigations` | cascade | One active job per investigation |
 | `alert_policies`, `notification_routes` → `applications` | restrict | Unique `(application_id, name)` |
