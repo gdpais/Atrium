@@ -40,6 +40,8 @@ is still pending.
 | Component | Endpoints | Notes |
 | --- | --- | --- |
 | DB collector | `:8082` — `/metrics`, `/healthz`, `/readyz`, `/admin/config`, `POST /admin/config/reload` | Reload also on SIGHUP, and on file change when `HEARTBEAT_CONFIG_WATCH_INTERVAL` is set. Credentials resolved from `HEARTBEAT_CREDENTIAL_*`. |
+| API | `:8081` — `/metrics`, `/healthz`, `/readyz` | The control plane's bootstrap ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)); an init container applies `db/migrations` first, and readiness waits for PostgreSQL at the newest of them and for Redis. Its own logs and spans go to the OTel Collector like the collector's. |
+| PostgreSQL / Valkey | `:5432` / `:6379` | The API's metadata store and Redis, as small one-replica StatefulSets for kind and CI; production uses Amazon RDS and ElastiCache ([ADR 0015](decisions/0015-postgresql-and-redis-delivery.md)). |
 | OTel Collector | OTLP `:4317` gRPC / `:4318` HTTP; Heartbeat's own logs `:4319` HTTP; Prometheus export `:8889`; health `:13133` | Exports logs to Loki's OTLP endpoint. Loki indexes only `service.name`, `service.namespace`, `deployment.environment.name` and `outsystems.log_type` as labels; every other attribute, including user, session and request IDs and client IP, is kept as structured metadata. |
 | Prometheus | `:9090` | 15s scrape. Rule files `heartbeat.rules.yml` and `generated/` (currently empty). Sends alerts to Alertmanager. |
 | Alertmanager | `:9093` | `default` and `deadmans-switch` receivers with no integrations on kind ([ADR 0009](decisions/0009-remove-the-otel-gateway.md)); the always-firing `Watchdog` alert routes to `deadmans-switch`. The production example adds chat receivers and healthchecks.io. |
@@ -47,7 +49,9 @@ is still pending.
 
 Inside the cluster each component accepts connections only from the components
 that use it, on these ports, through ingress NetworkPolicies: the DB collector
-from Prometheus (`:8082`); the OTel Collector from the DB collector (`:4318`, `:4319`)
+from Prometheus (`:8082`); the API from Prometheus (`:8081`); PostgreSQL
+(`:5432`) and Valkey (`:6379`) from the API; the OTel Collector from the DB
+collector and the API (`:4318`, `:4319`)
 and Prometheus (`:8889`); Prometheus from Grafana (`:9090`); Alertmanager from
 Prometheus (`:9093`); Loki from the OTel Collector, Grafana and Prometheus
 (`:3100`). Grafana is open to whatever serves its UI and relies on its login.
@@ -57,10 +61,10 @@ and session IDs and client IPs, so this is part of their protection
 the values are in the
 [chart guide](../guides/kubernetes-local.md#network-access).
 
-PostgreSQL and Redis are not deployed until a service uses them
-([ADR 0003](decisions/0003-helm-on-kind-and-production.md)); integration tests
-use a disposable PostgreSQL fixture. How they will be deployed is
-[ADR 0015](decisions/0015-postgresql-and-redis-delivery.md).
+The API, PostgreSQL and Valkey are deployed but not drawn yet: the API has
+no operator workflow until login and inventory [4.2, 4.3]. Integration tests
+use disposable PostgreSQL and Valkey containers of the same versions
+([ADR 0015](decisions/0015-postgresql-and-redis-delivery.md)).
 
 ## Target platform
 

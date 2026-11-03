@@ -110,3 +110,12 @@ Considered and not chosen:
   run against the new major in the same pull request.
 - Valkey is protocol-compatible with Redis 7.2; Redis-8-only commands or
   modules are not available, and the API must not depend on them.
+
+Update 2026-11-02: the templates landed with the API's chart pull request
+[4.1]. Amazon RDS has supported PostgreSQL 18 since 14 November 2025 (its
+[release calendar](https://docs.aws.amazon.com/AmazonRDS/latest/PostgreSQLReleaseNotes/postgresql-release-calendar.html)
+lists 18.6 from 25 August 2026), but the integration fixture was still on
+17.11, against point 6. The chart and the fixture moved to `postgres:18.6`
+together, and the migration tests ran on it. Valkey runs 9.1.3, the version
+of the API's integration tests; `tests/chart_engines_test.go` fails when the
+chart and the tests disagree on either engine.

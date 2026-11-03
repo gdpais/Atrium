@@ -26,7 +26,7 @@ Early MVP construction. See the [roadmap](docs/product/roadmap.md) and
 | Kubernetes delivery | `infra/helm`, `infra/kind` | One Helm chart for kind, CI and production: the DB collector plus pinned Prometheus, Alertmanager, Grafana, Loki and OTel Collector; kind workflow and acceptance tests |
 | Metadata schema | `db/migrations` | Migrated and tested; no service uses it yet |
 | Shared contracts | `packages/` | JSON schemas for config and telemetry payloads |
-| API | `apps/api` | Bootstrap: health, readiness on PostgreSQL and Redis (Valkey), metrics, the OpenAPI spec and `api migrate up`; not deployed |
+| API | `apps/api` | Bootstrap: health, readiness on PostgreSQL and Redis (Valkey), metrics, the OpenAPI spec and `api migrate up`; deployed by the chart with its PostgreSQL and Valkey, migrating in an init container |
 | Web UI | `apps/web` | Not started |
 | Session analyzer, reporting | `services/session-analyzer`, `services/reporting` | Not started |
 

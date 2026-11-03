@@ -90,6 +90,16 @@ type chartProfile struct {
 	// notes are lines the NOTES.txt that helm install prints must contain,
 	// and notesAbsent text it must not.
 	notes, notesAbsent []string
+	// apiPeers are the sources the API's NetworkPolicy must admit to port
+	// 8081, in peerString form; empty means it denies all ingress, nil skips
+	// the check.
+	apiPeers []string
+	// apiDeps is where the API must find PostgreSQL and Redis; nil means the
+	// bundled postgresql and valkey, without TLS.
+	apiDeps *apiDependencies
+	// engineExtraPeers are the peers the bundled postgresql and valkey admit
+	// besides the API, by engine, in peerString form.
+	engineExtraPeers map[string][]string
 }
 
 // bundledPrometheusPeer is the bundled Prometheus server as a NetworkPolicy
@@ -100,6 +110,7 @@ const bundledPrometheusPeer = "pods{app.kubernetes.io/component=server,app.kuber
 // operator range (the host through a loopback NodePort).
 const (
 	dbCollectorPeer   = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=db-collector}"
+	apiPeer           = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=api}"
 	grafanaPeer       = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=grafana}"
 	otelCollectorPeer = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=otelCollector}"
 	lokiPeer          = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=loki}"
@@ -119,7 +130,7 @@ var kindCollectorEgress = []string{
 // defaultBackendPolicies are the engine policies with every component on:
 // each engine admits only the components that use it, on their ports.
 var defaultBackendPolicies = map[string][]string{
-	"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
+	"otel-collector": slices.Concat(otlpSenders, []string{"TCP/8889 <- " + bundledPrometheusPeer}),
 	"prometheus":     {"TCP/9090 <- " + grafanaPeer},
 	"alertmanager":   {"TCP/9093 <- " + bundledPrometheusPeer},
 	"loki": {
@@ -127,6 +138,14 @@ var defaultBackendPolicies = map[string][]string{
 		"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 	},
 	"tempo": {"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer, "TCP/3200 <- " + bundledPrometheusPeer},
+}
+
+// otlpSenders are the OTel Collector's OTLP clients: the db-collector and the
+// API, on OTLP/HTTP (spans, the collector's OutSystems rows) and their own
+// logs' port (ADR 0018).
+var otlpSenders = []string{
+	"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer,
+	"TCP/4318 <- " + apiPeer, "TCP/4319 <- " + apiPeer,
 }
 
 // kindBackendPolicies adds the kind values' operator access to the engines
@@ -164,26 +183,35 @@ func withoutPeers(policies map[string][]string, peers ...string) map[string][]st
 var chartProfiles = []chartProfile{
 	{
 		name:            "defaults",
-		present:         []string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"},
+		present:         slices.Concat([]string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
+		absent:          []string{"PersistentVolumeClaim/valkey-data"},
 		collectorPeers:  []string{bundledPrometheusPeer},
+		apiPeers:        []string{bundledPrometheusPeer},
 		backendPolicies: defaultBackendPolicies,
 		collectorIDs:    []string{"sqlserver-default"},
 		notes: []string{
 			"- heartbeat-runtime (key admin-token)",
 			"- grafana-admin (keys admin-user, admin-password)",
-			"kubectl -n heartbeat get secret heartbeat-runtime grafana-admin\n",
+			"- heartbeat-api-credentials (keys HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES, HEARTBEAT_CREDENTIAL_SECRET_API_REDIS)",
+			"- heartbeat-postgresql (key password)",
+			"- heartbeat-valkey (key password)",
+			"kubectl -n heartbeat get secret heartbeat-runtime heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey grafana-admin\n",
 			"kubectl -n heartbeat rollout status statefulset/db-collector",
+			"kubectl -n heartbeat rollout status deployment/api",
+			"The bundled PostgreSQL and Valkey are for kind and CI",
 			"kubectl -n heartbeat port-forward svc/grafana 3000:3000",
 			"No SQL Server target is configured yet",
 			"https://github.com/gdpais/heartbeat/blob/v",
 			"/docs/guides/install-from-release.md",
 		},
-		notesAbsent: []string{"HEARTBEAT_CREDENTIAL_", "WARNING"},
+		// The collector's SQL Server logins are not mounted by default.
+		notesAbsent: []string{"HEARTBEAT_CREDENTIAL_<REF>", "WARNING"},
 	},
 	{
-		name:    "kind",
-		values:  []string{"kind.yaml"},
-		present: []string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"},
+		name:     "kind",
+		values:   []string{"kind.yaml"},
+		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
+		apiPeers: []string{bundledPrometheusPeer},
 		// The host through the loopback NodePort; pods stay limited to Prometheus.
 		collectorPeers:  []string{bundledPrometheusPeer, kindHostPeer},
 		collectorEgress: kindCollectorEgress,
@@ -192,7 +220,8 @@ var chartProfiles = []chartProfile{
 	{
 		name:           "kind-minimal",
 		values:         []string{"kind.yaml", "minimal.yaml"},
-		present:        []string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "NetworkPolicy/db-collector"},
+		present:        slices.Concat([]string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "NetworkPolicy/db-collector"}, apiObjects),
+		apiPeers:       []string{bundledPrometheusPeer},
 		absent:         []string{"StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue"},
 		collectorPeers: []string{bundledPrometheusPeer, kindHostPeer},
 		// Without the OTel Collector there is nothing to export to.
@@ -209,15 +238,23 @@ var chartProfiles = []chartProfile{
 		credentialsSecret: "heartbeat-sqlserver-dev-credentials",
 		notes: []string{
 			"- heartbeat-sqlserver-dev-credentials (a HEARTBEAT_CREDENTIAL_<REF> key per credential_ref)",
-			"get secret heartbeat-runtime heartbeat-sqlserver-dev-credentials grafana-admin\n",
+			"get secret heartbeat-runtime heartbeat-sqlserver-dev-credentials heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey grafana-admin\n",
 			"WARNING: dbCollector.sqlserver.trustServerCertificate is true",
 		},
 		notesAbsent: []string{"No SQL Server target"},
 	},
 	{
-		name:              "production-example",
-		values:            []string{"production.example.yaml"},
-		present:           []string{"StatefulSet/db-collector", "Ingress/grafana", "NetworkPolicy/db-collector"},
+		name:    "production-example",
+		values:  []string{"production.example.yaml"},
+		present: []string{"StatefulSet/db-collector", "Ingress/grafana", "NetworkPolicy/db-collector", "Deployment/api", "NetworkPolicy/api"},
+		// RDS and ElastiCache instead of the bundled engines (ADR 0015).
+		absent:   bundledEngineObjects,
+		apiPeers: []string{bundledPrometheusPeer},
+		apiDeps: &apiDependencies{
+			postgresHost: "heartbeat.<id>.<region>.rds.amazonaws.com", postgresPort: "5432", postgresDatabase: "heartbeat",
+			sslMode: "verify-full", sslRootCert: "/etc/heartbeat/rds-ca/global-bundle.pem",
+			redisAddr: "master.heartbeat.<id>.<region>.cache.amazonaws.com:6379", redisTLS: "true",
+		},
 		collectorPeers:    []string{bundledPrometheusPeer, "ip 10.100.0.0/16"},
 		collectorEgress:   []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16"},
 		backendPolicies:   defaultBackendPolicies,
@@ -235,10 +272,13 @@ var chartProfiles = []chartProfile{
 		absent:         []string{"Deployment/prometheus", "Deployment/grafana"},
 		collectorPeers: []string{"ns{kubernetes.io/metadata.name=monitoring} pods{app.kubernetes.io/name=prometheus}"},
 		// Without the bundled Grafana its Secret and port-forward are not listed.
-		notes:       []string{"kubectl -n heartbeat get secret heartbeat-runtime\n"},
+		notes:       []string{"kubectl -n heartbeat get secret heartbeat-runtime heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey\n"},
 		notesAbsent: []string{"grafana"},
 		backendPolicies: withPairs(withoutPeers(defaultBackendPolicies, bundledPrometheusPeer, grafanaPeer), nil,
 			"prometheus", "alertmanager"),
+		// The shared Prometheus is added to api.networkPolicy.peers as it is
+		// to the collector's scrapers; without it the API admits no one.
+		apiPeers: []string{},
 	},
 	{
 		// Another observability platform (ADR 0011): no bundled engines or
@@ -251,7 +291,9 @@ var chartProfiles = []chartProfile{
 		collectorPeers:     []string{"pods{app.kubernetes.io/name=otelCollector,component=statefulset-collector}"},
 		collectorReceivers: []string{"otlp", "otlp/self", "prometheus"},
 		// Only the db-collector sends to the Collector; nothing scrapes it.
-		backendPolicies: map[string][]string{"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer}},
+		backendPolicies: map[string][]string{"otel-collector": otlpSenders},
+		// The Collector scrapes the API in Prometheus' place.
+		apiPeers: []string{"pods{app.kubernetes.io/name=otelCollector,component=statefulset-collector}"},
 	},
 	{
 		// No peer at all must deny all ingress, never render an empty `from`
@@ -269,7 +311,7 @@ var chartProfiles = []chartProfile{
 		present:        []string{"Deployment/prometheus", "NetworkPolicy/db-collector"},
 		collectorPeers: []string{"pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
 		backendPolicies: map[string][]string{
-			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer, "TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
+			"otel-collector": slices.Concat(otlpSenders, []string{"TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"}),
 			"prometheus":     {"TCP/9090 <- " + grafanaPeer},
 			"alertmanager":   {"TCP/9093 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
 			"loki": {
@@ -340,7 +382,7 @@ var chartProfiles = []chartProfile{
 		},
 		collectorPeers: []string{bundledPrometheusPeer},
 		backendPolicies: map[string][]string{
-			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4319 <- " + dbCollectorPeer},
+			"otel-collector": otlpSenders,
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           withoutPeers(defaultBackendPolicies, bundledPrometheusPeer)["loki"],
@@ -528,7 +570,7 @@ var chartProfiles = []chartProfile{
 		collectorPeers:  []string{bundledPrometheusPeer},
 		collectorEgress: []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer},
 		backendPolicies: map[string][]string{
-			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/8889 <- " + bundledPrometheusPeer},
+			"otel-collector": {"TCP/4318 <- " + dbCollectorPeer, "TCP/4318 <- " + apiPeer, "TCP/8889 <- " + bundledPrometheusPeer},
 			"prometheus":     defaultBackendPolicies["prometheus"],
 			"alertmanager":   defaultBackendPolicies["alertmanager"],
 			"loki":           defaultBackendPolicies["loki"],
@@ -754,6 +796,207 @@ var chartProfiles = []chartProfile{
 		flags:     []string{"--skip-schema-validation"},
 		wantError: `collector id "api-finance-prod-60s" is listed twice, at integrations.collectors[0] and managedCollectors[0]`,
 	},
+	{
+		// External servers get TLS without being asked for it (ADR 0015):
+		// verify-full and Redis TLS on.
+		name:           "api-external-dependencies",
+		collectorPeers: []string{bundledPrometheusPeer},
+		set: []string{
+			"postgresql.enabled=false", "valkey.enabled=false",
+			"api.postgres.host=db.example.internal", "api.redis.addr=cache.example.internal:6380",
+		},
+		present:  []string{"Deployment/api", "NetworkPolicy/api"},
+		absent:   bundledEngineObjects,
+		apiPeers: []string{bundledPrometheusPeer},
+		apiDeps: &apiDependencies{
+			postgresHost: "db.example.internal", postgresPort: "5432", postgresDatabase: "heartbeat",
+			sslMode: "verify-full", redisAddr: "cache.example.internal:6380", redisTLS: "true",
+		},
+		notesAbsent: []string{"heartbeat-postgresql", "heartbeat-valkey", "The bundled"},
+	},
+	{
+		// What the values say wins over the defaults, for either kind of
+		// server.
+		name:           "api-dependencies-explicit",
+		collectorPeers: []string{bundledPrometheusPeer},
+		set: []string{
+			"valkey.enabled=false", "api.postgres.sslMode=require", "api.postgres.port=6543", "api.postgres.database=ignored",
+			"api.redis.addr=cache.example.internal:6379", "api.redis.tls=false",
+		},
+		present: []string{"Deployment/api", "StatefulSet/postgresql"},
+		absent:  []string{"StatefulSet/valkey", "NetworkPolicy/valkey"},
+		// The bundled PostgreSQL listens on 5432 and has its own database.
+		apiDeps: &apiDependencies{
+			postgresHost: "postgresql", postgresPort: "5432", postgresDatabase: "heartbeat",
+			sslMode: "require", redisAddr: "cache.example.internal:6379", redisTLS: "false",
+		},
+		notes: []string{"The bundled PostgreSQL is for kind and CI"},
+	},
+	{
+		name:      "api-without-postgresql",
+		set:       []string{"postgresql.enabled=false"},
+		wantError: "api.postgres.host is required when postgresql.enabled is false",
+	},
+	{
+		name:      "api-without-valkey",
+		set:       []string{"valkey.enabled=false"},
+		wantError: "api.redis.addr is required when valkey.enabled is false",
+	},
+	{
+		// Without the API, and with its scrape job off, nothing else
+		// changes: the bundled engines are off too, and the OTel Collector
+		// admits only the db-collector.
+		name: "api-disabled",
+		set: []string{
+			"api.enabled=false", "postgresql.enabled=false", "valkey.enabled=false",
+			"prometheus.scrapeConfigs.api.enabled=false",
+		},
+		present:         []string{"StatefulSet/db-collector"},
+		absent:          slices.Concat(apiObjects, []string{"Service/api", "Service/api-headless"}),
+		collectorPeers:  []string{bundledPrometheusPeer},
+		backendPolicies: withoutPeers(defaultBackendPolicies, apiPeer),
+		notesAbsent:     []string{"deployment/api", "heartbeat-api-credentials", "The bundled"},
+	},
+	{
+		// The bundled engines without the API admit no one.
+		name:            "engines-without-api",
+		collectorPeers:  []string{bundledPrometheusPeer},
+		set:             []string{"api.enabled=false", "prometheus.scrapeConfigs.api.enabled=false"},
+		present:         []string{"StatefulSet/postgresql", "StatefulSet/valkey", "NetworkPolicy/postgresql", "NetworkPolicy/valkey"},
+		absent:          []string{"Deployment/api", "NetworkPolicy/api"},
+		backendPolicies: withoutPeers(defaultBackendPolicies, apiPeer),
+	},
+	{
+		// The API's policy follows the api scrape job: off, Prometheus is not
+		// admitted.
+		name:           "api-scrape-disabled",
+		collectorPeers: []string{bundledPrometheusPeer},
+		set:            []string{"prometheus.scrapeConfigs.api.enabled=false"},
+		present:        []string{"Deployment/api", "NetworkPolicy/api"},
+		apiPeers:       []string{},
+	},
+	{
+		name:           "api-extra-peers",
+		collectorPeers: []string{bundledPrometheusPeer},
+		inline:         "api: {networkPolicy: {peers: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress}}, podSelector: {matchLabels: {app: ingress}}}]}}\n",
+		present:        []string{"NetworkPolicy/api"},
+		apiPeers:       []string{bundledPrometheusPeer, "ns{kubernetes.io/metadata.name=ingress} pods{app=ingress}"},
+	},
+	{
+		name:           "api-policy-disabled",
+		collectorPeers: []string{bundledPrometheusPeer},
+		set:            []string{"api.networkPolicy.enabled=false", "postgresql.networkPolicy.enabled=false", "valkey.networkPolicy.enabled=false"},
+		present:        []string{"Deployment/api"},
+		absent:         []string{"NetworkPolicy/api", "NetworkPolicy/postgresql", "NetworkPolicy/valkey"},
+	},
+	{
+		// Valkey keeps an append-only file on a claim when asked to.
+		name:           "valkey-persistence",
+		collectorPeers: []string{bundledPrometheusPeer},
+		set:            []string{"valkey.persistence.enabled=true"},
+		present:        []string{"StatefulSet/valkey", "PersistentVolumeClaim/valkey-data"},
+	},
+	{
+		// Under another job name absent(up{job="api"}) matches nothing.
+		name:           "api-job-renamed",
+		set:            []string{"prometheus.scrapeConfigs.api.job_name=heartbeat-api"},
+		collectorPeers: []string{bundledPrometheusPeer},
+		present:        []string{"Deployment/api", "ConfigMap/heartbeat-prometheus-rules"},
+	},
+	{
+		name:      "unknown-api-key",
+		set:       []string{"api.enabeld=false"},
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "unknown-api-nested-key",
+		inline:    "api: {postgres: {hostname: db.example.internal}}",
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "unknown-postgresql-key",
+		inline:    "postgresql: {persistance: {size: 2Gi}}",
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "unknown-valkey-key",
+		inline:    "valkey: {auth: {pasword: password}}",
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		// libpq's prefer and allow fall back to plain text; the API refuses
+		// them too.
+		name:      "api-ssl-mode-prefer",
+		set:       []string{"api.postgres.sslMode=prefer"},
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "api-postgres-host-with-port",
+		set:       []string{"api.postgres.host=db.example.internal:5432"},
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		name:      "api-redis-addr-url",
+		set:       []string{"api.redis.addr=rediss://cache.example.internal:6379"},
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		// A password in a -c parameter name would reach the command line.
+		name:      "postgresql-parameter-name",
+		inline:    "postgresql: {parameters: {\"password=x -c shared_buffers\": 1MB}}",
+		wantError: "values don't meet the specifications of the schema",
+	},
+	{
+		// Every field the chart reads is still accepted.
+		name:           "every-api-value",
+		collectorPeers: []string{bundledPrometheusPeer},
+		inline: "api:\n" +
+			"  image: {repository: registry.example.internal/api, tag: \"1.2.3\", digest: \"sha256:0000000000000000000000000000000000000000000000000000000000000000\", pullPolicy: Always}\n" +
+			"  replicas: 2\n" +
+			"  credentials: {existingSecret: api-creds}\n" +
+			"  postgres: {host: db.example.internal, port: 5433, database: hb, sslMode: verify-ca, sslRootCert: /etc/ca/ca.pem}\n" +
+			"  redis: {addr: cache.example.internal:6379, tls: true}\n" +
+			"  terminationGracePeriodSeconds: 30\n" +
+			"  service: {port: 8081}\n" +
+			"  networkPolicy: {enabled: true, peers: []}\n" +
+			"  resources: {requests: {cpu: 100m, memory: 128Mi}, limits: {memory: 512Mi}}\n" +
+			"  goMemLimit: 400MiB\n" +
+			"  migrate: {resources: {requests: {cpu: 10m}}}\n" +
+			"  extraEnv: [{name: X, value: \"1\"}]\n" +
+			"  extraVolumes: [{name: ca, configMap: {name: ca}}]\n" +
+			"  extraVolumeMounts: [{name: ca, mountPath: /etc/ca, readOnly: true}]\n" +
+			"  podAnnotations: {a: b}\n" +
+			"  nodeSelector: {kubernetes.io/os: linux}\n" +
+			"  tolerations: [{key: k, operator: Exists}]\n" +
+			"  affinity: {}\n" +
+			"postgresql:\n" +
+			"  image: {repository: postgres, tag: \"18.6\", pullPolicy: Always}\n" +
+			"  auth: {username: hb, database: hb, existingSecret: pg, passwordKey: pw}\n" +
+			"  parameters: {shared_buffers: 64MB, max_connections: 20, log_connections: true}\n" +
+			"  persistence: {size: 2Gi, storageClassName: standard}\n" +
+			"  networkPolicy: {enabled: true, extraPeers: [{podSelector: {matchLabels: {app: psql}}}]}\n" +
+			"  resources: {limits: {memory: 512Mi}}\n" +
+			"  nodeSelector: {}\n" +
+			"  tolerations: []\n" +
+			"  affinity: {}\n" +
+			"valkey:\n" +
+			"  image: {repository: valkey/valkey, tag: \"9.1.3\", pullPolicy: Always}\n" +
+			"  auth: {existingSecret: vk, passwordKey: pw}\n" +
+			"  maxmemory: 1gb\n" +
+			"  persistence: {enabled: true, size: 2Gi, storageClassName: standard}\n" +
+			"  networkPolicy: {enabled: true, extraPeers: []}\n" +
+			"  resources: {limits: {memory: 1280Mi}}\n" +
+			"  nodeSelector: {}\n" +
+			"  tolerations: []\n" +
+			"  affinity: {}\n",
+		present:          slices.Concat(apiObjects, []string{"PersistentVolumeClaim/valkey-data"}),
+		apiPeers:         []string{bundledPrometheusPeer},
+		engineExtraPeers: map[string][]string{"postgresql": {"pods{app=psql}"}},
+		apiDeps: &apiDependencies{
+			postgresHost: "db.example.internal", postgresPort: "5433", postgresDatabase: "hb",
+			sslMode: "verify-ca", sslRootCert: "/etc/ca/ca.pem", redisAddr: "cache.example.internal:6379", redisTLS: "true",
+		},
+	},
 }
 
 // managedCollectorsValues is a managedCollectors list as the Heartbeat API
@@ -964,6 +1207,10 @@ func TestChartProfiles(t *testing.T) {
 			checkNotes(t, profile)
 			checkConfigReloadAlert(t, objects, profile.configReloadAlertOff)
 			checkCollectorMissingAlert(t, objects)
+			checkAPIMissingAlert(t, objects)
+			checkAPI(t, objects, profile.apiDeps)
+			checkAPINetworkPolicy(t, objects, profile.apiPeers)
+			checkBundledEngines(t, objects, profile.engineExtraPeers)
 		})
 	}
 }
@@ -1238,7 +1485,7 @@ func checkCollectorSingleton(t *testing.T, objects map[string]object) {
 // delete. Alertmanager's chart has no setting for it and keeps OrderedReady.
 func checkStatefulSetPolicies(t *testing.T, objects map[string]object) {
 	t.Helper()
-	for _, name := range []string{"db-collector", "otel-collector", "loki"} {
+	for _, name := range []string{"db-collector", "otel-collector", "loki", "postgresql", "valkey"} {
 		sts, ok := objects["StatefulSet/"+name]
 		if !ok {
 			continue
@@ -2232,7 +2479,7 @@ func checkBackendNetworkPolicies(t *testing.T, objects map[string]object, want m
 		return
 	}
 	for id, obj := range objects {
-		if obj.Kind != "NetworkPolicy" || obj.Metadata.Name == "db-collector" {
+		if obj.Kind != "NetworkPolicy" || heartbeatPolicies[obj.Metadata.Name] {
 			continue
 		}
 		if _, ok := want[obj.Metadata.Name]; !ok {

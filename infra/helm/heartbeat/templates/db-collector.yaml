@@ -81,22 +81,8 @@ spec:
             - name: GOMEMLIMIT
               value: {{ . | quote }}
             {{- end }}
-            {{- if and .Values.telemetry.enabled .Values.otelCollector.enabled }}
-            # The port and pipeline of Heartbeat's own logs, never 4318 (ADR 0018).
-            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
-              value: http://{{ .Values.otelCollector.fullnameOverride }}:{{ dig "otlp-self" "servicePort" 4319 (.Values.otelCollector.ports | default dict) }}/v1/logs
-            {{- end }}
-            {{- if and .Values.telemetry.enabled .Values.telemetry.traces.enabled .Values.otelCollector.enabled }}
-            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-              value: http://{{ .Values.otelCollector.fullnameOverride }}:{{ dig "otlp-http" "servicePort" 4318 (.Values.otelCollector.ports | default dict) }}/v1/traces
-            - name: OTEL_TRACES_SAMPLER
-              value: parentbased_traceidratio
-            - name: OTEL_TRACES_SAMPLER_ARG
-              value: {{ .Values.telemetry.traces.sampleRatio | quote }}
-            {{- end }}
-            {{- with .Values.telemetry.environment }}
-            - name: OTEL_RESOURCE_ATTRIBUTES
-              value: deployment.environment.name={{ . }}
+            {{- with include "heartbeat.telemetryEnv" . }}
+            {{- . | nindent 12 }}
             {{- end }}
             {{- with $c.extraEnv }}
             {{- toYaml . | nindent 12 }}

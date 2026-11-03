@@ -388,8 +388,10 @@ running. The Secret is not loaded into the environment, so a
 `HEARTBEAT_CREDENTIAL_*` variable reaches the container only through
 `dbCollector.extraEnv`.
 
-The API is not deployed yet; the chart mounts its credentials the same way
-when it does [4.1].
+The chart mounts the API's Secret, `api.credentials.existingSecret`, the
+same way, in the API's container and in its `migrate` init container; its
+keys are `HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES` and
+`HEARTBEAT_CREDENTIAL_SECRET_API_REDIS` ([API](#api)).
 
 Outside Kubernetes (`go run`, tests), leave `HEARTBEAT_CREDENTIALS_DIR` unset
 and export the variables; exporting them in your host shell does not pass them
@@ -419,9 +421,12 @@ into a pod.
 
 ### API
 
-Not deployed yet ([run it locally](../guides/local-development.md#run-the-api)).
-A value that cannot work stops startup with an error naming the variable,
-instead of falling back to the default.
+The chart sets these from the `api` values: `api.postgres` and `api.redis`,
+or, when those are empty, the bundled `postgresql` and `valkey` without TLS
+(`disable` and `false`); any other server gets `verify-full` and TLS unless
+the values turn them off. The telemetry variables are set as the
+collector's. A value that cannot work stops startup with an error naming the
+variable, instead of falling back to the default.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -436,8 +441,9 @@ instead of falling back to the default.
 | `HEARTBEAT_API_REDIS_TLS` | `true` | TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. `false` for a server without TLS on a trusted network: kind, a local container |
 | `HEARTBEAT_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `HEARTBEAT_CREDENTIAL_<REF>` files, read on every new connection |
-| `HEARTBEAT_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `HeartbeatAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
+| `HEARTBEAT_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. The chart sets it while `otelCollector.enabled` is on. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `HeartbeatAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
 | `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
+| `GOMEMLIMIT` | unset | As for the DB collector, from `api.resources.limits.memory` and `api.goMemLimit` |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |
 
 The settings above win over libpq's `PG*` environment variables, which the
@@ -450,9 +456,10 @@ credential is missing, and `GET /readyz` answers 503 until both work
 ([endpoints](metrics-and-endpoints.md#api-8081)).
 
 The same binary applies the migrations and creates admins
-([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)).
-These commands read only the PostgreSQL settings and the credential lookup,
-then exit:
+([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)):
+the chart runs `api migrate up` in each API pod's `migrate` init container,
+before the API starts. These commands read only the PostgreSQL settings and
+the credential lookup, then exit:
 
 | Command | Does |
 | --- | --- |
