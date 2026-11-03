@@ -75,6 +75,8 @@ func TestRequiredFoundationFilesExist(t *testing.T) {
 		"db/migrations/0001_foundations.down.sql",
 		"db/migrations/0002_audit_outbox.up.sql",
 		"db/migrations/0002_audit_outbox.down.sql",
+		"db/migrations/0003_login_roles.up.sql",
+		"db/migrations/0003_login_roles.down.sql",
 		"db/migrations/0004_probe_definitions.up.sql",
 		"db/migrations/0004_probe_definitions.down.sql",
 	}
@@ -224,6 +226,8 @@ func TestMigrationFilesUseSQLExtension(t *testing.T) {
 		"db/migrations/0001_foundations.down.sql",
 		"db/migrations/0002_audit_outbox.up.sql",
 		"db/migrations/0002_audit_outbox.down.sql",
+		"db/migrations/0003_login_roles.up.sql",
+		"db/migrations/0003_login_roles.down.sql",
 		"db/migrations/0004_probe_definitions.up.sql",
 		"db/migrations/0004_probe_definitions.down.sql",
 	} {

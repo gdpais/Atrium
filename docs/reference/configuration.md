@@ -424,9 +424,11 @@ into a pod.
 The chart sets these from the `api` values: `api.postgres` and `api.redis`,
 or, when those are empty, the bundled `postgresql` and `valkey` without TLS
 (`disable` and `false`); any other server gets `verify-full` and TLS unless
-the values turn them off. The telemetry variables are set as the
-collector's. A value that cannot work stops startup with an error naming the
-variable, instead of falling back to the default.
+the values turn them off. `HEARTBEAT_API_SITE_ORIGIN` comes from
+`api.siteOrigin`; the other session settings take their defaults, or
+`api.extraEnv`. The telemetry variables are set as the collector's. A value
+that cannot work stops startup with an error naming the variable, instead of
+falling back to the default.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -442,6 +444,11 @@ variable, instead of falling back to the default.
 | `HEARTBEAT_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `HEARTBEAT_CREDENTIAL_<REF>` files, read on every new connection |
 | `HEARTBEAT_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. The chart sets it while `otelCollector.enabled` is on. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `HeartbeatAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
+| `HEARTBEAT_API_SITE_ORIGIN` | unset (unsafe requests refused) | The origin browsers reach the API at, such as `https://heartbeat.example.com`: scheme and host, a port only when it is not the scheme's default, no path. `POST`, `PUT`, `PATCH` and `DELETE` need one `Origin` header equal to it, or are refused with 403 before they run, logging in included ([sessions](metrics-and-endpoints.md#logging-in-and-sessions)). Written as a browser writes the header: lower case, without `:443` or `:80` or a trailing slash. Unset, the API logs a warning at startup and nobody can log in |
+| `HEARTBEAT_API_SESSION_IDLE_TIMEOUT` | `8h` | A session ends after this long without a request. A Go duration, at least `1m`, at most the max age. Requests move the deadline at most once a minute |
+| `HEARTBEAT_API_SESSION_MAX_AGE` | `168h` (7 days) | A session ends this long after login, however active. At least `1m`. The cookie's `Max-Age` too |
+| `HEARTBEAT_API_TRUSTED_PROXIES` | unset (none) | Comma-separated addresses or CIDRs, such as `10.0.0.0/8`, of proxies (an ingress controller) whose `X-Forwarded-For` names the client. The API reads the header from its end, only as far as these proxies wrote it, so a client cannot choose its own address. The client address is what failed logins are counted by and what audit records show; unset, it is the TCP peer's |
+| `HEARTBEAT_API_SHUTDOWN_DELAY` | `5s` | How long the API keeps serving after `SIGTERM`, with `GET /readyz` answering 503, before it stops accepting connections: time for its Service to stop sending it requests. `0s` to `1m`. The chart's `api.terminationGracePeriodSeconds` (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay |
 | `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
 | `GOMEMLIMIT` | unset | As for the DB collector, from `api.resources.limits.memory` and `api.goMemLimit` |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |

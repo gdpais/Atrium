@@ -87,6 +87,10 @@ spec:
               value: {{ $deps.redisAddr | quote }}
             - name: HEARTBEAT_API_REDIS_TLS
               value: {{ $deps.redisTLS | quote }}
+            {{- with $a.siteOrigin }}
+            - name: HEARTBEAT_API_SITE_ORIGIN
+              value: {{ . | quote }}
+            {{- end }}
             {{- if .Values.otelCollector.enabled }}
             # Audit records go to the Collector's OTLP/HTTP receiver, the logs
             # pipeline whose queue is on disk (ADR 0016), never 4319: they

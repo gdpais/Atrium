@@ -106,6 +106,46 @@ select concat_ws(',',
 	}
 }
 
+// 0003 seeds the operator and viewer roles beside 0002's admin. Its down
+// migration removes them and their grants and keeps admin's, and its up
+// migration applies again, even over rows it already seeded.
+func TestLoginRolesMigrationUpAndDown(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	stack := newPostgresStack(t, root)
+	stack.ResetDatabase(t)
+	stack.ApplyMigration(t, "/migrations/0001_foundations.up.sql")
+	stack.ApplyMigration(t, "/migrations/0002_audit_outbox.up.sql")
+	stack.PSQL(t, stack.DBName, `
+insert into users (email, display_name) values ('admin@example.com', 'Admin'), ('wall@example.com', 'Wallboard');
+insert into user_roles (user_id, role_id)
+select u.id, r.id from users u, roles r where u.email = 'admin@example.com' and r.name = 'admin';
+`)
+	const roles = `select string_agg(name, ',' order by name) from roles;`
+	const grants = `
+select string_agg(u.email || ':' || r.name, ',' order by u.email)
+from user_roles ur join users u on u.id = ur.user_id join roles r on r.id = ur.role_id;
+`
+	for round := 1; round <= 2; round++ {
+		stack.ApplyMigration(t, "/migrations/0003_login_roles.up.sql")
+		stack.ApplyMigration(t, "/migrations/0003_login_roles.up.sql")
+		if stdout := stack.PSQL(t, stack.DBName, roles); !strings.Contains(stdout, "admin,operator,viewer") {
+			t.Fatalf("round %d, after up: roles %s", round, stdout)
+		}
+		stack.PSQL(t, stack.DBName, `
+insert into user_roles (user_id, role_id)
+select u.id, r.id from users u, roles r where u.email = 'wall@example.com' and r.name = 'viewer';
+`)
+		stack.ApplyMigration(t, "/migrations/0003_login_roles.down.sql")
+		if stdout := stack.PSQL(t, stack.DBName, roles); !strings.Contains(stdout, "admin") || strings.Contains(stdout, "operator") || strings.Contains(stdout, "viewer") {
+			t.Fatalf("round %d, after down: roles %s", round, stdout)
+		}
+		if stdout := stack.PSQL(t, stack.DBName, grants); !strings.Contains(stdout, "admin@example.com:admin") || strings.Contains(stdout, "wall@example.com") {
+			t.Fatalf("round %d, after down: grants %s", round, stdout)
+		}
+	}
+}
+
 // 0004 versions probe definitions and seeds the built-ins; its down
 // migration removes them again with every custom definition, so the up
 // migration applies twice.

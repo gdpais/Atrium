@@ -82,15 +82,98 @@ served beside it.
 
 | Endpoint | Auth | Behavior |
 | --- | --- | --- |
-| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), [audit delivery](#audit-delivery), Go runtime and process metrics |
+| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), [logins](#logins), [audit delivery](#audit-delivery), Go runtime and process metrics |
 | `GET /healthz` | none | Liveness only; 200 `ok` while the process serves HTTP. It checks no dependency, so a PostgreSQL or Redis outage never restarts the pod |
 | `GET /readyz` | none | 200 when every readiness check passes, 503 otherwise. The checks run concurrently on each call, 2s at most in all; a check without an answer by then fails. `postgresql`: a query reaches the database and its schema version is at least the newest migration the API embeds, and that migration is not dirty (a newer version passes, dirty or not, so the previous release keeps serving while the next one migrates). `redis`: a `PING` reaches Redis (Valkey) and authenticates. Each passes again on its own once its dependency is back. The body is only `{"status":"ready"}` or `{"status":"not_ready"}`; the failing checks and their errors (`schema not migrated`, a refused connection, a failed login, never a password) are logged when the status changes |
 
-On `SIGTERM` or `SIGINT` the API stops accepting connections and its audit
+| `POST /api/v1/session` | none; `Origin` | Log in: 201 with the session and its cookie ([below](#logging-in-and-sessions)) |
+| `GET /api/v1/session` | session, `viewer` | 200 with the current session and its user |
+| `DELETE /api/v1/session` | session, `viewer`; `Origin` | Log out: 204, and the cookie is cleared |
+
+On `SIGTERM` or `SIGINT` the API answers `GET /readyz` with 503 and keeps
+serving for `HEARTBEAT_API_SHUTDOWN_DELAY` (5s), while its Service stops
+sending it requests; then it stops accepting connections and its audit
 drainer, waits up to 10s for the requests in flight, closes the rest, then
 closes its PostgreSQL and Redis connections. An audit export in flight is
 abandoned, and its records are sent again by another replica or the next
 one; records the Collector already accepted are still deleted, within 5s.
+
+### Logging in and sessions
+
+Local users log in with their email and password and get a cookie session
+([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)
+§7–8). The first admin comes from
+[`api users create-admin`](configuration.md#api); managing other users and
+their roles through the API is the next part of [4.2].
+
+**Who may call what.** Every operation in
+[`openapi.yaml`](../../apps/api/openapi.yaml) declares it with `security`:
+`[]` for one anyone may call, or the `session` scheme with the least role it
+needs. Roles rank `viewer` (reads; wallboards) < `operator` (changes
+inventory, sources, targets and probes) < `admin` (everything, users and
+roles included); a user may call what any of their roles allows. The API
+reads each operation's rule from the spec at startup and refuses to start if
+one declares none, so no operation is served on a default.
+
+**Before each operation**, in this order: the response gets an
+`X-Request-Id` (a UUID, the `request_id` of any audit record the request
+writes); a body over 1 MiB is refused; `POST`, `PUT`, `PATCH` and `DELETE`
+need one `Origin` header equal to `HEARTBEAT_API_SITE_ORIGIN` (403
+otherwise; browsers send it with every such request, so a page on another
+site cannot make one with the user's cookie); then, unless the operation is
+public, the session cookie must name a live session (401, and the cookie is
+cleared) whose user is active and has the role (403). The user and their
+roles are read on every request: disabling a user or changing their roles
+applies to their next request.
+
+**Logging in.** `POST /api/v1/session` with
+`{"email": "...", "password": "..."}`:
+
+| Status | When |
+| --- | --- |
+| 201 | Logged in. The body is the session (`id`, `user` with `id`, `email`, `display_name`, `roles`, `created_at`, `expires_at`); `Set-Cookie` holds the session |
+| 400 | Not JSON, an email that is not an address, or a password that is empty, over 1,024 bytes or not UTF-8. Not counted as a failure |
+| 401 | Wrong password, unknown email, disabled user, a user without a password: the same `wrong email or password` for all, after the same work (an unknown email is checked against a decoy hash), so neither the answer nor its time tells which accounts exist |
+| 403 | `Origin` missing or not the site |
+| 429 | Too many failures: 10 for the account, or 50 from the client address (an IPv6 address counts as its /64), within 15 minutes of the first. Refused without checking the password, even the right one, until the window ends; `Retry-After` says in how many seconds. A success clears the account's count, not the address's |
+
+A hash made with older argon2id parameters is replaced with one made with the
+current ones at a successful login.
+
+**The cookie** is `__Host-heartbeat_session`: `HttpOnly`, `Secure`,
+`SameSite=Lax`, `Path=/`, no `Domain`, kept until the session's absolute end.
+Its value is 256 random bits, base64url; Redis keeps only its SHA-256, as the
+key of the session (user, client address, created and last-seen times), which
+expires by itself at the earlier of 8 hours without a request and 7 days
+after login (`HEARTBEAT_API_SESSION_IDLE_TIMEOUT`, `_MAX_AGE`). The session's
+`id` in the body and in audit records is another random UUID: it identifies
+the session but cannot log in. A browser keeps a `Secure` cookie only from
+HTTPS, or from `localhost`.
+
+**Audit.** A login, a logout and a failed login each write an audit record
+of entity type `session` ([audit delivery](#audit-delivery)): `login` with
+the session in `after` and the user as actor, `logout` with it in `before`,
+`login_failed` with the email tried, the user's ID when it exists and the
+reason (`wrong_password`, `unknown_email`, `disabled`, `no_password`,
+`unreadable_hash`) in `after`, and the client's address as actor (`client`).
+The client is never told the reason. No record holds a password, a hash, the
+token or its SHA-256. A login is written in one transaction with its record
+and the user's `last_login_at`; the session is created in Redis before it
+commits and deleted again if the commit fails. A logout whose session cannot
+be deleted fails and records nothing.
+
+On kind, through a port-forward, with the admin made by
+[`api users create-admin`](configuration.md#api); the password comes from a
+file, never the command line:
+
+```bash
+kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &
+jq -n --rawfile p admin-password '{email: "admin@example.com", password: ($p | rtrimstr("\n"))}' |
+  curl -sS -c cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/session
+curl -sS -b cookies localhost:8081/api/v1/session                     # the session and its user
+curl -sS -b cookies -X DELETE -H 'Origin: http://localhost:8081' localhost:8081/api/v1/session
+```
 
 ## Metrics
 
@@ -383,14 +466,21 @@ request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
 OPTIONS. A scan of made-up paths and methods therefore lands in the
 `unmatched` and `other` series instead of adding new ones.
 
+### Logins
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `heartbeat_api_login_attempts_total` | counter | `outcome` | Logins this replica answered: `succeeded`; `failed` (wrong credentials, an unknown email, a disabled user, each also audited); `rate_limited` (refused unchecked, past the limits). Requests it could not check (400) are not counted. Each outcome starts at 0. A rise in `failed` or `rate_limited` is someone guessing; the audit records say which accounts and from where |
+
 ### Audit delivery
 
 Every admin or operator change writes an audit record to the `audit_outbox`
 table in its own transaction; a drainer in each API replica sends the oldest
 records to the OTel Collector and deletes them once it accepts them
 ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)).
-So far the one audited change is `api users create-admin`
-([configuration](configuration.md#api)).
+So far the audited changes are `api users create-admin`
+([configuration](configuration.md#api)) and logins, logouts and failed
+logins ([sessions](#logging-in-and-sessions)).
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
@@ -422,8 +512,9 @@ id, and the resource `service.name` = `heartbeat-api` with the replica's
 `service.version`, `service.instance.id` and `deployment.environment.name`.
 There is no `service.namespace`, so audit records stay out of Heartbeat's own
 logs (`service_namespace="heartbeat"`). The record's fields are `id`, `time`,
-`request_id`, `actor` (a user's `user_id` and `email`, or a `cli` command and
-the `host` it ran on), `action`, `entity_type`, `entity_id`, `before`, `after`
+`request_id`, `actor` (a user's `user_id` and `email`, a `cli` command and
+the `host` it ran on, or the `address` of a `client` that is not logged in),
+`action`, `entity_type`, `entity_id`, `before`, `after`
 and, for runtime config, `config_version`. In Grafana's Explore, on Loki:
 
 ```logql

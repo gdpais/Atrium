@@ -4,18 +4,81 @@ package audit_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"net/netip"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/audit/audittest"
+	"heartbeat/apps/api/internal/auth"
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/probedefs"
 	"heartbeat/apps/api/internal/testenv"
 	"heartbeat/apps/api/internal/users"
 )
+
+// harness is what an audited change runs against: PostgreSQL, and Redis
+// for the sessions.
+type harness struct {
+	pool  *pgxpool.Pool
+	redis *goredis.Client
+}
+
+// sessions is the login service on h, with the default parameters.
+func (h harness) sessions() *auth.Service {
+	sessions := &auth.Sessions{Redis: h.redis, IdleTimeout: auth.DefaultIdleTimeout, MaxAge: auth.DefaultMaxAge}
+	return auth.NewService(h.pool, password.NewHasher(password.DefaultParams, 1), sessions, &auth.Limits{Redis: h.redis}, nil, nil)
+}
+
+// createAdmin creates a user who logs in with secret, hashed with params,
+// and returns the user's password hash.
+func (h harness) createAdmin(t *testing.T, ctx context.Context, params password.Params, email, secret string) string {
+	t.Helper()
+	created, err := users.CreateAdmin(ctx, h.pool, password.NewHasher(params, 1),
+		users.NewAdmin{Email: email, Password: secret}, audit.CLIActor("api users create-admin", "api-7d9f-xk2p"), "req-create-admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h.hash(t, ctx, created.UserID)
+}
+
+func (h harness) hash(t *testing.T, ctx context.Context, userID string) string {
+	t.Helper()
+	var hash string
+	if err := h.pool.QueryRow(ctx, "select password_hash from users where id = $1", userID).Scan(&hash); err != nil {
+		t.Fatal(err)
+	}
+	return hash
+}
+
+// login logs email in and returns the session and the secrets it holds:
+// the token, as the cookie does, and the hash Redis keys the session by.
+func (h harness) login(t *testing.T, ctx context.Context, email, secret string) (auth.Principal, []string) {
+	t.Helper()
+	principal, token, err := h.sessions().Login(ctx, email, secret, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(raw)
+	return principal, []string{token, hex.EncodeToString(sum[:])}
+}
+
+var client = auth.Client{Address: netip.MustParseAddr("198.51.100.7"), RequestID: "req-session"}
+
+// weak are argon2id parameters below the current ones: a login upgrades
+// a hash made with them.
+var weak = password.Params{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, SaltBytes: 16, KeyBytes: 32}
 
 // auditedChange makes one audited change through the code that makes it in
 // production.
@@ -24,8 +87,10 @@ type auditedChange struct {
 	// entity is the entity type its records are about.
 	entity string
 	// change makes the change and returns every secret it used or wrote:
-	// passwords, password hashes, session IDs, tokens.
-	change func(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (secrets []string)
+	// passwords, password hashes, session IDs, tokens. A change that needs
+	// others first, as a logout needs a login, calls begin once they are
+	// made: only the records written after it are the change's.
+	change func(t *testing.T, ctx context.Context, h harness, begin func()) (secrets []string)
 }
 
 // auditedChanges changes every audited entity (ADR 0016 §6). A pull
@@ -36,26 +101,81 @@ var auditedChanges = []auditedChange{
 	{
 		name:   "api users create-admin",
 		entity: audit.EntityUser,
-		change: func(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []string {
+		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
 			const secret = "correct horse battery staple, admin"
-			created, err := users.CreateAdmin(ctx, pool, password.NewHasher(password.DefaultParams, 1),
-				users.NewAdmin{Email: "admin@example.com", Password: secret},
-				audit.CLIActor("api users create-admin", "api-7d9f-xk2p"), "req-create-admin")
-			if err != nil {
-				t.Fatal(err)
-			}
-			var hash string
-			if err := pool.QueryRow(ctx, "select password_hash from users where id = $1", created.UserID).Scan(&hash); err != nil {
-				t.Fatal(err)
-			}
+			hash := h.createAdmin(t, ctx, password.DefaultParams, "admin@example.com", secret)
 			return []string{secret, hash}
+		},
+	},
+	{
+		name:   "login",
+		entity: audit.EntitySession,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret = "correct horse battery staple, login"
+			hash := h.createAdmin(t, ctx, password.DefaultParams, "login@example.com", secret)
+			begin()
+			_, session := h.login(t, ctx, "login@example.com", secret)
+			return append(session, secret, hash)
+		},
+	},
+	{
+		name:   "login that upgrades the password hash",
+		entity: audit.EntitySession,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret = "correct horse battery staple, upgrade"
+			old := h.createAdmin(t, ctx, weak, "upgrade@example.com", secret)
+			begin()
+			principal, session := h.login(t, ctx, "upgrade@example.com", secret)
+			upgraded := h.hash(t, ctx, principal.User.ID)
+			if upgraded == old {
+				t.Fatal("the login kept the weak hash")
+			}
+			return append(session, secret, old, upgraded)
+		},
+	},
+	{
+		name:   "failed login, wrong password",
+		entity: audit.EntitySession,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret, wrong = "correct horse battery staple, failed", "correct horse battery staple, guessed"
+			hash := h.createAdmin(t, ctx, password.DefaultParams, "failed@example.com", secret)
+			begin()
+			if _, _, err := h.sessions().Login(ctx, "failed@example.com", wrong, client); !errors.Is(err, auth.ErrInvalidCredentials) {
+				t.Fatalf("Login = %v, want ErrInvalidCredentials", err)
+			}
+			return []string{wrong, secret, hash}
+		},
+	},
+	{
+		name:   "failed login, unknown email",
+		entity: audit.EntitySession,
+		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
+			const secret = "correct horse battery staple, nobody"
+			if _, _, err := h.sessions().Login(ctx, "nobody@example.com", secret, client); !errors.Is(err, auth.ErrInvalidCredentials) {
+				t.Fatalf("Login = %v, want ErrInvalidCredentials", err)
+			}
+			return []string{secret}
+		},
+	},
+	{
+		name:   "logout",
+		entity: audit.EntitySession,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			const secret = "correct horse battery staple, logout"
+			hash := h.createAdmin(t, ctx, password.DefaultParams, "logout@example.com", secret)
+			principal, session := h.login(t, ctx, "logout@example.com", secret)
+			begin()
+			if err := h.sessions().Logout(ctx, principal, client); err != nil {
+				t.Fatal(err)
+			}
+			return append(session, secret, hash)
 		},
 	},
 	{
 		name:   "probe definition created, changed and disabled",
 		entity: audit.EntityProbeDefinition,
-		change: func(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []string {
-			s := probedefs.NewService(pool)
+		change: func(t *testing.T, ctx context.Context, h harness, _ func()) []string {
+			s := probedefs.NewService(h.pool)
 			actor := audit.UserActor("6f1c0e8a-3c55-4f0b-9d2b-4a7e8c1d2e3f", "admin@example.com")
 			v1, err := s.Create(ctx, probedefs.NewDefinition{Engine: "sqlserver", Name: "sessions_by_status",
 				Content: probedefs.Content{Overrides: "sessions", QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status"},
@@ -82,15 +202,20 @@ var auditedChanges = []auditedChange{
 func TestAuditRecordsHoldNoSecrets(t *testing.T) {
 	t.Parallel()
 	_, _, pool := testenv.MigratedPostgres(t)
+	_, redis := testenv.ValkeyClient(t)
+	h := harness{pool: pool, redis: redis}
 	ctx := context.Background()
 	covered := map[string]bool{}
 	for _, c := range auditedChanges {
 		t.Run(c.name, func(t *testing.T) {
 			var last int64
-			if err := pool.QueryRow(ctx, "select coalesce(max(seq), 0) from audit_outbox").Scan(&last); err != nil {
-				t.Fatal(err)
+			begin := func() {
+				if err := pool.QueryRow(ctx, "select coalesce(max(seq), 0) from audit_outbox").Scan(&last); err != nil {
+					t.Fatal(err)
+				}
 			}
-			secrets := c.change(t, ctx, pool)
+			begin()
+			secrets := c.change(t, ctx, h, begin)
 			rows, err := pool.Query(ctx, "select record::text from audit_outbox where seq > $1 order by seq", last)
 			if err != nil {
 				t.Fatal(err)
