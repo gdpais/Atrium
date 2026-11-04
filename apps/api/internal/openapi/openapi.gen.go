@@ -11,12 +11,43 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AssignmentState.
+const (
+	Applied  AssignmentState = "applied"
+	Approved AssignmentState = "approved"
+	Draft    AssignmentState = "draft"
+	Failed   AssignmentState = "failed"
+	Proposed AssignmentState = "proposed"
+	Rejected AssignmentState = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the AssignmentState enum.
+func (e AssignmentState) Valid() bool {
+	switch e {
+	case Applied:
+		return true
+	case Approved:
+		return true
+	case Draft:
+		return true
+	case Failed:
+		return true
+	case Proposed:
+		return true
+	case Rejected:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for Criticality.
 const (
@@ -281,6 +312,27 @@ type ApplicationUpdate struct {
 	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
 	Status *Status `json:"status,omitempty"`
 }
+
+// AssignmentInterval Seconds between runs: the scrape_interval of the target's collector.
+// A target runs at one interval, so all its approved assignments share
+// it.
+type AssignmentInterval = int
+
+// AssignmentMaxRows The most rows one run may return, or the run fails; 0 leaves it to the collector, 10000.
+type AssignmentMaxRows = int
+
+// AssignmentState Where an assignment is in its approval (ADR 0014 §4). `draft`:
+// created or changed, not rendered. `approved`: rendered into
+// `managedCollectors`. `proposed`: in an open pull request to the
+// config repository. `applied`: the collector runs it as rendered.
+// `rejected`: refused, not rendered. `failed`: the config repository's
+// checks or the collector refused it. `proposed` and `failed` come
+// with the pull request output; until then an assignment goes
+// `draft` → `approved` → `applied`, or `draft` → `rejected`.
+type AssignmentState string
+
+// AssignmentTimeout The longest one run may take, at most the interval; 0 leaves it to the definition, and then to the collector.
+type AssignmentTimeout = int
 
 // Component defines model for Component.
 type Component struct {
@@ -679,6 +731,28 @@ type NewPassword struct {
 	Password Password `json:"password"`
 }
 
+// NewProbeAssignment defines model for NewProbeAssignment.
+type NewProbeAssignment struct {
+	DatabaseTargetId openapi_types.UUID `json:"database_target_id"`
+
+	// Enabled Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// IntervalSeconds Seconds between runs: the scrape_interval of the target's collector.
+	// A target runs at one interval, so all its approved assignments share
+	// it.
+	IntervalSeconds *AssignmentInterval `json:"interval_seconds,omitempty"`
+
+	// MaxRows The most rows one run may return, or the run fails; 0 leaves it to the collector, 10000.
+	MaxRows *AssignmentMaxRows `json:"max_rows,omitempty"`
+
+	// ProbeDefinitionId The definition version to run; any version of an enabled definition for the target's engine.
+	ProbeDefinitionId openapi_types.UUID `json:"probe_definition_id"`
+
+	// TimeoutMs The longest one run may take, at most the interval; 0 leaves it to the definition, and then to the collector.
+	TimeoutMs *AssignmentTimeout `json:"timeout_ms,omitempty"`
+}
+
 // NewProbeDefinition defines model for NewProbeDefinition.
 type NewProbeDefinition struct {
 	// DefaultIntervalSeconds The interval an assignment gets unless it sets one. Defaults to 30, the collector's default scrape interval.
@@ -791,6 +865,84 @@ type Platform = string
 
 // Port defines model for Port.
 type Port = int
+
+// ProbeAssignment defines model for ProbeAssignment.
+type ProbeAssignment struct {
+	ApprovedAt *time.Time `json:"approved_at"`
+
+	// ApprovedBy The user who approved it; null while it is a draft or rejected.
+	ApprovedBy *openapi_types.UUID `json:"approved_by"`
+
+	// CollectorId The collector it renders to, `api-<target id>-<interval>s`, as the collector's metrics and admin config name it.
+	CollectorId string              `json:"collector_id"`
+	CreatedAt   time.Time           `json:"created_at"`
+	CreatedBy   *openapi_types.UUID `json:"created_by"`
+
+	// DatabaseTargetId The target it runs against, for good.
+	DatabaseTargetId openapi_types.UUID `json:"database_target_id"`
+	Enabled          bool               `json:"enabled"`
+	Id               openapi_types.UUID `json:"id"`
+	IntervalSeconds  int                `json:"interval_seconds"`
+
+	// MaxRows Null for the collector's row limit, 10000.
+	MaxRows *int `json:"max_rows"`
+
+	// ProbeDefinitionId The definition version it runs, pinned.
+	ProbeDefinitionId openapi_types.UUID `json:"probe_definition_id"`
+
+	// PullRequestUrl The pull request that proposes it; null with the output `none`.
+	PullRequestUrl *string `json:"pull_request_url"`
+
+	// State Where an assignment is in its approval (ADR 0014 §4). `draft`:
+	// created or changed, not rendered. `approved`: rendered into
+	// `managedCollectors`. `proposed`: in an open pull request to the
+	// config repository. `applied`: the collector runs it as rendered.
+	// `rejected`: refused, not rendered. `failed`: the config repository's
+	// checks or the collector refused it. `proposed` and `failed` come
+	// with the pull request output; until then an assignment goes
+	// `draft` → `approved` → `applied`, or `draft` → `rejected`.
+	State AssignmentState `json:"state"`
+
+	// StateDetail Why it was rejected or failed; empty otherwise.
+	StateDetail string `json:"state_detail"`
+
+	// TimeoutMs Null for the definition's timeout, or else the collector's, half the interval, at most 10 s.
+	TimeoutMs *int      `json:"timeout_ms"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ProbeAssignmentPage defines model for ProbeAssignmentPage.
+type ProbeAssignmentPage struct {
+	Items []ProbeAssignment `json:"items"`
+
+	// NextCursor The `cursor` of the next page; absent on the last.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
+
+// ProbeAssignmentRejection defines model for ProbeAssignmentRejection.
+type ProbeAssignmentRejection struct {
+	// Reason Why, for whoever changes it next. Defaults to empty.
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ProbeAssignmentUpdate The fields to change; the target cannot.
+type ProbeAssignmentUpdate struct {
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// IntervalSeconds Seconds between runs: the scrape_interval of the target's collector.
+	// A target runs at one interval, so all its approved assignments share
+	// it.
+	IntervalSeconds *AssignmentInterval `json:"interval_seconds,omitempty"`
+
+	// MaxRows The most rows one run may return, or the run fails; 0 leaves it to the collector, 10000.
+	MaxRows *AssignmentMaxRows `json:"max_rows,omitempty"`
+
+	// ProbeDefinitionId Another version of the same definition.
+	ProbeDefinitionId *openapi_types.UUID `json:"probe_definition_id,omitempty"`
+
+	// TimeoutMs The longest one run may take, at most the interval; 0 leaves it to the definition, and then to the collector.
+	TimeoutMs *AssignmentTimeout `json:"timeout_ms,omitempty"`
+}
 
 // ProbeDefinition defines model for ProbeDefinition.
 type ProbeDefinition struct {
@@ -1161,6 +1313,21 @@ type ListEnvironmentsParams struct {
 	Status *StatusFilter `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListProbeAssignmentsParams defines parameters for ListProbeAssignments.
+type ListProbeAssignmentsParams struct {
+	// DatabaseTargetId Only the assignments of this database target.
+	DatabaseTargetId *openapi_types.UUID `form:"database_target_id,omitempty" json:"database_target_id,omitempty"`
+
+	// State Only the assignments in this state.
+	State *AssignmentState `form:"state,omitempty" json:"state,omitempty"`
+
+	// Limit The most items a page holds; 50 when left out.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Where the page starts; the `next_cursor` of the page before. Left out, the first page.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListTelemetrySourcesParams defines parameters for ListTelemetrySources.
 type ListTelemetrySourcesParams struct {
 	// ApplicationId Only the sources of this application.
@@ -1212,6 +1379,15 @@ type CreateEnvironmentJSONRequestBody = NewEnvironment
 
 // UpdateEnvironmentJSONRequestBody defines body for UpdateEnvironment for application/json ContentType.
 type UpdateEnvironmentJSONRequestBody = EnvironmentUpdate
+
+// CreateProbeAssignmentJSONRequestBody defines body for CreateProbeAssignment for application/json ContentType.
+type CreateProbeAssignmentJSONRequestBody = NewProbeAssignment
+
+// UpdateProbeAssignmentJSONRequestBody defines body for UpdateProbeAssignment for application/json ContentType.
+type UpdateProbeAssignmentJSONRequestBody = ProbeAssignmentUpdate
+
+// RejectProbeAssignmentJSONRequestBody defines body for RejectProbeAssignment for application/json ContentType.
+type RejectProbeAssignmentJSONRequestBody = ProbeAssignmentRejection
 
 // CreateProbeDefinitionJSONRequestBody defines body for CreateProbeDefinition for application/json ContentType.
 type CreateProbeDefinitionJSONRequestBody = NewProbeDefinition
@@ -1314,6 +1490,30 @@ type ServerInterface interface {
 	// UpdateEnvironment Change an environment
 	// (PATCH /api/v1/environments/{id})
 	UpdateEnvironment(w http.ResponseWriter, r *http.Request, id ID)
+	// ListProbeAssignments List probe assignments
+	// (GET /api/v1/probe-assignments)
+	ListProbeAssignments(w http.ResponseWriter, r *http.Request, params ListProbeAssignmentsParams)
+	// CreateProbeAssignment Create a probe assignment
+	// (POST /api/v1/probe-assignments)
+	CreateProbeAssignment(w http.ResponseWriter, r *http.Request)
+	// GetRenderedProbeAssignments Get the rendered managedCollectors values file
+	// (GET /api/v1/probe-assignments/rendered)
+	GetRenderedProbeAssignments(w http.ResponseWriter, r *http.Request)
+	// DeleteProbeAssignment Delete a probe assignment
+	// (DELETE /api/v1/probe-assignments/{id})
+	DeleteProbeAssignment(w http.ResponseWriter, r *http.Request, id ID)
+	// GetProbeAssignment Get a probe assignment
+	// (GET /api/v1/probe-assignments/{id})
+	GetProbeAssignment(w http.ResponseWriter, r *http.Request, id ID)
+	// UpdateProbeAssignment Change a probe assignment
+	// (PATCH /api/v1/probe-assignments/{id})
+	UpdateProbeAssignment(w http.ResponseWriter, r *http.Request, id ID)
+	// ApproveProbeAssignment Approve a probe assignment
+	// (POST /api/v1/probe-assignments/{id}/approve)
+	ApproveProbeAssignment(w http.ResponseWriter, r *http.Request, id ID)
+	// RejectProbeAssignment Reject a probe assignment
+	// (POST /api/v1/probe-assignments/{id}/reject)
+	RejectProbeAssignment(w http.ResponseWriter, r *http.Request, id ID)
 	// ListProbeDefinitions List probe definitions
 	// (GET /api/v1/probe-definitions)
 	ListProbeDefinitions(w http.ResponseWriter, r *http.Request)
@@ -2168,6 +2368,236 @@ func (siw *ServerInterfaceWrapper) UpdateEnvironment(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// ListProbeAssignments operation middleware
+func (siw *ServerInterfaceWrapper) ListProbeAssignments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListProbeAssignmentsParams
+
+	// ------------- Optional query parameter "database_target_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "database_target_id", r.URL.Query(), &params.DatabaseTargetId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "database_target_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "database_target_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProbeAssignments(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) CreateProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProbeAssignment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRenderedProbeAssignments operation middleware
+func (siw *ServerInterfaceWrapper) GetRenderedProbeAssignments(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRenderedProbeAssignments(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProbeAssignment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) GetProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProbeAssignment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProbeAssignment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ApproveProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) ApproveProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveProbeAssignment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RejectProbeAssignment operation middleware
+func (siw *ServerInterfaceWrapper) RejectProbeAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RejectProbeAssignment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListProbeDefinitions operation middleware
 func (siw *ServerInterfaceWrapper) ListProbeDefinitions(w http.ResponseWriter, r *http.Request) {
 
@@ -2905,6 +3335,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.DeleteDatabaseTarget)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.GetDatabaseTarget)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/database-targets/{id}", wrapper.UpdateDatabaseTarget)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-assignments", wrapper.ListProbeAssignments)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-assignments", wrapper.CreateProbeAssignment)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-assignments/rendered", wrapper.GetRenderedProbeAssignments)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/probe-assignments/{id}", wrapper.DeleteProbeAssignment)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-assignments/{id}", wrapper.GetProbeAssignment)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/probe-assignments/{id}", wrapper.UpdateProbeAssignment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-assignments/{id}/approve", wrapper.ApproveProbeAssignment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-assignments/{id}/reject", wrapper.RejectProbeAssignment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.ListProbeDefinitions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-definitions", wrapper.CreateProbeDefinition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions/{id}", wrapper.GetProbeDefinition)
@@ -5564,6 +6002,871 @@ func (response UpdateEnvironmentdefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type ListProbeAssignmentsRequestObject struct {
+	Params ListProbeAssignmentsParams
+}
+
+type ListProbeAssignmentsResponseObject interface {
+	VisitListProbeAssignmentsResponse(w http.ResponseWriter) error
+}
+
+type ListProbeAssignments200JSONResponse ProbeAssignmentPage
+
+func (response ListProbeAssignments200JSONResponse) VisitListProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeAssignments400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeAssignments400ApplicationProblemPlusJSONResponse) VisitListProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeAssignments401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeAssignments401ApplicationProblemPlusJSONResponse) VisitListProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeAssignments403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListProbeAssignments403ApplicationProblemPlusJSONResponse) VisitListProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProbeAssignmentsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListProbeAssignmentsdefaultApplicationProblemPlusJSONResponse) VisitListProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignmentRequestObject struct {
+	Body *CreateProbeAssignmentJSONRequestBody
+}
+
+type CreateProbeAssignmentResponseObject interface {
+	VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type CreateProbeAssignment201ResponseHeaders struct {
+	Location string
+}
+
+type CreateProbeAssignment201JSONResponse struct {
+	Body    ProbeAssignment
+	Headers CreateProbeAssignment201ResponseHeaders
+}
+
+func (response CreateProbeAssignment201JSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeAssignment400ApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeAssignment401ApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeAssignment403ApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignment409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeAssignment409ApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignment422ApplicationProblemPlusJSONResponse struct {
+	NoOwnerApplicationProblemPlusJSONResponse
+}
+
+func (response CreateProbeAssignment422ApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitCreateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRenderedProbeAssignmentsRequestObject struct {
+}
+
+type GetRenderedProbeAssignmentsResponseObject interface {
+	VisitGetRenderedProbeAssignmentsResponse(w http.ResponseWriter) error
+}
+
+type GetRenderedProbeAssignments200ApplicationyamlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetRenderedProbeAssignments200ApplicationyamlResponse) VisitGetRenderedProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/yaml")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetRenderedProbeAssignments401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetRenderedProbeAssignments401ApplicationProblemPlusJSONResponse) VisitGetRenderedProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRenderedProbeAssignments403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetRenderedProbeAssignments403ApplicationProblemPlusJSONResponse) VisitGetRenderedProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRenderedProbeAssignmentsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetRenderedProbeAssignmentsdefaultApplicationProblemPlusJSONResponse) VisitGetRenderedProbeAssignmentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProbeAssignmentRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteProbeAssignmentResponseObject interface {
+	VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type DeleteProbeAssignment204Response struct {
+}
+
+func (response DeleteProbeAssignment204Response) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteProbeAssignment400ApplicationProblemPlusJSONResponse) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteProbeAssignment401ApplicationProblemPlusJSONResponse) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteProbeAssignment403ApplicationProblemPlusJSONResponse) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProbeAssignment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteProbeAssignment404ApplicationProblemPlusJSONResponse) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitDeleteProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignmentRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type GetProbeAssignmentResponseObject interface {
+	VisitGetProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type GetProbeAssignment200JSONResponse ProbeAssignment
+
+func (response GetProbeAssignment200JSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeAssignment400ApplicationProblemPlusJSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeAssignment401ApplicationProblemPlusJSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeAssignment403ApplicationProblemPlusJSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetProbeAssignment404ApplicationProblemPlusJSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitGetProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignmentRequestObject struct {
+	Id   ID `json:"id"`
+	Body *UpdateProbeAssignmentJSONRequestBody
+}
+
+type UpdateProbeAssignmentResponseObject interface {
+	VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type UpdateProbeAssignment200JSONResponse ProbeAssignment
+
+func (response UpdateProbeAssignment200JSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment400ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment401ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment403ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment404ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment409ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignment422ApplicationProblemPlusJSONResponse struct {
+	NoOwnerApplicationProblemPlusJSONResponse
+}
+
+func (response UpdateProbeAssignment422ApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitUpdateProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignmentRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type ApproveProbeAssignmentResponseObject interface {
+	VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type ApproveProbeAssignment200JSONResponse ProbeAssignment
+
+func (response ApproveProbeAssignment200JSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ApproveProbeAssignment400ApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ApproveProbeAssignment401ApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ApproveProbeAssignment403ApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response ApproveProbeAssignment404ApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignment409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response ApproveProbeAssignment409ApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ApproveProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitApproveProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignmentRequestObject struct {
+	Id   ID `json:"id"`
+	Body *RejectProbeAssignmentJSONRequestBody
+}
+
+type RejectProbeAssignmentResponseObject interface {
+	VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error
+}
+
+type RejectProbeAssignment200JSONResponse ProbeAssignment
+
+func (response RejectProbeAssignment200JSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignment400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response RejectProbeAssignment400ApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignment401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response RejectProbeAssignment401ApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignment403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response RejectProbeAssignment403ApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignment404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response RejectProbeAssignment404ApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignment409ApplicationProblemPlusJSONResponse struct {
+	ConflictApplicationProblemPlusJSONResponse
+}
+
+func (response RejectProbeAssignment409ApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectProbeAssignmentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RejectProbeAssignmentdefaultApplicationProblemPlusJSONResponse) VisitRejectProbeAssignmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListProbeDefinitionsRequestObject struct {
 }
 
@@ -7890,6 +9193,30 @@ type StrictServerInterface interface {
 	// UpdateEnvironment Change an environment
 	// (PATCH /api/v1/environments/{id})
 	UpdateEnvironment(ctx context.Context, request UpdateEnvironmentRequestObject) (UpdateEnvironmentResponseObject, error)
+	// ListProbeAssignments List probe assignments
+	// (GET /api/v1/probe-assignments)
+	ListProbeAssignments(ctx context.Context, request ListProbeAssignmentsRequestObject) (ListProbeAssignmentsResponseObject, error)
+	// CreateProbeAssignment Create a probe assignment
+	// (POST /api/v1/probe-assignments)
+	CreateProbeAssignment(ctx context.Context, request CreateProbeAssignmentRequestObject) (CreateProbeAssignmentResponseObject, error)
+	// GetRenderedProbeAssignments Get the rendered managedCollectors values file
+	// (GET /api/v1/probe-assignments/rendered)
+	GetRenderedProbeAssignments(ctx context.Context, request GetRenderedProbeAssignmentsRequestObject) (GetRenderedProbeAssignmentsResponseObject, error)
+	// DeleteProbeAssignment Delete a probe assignment
+	// (DELETE /api/v1/probe-assignments/{id})
+	DeleteProbeAssignment(ctx context.Context, request DeleteProbeAssignmentRequestObject) (DeleteProbeAssignmentResponseObject, error)
+	// GetProbeAssignment Get a probe assignment
+	// (GET /api/v1/probe-assignments/{id})
+	GetProbeAssignment(ctx context.Context, request GetProbeAssignmentRequestObject) (GetProbeAssignmentResponseObject, error)
+	// UpdateProbeAssignment Change a probe assignment
+	// (PATCH /api/v1/probe-assignments/{id})
+	UpdateProbeAssignment(ctx context.Context, request UpdateProbeAssignmentRequestObject) (UpdateProbeAssignmentResponseObject, error)
+	// ApproveProbeAssignment Approve a probe assignment
+	// (POST /api/v1/probe-assignments/{id}/approve)
+	ApproveProbeAssignment(ctx context.Context, request ApproveProbeAssignmentRequestObject) (ApproveProbeAssignmentResponseObject, error)
+	// RejectProbeAssignment Reject a probe assignment
+	// (POST /api/v1/probe-assignments/{id}/reject)
+	RejectProbeAssignment(ctx context.Context, request RejectProbeAssignmentRequestObject) (RejectProbeAssignmentResponseObject, error)
 	// ListProbeDefinitions List probe definitions
 	// (GET /api/v1/probe-definitions)
 	ListProbeDefinitions(ctx context.Context, request ListProbeDefinitionsRequestObject) (ListProbeDefinitionsResponseObject, error)
@@ -8672,6 +9999,231 @@ func (sh *strictHandler) UpdateEnvironment(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateEnvironmentResponseObject); ok {
 		if err := validResponse.VisitUpdateEnvironmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProbeAssignments operation middleware
+func (sh *strictHandler) ListProbeAssignments(w http.ResponseWriter, r *http.Request, params ListProbeAssignmentsParams) {
+	var request ListProbeAssignmentsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProbeAssignments(ctx, request.(ListProbeAssignmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProbeAssignments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProbeAssignmentsResponseObject); ok {
+		if err := validResponse.VisitListProbeAssignmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateProbeAssignment operation middleware
+func (sh *strictHandler) CreateProbeAssignment(w http.ResponseWriter, r *http.Request) {
+	var request CreateProbeAssignmentRequestObject
+
+	var body CreateProbeAssignmentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProbeAssignment(ctx, request.(CreateProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitCreateProbeAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRenderedProbeAssignments operation middleware
+func (sh *strictHandler) GetRenderedProbeAssignments(w http.ResponseWriter, r *http.Request) {
+	var request GetRenderedProbeAssignmentsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRenderedProbeAssignments(ctx, request.(GetRenderedProbeAssignmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRenderedProbeAssignments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRenderedProbeAssignmentsResponseObject); ok {
+		if err := validResponse.VisitGetRenderedProbeAssignmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProbeAssignment operation middleware
+func (sh *strictHandler) DeleteProbeAssignment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteProbeAssignmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProbeAssignment(ctx, request.(DeleteProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitDeleteProbeAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProbeAssignment operation middleware
+func (sh *strictHandler) GetProbeAssignment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request GetProbeAssignmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProbeAssignment(ctx, request.(GetProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitGetProbeAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateProbeAssignment operation middleware
+func (sh *strictHandler) UpdateProbeAssignment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request UpdateProbeAssignmentRequestObject
+
+	request.Id = id
+
+	var body UpdateProbeAssignmentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProbeAssignment(ctx, request.(UpdateProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitUpdateProbeAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ApproveProbeAssignment operation middleware
+func (sh *strictHandler) ApproveProbeAssignment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ApproveProbeAssignmentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveProbeAssignment(ctx, request.(ApproveProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitApproveProbeAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RejectProbeAssignment operation middleware
+func (sh *strictHandler) RejectProbeAssignment(w http.ResponseWriter, r *http.Request, id ID) {
+	var request RejectProbeAssignmentRequestObject
+
+	request.Id = id
+
+	var body RejectProbeAssignmentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RejectProbeAssignment(ctx, request.(RejectProbeAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RejectProbeAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RejectProbeAssignmentResponseObject); ok {
+		if err := validResponse.VisitRejectProbeAssignmentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

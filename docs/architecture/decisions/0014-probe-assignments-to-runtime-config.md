@@ -1,7 +1,11 @@
 # 0014. Approved probe assignments reach the collector as a pull request to the config repository
 
 - Status: Accepted
-- Date: 2026-10-21
+- Date: 2026-10-21. Amended 2026-11-04, when the API side was built [4.5]:
+  a target runs at one interval, so it renders to one collector (§2); the
+  `none` output renders in the API's pod for `make kind-assignments`, beside
+  the endpoint (§5); approval, changes and the applied check are spelled out
+  (§4).
 
 ## Context
 
@@ -47,7 +51,14 @@ in the API [4.5]. The DB collector must then run those probes. Constraints:
    - one `sqlserver` collector per target and interval, with the ID
      `api-<target id>-<interval>s`; changing an interval replaces that
      collector, as any reload does when an ID changes. Hand-written
-     collector IDs may not start with `api-` (schema check);
+     collector IDs may not start with `api-` (schema check). *Amended
+     2026-11-04:* a target runs at one interval, so it has one collector.
+     The collector refuses a target that two enabled collectors scrape
+     (`validateUniqueSQLServerTargets`): its series carry only the
+     environment and target labels, so two collectors would write the same
+     ones. An approval is therefore refused while the target's other
+     approved, enabled assignments run at another interval; to change it,
+     change each assignment and approve them again;
    - targets carry name, host, port, database, environment name and
      `credential_ref`; probes are listed by name, and a custom
      `probe_definitions.query_template` is written out in full, so its SQL
@@ -77,12 +88,33 @@ in the API [4.5]. The DB collector must then run those probes. Constraints:
    reference and reads nothing else from the collector. PostgreSQL holds the
    request, git the desired state, the collector the observed state
    (ADR 0002).
+   *Amended 2026-11-04:* operators create and change assignments; admins
+   approve and reject them, as admins own probe definitions. A draft or a
+   rejected assignment can be approved. A change (interval, timeout, row
+   limit, enabled, or another version of the same definition), or to its
+   target's host, port, database or credential reference, puts an
+   assignment back to `draft`, so the next render leaves it out until it is
+   approved again: what runs is always what was approved. An approval renders
+   the whole file in its transaction and checks it with the schema and the
+   loader, so one that would make an invalid file is refused. The applied
+   check runs every 30 s and moves `approved` to `applied` only; an
+   assignment the collector stops running stays `applied`, and the
+   collector's reload metrics and readiness say why (§7). Its audit records
+   name the API itself (actor type `system`) as the actor.
 5. **kind renders the same file.** The API's output target is configurable:
    `github` (above) or `none`, which only serves the rendered file at an
    admin endpoint. On kind, a make target (for example
    `make kind-assignments`) downloads it to an ignored path and runs
    `make kind-deploy` with it in `EXTRA_VALUES`. Same renderer, same chart
    key, no pull request, and the API still needs no access to the host.
+   *Amended 2026-11-04:* `make kind-assignments` runs
+   `api probe-assignments render` in the API's pod, which reads PostgreSQL
+   only, rather than downloading from the endpoint, so kind needs no login.
+   The file stays in the cluster's ignored state directory, and later
+   `make kind-deploy` runs keep it, as they keep the SQL Server sandbox. The
+   endpoint, `GET /api/v1/probe-assignments/rendered`, serves the same bytes
+   to operators. `none` is the only output until the config repository
+   exists, so there is no setting yet.
 6. **Secrets are references only.** The API validates the reference format
    and renders references; it never sees or stores a credential. The value
    reaches the cluster on its own path: External Secrets from AWS Secrets

@@ -1,4 +1,4 @@
-.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check test test-integration test-sqlserver test-race vet vulncheck docs-site
+.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-assignments kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check test test-integration test-sqlserver test-race vet vulncheck docs-site
 
 SQLSERVER_DEV_ENV_FILE := .env.sqlserver-dev
 # Health checks fail fast on HTTP errors (keeping the body) and never hang.
@@ -57,6 +57,7 @@ help:
 		'  make install-tools       Install the pinned kind, kubectl, helm and helm3 into $$TOOLS_DIR (CI)' \
 		'  make kind-up             Create the kind cluster, build and load images, deploy the chart (PROFILE=full|minimal)' \
 		'  make kind-deploy         Redeploy the chart to the existing kind cluster (PROFILE=full|minimal)' \
+		'  make kind-assignments    Render the approved probe assignments in the API and deploy them as managedCollectors' \
 		'  make kind-images         Rebuild both images and load them into kind' \
 		'  make kind-status         Show pods and services in the kind cluster' \
 		'  make kind-down           Delete the kind cluster' \
@@ -103,6 +104,9 @@ kind-deploy:
 
 kind-images:
 	@scripts/kind.sh images
+
+kind-assignments:
+	@PROFILE=$(PROFILE) scripts/kind.sh assignments
 
 kind-status:
 	@scripts/kind.sh status

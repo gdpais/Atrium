@@ -11,7 +11,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login and sessions [4.2] and the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; next users and roles [4.2]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; next Grafana deep links [4.9], then the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Web UI | Not started |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
@@ -211,12 +211,13 @@ In order, one pull request each:
 - Bootstrap, PostgreSQL and Redis connectivity, migrations, and the API,
   PostgreSQL and Valkey in the chart [4.1] (done)
 - Audit output, first, so every later change is audited [4.10] (done)
-- Local auth with minimal roles: login, sessions, users and roles [4.2]
+- Local auth with minimal roles: login, sessions, users and roles [4.2] (done)
 - Environments, applications, components, telemetry sources, database targets,
   probe definitions and assignments; approved assignments become
   YAML/Kubernetes runtime config through the `managedCollectors` chart key,
-  applied on kind by a make target; the collector reads credentials from
-  mounted Secret files, so a new target needs no restart [4.3–4.5, 2.5]
+  applied on kind by `make kind-assignments`; the collector reads credentials
+  from mounted Secret files, so a new target needs no restart [4.3–4.5, 2.5]
+  (done)
 - Grafana deep links from the integrations templates [4.9] (done): the API
   reads the collector's `heartbeat-integrations` ConfigMap and renders
   dashboard and deep-link templates for applications and database targets;

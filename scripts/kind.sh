@@ -14,6 +14,8 @@
 #   deploy           rebuild images if the Go sources are newer, create the
 #                    local Secrets and helm upgrade --install
 #   status           show pods and services
+#   assignments      render the approved probe assignments in the API's pod
+#                    and deploy with them as managedCollectors (ADR 0014 §5)
 #   sqlserver-up     start the Docker SQL Server target and deploy against it
 #   sqlserver-down   remove the SQL Server container and its volume
 #
@@ -231,6 +233,11 @@ cmd_deploy() {
 	if [ -f "$STATE_DIR/sqlserver-dev" ]; then
 		set -- "$@" -f "$VALUES_DIR/sqlserver-dev.yaml"
 	fi
+	# assignments leaves the rendered managedCollectors, so later deploys keep
+	# the approved probe assignments.
+	if [ -f "$STATE_DIR/managed-collectors.yaml" ]; then
+		set -- "$@" -f "$STATE_DIR/managed-collectors.yaml"
+	fi
 	for file in $EXTRA_VALUES; do
 		set -- "$@" -f "$file"
 	done
@@ -242,6 +249,24 @@ cmd_deploy() {
 
 cmd_status() {
 	kubectl_ -n "$NAMESPACE" get pods,svc
+}
+
+# The API renders what its approved probe assignments make: a values file
+# with managedCollectors (ADR 0014). It never writes cluster state, so this
+# runs the render in its pod, which reads PostgreSQL only, and deploys with
+# the file. The collector reloads the ConfigMap within about a minute, and
+# the API marks the assignments applied once the collector runs them.
+cmd_assignments() {
+	cluster_exists || die "kind cluster $CLUSTER does not exist; run make kind-up"
+	pod=$(kubectl_ -n "$NAMESPACE" get pod -l app.kubernetes.io/name=api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) ||
+		die "no API pod in $CONTEXT/$NAMESPACE; deploy the full profile with make kind-deploy"
+	[ -n "$pod" ] || die "no API pod in $CONTEXT/$NAMESPACE; deploy the full profile with make kind-deploy"
+	mkdir -p "$STATE_DIR"
+	kubectl_ -n "$NAMESPACE" exec "$pod" -c api -- /app/api probe-assignments render >"$STATE_DIR/managed-collectors.yaml.new" ||
+		{ rm -f "$STATE_DIR/managed-collectors.yaml.new"; die "api probe-assignments render failed in $pod"; }
+	mv "$STATE_DIR/managed-collectors.yaml.new" "$STATE_DIR/managed-collectors.yaml"
+	log "rendered $(grep -c '^  - id: api-' "$STATE_DIR/managed-collectors.yaml" || true) managed collectors to $STATE_DIR/managed-collectors.yaml"
+	cmd_deploy
 }
 
 cmd_up() {
@@ -366,6 +391,7 @@ cluster) cmd_cluster ;;
 images) cmd_images ;;
 deploy) cmd_deploy ;;
 status) cmd_status ;;
+assignments) cmd_assignments ;;
 sqlserver-up) cmd_sqlserver_up ;;
 sqlserver-down) cmd_sqlserver_down ;;
 *) sed -n '2,/^set -eu/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' >&2; exit 2 ;;

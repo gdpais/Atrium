@@ -45,8 +45,10 @@ file holds its own, and neither overwrites the other. The rendered file has
 the same format either way; the collector loads it like any other and does
 not know which collectors came from the API.
 
-The API side, which renders the file from approved assignments, is not built
-yet, so `managedCollectors` is empty. Empty or absent, the chart renders
+The API renders the file from approved assignments
+([probe assignments](metrics-and-endpoints.md#probe-assignments)): on kind,
+`make kind-assignments` deploys it; in production a pull request to
+`heartbeat-deploy` will carry it [18]. Empty or absent, the chart renders
 exactly what `integrations` alone renders. Managed targets count like
 hand-written ones: the collector's egress NetworkPolicy opens their ports,
 and the install notes count them.

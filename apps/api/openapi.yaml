@@ -90,6 +90,18 @@ tags:
       environment and its name. Each value is percent-encoded. With
       `platform: generic`, or no templates, the lists are empty. Anyone
       logged in reads them.
+  - name: probe-assignments
+    description: |
+      A probe definition version run against a database target, at an
+      interval (TODO 4.5, ADR 0014). An assignment is created as a draft;
+      an admin approves it, and the API renders every approved one into the
+      values file that holds the chart's `managedCollectors`. The API never
+      writes cluster state: the file reaches the collector through a pull
+      request to the config repository, or on kind through
+      `make kind-assignments`. An assignment is applied once the collector
+      runs it as rendered, which the API checks in the collector's
+      `GET /admin/config`. Viewers read; operators create, change and
+      delete; admins approve and reject. Every change is audited.
   - name: users
     description: |
       Local users and their roles (ADR 0013 §7–8), for admins; and each
@@ -1012,6 +1024,269 @@ paths:
       responses:
         "204":
           description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-assignments:
+    get:
+      operationId: listProbeAssignments
+      tags: [probe-assignments]
+      summary: List probe assignments
+      security:
+        - session: [viewer]
+      description: Assignments in the order they were created, a page at a time. Filter by target or state.
+      parameters:
+        - name: database_target_id
+          in: query
+          description: Only the assignments of this database target.
+          schema:
+            type: string
+            format: uuid
+        - name: state
+          in: query
+          description: Only the assignments in this state.
+          schema:
+            $ref: "#/components/schemas/AssignmentState"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of assignments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignmentPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createProbeAssignment
+      tags: [probe-assignments]
+      summary: Create a probe assignment
+      security:
+        - session: [operator]
+      description: |
+        Assigns a probe definition version to a database target, as a
+        draft: nothing runs it until an admin approves it. A target runs
+        each probe once, so a second assignment of the definition, or of
+        another that runs the same probe (a custom definition runs the
+        built-in it overrides), is refused.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewProbeAssignment"
+      responses:
+        "201":
+          description: Created, as a draft.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-assignments/rendered:
+    get:
+      operationId: getRenderedProbeAssignments
+      tags: [probe-assignments]
+      summary: Get the rendered managedCollectors values file
+      security:
+        - session: [operator]
+      description: |
+        The values file that holds `managedCollectors` (ADR 0014 §2): every
+        approved, enabled assignment of an active target and an enabled
+        definition, one `sqlserver` collector per target, with the ID
+        `api-<target id>-<interval>s`. Deterministic: the same approvals
+        render the same bytes. Checked with the integrations schema and the
+        collector's loader before it is served. Pass it to `helm upgrade`
+        after the environment's own values; on kind, `make kind-assignments`
+        does.
+      responses:
+        "200":
+          description: The values file.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-assignments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getProbeAssignment
+      tags: [probe-assignments]
+      summary: Get a probe assignment
+      security:
+        - session: [viewer]
+      responses:
+        "200":
+          description: The assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      operationId: updateProbeAssignment
+      tags: [probe-assignments]
+      summary: Change a probe assignment
+      security:
+        - session: [operator]
+      description: |
+        Changes the fields the body holds and keeps the others. A change
+        puts the assignment back to draft, unapproved, and the next render
+        leaves it out until an admin approves it again. A body that changes
+        nothing is answered with the assignment as it is, and audits
+        nothing. Its target cannot change; `probe_definition_id` may name
+        another version of the same definition only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeAssignmentUpdate"
+      responses:
+        "200":
+          description: The assignment after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/NoOwner"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteProbeAssignment
+      tags: [probe-assignments]
+      summary: Delete a probe assignment
+      security:
+        - session: [operator]
+      description: Deletes it in any state; the next render leaves it out.
+      responses:
+        "204":
+          description: Deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-assignments/{id}/approve:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: approveProbeAssignment
+      tags: [probe-assignments]
+      summary: Approve a probe assignment
+      security:
+        - session: [admin]
+      description: |
+        Approves a draft or rejected assignment: the next render holds it
+        (ADR 0014 §3). The render with the approval is checked as the
+        collector will check it, and an approval that would make it invalid
+        is refused. A target runs at one interval, its collector's
+        `scrape_interval`, so an assignment whose interval differs from the
+        target's other approved ones is refused too, as is one whose
+        definition was disabled since it was created.
+      responses:
+        "200":
+          description: The assignment, approved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/probe-assignments/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    post:
+      operationId: rejectProbeAssignment
+      tags: [probe-assignments]
+      summary: Reject a probe assignment
+      security:
+        - session: [admin]
+      description: Rejects a draft, with the reason given. It is not rendered; change it, or approve it after all, to try again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeAssignmentRejection"
+      responses:
+        "200":
+          description: The assignment, rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAssignment"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2451,6 +2726,147 @@ components:
         enabled:
           type: boolean
           description: "`false` disables the definition, `true` enables it again."
+    AssignmentState:
+      type: string
+      description: |
+        Where an assignment is in its approval (ADR 0014 §4). `draft`:
+        created or changed, not rendered. `approved`: rendered into
+        `managedCollectors`. `proposed`: in an open pull request to the
+        config repository. `applied`: the collector runs it as rendered.
+        `rejected`: refused, not rendered. `failed`: the config repository's
+        checks or the collector refused it. `proposed` and `failed` come
+        with the pull request output; until then an assignment goes
+        `draft` → `approved` → `applied`, or `draft` → `rejected`.
+      enum: [draft, approved, proposed, applied, rejected, failed]
+    ProbeAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, state, state_detail, pull_request_url, approved_by, approved_at, created_by, collector_id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        database_target_id:
+          type: string
+          format: uuid
+          description: The target it runs against, for good.
+        probe_definition_id:
+          type: string
+          format: uuid
+          description: The definition version it runs, pinned.
+        interval_seconds:
+          type: integer
+        timeout_ms:
+          type: [integer, "null"]
+          description: Null for the definition's timeout, or else the collector's, half the interval, at most 10 s.
+        max_rows:
+          type: [integer, "null"]
+          description: Null for the collector's row limit, 10000.
+        enabled:
+          type: boolean
+        state:
+          $ref: "#/components/schemas/AssignmentState"
+        state_detail:
+          type: string
+          description: Why it was rejected or failed; empty otherwise.
+        pull_request_url:
+          type: [string, "null"]
+          description: The pull request that proposes it; null with the output `none`.
+        approved_by:
+          type: [string, "null"]
+          format: uuid
+          description: The user who approved it; null while it is a draft or rejected.
+        approved_at:
+          type: [string, "null"]
+          format: date-time
+        created_by:
+          type: [string, "null"]
+          format: uuid
+        collector_id:
+          type: string
+          description: The collector it renders to, `api-<target id>-<interval>s`, as the collector's metrics and admin config name it.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ProbeAssignmentPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProbeAssignment"
+        next_cursor:
+          type: string
+          description: The `cursor` of the next page; absent on the last.
+    AssignmentInterval:
+      type: integer
+      minimum: 5
+      maximum: 3600
+      description: |
+        Seconds between runs: the scrape_interval of the target's collector.
+        A target runs at one interval, so all its approved assignments share
+        it.
+    AssignmentTimeout:
+      type: integer
+      minimum: 0
+      maximum: 25000
+      description: The longest one run may take, at most the interval; 0 leaves it to the definition, and then to the collector.
+    AssignmentMaxRows:
+      type: integer
+      minimum: 0
+      maximum: 100000
+      description: The most rows one run may return, or the run fails; 0 leaves it to the collector, 10000.
+    NewProbeAssignment:
+      type: object
+      additionalProperties: false
+      required: [database_target_id, probe_definition_id]
+      properties:
+        database_target_id:
+          type: string
+          format: uuid
+        probe_definition_id:
+          type: string
+          format: uuid
+          description: The definition version to run; any version of an enabled definition for the target's engine.
+        interval_seconds:
+          $ref: "#/components/schemas/AssignmentInterval"
+        timeout_ms:
+          $ref: "#/components/schemas/AssignmentTimeout"
+        max_rows:
+          $ref: "#/components/schemas/AssignmentMaxRows"
+        enabled:
+          type: boolean
+          description: Defaults to true.
+    ProbeAssignmentUpdate:
+      type: object
+      additionalProperties: false
+      description: The fields to change; the target cannot.
+      properties:
+        probe_definition_id:
+          type: string
+          format: uuid
+          description: Another version of the same definition.
+        interval_seconds:
+          $ref: "#/components/schemas/AssignmentInterval"
+        timeout_ms:
+          $ref: "#/components/schemas/AssignmentTimeout"
+        max_rows:
+          $ref: "#/components/schemas/AssignmentMaxRows"
+        enabled:
+          type: boolean
+    ProbeAssignmentRejection:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+          description: Why, for whoever changes it next. Defaults to empty.
     User:
       type: object
       additionalProperties: false

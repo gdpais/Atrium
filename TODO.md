@@ -235,7 +235,8 @@ count.
 ### 2.5 Runtime config model
 - [x] Read desired runtime collector config from `config/integrations.yaml`
 - [x] Read active target/probe runtime config from YAML/Kubernetes convention
-- [ ] Reintroduce API/PostgreSQL-driven probe assignments only after the control-plane workflow exists: approved assignments render to a generated values file proposed as a pull request to `heartbeat-deploy` ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
+- [x] Reintroduce API/PostgreSQL-driven probe assignments only after the control-plane workflow exists: approved assignments render to a generated values file, `managedCollectors` [4.5]; on kind `make kind-assignments` deploys it ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
+- [ ] Propose the rendered file as a pull request to `heartbeat-deploy`, with the `proposed` and `failed` states and the drift check against its default branch, once that repository, its CI and the API's GitHub App exist [18] ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md) §3, §7–8)
 - [x] Chart key `managedCollectors`, appended to `integrations.collectors`; hand-written collector IDs may not start with `api-` ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [x] Resolve credentials from mounted Secret files, so a new or rotated credential needs no collector restart ([ADR 0002](docs/architecture/decisions/0002-runtime-config-in-yaml.md) follow-up, [ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [x] Keep desired state out of PostgreSQL
@@ -369,14 +370,11 @@ and collector contracts are prerequisites, and its decisions are recorded
 (ADRs 0013–0017). Deep links [4.9] need YAML templates and datasources [8.1,
 9.3], which exist.
 
-Remaining work, in order, one pull request each:
-database targets and probe
-definitions [4.5] → probe assignments, rendered to `managedCollectors` and
-applied on kind [4.5, 2.5] → this stage's validation. Deep links [4.9] are
-done: rendered from the integrations templates the collector reads.
-The `managedCollectors` chart key they render to is in place [2.5]. ADR 0014's
-pull request output waits for `heartbeat-deploy` [18]; until then the output
-is `none`.
+Remaining work: this stage's validation. Deep links [4.9] are done,
+rendered from the integrations templates the collector reads. Probe
+assignments render to `managedCollectors` and are applied on kind [4.5,
+2.5]; ADR 0014's pull request output waits for `heartbeat-deploy` [18], and
+until then the output is `none`.
 
 Investigations, alerting and reporting [4.6–4.8] and the job/result
 contracts are built later, with their workers [6, 7, 12–14]: nothing consumes
@@ -425,8 +423,8 @@ queue tests alone.
 - [x] Implement database targets CRUD: `/api/v1/database-targets`, read by viewers, changed by operators; a target belongs to one environment, its name is unique there, and a delete is refused while it has probe assignments. The API never connects to a target: the collector reports reachability once an assignment renders it
 - [x] Implement probe definition management/versioning: `/api/v1/probe-definitions`, read by viewers, changed by admins; a change is a new immutable version, disabling disables every version
 - [x] Seed the built-in probe definitions from the collector's catalog, with no `query_template` (an expand migration makes it nullable); a test fails when the seed and the catalog differ. Custom definitions carry a versioned `query_template`, checked as one read-only `SELECT` with the collector's validator. The OutSystems log types are not seeded: their collectors stay in YAML (ADR 0017)
-- [ ] Implement probe assignment management, with approval states ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
-- [ ] Validate target config and safe probe policies. Target config: done (host as the collector checks it, port, engine, database name, credential reference); probe policies (interval, timeout and row limits of an assignment) come with probe assignments
+- [x] Implement probe assignment management, with approval states ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md), amended 2026-11-04): `/api/v1/probe-assignments`, read by viewers, changed by operators, approved and rejected by admins; a draft is approved into the render, any change puts it back to draft, and the API marks it applied once the collector's `GET /admin/config` runs it as rendered (checked every 30s). Approved assignments render to `managedCollectors`, one collector per target (`api-<target id>-<interval>s`), checked with the integrations schema and the collector's loader, at `GET /api/v1/probe-assignments/rendered` and `api probe-assignments render`; `make kind-assignments` deploys them on kind, and kind-e2e takes an assignment from draft to applied ([probe assignments](docs/reference/metrics-and-endpoints.md#probe-assignments))
+- [x] Validate target config and safe probe policies: target config (host as the collector checks it, port, engine, database name, credential reference); an assignment's interval (5 to 3,600 s, one per target), timeout (at most the interval and 25 s, the definition's counted) and row limit (at most 100,000), as the collector checks them
 - [x] Store credential refs only: a target holds `kv/`, `secret/` or `env/` and a name whose key `HEARTBEAT_CREDENTIAL_<REF>` is a valid Secret key, checked with the collector's own rule as well; a value shaped like a credential is refused and never echoed
 
 ### 4.6 Investigations API

@@ -58,6 +58,25 @@ type Environment struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type ProbeAssignment struct {
+	ID                pgtype.UUID
+	DatabaseTargetID  pgtype.UUID
+	ProbeDefinitionID pgtype.UUID
+	IntervalSeconds   int32
+	Enabled           bool
+	Config            []byte
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	State             string
+	StateDetail       string
+	PullRequestUrl    pgtype.Text
+	ApprovedBy        pgtype.UUID
+	ApprovedAt        pgtype.Timestamptz
+	CreatedBy         pgtype.UUID
+	TimeoutMs         pgtype.Int4
+	MaxRows           pgtype.Int4
+}
+
 type ProbeDefinition struct {
 	ID                     pgtype.UUID
 	Engine                 string

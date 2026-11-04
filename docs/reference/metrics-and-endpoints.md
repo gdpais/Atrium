@@ -329,11 +329,16 @@ a second target for the same database in one environment is 409.
 never connects to a target (ADR 0013 §1): it has no credential to connect
 with. The credential reaches the collector on its own path, a Secret key
 ([database targets guide](../guides/database-targets.md#3-provide-the-credential)).
-Whether a target is reachable is the collector's to report, once a probe
-assignment renders it into a collector [4.5]: its
+Whether a target is reachable is the collector's to report, once a
+[probe assignment](#probe-assignments) renders it into a collector: its
 `heartbeat_collector_target_up`, and its state and driver error in
-`GET /admin/config` (`readiness.collectors[].targets[]`), which the API
-will read to mark the assignment applied (ADR 0014 §4).
+`GET /admin/config` (`readiness.collectors[].targets[]`). A change to a
+target's host, port, database or credential reference sends its approved
+assignments back to draft, each with an audit record of its own: an
+approval covers the target as it was, so the collector never logs in to a
+server, or with a credential, that nobody approved. A change of status or
+labels keeps them: a disabled target is not rendered, and enabled again it
+runs as approved.
 
 **Deletes.** A target's probe assignments would be deleted with it, so a
 delete is refused (409) while it has any: disable it instead
@@ -399,8 +404,8 @@ has logs, or for investigations) waits for the query adapters [6].
 
 ### Probe definitions
 
-A probe definition is what a probe assignment will run against a database
-target [4.5]. It is versioned: each version is immutable once stored, except
+A probe definition is what a [probe assignment](#probe-assignments) runs
+against a database target [4.5]. It is versioned: each version is immutable once stored, except
 whether its definition is enabled, so an assignment that pins a version keeps
 what was approved, and nothing is ever deleted.
 
@@ -461,6 +466,78 @@ jq -n '{engine: "sqlserver", name: "custom_waits_lean", overrides: "waits",
         query_template: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms > 1"}' |
   curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
     --data @- localhost:8081/api/v1/probe-definitions
+```
+
+### Probe assignments
+
+A probe assignment runs one probe definition version against one database
+target, at an interval [4.5]
+([ADR 0014](../architecture/decisions/0014-probe-assignments-to-runtime-config.md)),
+under `/api/v1/probe-assignments` (`GET` with `?database_target_id=`,
+`?state=` and pages; `POST`; `GET`, `PATCH` and `DELETE` on `/{id}`;
+`POST /{id}/approve` and `POST /{id}/reject`). Viewers read; operators
+create, change and delete; admins approve and reject.
+
+The API never writes cluster state. It renders every approved, enabled
+assignment of an active target and an enabled definition into one values
+file, the chart's [`managedCollectors`](configuration.md#collectors-rendered-by-the-api):
+one `sqlserver` collector per target, with the ID
+`api-<target id>-<interval>s`, which the assignment shows as
+`collector_id`. A built-in definition is listed by name; a custom one by the
+name of the probe it overrides, with its query in full, for review. The file
+is deterministic (sorted, no timestamps), and checked with the integrations
+schema and the collector's loader before it leaves the API.
+`GET /api/v1/probe-assignments/rendered` serves it to operators as
+`application/yaml`; on kind, `make kind-assignments` deploys it. The pull
+request to `heartbeat-deploy` that carries it in production waits for that
+repository [18].
+
+| State | Meaning |
+| --- | --- |
+| `draft` | Created or changed, not yet approved; not rendered |
+| `approved` | Approved by an admin; rendered |
+| `applied` | The collector runs it as rendered: its collector is in `GET /admin/config`, enabled at the interval, with the target as rendered and the probe with the same query, timeout and row limit. The API checks every 30 s and moves `approved` to `applied` only |
+| `rejected` | Refused by an admin, with the reason in `state_detail`; not rendered. Change it, or approve it after all, to try again |
+| `proposed`, `failed` | With the pull request output: in an open pull request, or refused by the config repository's checks or by the collector |
+
+| Field | Rule |
+| --- | --- |
+| `database_target_id` | Set at creation, for good |
+| `probe_definition_id` | A version of an enabled definition for the target's engine, pinned: a new version changes nothing until the assignment is changed to it. A change may name another version of the same definition only |
+| `interval_seconds` | 5 to 3,600; the definition's `default_interval_seconds` when left out. A target runs at one interval, its collector's `scrape_interval`: an approval is refused while the target's other approved, enabled assignments run at another |
+| `timeout_ms` | 0 or left out for the definition's timeout, or else the collector's (half the interval, at most 10 s); at most 25,000 and at most the interval, the definition's counted when the assignment sets none |
+| `max_rows` | 0 or left out for the collector's 10,000; at most 100,000. A run that returns more fails |
+| `enabled` | `true` when left out. A disabled assignment is not rendered |
+
+A target runs each probe once: a second assignment of a definition on one
+target, or of another definition that runs the same probe (a custom
+definition runs the built-in it overrides), is 409. **Any change**, to the assignment or
+to its target's connection, puts the assignment back to `draft`, unapproved, so the next render leaves it out
+until an admin approves it again: what runs is always what was approved.
+A body that changes nothing changes nothing. Changes to one target's
+assignments take turns, on the target's row lock.
+
+| Status | When |
+| --- | --- |
+| 201 | Created, as a draft |
+| 400 | A field out of bounds or an unknown member, a reason with control characters, or a malformed ID |
+| 404 | No assignment has the ID |
+| 409 | The probe is assigned on the target already; the definition is disabled, for another engine, or (on a change) another definition; an approval of an assignment that is not a draft or rejected, whose definition was disabled since, at another interval than the target's approved ones, or whose render the collector would refuse; a rejection of one that is not a draft |
+| 422 | The target or the definition version does not exist |
+
+**Audit.** Every change writes an audit record of entity type
+`probe_assignment` in its transaction, with the assignment as the API shows
+it in `before` and `after`: `create`, `update`, `delete`, and `approve` and
+`reject` by the admin. `apply` is written by the API itself, actor type
+`system` with the command `probe assignment applied check`.
+
+```bash
+jq -n --arg t "<target id>" --arg d "<definition version id>" \
+  '{database_target_id: $t, probe_definition_id: $d, interval_seconds: 30}' |
+  curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/probe-assignments
+curl -sS -b cookies -X POST -H 'Origin: http://localhost:8081' localhost:8081/api/v1/probe-assignments/<id>/approve
+curl -sS -b cookies localhost:8081/api/v1/probe-assignments/rendered
 ```
 
 ### Users and roles

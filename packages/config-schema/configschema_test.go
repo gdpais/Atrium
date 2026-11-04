@@ -148,3 +148,18 @@ func mustJSON(t *testing.T, s string) any {
 	}
 	return v
 }
+
+func TestCollectorSchema(t *testing.T) {
+	schema, err := CollectorSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid := map[string]any{"id": "api-x-30s", "kind": "sqlserver", "enabled": true, "config": map[string]any{"scrape_interval": "30s"}}
+	if err := schema.Validate(valid); err != nil {
+		t.Fatalf("a collector: %v", err)
+	}
+	unknown := map[string]any{"id": "api-x-30s", "kind": "sqlserver", "enabled": true, "config": map[string]any{"scrape_intervall": "30s"}}
+	if err := schema.Validate(unknown); err == nil {
+		t.Fatal("a collector with an unknown key passed")
+	}
+}

@@ -270,6 +270,12 @@ func LoadRuntimeConfig(path string) (RuntimeConfig, error) {
 	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("read runtime config: %w", err)
 	}
+	return ParseRuntimeConfig(content)
+}
+
+// ParseRuntimeConfig validates, normalises, and versions the content of a
+// candidate integrations YAML file, as LoadRuntimeConfig does a file's.
+func ParseRuntimeConfig(content []byte) (RuntimeConfig, error) {
 	var doc document
 	if err := yaml.Unmarshal(content, &doc); err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse runtime config: %w", err)

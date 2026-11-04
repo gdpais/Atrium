@@ -46,6 +46,8 @@ type Server struct {
 	// telemetry says what an entity's telemetry is labelled with, for
 	// its links.
 	telemetry Telemetry
+	// probeAssignments serves /api/v1/probe-assignments.
+	probeAssignments ProbeAssignments
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -102,6 +104,9 @@ type Options struct {
 	// Telemetry says what an application's or a database target's
 	// telemetry is labelled with; without it their links fail.
 	Telemetry Telemetry
+	// ProbeAssignments serves the probe assignment operations; without it
+	// they fail.
+	ProbeAssignments ProbeAssignments
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -126,6 +131,7 @@ func NewServer(opts Options) (*Server, error) {
 		databaseTargets:  opts.DatabaseTargets,
 		links:            opts.Links,
 		telemetry:        opts.Telemetry,
+		probeAssignments: opts.ProbeAssignments,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,
 	}, nil
