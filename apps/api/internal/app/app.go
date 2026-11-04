@@ -154,6 +154,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		probeDefinitions: deps.probeDefinitions,
 		users:            deps.users,
 		drain:            deps.drain,
+		checkApplied:     deps.checkApplied,
 		closeDeps:        deps.close,
 		timeouts:         t,
 	}, nil
@@ -181,6 +182,9 @@ type connected struct {
 	// drain delivers audit records until its context ends; nil without an
 	// audit endpoint.
 	drain func(context.Context)
+	// checkApplied marks probe assignments applied until its context ends;
+	// nil without the collector's URL.
+	checkApplied func(context.Context)
 	// close closes both connections.
 	close func()
 }
@@ -234,6 +238,7 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		IdleTimeout: cmp.Or(cfg.SessionIdleTimeout, auth.DefaultIdleTimeout),
 		MaxAge:      cmp.Or(cfg.SessionMaxAge, auth.DefaultMaxAge),
 	}
+	collector := collectorClient(cfg, logger)
 	// One hasher, so logins and password changes share its cap.
 	hasher := password.NewHasher(password.DefaultParams, password.DefaultConcurrency)
 	result := connected{
@@ -243,7 +248,7 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		},
 		auth:             auth.NewService(pool, hasher, sessions, &auth.Limits{Redis: client}, attempts, logger),
 		users:            users.NewService(pool, hasher, sessions),
-		inventory:        inventory.New(pool, inventory.WithObserver(observer(cfg, logger))),
+		inventory:        inventory.New(pool, inventoryOptions(collector)...),
 		probeDefinitions: probedefs.NewService(pool),
 		close: func() {
 			pool.Close()
@@ -251,6 +256,11 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 				logger.Warn("shutdown: close redis client", "error", err)
 			}
 		},
+	}
+	if collector != nil {
+		host, _ := os.Hostname()
+		actor := audit.SystemActor(inventory.AppliedCheckTask, host)
+		result.checkApplied = func(ctx context.Context) { result.inventory.RunAppliedCheck(ctx, actor, logger) }
 	}
 	if cfg.AuditEndpoint == "" {
 		logger.Warn("audit delivery off: no endpoint is set, so audit records stay in the outbox")
@@ -291,6 +301,9 @@ type runDeps struct {
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
+	// checkApplied, when set, runs beside the HTTP server until shutdown:
+	// the probe assignment applied check in production.
+	checkApplied func(context.Context)
 	// closeDeps, when set, closes the PostgreSQL and Redis connections once
 	// the HTTP server has drained.
 	closeDeps func()
@@ -318,16 +331,19 @@ func run(ctx context.Context, deps runDeps) error {
 	// The drainer stops when shutdown begins and is waited for before the
 	// connections close: records written by the requests still draining
 	// wait in the outbox for the next replica.
-	if deps.drain != nil {
-		drainCtx, stopDrain := context.WithCancel(ctx)
-		drained := make(chan struct{})
+	for _, task := range []func(context.Context){deps.drain, deps.checkApplied} {
+		if task == nil {
+			continue
+		}
+		taskCtx, stop := context.WithCancel(ctx)
+		done := make(chan struct{})
 		go func() {
-			defer close(drained)
-			deps.drain(drainCtx)
+			defer close(done)
+			task(taskCtx)
 		}()
 		defer func() {
-			stopDrain()
-			<-drained
+			stop()
+			<-done
 		}()
 	}
 
@@ -344,6 +360,7 @@ func run(ctx context.Context, deps runDeps) error {
 	if deps.inventory != nil {
 		opts.Inventory = deps.inventory
 		opts.DatabaseTargets = deps.inventory
+		opts.ProbeAssignments = deps.inventory
 	}
 	if deps.users != nil {
 		opts.Users = deps.users
@@ -435,16 +452,25 @@ func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *
 	return telemetry.Traced(metrics.Instrument(mux))
 }
 
-// observer is the client that reads the collector's admin config, or nil
-// when no URL is set.
-func observer(cfg Config, logger *slog.Logger) inventory.Observer {
+// collectorClient is the client that reads the collector's admin config,
+// or nil when no URL is set.
+func collectorClient(cfg Config, logger *slog.Logger) *collectors.Client {
 	if cfg.CollectorURL == "" {
-		logger.Warn("no collector URL is set, so whether a telemetry source is observed is unknown")
+		logger.Warn("no collector URL is set, so whether a telemetry source is observed is unknown and no probe assignment is marked applied")
 		return nil
 	}
 	if cfg.CollectorAdminToken == "" {
 		logger.Warn("no collector admin token is set, so the collector refuses the API and observations are unknown", "collector_url", cfg.CollectorURL)
 	}
-	logger.Info("telemetry source observation on", "collector_url", cfg.CollectorURL)
+	logger.Info("telemetry source observation and the probe assignment applied check on", "collector_url", cfg.CollectorURL)
 	return &collectors.Client{URL: cfg.CollectorURL, Token: cfg.CollectorAdminToken}
+}
+
+// inventoryOptions has the inventory read the collector through client,
+// when there is one.
+func inventoryOptions(client *collectors.Client) []inventory.Option {
+	if client == nil {
+		return nil
+	}
+	return []inventory.Option{inventory.WithObserver(client), inventory.WithRunner(client)}
 }

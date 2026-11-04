@@ -700,6 +700,76 @@ wait_for 120 "the source's audit record in Loki" source_audited
 pass "an OutSystems source for local-dev is observed by oslogs-e2e through GET /admin/config; one for e2e-unwatched is not; the registration is audited in Loki"
 
 # ----------------------------------------------------------------------------
+step "a probe assignment approved through the API is applied by the collector"
+# ADR 0014: an operator assigns a probe to a database target, an admin
+# approves it, and the API renders it into managedCollectors. The API never
+# writes cluster state: `scripts/kind.sh assignments` (make kind-assignments)
+# runs the render in its pod and deploys with the file; the collector
+# reloads, and the API marks the assignment applied once the collector's GET
+# /admin/config runs it as rendered. The target is the e2e SQL Server under
+# another name, so its metrics come with target="e2e-assigned". The admin
+# is the only user, and holds every role.
+kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward-assignments.log" 2>&1 &
+port_forward_pid=$!
+wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward-assignments.log"
+api_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/api-forward-assignments.log" | head -n 1)
+code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
+[ "$code" = 201 ] || fail "the admin's third login returned $code: $(cat "$WORK/api-body")"
+(
+	umask 077
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+)
+code=$(api_call GET /api/v1/environments -H "@$WORK/session-header")
+[ "$code" = 200 ] || fail "listing environments returned $code"
+local_dev=$(jq -r '.items[] | select(.slug == "local-dev") | .id' "$WORK/api-body")
+[ -n "$local_dev" ] || fail "no local-dev environment: $(cat "$WORK/api-body")"
+code=$(api_post /api/v1/database-targets "$(jq -nc --arg env "$local_dev" --arg host "$SQL_CONTAINER" \
+	'{environment_id: $env, name: "e2e-assigned", host: $host, database_name: "tempdb", credential_ref: "env/sqlserver-dev"}')")
+[ "$code" = 201 ] || fail "creating the e2e-assigned target returned $code: $(cat "$WORK/api-body")"
+assigned_target=$(jq -r .id "$WORK/api-body")
+code=$(api_call GET /api/v1/probe-definitions -H "@$WORK/session-header")
+[ "$code" = 200 ] || fail "listing probe definitions returned $code"
+sessions_probe=$(jq -r '.items[] | select(.name == "sessions" and .builtin) | .id' "$WORK/api-body")
+code=$(api_post /api/v1/probe-assignments "$(jq -nc --arg t "$assigned_target" --arg d "$sessions_probe" \
+	'{database_target_id: $t, probe_definition_id: $d, interval_seconds: 20, max_rows: 1000}')")
+[ "$code" = 201 ] || fail "creating the assignment returned $code: $(cat "$WORK/api-body")"
+jq -e '.state == "draft"' "$WORK/api-body" >/dev/null || fail "a new assignment is not a draft: $(cat "$WORK/api-body")"
+assignment=$(jq -r .id "$WORK/api-body")
+assigned_collector=$(jq -r .collector_id "$WORK/api-body")
+# A draft is not rendered.
+code=$(api_call GET /api/v1/probe-assignments/rendered -H "@$WORK/session-header")
+[ "$code" = 200 ] && ! grep -q "$assigned_collector" "$WORK/api-body" || fail "the draft is rendered ($code): $(cat "$WORK/api-body")"
+code=$(api_call POST "/api/v1/probe-assignments/$assignment/approve" -H "@$WORK/session-header" -H "Origin: $site")
+[ "$code" = 200 ] || fail "approving the assignment returned $code: $(cat "$WORK/api-body")"
+jq -e '.state == "approved" and .approved_by != null' "$WORK/api-body" >/dev/null || fail "the approval: $(cat "$WORK/api-body")"
+code=$(api_call GET /api/v1/probe-assignments/rendered -H "@$WORK/session-header")
+[ "$code" = 200 ] && grep -q "id: $assigned_collector" "$WORK/api-body" || fail "the approval is not rendered ($code): $(cat "$WORK/api-body")"
+cp "$WORK/api-body" "$WORK/rendered-api.yaml"
+EXTRA_VALUES="$WORK/e2e-oslogs.yaml $base_values" scripts/kind.sh assignments >/dev/null
+# What kind deployed is what the API serves.
+cmp -s "$WORK/rendered-api.yaml" ".tmp/kind/$CLUSTER/managed-collectors.yaml" ||
+	fail "the file kind.sh deployed differs from GET /api/v1/probe-assignments/rendered"
+wait_for 180 "sessions of target e2e-assigned" has_value "sum(heartbeat_sqlserver_sessions{target=\"e2e-assigned\"})"
+assignment_is() {
+	[ "$(api_call GET "/api/v1/probe-assignments/$assignment" -H "@$WORK/session-header")" = 200 ] &&
+		jq -e --arg state "$1" '.state == $state' "$WORK/api-body" >/dev/null
+}
+# The applied check runs every 30s, on the collector's answer kept 15s.
+wait_for 120 "the assignment applied" assignment_is applied
+code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
+[ "$code" = 204 ] || fail "the logout returned $code"
+kill "$port_forward_pid" 2>/dev/null || true
+port_forward_pid=
+assignment_audited() {
+	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$assignment\"" | jq -e --arg id "$assignment" \
+		'[.data.result[].values[][1] | fromjson | select(.entity_type == "probe_assignment" and .entity_id == $id) | .action] | sort == ["apply", "approve", "create"]'
+}
+wait_for 120 "the assignment's create, approve and apply records in Loki" assignment_audited
+# Later steps deploy without it: the state file is what keeps it.
+rm -f ".tmp/kind/$CLUSTER/managed-collectors.yaml"
+pass "assignment $assignment (sessions on e2e-assigned, every 20s) went draft -> approved -> applied; $assigned_collector runs it and its sessions reach Prometheus; create, approve and apply audited in Loki"
+
+# ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"
 readyz=$(pod_get /readyz)
 [ "$(printf '%s' "$readyz" | jq -c keys)" = '["status"]' ] || fail "/readyz serves more than its status: $readyz"

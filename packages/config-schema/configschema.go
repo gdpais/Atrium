@@ -3,7 +3,9 @@
 //
 // So far that is the config of each telemetry source type, which the API
 // checks before it stores a source (ADR 0017 §1): one schema per type in
-// src/telemetry-sources, named after the type.
+// src/telemetry-sources, named after the type; and a collector of the
+// integrations file, which the API checks every collector it renders from
+// probe assignments against (ADR 0014 §2).
 package configschema
 
 import (
@@ -21,6 +23,12 @@ import (
 
 //go:embed src/telemetry-sources/*.schema.json
 var sources embed.FS
+
+//go:embed src/integrations.schema.json
+var integrations []byte
+
+// integrationsID is the integrations schema's $id.
+const integrationsID = "https://heartbeat.local/schemas/integrations.schema.json"
 
 const sourcesDir = "src/telemetry-sources"
 
@@ -82,6 +90,24 @@ func SourceSchemas() (map[string]*jsonschema.Schema, error) {
 		}
 	}
 	return out, nil
+}
+
+// CollectorSchema compiles the schema of one collector of the integrations
+// file: integrations.schema.json#/properties/collectors/items.
+func CollectorSchema() (*jsonschema.Schema, error) {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(integrations))
+	if err != nil {
+		return nil, fmt.Errorf("integrations schema: %w", err)
+	}
+	compiler := newCompiler()
+	if err := compiler.AddResource(integrationsID, doc); err != nil {
+		return nil, fmt.Errorf("integrations schema: %w", err)
+	}
+	schema, err := compiler.Compile(integrationsID + "#/properties/collectors/items")
+	if err != nil {
+		return nil, fmt.Errorf("integrations schema: %w", err)
+	}
+	return schema, nil
 }
 
 // newCompiler returns a compiler that asserts formats, credential-ref

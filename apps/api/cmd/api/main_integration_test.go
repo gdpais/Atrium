@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/testenv"
 	"heartbeat/internal/credentials"
 )
@@ -59,5 +60,18 @@ func TestCreateAdminCommand(t *testing.T) {
 
 	if _, err := createAdmin(secret + "\n"); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("create-admin with the same email = %v, want already exists", err)
+	}
+
+	// `api probe-assignments render` prints the render, empty with no
+	// approvals, and writes nothing.
+	var rendered bytes.Buffer
+	if err := execute(ctx, []string{"probe-assignments", "render"}, slog.New(slog.DiscardHandler), strings.NewReader(""), &rendered); err != nil {
+		t.Fatal(err)
+	}
+	if rendered.String() != inventory.RenderHeader+"managedCollectors: []\n" {
+		t.Fatalf("probe-assignments render = %q", rendered.String())
+	}
+	if n := strings.TrimSpace(pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-tAc", "select count(*) from audit_outbox")); n != "1" {
+		t.Fatalf("audit records after the render: %s, want the admin's only", n)
 	}
 }

@@ -125,12 +125,34 @@ probe deadline.
 
 ## 2. Add the target
 
-The API stores targets too, at
+There are two ways: through the API, or by hand in the values.
+
+### Through the API
+
+Register the target at
 [`/api/v1/database-targets`](../reference/metrics-and-endpoints.md#database-targets),
-with the same rules for the host and the credential reference; the
-collector runs them once probe assignments render them into its config
-(TODO 4.5, [ADR 0014](../architecture/decisions/0014-probe-assignments-to-runtime-config.md)).
-Until then, add the target by hand:
+assign probes to it at
+[`/api/v1/probe-assignments`](../reference/metrics-and-endpoints.md#probe-assignments),
+and have an admin approve each assignment
+([ADR 0014](../architecture/decisions/0014-probe-assignments-to-runtime-config.md)).
+The API renders the approved ones into the chart's `managedCollectors`, one
+collector per target; all of a target's assignments run at one interval.
+On kind, `make kind-assignments` deploys the render, and later
+`make kind-deploy` runs keep it. In production the pull request to
+`heartbeat-deploy` that carries it waits for that repository [18]; until
+then, add production targets by hand. Provide the credential (step 3) before
+the deploy; an assignment shows `applied` once the collector runs it.
+
+```bash
+make kind-assignments
+curl -sS -b cookies localhost:8081/api/v1/probe-assignments?state=applied | jq '.items[] | {id, collector_id}'
+```
+
+Do not add a target to both: the collector refuses a target that two
+enabled collectors scrape in one environment, and keeps its last good
+config (step 5 shows how to tell).
+
+### By hand
 
 Add an entry under `collectors[].config.targets[]` of the environment's
 `integrations` values (the chart renders them into `integrations.yaml`; see
@@ -196,7 +218,7 @@ restart. The kubelet updates the files within about a minute.
 
 | Where | Steps |
 | --- | --- |
-| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`. |
+| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for approved probe assignments, `make kind-assignments`. |
 | Installed from a release | Put the values in a file and run `helm upgrade` with it and all your other values files ([installing a release](install-from-release.md#5-add-a-sql-server-target)). |
 | Production | Commit the values to the `heartbeat-deploy` repository; Argo CD syncs them. |
 

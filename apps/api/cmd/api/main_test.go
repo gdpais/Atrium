@@ -288,6 +288,7 @@ func TestExecuteRejectsUnknownCommands(t *testing.T) {
 		{"users"}, {"users", "create"}, {"users", "create-admin"}, {"users", "create-admin", "--email"},
 		{"users", "create-admin", "--email", "admin@example.com", "extra"},
 		{"users", "create-admin", "--name", "Admin"}, {"users", "create-admin", "--password", "x"},
+		{"probe-assignments"}, {"probe-assignments", "render", "extra"}, {"probe-assignments", "apply"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			err := execute(context.Background(), args, slog.New(slog.DiscardHandler), strings.NewReader(""), &bytes.Buffer{})

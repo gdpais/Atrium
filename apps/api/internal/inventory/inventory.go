@@ -80,6 +80,7 @@ type Caller struct {
 type Service struct {
 	db       DB
 	observer Observer
+	runner   Runner
 }
 
 // New returns a Service on db.
