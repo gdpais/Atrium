@@ -24,11 +24,12 @@ func TestReapRemovesOnlyOrphanedContainers(t *testing.T) {
 	if host == "" {
 		t.Fatal("no host name")
 	}
-	dead := exitedPID(t)
-	orphan := labelled(t, host, dead)
+	pid, end := testreap.StandIn(t)
+	orphan := labelled(t, host, pid)
 	docker(t, nil, "pause", orphan)
 	live := labelled(t, host, os.Getpid())
-	otherHost := labelled(t, host+"-elsewhere", dead)
+	otherHost := labelled(t, host+"-elsewhere", pid)
+	end()
 
 	// Another test process can reap the orphan first, so only what is left
 	// counts.
@@ -36,7 +37,7 @@ func TestReapRemovesOnlyOrphanedContainers(t *testing.T) {
 		t.Fatal(err)
 	}
 	if exists(t, orphan) {
-		t.Errorf("orphan %s of exited process %d is still there", orphan, dead)
+		t.Errorf("orphan %s of exited process %d is still there", orphan, pid)
 	}
 	if !exists(t, live) {
 		t.Errorf("container %s of this running process was removed", live)
@@ -65,14 +66,4 @@ func labelled(t *testing.T, host string, pid int) string {
 func exists(t *testing.T, name string) bool {
 	t.Helper()
 	return strings.TrimSpace(docker(t, nil, "ps", "-a", "-q", "--filter", "name=^"+name+"$")) != ""
-}
-
-// exitedPID returns the ID of a process that has exited and been waited for.
-func exitedPID(t *testing.T) int {
-	t.Helper()
-	cmd := exec.Command("true")
-	if err := cmd.Run(); err != nil {
-		t.Fatal(err)
-	}
-	return cmd.Process.Pid
 }

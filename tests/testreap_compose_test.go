@@ -36,22 +36,24 @@ func TestReapRemovesLeftoverComposeProject(t *testing.T) {
 		_ = s.command(ctx, "down", "--volumes", "--timeout", "0").Run()
 	})
 
-	// Create the project as a test process that has exited would have.
-	dead := exitedPID(t)
+	// Create the project as another test process would have, then end that
+	// process.
+	pid, end := testreap.StandIn(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	create := s.command(ctx, "create", "postgres")
-	create.Env = append(create.Env, testreap.PIDEnv+"="+strconv.Itoa(dead))
+	create.Env = append(create.Env, testreap.PIDEnv+"="+strconv.Itoa(pid))
 	if out, err := create.CombinedOutput(); err != nil {
 		t.Fatalf("compose create: %v\n%s", err, out)
 	}
 	filter := "label=com.docker.compose.project=" + s.Project
-	if got := dockerOutput(t, "ps", "-a", "--filter", filter, "--format", `{{.Label "`+testreap.PIDLabel+`"}}`); got != strconv.Itoa(dead) {
-		t.Fatalf("project container labelled with process %q, want %d", got, dead)
+	if got := dockerOutput(t, "ps", "-a", "--filter", filter, "--format", `{{.Label "`+testreap.PIDLabel+`"}}`); got != strconv.Itoa(pid) {
+		t.Fatalf("project container labelled with process %q, want %d", got, pid)
 	}
 	if dockerOutput(t, "network", "ls", "-q", "--filter", filter) == "" {
 		t.Fatal("compose create made no project network")
 	}
+	end()
 
 	// Another test process can reap the project first, so only what is left
 	// counts.
@@ -61,8 +63,17 @@ func TestReapRemovesLeftoverComposeProject(t *testing.T) {
 	if got := dockerOutput(t, "ps", "-a", "-q", "--filter", filter); got != "" {
 		t.Errorf("project %s still has containers %s", s.Project, got)
 	}
-	if got := dockerOutput(t, "network", "ls", "-q", "--filter", filter); got != "" {
-		t.Errorf("project %s still has networks %s", s.Project, got)
+	// A test process that removed the container before Reap looked may still
+	// be removing the network.
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		got := dockerOutput(t, "network", "ls", "-q", "--filter", filter)
+		if got == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Errorf("project %s still has networks %s", s.Project, got)
+			break
+		}
 	}
 }
 
@@ -73,14 +84,4 @@ func dockerOutput(t *testing.T, args ...string) string {
 		t.Fatalf("docker %s: %v", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out))
-}
-
-// exitedPID returns the ID of a process that has exited and been waited for.
-func exitedPID(t *testing.T) int {
-	t.Helper()
-	cmd := exec.Command("true")
-	if err := cmd.Run(); err != nil {
-		t.Fatal(err)
-	}
-	return cmd.Process.Pid
 }

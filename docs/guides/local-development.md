@@ -236,7 +236,8 @@ it times out. The next integration test run removes them by itself:
   another host, or another PID namespace such as a container, sharing the
   Docker daemon.
 
-To clean up without running the tests, list what is left with
+To clean up without running the tests, wait until no test is running (the
+list includes the containers of running tests), list what is left with
 `docker ps -a --filter label=heartbeat.test.pid` and remove a container with
 `docker rm -fv`. Containers from before these labels, or from a host that
 cannot report its name, have no label to go by: find them with

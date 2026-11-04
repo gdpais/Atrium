@@ -83,10 +83,32 @@ func ReapOnce(t testing.TB) {
 	}
 }
 
+// StandIn starts a process that stands in for another test process in tests
+// of [Reap], and returns its ID. Containers labelled with it are kept until
+// end stops the process and waits for it; then any Reap, of this test
+// process or another, removes them. A process that has already exited would
+// let them be removed while the test still sets them up.
+func StandIn(t testing.TB) (pid int, end func()) {
+	t.Helper()
+	cmd := exec.Command("sleep", "600")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start stand-in process: %v", err)
+	}
+	// Waiting matters: an exited child not yet waited for still counts as
+	// running.
+	end = sync.OnceFunc(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	t.Cleanup(end)
+	return cmd.Process.Pid, end
+}
+
 // Reap removes the containers labelled with this host and the ID of a
 // process that is no longer running, and the networks of their Compose
 // projects. It returns the names of the containers it removed. A container
-// another test process removes at the same moment is not an error.
+// another test process removes at the same moment is not an error: Reap waits
+// until it is gone, since its network cannot be removed before.
 func Reap(ctx context.Context) ([]string, error) {
 	h := Host()
 	if h == "" {
@@ -112,9 +134,15 @@ func Reap(ctx context.Context) ([]string, error) {
 		}
 		// A paused container cannot be removed by some runtimes.
 		_, _ = docker(ctx, "unpause", id)
-		if _, err := docker(ctx, "rm", "-f", "-v", id); err != nil && !gone(err) {
-			errs = append(errs, err)
-			continue
+		if _, err := docker(ctx, "rm", "-f", "-v", id); err != nil {
+			if !gone(err) {
+				errs = append(errs, err)
+				continue
+			}
+			if err := waitRemoved(ctx, id); err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		removed = append(removed, name)
 		if project != "" && !slices.Contains(projects, project) {
@@ -136,6 +164,27 @@ func Reap(ctx context.Context) ([]string, error) {
 	return removed, errors.Join(errs...)
 }
 
+// waitRemoved waits until the container, which another test process is
+// removing, is gone.
+func waitRemoved(ctx context.Context, id string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	for {
+		out, err := docker(ctx, "ps", "-a", "-q", "--filter", "id="+id)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(out) == "" {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("container %s is still being removed: %w", id, ctx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
 // Host returns where this process's IDs are valid: the host name and, on
 // Linux, the PID namespace. A test process in a container that shares the
 // Docker daemon, even with the host's name, has its own process IDs. It is ""
@@ -152,12 +201,31 @@ func Host() string {
 	return name
 }
 
-// gone reports whether a docker error says the object is already removed,
-// or being removed, by someone else.
+// gone reports whether the daemon says the object is already removed, or
+// being removed, by someone else: "No such container", "network … not
+// found", "removal of container … is already in progress". Only what docker
+// wrote to stderr counts, not an error running docker itself.
 func gone(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "No such") || strings.Contains(msg, "already in progress")
+	var failed *dockerError
+	if !errors.As(err, &failed) {
+		return false
+	}
+	return strings.Contains(failed.stderr, "No such") || strings.Contains(failed.stderr, " not found") ||
+		strings.Contains(failed.stderr, "already in progress")
 }
+
+// dockerError is a docker command that failed, with what it wrote to stderr.
+type dockerError struct {
+	args   []string
+	err    error
+	stderr string
+}
+
+func (e *dockerError) Error() string {
+	return fmt.Sprintf("docker %s: %v: %s", strings.Join(e.args, " "), e.err, e.stderr)
+}
+
+func (e *dockerError) Unwrap() error { return e.err }
 
 func docker(ctx context.Context, args ...string) (string, error) {
 	var stderr strings.Builder
@@ -165,7 +233,7 @@ func docker(ctx context.Context, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return "", &dockerError{args: args, err: err, stderr: strings.TrimSpace(stderr.String())}
 	}
 	return string(out), nil
 }
