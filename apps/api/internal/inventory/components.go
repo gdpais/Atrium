@@ -201,6 +201,9 @@ func (s *Service) UpdateComponent(ctx context.Context, caller Caller, id uuid.UU
 		if err != nil {
 			return notFound(err)
 		}
+		if err := managedByFile(locked.ManagedBy, "component"); err != nil {
+			return err
+		}
 		before, err := component(store.GetComponentRow(locked))
 		if err != nil {
 			return err
@@ -275,6 +278,9 @@ func (s *Service) DeleteComponent(ctx context.Context, caller Caller, id uuid.UU
 		locked, err := q.LockComponent(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(locked.ManagedBy, "component"); err != nil {
+			return err
 		}
 		before, err := component(store.GetComponentRow(locked))
 		if err != nil {

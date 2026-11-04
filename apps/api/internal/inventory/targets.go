@@ -218,6 +218,9 @@ func (s *Service) UpdateDatabaseTarget(ctx context.Context, caller Caller, id uu
 		if err != nil {
 			return notFound(err)
 		}
+		if err := managedByFile(row.ManagedBy, "database target"); err != nil {
+			return err
+		}
 		before, err := databaseTarget(row)
 		if err != nil {
 			return err
@@ -269,6 +272,9 @@ func (s *Service) DeleteDatabaseTarget(ctx context.Context, caller Caller, id uu
 		row, err := q.LockDatabaseTarget(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(row.ManagedBy, "database target"); err != nil {
+			return err
 		}
 		before, err := databaseTarget(row)
 		if err != nil {

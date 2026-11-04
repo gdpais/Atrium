@@ -10,7 +10,7 @@ returning *;
 
 -- name: GetComponent :one
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where c.id = @id;
@@ -18,7 +18,7 @@ where c.id = @id;
 -- name: LockComponent :one
 -- The component, locked until the transaction ends, for a change.
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where c.id = @id
@@ -28,7 +28,7 @@ for update of c;
 -- A page of components by name, then ID: those after the cursor's (name,
 -- id) when one is given.
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where (sqlc.narg(application_id)::uuid is null or c.application_id = sqlc.narg(application_id))

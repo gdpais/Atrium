@@ -40,6 +40,14 @@ const (
 	StatusDisabled = "disabled"
 )
 
+// Who manages a row (ADR 0021 §4): the API's endpoints, or the
+// environment's inventory file, applied by the API's reconciler. Each row
+// has one writer.
+const (
+	ManagedByAPI    = "api"
+	ManagedByConfig = "config"
+)
+
 // ErrNotFound is an ID that names no entity of its type.
 var ErrNotFound = errors.New("inventory: not found")
 
@@ -197,4 +205,14 @@ func decodeLabels(raw []byte) (map[string]string, error) {
 		return nil, fmt.Errorf("labels: %w", err)
 	}
 	return labels, nil
+}
+
+// managedByFile refuses a change, through the API's endpoints, to a row the
+// inventory file manages: the file is its only writer, and a change made
+// here would be undone by the next apply or fight it.
+func managedByFile(managedBy, entity string) error {
+	if managedBy != ManagedByConfig {
+		return nil
+	}
+	return &ConflictError{Detail: fmt.Sprintf("the %s is managed by its environment's inventory file (ADR 0021): change it there, by pull request", entity)}
 }

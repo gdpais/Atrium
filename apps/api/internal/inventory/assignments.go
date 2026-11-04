@@ -230,6 +230,11 @@ func (s *Service) CreateProbeAssignment(ctx context.Context, caller Caller, in N
 		if err != nil {
 			return fmt.Errorf("lock the database target: %w", err)
 		}
+		// The inventory file lists a config-managed target's probes, all of
+		// them: one the API added would share its collector and interval.
+		if err := managedByFile(target.ManagedBy, "database target"); err != nil {
+			return err
+		}
 		def, err := assignableDefinition(ctx, q, in.ProbeDefinitionID, target.Engine)
 		if err != nil {
 			return err
@@ -456,6 +461,9 @@ func (s *Service) changeAssignment(ctx context.Context, caller Caller, id uuid.U
 		row, err := q.LockProbeAssignment(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(row.ManagedBy, "probe assignment"); err != nil {
+			return err
 		}
 		return fn(q, target, row, record)
 	})

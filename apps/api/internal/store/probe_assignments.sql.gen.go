@@ -15,7 +15,7 @@ const createProbeAssignment = `-- name: CreateProbeAssignment :one
 
 insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, created_by)
 values ($1, $2, $3, $4, $5, $6, $7)
-returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows
+returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by
 `
 
 type CreateProbeAssignmentParams struct {
@@ -63,6 +63,7 @@ func (q *Queries) CreateProbeAssignment(ctx context.Context, arg CreateProbeAssi
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -80,7 +81,7 @@ func (q *Queries) DeleteProbeAssignment(ctx context.Context, id pgtype.UUID) (in
 }
 
 const getProbeAssignment = `-- name: GetProbeAssignment :one
-select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows from probe_assignments where id = $1
+select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by from probe_assignments where id = $1
 `
 
 func (q *Queries) GetProbeAssignment(ctx context.Context, id pgtype.UUID) (ProbeAssignment, error) {
@@ -103,12 +104,13 @@ func (q *Queries) GetProbeAssignment(ctx context.Context, id pgtype.UUID) (Probe
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listApprovedTargetAssignments = `-- name: ListApprovedTargetAssignments :many
-select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows from probe_assignments
+select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by from probe_assignments
 where database_target_id = $1 and state in ('approved', 'proposed', 'applied')
 order by created_at, id
 for update
@@ -143,6 +145,7 @@ func (q *Queries) ListApprovedTargetAssignments(ctx context.Context, databaseTar
 			&i.CreatedBy,
 			&i.TimeoutMs,
 			&i.MaxRows,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -155,7 +158,7 @@ func (q *Queries) ListApprovedTargetAssignments(ctx context.Context, databaseTar
 }
 
 const listProbeAssignments = `-- name: ListProbeAssignments :many
-select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows from probe_assignments
+select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by from probe_assignments
 where ($1::uuid is null or database_target_id = $1)
   and ($2::text is null or state = $2)
   and ($3::timestamptz is null
@@ -206,6 +209,7 @@ func (q *Queries) ListProbeAssignments(ctx context.Context, arg ListProbeAssignm
 			&i.CreatedBy,
 			&i.TimeoutMs,
 			&i.MaxRows,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -350,7 +354,7 @@ func (q *Queries) ListTargetAssignmentProbes(ctx context.Context, arg ListTarget
 }
 
 const lockProbeAssignment = `-- name: LockProbeAssignment :one
-select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows from probe_assignments where id = $1 for update
+select id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by from probe_assignments where id = $1 for update
 `
 
 // The assignment, locked until the transaction ends, for a change.
@@ -374,6 +378,7 @@ func (q *Queries) LockProbeAssignment(ctx context.Context, id pgtype.UUID) (Prob
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -399,7 +404,7 @@ update probe_assignments
 set state = 'draft', state_detail = '', pull_request_url = null, approved_by = null, approved_at = null,
   updated_at = now()
 where id = $1
-returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows
+returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by
 `
 
 // Back to draft, unapproved, with nothing else changed.
@@ -423,6 +428,7 @@ func (q *Queries) ResetProbeAssignment(ctx context.Context, id pgtype.UUID) (Pro
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -432,7 +438,7 @@ update probe_assignments
 set state = $1, state_detail = $2, approved_by = $3,
   approved_at = $4, updated_at = now()
 where id = $5
-returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows
+returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by
 `
 
 type SetProbeAssignmentStateParams struct {
@@ -471,6 +477,7 @@ func (q *Queries) SetProbeAssignmentState(ctx context.Context, arg SetProbeAssig
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -482,7 +489,7 @@ set probe_definition_id = $1, interval_seconds = $2,
   state = 'draft', state_detail = '', pull_request_url = null, approved_by = null, approved_at = null,
   updated_at = now()
 where id = $6
-returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows
+returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by
 `
 
 type UpdateProbeAssignmentParams struct {
@@ -522,6 +529,7 @@ func (q *Queries) UpdateProbeAssignment(ctx context.Context, arg UpdateProbeAssi
 		&i.CreatedBy,
 		&i.TimeoutMs,
 		&i.MaxRows,
+		&i.ManagedBy,
 	)
 	return i, err
 }

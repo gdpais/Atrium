@@ -15,7 +15,7 @@ const createComponent = `-- name: CreateComponent :one
 
 insert into application_components (application_id, name, component_type, runtime_name, labels)
 values ($1, $2, $3, $4, $5)
-returning id, application_id, name, component_type, runtime_name, labels, created_at, updated_at
+returning id, application_id, name, component_type, runtime_name, labels, created_at, updated_at, managed_by
 `
 
 type CreateComponentParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CreateComponent(ctx context.Context, arg CreateComponentParams
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -66,7 +67,7 @@ func (q *Queries) DeleteComponent(ctx context.Context, id pgtype.UUID) (int64, e
 
 const getComponent = `-- name: GetComponent :one
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where c.id = $1
@@ -82,6 +83,7 @@ type GetComponentRow struct {
 	Labels        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error) {
@@ -97,13 +99,14 @@ func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponen
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listComponents = `-- name: ListComponents :many
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where ($1::uuid is null or c.application_id = $1)
@@ -130,6 +133,7 @@ type ListComponentsRow struct {
 	Labels        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 // A page of components by name, then ID: those after the cursor's (name,
@@ -158,6 +162,7 @@ func (q *Queries) ListComponents(ctx context.Context, arg ListComponentsParams) 
 			&i.Labels,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -171,7 +176,7 @@ func (q *Queries) ListComponents(ctx context.Context, arg ListComponentsParams) 
 
 const lockComponent = `-- name: LockComponent :one
 select c.id, c.application_id, a.environment_id, c.name, c.component_type,
-  c.runtime_name, c.labels, c.created_at, c.updated_at
+  c.runtime_name, c.labels, c.created_at, c.updated_at, c.managed_by
 from application_components c
 join applications a on a.id = c.application_id
 where c.id = $1
@@ -188,6 +193,7 @@ type LockComponentRow struct {
 	Labels        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 // The component, locked until the transaction ends, for a change.
@@ -204,6 +210,7 @@ func (q *Queries) LockComponent(ctx context.Context, id pgtype.UUID) (LockCompon
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -213,7 +220,7 @@ update application_components
 set name = $1, component_type = $2, runtime_name = $3,
   labels = $4, updated_at = now()
 where id = $5
-returning id, application_id, name, component_type, runtime_name, labels, created_at, updated_at
+returning id, application_id, name, component_type, runtime_name, labels, created_at, updated_at, managed_by
 `
 
 type UpdateComponentParams struct {
@@ -244,6 +251,7 @@ func (q *Queries) UpdateComponent(ctx context.Context, arg UpdateComponentParams
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
