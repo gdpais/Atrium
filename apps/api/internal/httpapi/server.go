@@ -41,6 +41,11 @@ type Server struct {
 	probeDefinitions ProbeDefinitions
 	// databaseTargets serves /api/v1/database-targets.
 	databaseTargets DatabaseTargets
+	// links is the config links are rendered from; nil renders none.
+	links LinkConfig
+	// telemetry says what an entity's telemetry is labelled with, for
+	// its links.
+	telemetry Telemetry
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -91,6 +96,12 @@ type Options struct {
 	// DatabaseTargets serves the database target operations; without it
 	// they fail.
 	DatabaseTargets DatabaseTargets
+	// Links is the integrations config links are rendered from. Without
+	// it, every list of links is empty.
+	Links LinkConfig
+	// Telemetry says what an application's or a database target's
+	// telemetry is labelled with; without it their links fail.
+	Telemetry Telemetry
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -113,6 +124,8 @@ func NewServer(opts Options) (*Server, error) {
 		probeDefinitions: opts.ProbeDefinitions,
 		users:            opts.Users,
 		databaseTargets:  opts.DatabaseTargets,
+		links:            opts.Links,
+		telemetry:        opts.Telemetry,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,
 	}, nil

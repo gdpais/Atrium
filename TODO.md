@@ -372,7 +372,8 @@ and collector contracts are prerequisites, and its decisions are recorded
 Remaining work, in order, one pull request each:
 database targets and probe
 definitions [4.5] → probe assignments, rendered to `managedCollectors` and
-applied on kind [4.5, 2.5] → deep links [4.9] → this stage's validation.
+applied on kind [4.5, 2.5] → this stage's validation. Deep links [4.9] are
+done: rendered from the integrations templates the collector reads.
 The `managedCollectors` chart key they render to is in place [2.5]. ADR 0014's
 pull request output waits for `heartbeat-deploy` [18]; until then the output
 is `none`.
@@ -458,9 +459,9 @@ Built with the reporting worker [7, 14], not in stage 3.
 - [ ] Support on-demand report triggering
 
 ### 4.9 Log search / Grafana deep links
-- [ ] Implement deep-link generation from YAML templates
-- [ ] Implement log-search helper endpoints if needed for UI flows
-- [ ] Keep Grafana/Loki integration template-driven, not DB-driven
+- [x] Implement deep-link generation from YAML templates: `GET /api/v1/dashboards`, `GET /api/v1/applications/{id}/links` and `GET /api/v1/database-targets/{id}/links` render `dashboards.dashboard_templates` and `deep_link_templates` with each entity's variables; the loader rejects unknown variables; the chart mounts the `heartbeat-integrations` ConfigMap into the API ([links](docs/reference/metrics-and-endpoints.md#links-into-the-platforms-ui))
+- [x] Implement log-search helper endpoints if needed for UI flows: none yet. The UI's drill-down is a link to Grafana Explore (`logs-explore`); the API searches logs itself only once investigations need the query adapters [6] (ADR 0011 §5)
+- [x] Keep Grafana/Loki integration template-driven, not DB-driven: templates and base URL come from `integrations.yaml` only; nothing is stored in PostgreSQL
 
 ### 4.10 Audit output
 - [x] Decide how audit records are written and delivered: in the change's transaction to an `audit_outbox`, drained as OTLP log records through the OTel Collector to Loki ([ADR 0016](docs/architecture/decisions/0016-audit-records-through-an-outbox.md))

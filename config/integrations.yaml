@@ -7,7 +7,8 @@ dashboards:
     outsystems-overview: /d/outsystems-overview
   deep_link_templates:
     logs-explore: /explore?orgId=1&left=${logs_query}
-    sqlserver-target: /d/sqlserver-overview?var-target=${target}
+    outsystems-application: /d/outsystems-overview?orgId=1&var-environment=${environment}&var-application=${application}&from=${from}&to=${to}
+    sqlserver-target: /d/sqlserver-overview?orgId=1&var-environment=${environment}&var-target=${target}&from=${from}&to=${to}
 logs:
   base_url: http://localhost:3100
 alerting:

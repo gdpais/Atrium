@@ -35,6 +35,8 @@
 //	HEARTBEAT_API_COLLECTOR_URL            the DB collector's base URL, such as http://db-collector:8082, read for
 //	                                       whether telemetry sources are observed (default: none; unknown)
 //	HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN    the collector's admin token, for its GET /admin/config
+//	HEARTBEAT_API_INTEGRATIONS_PATH        the integrations.yaml links to Grafana are rendered from, the file the
+//	                                       collector reads (default: none; no links)
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
@@ -90,6 +92,7 @@ const (
 	envShutdownDelay         = "HEARTBEAT_API_SHUTDOWN_DELAY"
 	envCollectorURL          = "HEARTBEAT_API_COLLECTOR_URL"
 	envCollectorAdminToken   = "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"
+	envIntegrationsPath      = "HEARTBEAT_API_INTEGRATIONS_PATH"
 	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
 )
 
@@ -200,6 +203,7 @@ func loadConfig() (app.Config, error) {
 		return app.Config{}, fmt.Errorf("%s: %w", envCollectorURL, err)
 	}
 	cfg.CollectorAdminToken = strings.TrimSpace(os.Getenv(envCollectorAdminToken))
+	cfg.IntegrationsPath = strings.TrimSpace(os.Getenv(envIntegrationsPath))
 	if cfg.SessionIdleTimeout, err = duration(envSessionIdleTimeout, auth.DefaultIdleTimeout, time.Minute, 0); err != nil {
 		return app.Config{}, err
 	}

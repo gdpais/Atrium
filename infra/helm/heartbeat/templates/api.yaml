@@ -22,6 +22,10 @@ credentials directory. */}}
 {{- $mounts = append $mounts (dict "name" "credentials" "mountPath" $credentialsDir "readOnly" true) }}
 {{- end }}
 {{- $mounts = concat $mounts $a.extraVolumeMounts }}
+{{- /* The API container alone reads integrations.yaml, for links. A
+directory mount (not subPath) so ConfigMap updates reach the pod; the API
+rereads the file at most every 30 seconds, without a restart. */}}
+{{- $apiMounts := prepend $mounts (dict "name" "integrations" "mountPath" "/app/config" "readOnly" true) }}
 # The API (ADR 0013). Stateless, so a Deployment: a new pod starts before the
 # old one stops, and its init container applies the new image's migrations
 # first. Migrations are expand, then contract (CONTRIBUTING.md), so the old
@@ -116,6 +120,10 @@ spec:
                   key: {{ $.Values.dbCollector.adminToken.key }}
             {{- end }}
             {{- end }}
+            # Links into the platform's UI are rendered from the templates of
+            # the integrations config the collector reads (TODO 4.9).
+            - name: HEARTBEAT_API_INTEGRATIONS_PATH
+              value: /app/config/integrations.yaml
             {{- with $a.goMemLimit | default (include "heartbeat.goMemLimit" (dict "limit" (dig "limits" "memory" "" $a.resources) "name" "api")) }}
             # Go's soft memory limit, below the container limit.
             - name: GOMEMLIMIT
@@ -153,12 +161,12 @@ spec:
             {{- toYaml $a.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          {{- with $mounts }}
           volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- if or $a.credentials.existingSecret $a.extraVolumes }}
+            {{- toYaml $apiMounts | nindent 12 }}
       volumes:
+        - name: integrations
+          configMap:
+            name: {{ include "heartbeat.integrationsConfigMap" . }}
         {{- with $a.credentials.existingSecret }}
         - name: credentials
           secret:
@@ -169,7 +177,6 @@ spec:
         {{- with $a.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- end }}
       {{- with $a.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
