@@ -5,7 +5,7 @@ Single source of truth for delivery order and task status. The
 original plan this list was derived from is
 [archived](docs/archive/2026-05-30-mvp-implementation-plan.md).
 
-Core delivery order: **DB collector → OutSystems ingest → API/control plane → Web UI**,
+Core delivery order: **DB collector → OutSystems ingest → API/control plane → inventory as code**,
 after foundations and schema prerequisites (sections 2–5). Later-service
 integrations are explicitly identified below; they do not block independent
 stage work, but they do block end-to-end completion of the dependent feature.
@@ -15,7 +15,7 @@ release waits for the release app [0.5].
 
 Test each implementation action as it lands. Section 16 is a shared validation
 inventory used throughout delivery, not a final testing stage. Remaining
-delivery order after the Web UI: production delivery [18] → product workflows
+delivery order after the inventory as code: production delivery [18] → product workflows
 [10–11] → investigations, alerting and reporting, with their APIs [4.6–4.8,
 6, 7, 12–14] → advanced
 reliability [19] → fallback ingestion [20] → Oracle integration, gated by an
@@ -471,46 +471,39 @@ Built with the reporting worker [7, 14], not in stage 3.
 
 ---
 
-## 5. Core system: Web UI (`apps/web`)
+## 5. Core system: inventory as code
 
-Delivery stage 4. Bootstrap/auth/inventory/onboarding screens require API
-bootstrap, auth and CRUD [4.1–4.5]. Investigation screens require [4.6, 6, 12];
-alert screens require policy/rule/route integration [4.7, 9.4, 13]; reports need
-[4.8, 7, 14]. Those three are built with their APIs and workers, not as shells
-in stage 4; shells/mocks are not end-to-end completion.
-Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
-15.1]. Minimal authorization [4.2] precedes operator access; later hardening
-[15.2] does not replace it.
+Delivery stage 4. [ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)
+replaces the Web UI ([ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md),
+superseded): the inventory is one YAML file per environment, reviewed as a
+pull request, validated in CI and applied by the API; Grafana shows it. It
+requires the API's inventory, sources, targets and assignments [4.3–4.5] and
+links [4.9]. Investigations, alerts and reports decide how people start and
+read them with their APIs and workers [6, 12–14], not here. Remaining work,
+in order, one pull request each: file schema and offline validation →
+one writer per row → the API applies the file → the chart mounts it and kind
+onboards PatientZero from it → offline render of assignments → the inventory
+in Grafana → a guide → this stage's validation.
 
-Built and served as [ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md)
-decides: a Vite app embedded in the API and served at `/`. Remaining work, in
-order, one pull request each: scaffold and serve [5.1] (done) → app shell, login and
-roles [5.1] (done) → environments and applications (done) → application detail, telemetry
-sources and deep links → database targets and probe assignments →
-integrations and users admin [5.2, 5.3] → this stage's validation.
+- [x] Decide how the inventory is managed: as code, with no Web UI ([ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md))
+- [x] Remove the Web UI built in 5.1–5.2: `apps/web`, the API's static handler and CSP, the API image's Node stage, the `web` CI job, Playwright in `kind-e2e`, Node in `tools-check` and Renovate
+- [ ] Validate this stage: PatientZero's environment, application, OutSystems source, database target and probe assignments applied from the inventory file on kind, audited as `config`, refused by the API's writes, rendered into `managedCollectors` and run by the collector; the inventory listed in Grafana [16.3]
 
-- [x] Decide how the UI is built, served, tested and deployed ([ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md))
-- [ ] Validate this stage: API-backed login, roles, inventory/onboarding and deep links; investigation, alert and report screens are validated end to end with their workers [16.3]
+### 5.1 Inventory file
+- [ ] JSON Schema for the inventory file in `packages/config-schema` (environments, applications, components, telemetry sources, database targets, custom probe definitions, probe assignments), closed objects, credentials only as `credential-ref`; a Go loader that also runs the API's own checks offline (ownership, names, probe limits, the collector's validators)
+- [ ] `api inventory check -f <file>`: validate without a database, for the configuration repository's CI and for authors
 
-### 5.1 UI bootstrap
-- [x] Create the React/TypeScript app (Vite, TypeScript strict, ESLint, Vitest), its client generated from `openapi.yaml`, a `web` CI job; the API embeds the build and serves it at `/` with an `index.html` fallback, cache headers and a strict CSP; the API image builds it in a Node stage. The home page shows who is signed in; `make web-check` runs what CI runs ([Web UI](docs/guides/local-development.md#work-on-the-web-ui))
-- [x] Set up routing, auth/session handling (login, logout, role-gated navigation, 401 and 403), shared layout and components; Playwright against the API in `kind-e2e`
+### 5.2 Applying the inventory
+- [ ] One writer per row: `managed_by` (`config` or `api`) on inventory rows (expand migration); the API's create, update and delete refuse a config-managed row (409 naming the file)
+- [ ] The API reads the mounted file at start and when it changes, and reconciles PostgreSQL under an advisory lock: match by unique names, create or update, disable rows the file drops, never delete; audit each change as `config` with the file's revision; an invalid file changes nothing, is logged and counted, and leaves readiness alone
+- [ ] Chart: `api.inventory` rendered into a ConfigMap mounted in the API; kind's values declare PatientZero; `kind-e2e` checks it is applied and that an API write to it is refused
+- [ ] `api inventory render -f <file>`: probe assignments to `managedCollectors` without a database, as ADR 0014 renders them; `make kind-assignments` uses it for config-managed assignments
 
-### 5.2 Primary operator screens
-- [x] Environments/applications screen: list, create and edit both, disable by status; viewers read, operators change; the API's 400, 409 and 422 shown in the form; tested in Chromium on kind
-- [ ] Application details/components screen
-- [ ] Telemetry sources screen
-- [ ] Database targets onboarding screen
-- [ ] Investigations screen
-- [ ] Alert policies screen
-- [ ] Reports screen
-- [ ] Integrations/admin informational screen
-
-### 5.3 MVP UX rules
-- [ ] Make session investigation app-first: filter by application + user/IP + time range
-- [x] Derive/show environment from application: the applications list names each one's environment, filters by it, and an edit keeps it fixed
-- [ ] Provide drill-down links to Grafana/Loki
-- [ ] Keep assets out of the first UI release unless topology scope is approved
+### 5.3 Reading the inventory
+- [ ] Info metrics on the API's `/metrics` for the inventory (environment, application, status, manager; target engine; source observed), with bounded cardinality
+- [ ] A Grafana dashboard that lists the inventory beside its health, with the API's deep links
+- [ ] Guide: onboard an application, a source and a database target by pull request (`docs/guides/`)
+- [ ] Tokens for machine clients of the API, when the first one needs them (ADR 0021 §7)
 
 ---
 
@@ -724,7 +717,11 @@ integrations and users admin [5.2, 5.3] → this stage's validation.
 - [ ] assemble evidence
 - [ ] return timeline/anomaly summary/evidence links
 
-### 12.3 UI
+### 12.3 Presenting results
+
+In Grafana or through the API, decided with the analyzer; there is no Web UI
+([ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)).
+
 - [ ] app-first investigation filter
 - [ ] event timeline
 - [ ] anomaly windows
@@ -826,7 +823,7 @@ ownership and outage testing are in section 19.
 - [ ] onboard OutSystems telemetry source
 - [ ] see logs in Loki
 - [ ] see metrics in Prometheus/Grafana
-- [ ] create investigation from UI
+- [ ] create investigation through the API [6, 12]
 - [ ] view alert flow end-to-end
 - [ ] generate report end-to-end
 
@@ -864,7 +861,7 @@ First slice, with phase 2:
 
 Later, each with the phase that needs it:
 - [ ] Phase 3: register PatientZero through the API as the reference application: its environment, application, OutSystems source and business database target, with probes applied by the collector [4]
-- [ ] Phase 4: onboard PatientZero from the UI [5, 16.3]
+- [ ] Phase 4: onboard PatientZero from the inventory file [5, 16.3]
 - [ ] Phase 7, with the analyzer and alert work that uses them: timers, extension calls and a fake consumed REST partner; long-running screens and timers; `Instant` in a configured time zone across daylight saving switches; the `blocking` (and deadlock), `slow-partner`, `timer-backlog` and `bad-front-end` scenarios [6, 13]
 - [ ] Phase 7: investigations and reports on PatientZero runs compared with their journals; decide soak runs or a Prometheus TSDB backfill for multi-day baselines and weekly reports [6, 13, 14]
 - [ ] OTLP mode for the OutSystems Cloud/ODC streams and traces [3.4, 3.6]; a MuleSoft-like source [3.4]; an Oracle-backed variant [21]
@@ -883,7 +880,6 @@ trusts its caller by design, so these keep it on the load path:
 - [ ] OIDC/SSO
 - [ ] Mimir scale-out path
 - [ ] Additional monitored engines beyond SQL Server and Oracle (Oracle is planned in section 21)
-- [ ] richer integration CRUD UI backed by DB
 - [ ] DB-backed audit/compliance search
 - [ ] custom dashboard engine
 - [ ] autonomous RCA
@@ -895,12 +891,13 @@ trusts its caller by design, so these keep it on the load path:
 The shared chart already runs on kind and in CI [0.4]. This stage takes it to
 production with the defaults in
 [ADR 0005](docs/architecture/decisions/0005-production-delivery-and-operations-defaults.md).
-It follows the Web UI so the first production deploy carries a usable product;
-pull it forward if a production SQL Server must be monitored sooner.
+It follows the inventory as code [5], since `heartbeat-deploy` holds each
+environment's inventory beside its values; pull it forward if a production SQL
+Server must be monitored sooner.
 
 - [x] Choose the observability platform: the Grafana stack stays; the ELK review is closed, and other applications receive Heartbeat's telemetry as OTLP from the Collector ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md))
-- [ ] `heartbeat-deploy` config repository with Argo CD Applications and per-environment values; CI that renders each environment and loads it with the Go loader; branch protection
-- [ ] GitHub App for the API on `heartbeat-deploy` only (contents and pull requests: read and write), private key in Secrets Manager through External Secrets, so approved assignments open pull requests ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
+- [ ] `heartbeat-deploy` config repository with Argo CD Applications, per-environment values and inventory; CI that renders each environment, loads it with the Go loader, checks the inventory (`api inventory check`) and fails on a stale assignments render; branch protection and CODEOWNERS
+- [ ] Only if assignments managed by the API are needed in production: GitHub App for the API on `heartbeat-deploy` only (contents and pull requests: read and write), private key in Secrets Manager through External Secrets, so they open pull requests ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md), narrowed by ADR 0021)
 - [ ] RDS for PostgreSQL and ElastiCache for Valkey in the infrastructure code; production values point the API at them ([ADR 0015](docs/architecture/decisions/0015-postgresql-and-redis-delivery.md))
 - [ ] The release workflow [0.5] also publishes the images and the chart to ECR through GitHub OIDC
 - [ ] EKS infrastructure as code; AWS Secrets Manager with External Secrets

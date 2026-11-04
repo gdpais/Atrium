@@ -29,24 +29,22 @@ groups:
         expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[1h:1m])
       - record: heartbeat:outsystems_extract_fresh:ratio_avg6h
         expr: avg_over_time(((heartbeat_outsystems_extract_lag_seconds - on (collector, environment, target, log_type) heartbeat_outsystems_extract_lag_setting_seconds < bool 300) * on (collector, environment, target) group_left heartbeat_collector_target_up)[6h:1m])
-      # The API's requests, without /metrics, the health endpoints and the Web
-      # UI (route /, ADR 0020): scrapes and probes are not users, /readyz
-      # answers 503 on purpose while a dependency is down, and the UI's static
-      # files, fast and many to a page load, would dilute the API's failures
-      # and slow requests.
+      # The API's requests, without /metrics and the health endpoints: scrapes
+      # and probes are not users, and /readyz answers 503 on purpose while a
+      # dependency is down.
       - record: heartbeat:api_request_errors:ratio_rate5m
-        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz",code=~"5.."}[5m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[5m]))
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[5m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[5m]))
       - record: heartbeat:api_request_errors:ratio_rate30m
-        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz",code=~"5.."}[30m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[30m]))
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[30m])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[30m]))
       - record: heartbeat:api_request_errors:ratio_rate1h
-        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz",code=~"5.."}[1h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[1h]))
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[1h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h]))
       - record: heartbeat:api_request_errors:ratio_rate6h
-        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz",code=~"5.."}[6h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[6h]))
+        expr: sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz",code=~"5.."}[6h])) / sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[6h]))
       # The share of the API's requests slower than 250 ms.
       - record: heartbeat:api_request_slow:ratio_rate5m
-        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/|/metrics|/healthz|/readyz",le="0.25"}[5m])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/|/metrics|/healthz|/readyz"}[5m]))
+        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/metrics|/healthz|/readyz",le="0.25"}[5m])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/metrics|/healthz|/readyz"}[5m]))
       - record: heartbeat:api_request_slow:ratio_rate1h
-        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/|/metrics|/healthz|/readyz",le="0.25"}[1h])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/|/metrics|/healthz|/readyz"}[1h]))
+        expr: 1 - sum(rate(heartbeat_api_http_request_duration_seconds_bucket{route!~"/metrics|/healthz|/readyz",le="0.25"}[1h])) / sum(rate(heartbeat_api_http_request_duration_seconds_count{route!~"/metrics|/healthz|/readyz"}[1h]))
   - name: heartbeat-self-alerts
     rules:
       # 99.5% of cycles on time: a 0.5% budget, burnt 14.4 times over 1h and
@@ -104,7 +102,7 @@ groups:
         expr: >-
           heartbeat:api_request_errors:ratio_rate1h > (14.4 * 0.001)
           and heartbeat:api_request_errors:ratio_rate5m > (14.4 * 0.001)
-          and sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[1h])) > 5/60
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h])) > 5/60
         for: 2m
         labels:
           severity: critical
@@ -115,7 +113,7 @@ groups:
         expr: >-
           heartbeat:api_request_errors:ratio_rate6h > (6 * 0.001)
           and heartbeat:api_request_errors:ratio_rate30m > (6 * 0.001)
-          and sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[6h])) > 5/60
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[6h])) > 5/60
         for: 15m
         labels:
           severity: warning
@@ -126,7 +124,7 @@ groups:
         expr: >-
           heartbeat:api_request_slow:ratio_rate1h > (14.4 * 0.05)
           and heartbeat:api_request_slow:ratio_rate5m > (14.4 * 0.05)
-          and sum(rate(heartbeat_api_http_requests_total{route!~"/|/metrics|/healthz|/readyz"}[1h])) > 1/60
+          and sum(rate(heartbeat_api_http_requests_total{route!~"/metrics|/healthz|/readyz"}[1h])) > 1/60
         for: 2m
         labels:
           severity: warning

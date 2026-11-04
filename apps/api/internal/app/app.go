@@ -33,7 +33,6 @@ import (
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/apps/api/internal/users"
-	"heartbeat/apps/web"
 	"heartbeat/internal/credentials"
 	"heartbeat/internal/otlp"
 	"heartbeat/internal/telemetry"
@@ -392,9 +391,6 @@ func run(ctx context.Context, deps runDeps) error {
 	if deps.cfg.Site == "" {
 		logger.Warn("no site origin is set, so every unsafe request is refused and nobody can log in")
 	}
-	if !web.Built() {
-		logger.Warn("this API was built without its Web UI, so / serves a placeholder page; the API image includes it")
-	}
 	server := &http.Server{
 		Handler:           routes(deps.registry, deps.requestMetrics, api),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -457,25 +453,16 @@ func shutdown(server *http.Server, logger *slog.Logger, timeout time.Duration) {
 // routes builds the HTTP handler tree for the service.
 //
 // Endpoints:
-//
 //   - GET /metrics – Prometheus metrics scrape endpoint.
-//
 //   - GET /healthz – Liveness; always 200 while serving.
-//
 //   - GET /readyz  – Readiness; 200 or 503 with only the status in the body.
 //
-//   - GET /         – the Web UI (ADR 0020): its files, and index.html for
-//     the app's own routes.
-//
 // /healthz, /readyz and every later operation come from apps/api/openapi.yaml
-// through httpapi.Server; /metrics and the UI are not part of the contract.
-// The UI's pattern is the least specific, so every other one wins over it.
-// Every request is recorded in the request metrics, by the route that served
-// it; the UI's are all route "/".
+// through httpapi.Server; /metrics is not part of the contract. Every request
+// is recorded in the request metrics, by the route that served it.
 func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *httpapi.Server) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
-	mux.Handle("GET /", web.Handler())
 	api.Register(mux)
 	return telemetry.Traced(metrics.Instrument(mux))
 }

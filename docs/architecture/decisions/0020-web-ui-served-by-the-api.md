@@ -1,6 +1,6 @@
 # 0020. Web UI: a Vite single-page app served by the API
 
-- Status: Accepted
+- Status: Superseded by [0021](0021-inventory-as-code-and-no-web-ui.md)
 - Date: 2026-11-04
 
 ## Context

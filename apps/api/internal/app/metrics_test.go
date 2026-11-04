@@ -31,10 +31,7 @@ func TestRequestMetricsLabelRequestsByRoute(t *testing.T) {
 		{http.MethodGet, "/readyz"},
 		{http.MethodPost, "/readyz"},
 		{http.MethodGet, "/metrics"},
-		// A scan of made-up paths and methods lands in two routes: the UI's
-		// pattern, GET /, matches every path, so a made-up GET is the UI's
-		// (404, or ServeMux's 307 to the cleaned path) and any other method
-		// is unmatched (405).
+		// A scan of made-up paths and methods lands in two series.
 		{http.MethodGet, "/wp-login.php"},
 		{http.MethodGet, "/api/v1/../../etc/passwd"},
 		{"PROPFIND", "/healthz"},
@@ -51,9 +48,10 @@ heartbeat_api_http_requests_total{code="200",method="HEAD",route="/healthz"} 1
 heartbeat_api_http_requests_total{code="503",method="GET",route="/readyz"} 1
 heartbeat_api_http_requests_total{code="405",method="POST",route="unmatched"} 1
 heartbeat_api_http_requests_total{code="200",method="GET",route="/metrics"} 1
-heartbeat_api_http_requests_total{code="404",method="GET",route="/"} 1
-heartbeat_api_http_requests_total{code="307",method="GET",route="/"} 1
-heartbeat_api_http_requests_total{code="405",method="other",route="unmatched"} 2
+heartbeat_api_http_requests_total{code="404",method="GET",route="unmatched"} 1
+heartbeat_api_http_requests_total{code="307",method="GET",route="unmatched"} 1
+heartbeat_api_http_requests_total{code="405",method="other",route="unmatched"} 1
+heartbeat_api_http_requests_total{code="404",method="other",route="unmatched"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricHTTPRequests); err != nil {
 		t.Fatal(err)

@@ -3,7 +3,7 @@
 The single phase plan for Heartbeat. It summarizes [TODO.md](../../TODO.md),
 which is the source of truth for delivery order and task status (TODO section
 numbers in brackets). The core order is **DB collector → OutSystems ingest →
-API/control plane → Web UI**; each phase is tested as it is delivered, using the
+API/control plane → inventory as code**; each phase is tested as it is delivered, using the
 shared validation inventory [16] throughout rather than as a final stage.
 
 | Phase | Theme | Status |
@@ -12,7 +12,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
 | 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; next Grafana deep links [4.9], then the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
-| 4 | Web UI | Planned: built and served as [ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md) decides, a Vite app embedded in the API. The app is scaffolded and served at `/`, with login, logout and role-gated navigation [5.1], and the environments and applications screens [5.2], tested in Chromium on kind; next the application detail, telemetry sources and deep links |
+| 4 | Inventory as code | Planned: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed; next the inventory file's schema and offline check [5.1] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
 | 7 | Investigations, alerting and reporting | Not started |
@@ -233,30 +233,41 @@ Exit: auth/ownership, CRUD persistence, secret refs and audit redaction;
 PatientZero registered through the API as an application with its telemetry
 source and database target, whose approved probes the collector runs on kind.
 
-## Phase 4 — Web UI
+## Phase 4 — Inventory as code
 
-- Bootstrap, auth, and inventory/onboarding screens on the phase-3 APIs [5],
-  a Vite app embedded in the API and served from its origin
-  ([ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md))
-- Investigation, alert and report screens come in phase 7, with their APIs
-  and workers
+Operators are maintainers, sysadmins and DevOps, who already deliver the
+platform as code, so the inventory is code too and there is no Web UI
+([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md),
+replacing [ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)).
+The API stays, with its login and roles.
 
-Exit: API-backed login, roles, onboarding and Grafana/Loki deep links;
-PatientZero onboarded from the UI.
+- One YAML inventory file per environment, with a JSON Schema and an offline
+  check [5.1]
+- The API applies the file: one writer per row, reconciled under a lock,
+  audited as `config`; the chart mounts it; probe assignments render from it
+  without a database [5.2]
+- The inventory in Grafana, from the API's info metrics; a guide to onboard by
+  pull request [5.3]
+- How people start and read investigations, alerts and reports is decided in
+  phase 7, with their APIs and workers
+
+Exit: PatientZero onboarded on kind from the inventory file, its probes run
+by the collector, its rows refused to API writes and listed in Grafana.
 
 ## Phase 5 — Production delivery (EKS + Argo CD)
 
 The chart already runs on kind and in CI; this phase takes it to production with
 the defaults in
 [ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md) [18].
-It comes after the Web UI so the first production deploy carries a usable
-product; pull it forward if a production SQL Server must be monitored sooner.
+It comes after the inventory as code, since `heartbeat-deploy` holds each
+environment's inventory beside its values; pull it forward if a production
+SQL Server must be monitored sooner.
 
 - The observability platform is chosen: the Grafana stack stays, and other
   applications receive Heartbeat's telemetry as OTLP from the Collector
   ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)) [18]
 - `heartbeat-deploy` repository with Argo CD Applications and per-environment
-  values; optional Argo CD rehearsal on kind
+  values and inventory; optional Argo CD rehearsal on kind
 - CI publishes multi-arch images and the chart to ECR through GitHub OIDC
 - EKS infrastructure as code; External Secrets; healthchecks.io dead-man's
   switch; Discord, then Slack, Teams and WhatsApp receivers
@@ -271,7 +282,7 @@ validated in the target environment.
   dashboards and drill-down [10, 11]; CPU, cache and I/O arrive in phase 1
   ([SQL Server signal coverage](../architecture/database-observability.md#sql-server-signal-coverage))
 
-Exit: onboarding in the UI → ingest/collection → Loki/Prometheus → Grafana, with
+Exit: onboarding from the inventory file → ingest/collection → Loki/Prometheus → Grafana, with
 field/metric semantics, cardinality and database load checked.
 
 ## Phase 7 — Investigations, alerting and reporting
@@ -280,7 +291,8 @@ field/metric semantics, cardinality and database load checked.
   and consumer ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)) [4]
 - Collector evidence: content, destination and publication, retrievable
   before the analyzer uses it [12.4]
-- Session analyzer, the investigations API and the investigation UI [4.6, 6, 12]
+- Session analyzer and the investigations API, with how people start and read
+  an investigation, in Grafana or through the API [4.6, 6, 12]
 - Alerting API, alert policy rendering to Prometheus and Alertmanager;
   adaptive baselines [4.7, 13]
 - Reporting API, report templates, schedules, generation and email delivery

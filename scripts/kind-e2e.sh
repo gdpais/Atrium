@@ -261,10 +261,9 @@ outbox_empty() { [ "$(psql_ 'SELECT count(*) FROM audit_outbox')" = 0 ]; }
 # The newest migration in db/migrations, as golang-migrate numbers it.
 newest_migration() { ls db/migrations | sed -n 's/^0*\([0-9][0-9]*\)_.*\.up\.sql$/\1/p' | sort -n | tail -n 1; }
 # A trace of the API's in Tempo, from the last ten minutes, rooted at the
-# span of a request for an unknown API path, which the Web UI's route, GET /,
-# answers 404: nothing else asks the API for one.
+# span of an unrouted request: nothing else asks the API for one.
 api_trace() {
-	query='{resource.service.name="api" && name="GET /"}'
+	query='{resource.service.name="api" && name="GET unmatched"}'
 	svc_get tempo:3200 "/api/search?limit=1&start=$(($(date +%s) - 600))&end=$(($(date +%s) + 60))&q=$(printf '%s' "$query" | jq -sRr @uri)" |
 		jq -er '.traces[0].traceID'
 }
@@ -562,23 +561,9 @@ wait_for 60 "Prometheus scrapes the API" value_is 'up{job="api"}' 1
 	fail "no heartbeat_service_info for the API"
 [ -n "$(prom_value 'sum(heartbeat_api_http_requests_total{route="/readyz"})')" ] ||
 	fail "no heartbeat_api_http_requests_total for the API's readiness probes"
-# The Web UI (ADR 0020), from the image's own build: index.html for a client
-# route a browser reloads, under the CSP, and its hashed script cached as
-# immutable. From Prometheus, the one pod the API's NetworkPolicy admits.
-api_wget() { k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- wget -q -T 5 -S "$@" 2>&1; }
-ui=$(api_wget -O - --header 'Accept: text/html' http://api:8081/environments) ||
-	fail "the API did not serve the Web UI: $ui"
-printf '%s' "$ui" | grep -q '<div id="root">' || fail "the API serves no Web UI build at /environments: $ui"
-printf '%s' "$ui" | grep -qi "Content-Security-Policy: default-src 'self'; script-src 'self';" ||
-	fail "the Web UI has no Content-Security-Policy: $ui"
-asset=$(printf '%s' "$ui" | grep -o '/assets/[^"]*\.js' | head -n 1)
-[ -n "$asset" ] || fail "the Web UI's index.html names no script under /assets/: $ui"
-headers=$(api_wget -O /dev/null "http://api:8081$asset") || fail "the API did not serve $asset: $headers"
-printf '%s' "$headers" | grep -qi 'Cache-Control: public, max-age=31536000, immutable' ||
-	fail "$asset is not cached as immutable: $headers"
-pass "the API serves the Web UI: index.html for /environments under its CSP, $asset immutable"
-# Health and readiness requests are not traced, so a request for an unknown
-# API path makes the trace; the 404 is expected.
+# Health and readiness requests are not traced, so a request for a path no
+# route serves makes the trace. From Prometheus, the one pod the API's
+# NetworkPolicy admits; the 404 is expected.
 k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- \
 	wget -q -T 5 -O /dev/null "http://api:8081/api/v1/kind-e2e-$run_id" >/dev/null 2>&1 || true
 wait_for 120 "the API's request trace in Tempo" api_trace
@@ -664,74 +649,6 @@ session_audited() {
 }
 wait_for 120 "the session's login and logout records in Loki" session_audited
 pass "login from $site set the __Host- cookie; session $session_id is the admin's; logout ended it (401 after); both audited in Loki"
-
-# ----------------------------------------------------------------------------
-step "in the Web UI, in Chromium, a viewer reads and an operator onboards an environment and an application"
-# Playwright (apps/web/e2e) drives the UI the API serves, at the site's
-# origin: the port-forward listens on localhost:8081, which is kind's
-# api.siteOrigin, so the browser's Origin passes the API's check as a user's
-# would and the __Host- cookie is set (localhost is a secure context). The
-# admin creates a viewer and an operator through the API; their passwords
-# stay in files. CI installs Playwright and Chromium (ci.yml); a local run
-# without them, or with 8081 taken by a dev port-forward, skips this step and
-# says why.
-playwright=apps/web/node_modules/.bin/playwright
-ui_skip() {
-	[ -z "${CI:-}" ] || fail "$1"
-	printf 'SKIP  %s\n' "$1"
-}
-if [ "$site" != http://localhost:8081 ]; then
-	ui_skip "the API's site origin is $site, not http://localhost:8081, where the browser can reach it"
-elif [ ! -x "$playwright" ]; then
-	ui_skip "Playwright is not installed: npm --prefix apps/web ci && npx --prefix apps/web playwright install chromium"
-else
-	kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" 8081:8081 >"$WORK/api-forward-ui.log" 2>&1 &
-	port_forward_pid=$!
-	start=$(date +%s)
-	# kubectl listens on 127.0.0.1 and then on [::1], and keeps running when
-	# only one of them is free, so wait for its first "Forwarding from" line
-	# and skip unless 127.0.0.1 is among them: with 127.0.0.1:8081 taken by
-	# another program, the browser could reach that program instead.
-	until grep -qs '^Forwarding from ' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
-		[ $(($(date +%s) - start)) -lt 30 ] || fail "timed out after 30s waiting for the port-forward to localhost:8081"
-		sleep 1
-	done
-	if ! kill -0 "$port_forward_pid" 2>/dev/null || ! grep -q '^Forwarding from 127.0.0.1:8081 ' "$WORK/api-forward-ui.log"; then
-		kill "$port_forward_pid" 2>/dev/null || true
-		port_forward_pid=
-		ui_skip "could not port-forward localhost:8081 (a dev port-forward?): $(tr '\n' ' ' <"$WORK/api-forward-ui.log")"
-	else
-		api_port=8081
-		code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
-		[ "$code" = 201 ] || fail "the admin's login for the UI step returned $code: $(cat "$WORK/api-body")"
-		(
-			umask 077
-			sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
-		)
-		# A viewer and an operator, each with that role only.
-		for role in viewer operator; do
-			(
-				umask 077
-				openssl rand -hex 16 >"$WORK/$role-password"
-				jq -n --arg role "$role" --rawfile password "$WORK/$role-password" \
-					'{email: ("kind-e2e-" + $role + "@example.com"), display_name: ("E2E " + $role), password: ($password | rtrimstr("\n")), roles: [$role]}' >"$WORK/$role.json"
-			)
-			code=$(api_call POST /api/v1/users -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/$role.json")
-			[ "$code" = 201 ] || fail "creating the $role returned $code: $(cat "$WORK/api-body")"
-		done
-		code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
-		[ "$code" = 204 ] || fail "the admin's logout returned $code: $(cat "$WORK/api-body")"
-		ui_start=$(date +%s)
-		HEARTBEAT_UI_URL=http://localhost:8081 HEARTBEAT_E2E_OUTPUT="$WORK/playwright" \
-			HEARTBEAT_E2E_VIEWER_EMAIL=kind-e2e-viewer@example.com HEARTBEAT_E2E_VIEWER_PASSWORD_FILE="$WORK/viewer-password" \
-			HEARTBEAT_E2E_OPERATOR_EMAIL=kind-e2e-operator@example.com HEARTBEAT_E2E_OPERATOR_PASSWORD_FILE="$WORK/operator-password" \
-			"$playwright" test --config apps/web/playwright.config.ts ||
-			fail "the Web UI's browser tests failed (apps/web/e2e)"
-		kill "$port_forward_pid" 2>/dev/null || true
-		port_forward_pid=
-		pass "in Chromium a wrong password is refused; the viewer logs in from $site, sees every section but users, is refused /users (403 at the API), reads the inventory with nothing to change it, and logs out (401 after); the operator creates an environment and an application in it, sees the API's 409 for a taken slug, and disables the application; in $(($(date +%s) - ui_start))s"
-	fi
-fi
 
 # ----------------------------------------------------------------------------
 step "a telemetry source registered through the API is observed by the collector"
