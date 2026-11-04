@@ -217,15 +217,16 @@ rules-check:
 	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/heartbeat.rules.yml /rules/heartbeat-config-reload.rules.yml /rules/heartbeat-collector-missing.rules.yml /rules/heartbeat-api-missing.rules.yml /rules/heartbeat-self.rules.yml /rules/generated/heartbeat-rendered.rules.yml
 	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" -w /rules/tests --entrypoint promtool $(PROMETHEUS_IMAGE) test rules heartbeat.rules.test.yml
 
-# The Web UI's client comes from the same spec (ADR 0020). Without Node it is
-# left as it is: CI's Web UI job fails when it is stale.
+# The Web UI's client comes from the same spec (ADR 0020). Without Node, or
+# without the UI's dependencies installed, it is left as it is: CI's Web UI
+# job fails when it is stale.
 generate:
 	$(OAPI_CODEGEN) -o $(API_GENERATED) $(API_SPEC)
 	$(SQLC) generate
-	@if command -v npm >/dev/null 2>&1; then \
+	@if command -v npm >/dev/null 2>&1 && [ -x $(WEB_DIR)/node_modules/.bin/openapi-typescript ]; then \
 		npm --prefix $(WEB_DIR) run --silent generate; \
 	else \
-		echo "warning: npm not found, so $(WEB_DIR)/src/api/schema.gen.ts was not regenerated (CI checks it)" >&2; \
+		echo "warning: npm or $(WEB_DIR)/node_modules is missing, so $(WEB_DIR)/src/api/schema.gen.ts was not regenerated (npm --prefix $(WEB_DIR) ci installs them; CI checks it)" >&2; \
 	fi
 
 # Regenerates into .tmp and compares, so the working tree is never touched: a
