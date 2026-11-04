@@ -29,7 +29,16 @@ type dashboardPanel struct {
 		Type string `json:"type"`
 		UID  string `json:"uid"`
 	} `json:"datasource"`
-	Targets []dashboardTarget `json:"targets"`
+	Targets     []dashboardTarget `json:"targets"`
+	FieldConfig struct {
+		Defaults struct {
+			Unit   string   `json:"unit"`
+			Max    *float64 `json:"max"`
+			Custom struct {
+				AxisSoftMax *float64 `json:"axisSoftMax"`
+			} `json:"custom"`
+		} `json:"defaults"`
+	} `json:"fieldConfig"`
 }
 
 type dashboard struct {
@@ -140,6 +149,12 @@ func TestDashboardsAreConsistent(t *testing.T) {
 			}
 			if len(p.Targets) == 0 {
 				t.Errorf("%s: panel %q has no queries", uid, p.Title)
+			}
+			// With every value 0, Grafana scales the axis to 0–100, which a
+			// 0–1 ratio shows as 0–10000%.
+			if defaults := p.FieldConfig.Defaults; p.Type == "timeseries" && defaults.Unit == "percentunit" &&
+				defaults.Max == nil && defaults.Custom.AxisSoftMax == nil {
+				t.Errorf("%s: panel %q is a ratio with no max or axisSoftMax", uid, p.Title)
 			}
 			for _, target := range p.Targets {
 				if target.Datasource.UID != "" && target.Datasource.UID != p.Datasource.UID {

@@ -548,7 +548,9 @@
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "min": 0,
           "custom": {
+            "axisSoftMax": 0.01,
             "lineWidth": 1,
             "fillOpacity": 10,
             "showPoints": "never",

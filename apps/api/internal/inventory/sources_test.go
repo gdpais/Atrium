@@ -65,8 +65,8 @@ func TestSourceValidation(t *testing.T) {
 		}
 	}
 	_, _, err = newSourceParams(NewSource{ApplicationID: ok.ApplicationID, SourceType: "outsystems", IngestMode: "otlp"})
-	if err == nil || !strings.Contains(err.Error(), "application_name") || strings.Contains(err.Error(), "embed:///") {
-		t.Errorf("no config: %v, want the missing application_name, without the schema's internal URL", err)
+	if err == nil || !strings.Contains(err.Error(), "not valid for source_type outsystems") || !strings.Contains(err.Error(), "application_name") || strings.Contains(err.Error(), "embed:///") {
+		t.Errorf("no config: %v, want the source type and the missing application_name, without the schema's internal URL", err)
 	}
 }
 
