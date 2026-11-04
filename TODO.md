@@ -482,11 +482,19 @@ Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
 15.1]. Minimal authorization [4.2] precedes operator access; later hardening
 [15.2] does not replace it.
 
+Built and served as [ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md)
+decides: a Vite app embedded in the API and served at `/`. Remaining work, in
+order, one pull request each: scaffold and serve [5.1] → app shell, login and
+roles [5.1] → environments and applications → application detail, telemetry
+sources and deep links → database targets and probe assignments →
+integrations and users admin [5.2, 5.3] → this stage's validation.
+
+- [x] Decide how the UI is built, served, tested and deployed ([ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md))
 - [ ] Validate this stage: API-backed login, roles, inventory/onboarding and deep links; investigation, alert and report screens are validated end to end with their workers [16.3]
 
 ### 5.1 UI bootstrap
-- [ ] Create React/TypeScript app
-- [ ] Set up routing, API client, auth/session handling, shared UI components
+- [ ] Create the React/TypeScript app (Vite, TypeScript strict, ESLint, Vitest), its client generated from `openapi.yaml`, a `web` CI job; the API embeds the build and serves it at `/` with an `index.html` fallback, cache headers and a strict CSP; the API image builds it in a Node stage
+- [ ] Set up routing, auth/session handling (login, logout, role-gated navigation, 401 and 403), shared layout and components; Playwright against the API in `kind-e2e`
 
 ### 5.2 Primary operator screens
 - [ ] Environments/applications screen
