@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0003. Deliver the platform with Helm on kind and production Kubernetes · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html" aria-current="page">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#proposed-design-as-planned-see-implementation-for-what-changed">Proposed design (as planned; see Implementation for what changed)</a></li>
+        <li class="toc-h2"><a href="#consequences-and-risks">Consequences and risks</a></li>
+        <li class="toc-h2"><a href="#acceptance-criteria">Acceptance criteria</a></li>
+        <li class="toc-h2"><a href="#implementation-2026-10-03">Implementation (2026-10-03)</a></li>
+        <li class="toc-h2"><a href="#open-decisions">Open decisions</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0003-deliver-the-platform-with-helm-on-kind-and-production-kubernetes">0003. Deliver the platform with Helm on kind and production Kubernetes<a href="#0003-deliver-the-platform-with-helm-on-kind-and-production-kubernetes" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted. Implemented for kind and CI on 2026-10-03; production
+delivery follows <a href="0005-production-delivery-and-operations-defaults.html">ADR 0005</a>.</li>
+<li>Date: 2026-09-29</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Local development uses Docker Compose (<code>infra/docker-compose.yml</code>, 9 services).
+A small Kustomize bundle (<code>infra/k8s/local</code>) deploys only the DB collector,
+the gateway and PostgreSQL. Production is intended to run on cloud Kubernetes.
+Keeping Compose for development and a separate production definition means two
+deployment systems that drift, and Compose never exercises Kubernetes behavior
+such as pod replacement, readiness routing, projected ConfigMaps and rollouts.
+The collector hardening work depends on exactly that behavior.</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>Package Heartbeat with <strong>Helm</strong> and use the same versioned chart locally, in CI
+and in production, with environment-specific values.</li>
+<li>Use <strong>kind</strong> for the local and integration-CI cluster.</li>
+<li>Keep <strong>SQL Server in Docker</strong> as an external test target, outside the cluster.</li>
+<li>Adapt Make targets and CI as part of the migration, then <strong>retire the
+platform Compose definition</strong> once equivalent workflows pass. Do not complete
+the Kustomize bundle first and translate it again later.</li>
+<li><strong>Principle:</strong> what Heartbeat <em>deploys</em> goes through Helm; what Heartbeat
+<em>tests against</em> (the SQL Server target, the disposable PostgreSQL schema
+fixture) stays as Docker fixtures.</li>
+<li>Keep the <strong>collector a singleton</strong> until explicit target ownership across
+replicas exists; never scale it by raising the replica count.</li>
+</ul>
+<h2 id="proposed-design-as-planned-see-implementation-for-what-changed">Proposed design (as planned; see Implementation for what changed)<a href="#proposed-design-as-planned-see-implementation-for-what-changed" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>One umbrella chart <code>heartbeat</code> owns Heartbeat workloads and content
+(collector, gateway, integrations config, Prometheus rules, Grafana
+dashboards). Third-party engines are pinned, condition-gated dependencies,
+using namespaced charts only (<code>prometheus-community/prometheus</code> with
+Alertmanager, <code>grafana/grafana</code>, Loki single binary, OpenTelemetry Collector),
+with no cluster-scoped CRDs. Production can disable any engine and point at
+shared services.</li>
+<li>The collector runs as a StatefulSet with one replica, which gives at-most-one
+semantics during node partitions. A headless Service with
+<code>publishNotReadyAddresses</code> lets Prometheus scrape it via <code>dns_sd_configs</code>
+even when it is unready.</li>
+<li>Values files embed complete <code>integrations.yaml</code> documents per environment,
+validated by the same schema and Go loader.</li>
+<li>Two local profiles: <code>minimal</code> (collector, Prometheus, Alertmanager, Grafana)
+and <code>full</code> (adds Loki, OTel Collector, gateway). PostgreSQL and migrations
+stay out of the deployed stack until the API exists.</li>
+<li>Grafana is stateless; dashboards come from source.</li>
+<li>Access uses kind <code>extraPortMappings</code> on the existing Compose ports instead of
+<code>kubectl port-forward</code>.</li>
+<li>The Prometheus <code>alerting</code> block and a Watchdog rule (external dead-man's
+switch) close the current Prometheus → Alertmanager gap.</li>
+</ul>
+<h2 id="consequences-and-risks">Consequences and risks<a href="#consequences-and-risks" class="anchor" title="Link to this section">#</a></h2>
+<p>Ranked by effect on the goal:</p>
+<ol>
+<li><strong>Monitoring failure domain.</strong> If Heartbeat and its alert path run on the
+infrastructure being investigated, a failure there removes the evidence too.
+Keep an external availability check or notification path; a separate
+namespace is not a separate failure domain.</li>
+<li><strong>Collector ownership and database load.</strong> Kubernetes can overlap or replace
+pods, but it does not know who owns a SQL target. Control update overlap and
+test query budgets.</li>
+<li><strong>Durability.</strong> PVCs are not backups. Metadata and telemetry need separate
+retention and restore policies, tested independently of pod startup.</li>
+<li><strong>Environment fidelity.</strong> kind validates objects and application behavior,
+not cloud storage, networking or identity. Test production values, ingress,
+TLS and SQL connectivity in the target environment.</li>
+<li><strong>Release boundaries.</strong> A Helm rollback does not reverse schema changes or
+restore telemetry. Pin dependencies; keep app, schema and stateful upgrades
+separate.</li>
+<li><strong>Development cost.</strong> A local cluster adds CPU/RAM and concepts. Keep unit
+tests fast, automate the loop, and measure the cost.</li>
+</ol>
+<h2 id="acceptance-criteria">Acceptance criteria<a href="#acceptance-criteria" class="anchor" title="Link to this section">#</a></h2>
+<p>The migration is done when these pass with retained evidence:</p>
+<ul>
+<li>A fresh cluster loads both images on the node's actual CPU architecture and
+every workload becomes ready.</li>
+<li>The same chart renders for kind, CI and production values without separately
+maintained production templates.</li>
+<li>A pod reaches the Docker SQL target (DNS, TCP, authentication, TLS) without
+widening database exposure.</li>
+<li>A code change produces a new running image; a stale <code>:local</code> tag cannot mask it.</li>
+<li>With one SQL target configured, <code>heartbeat_collector_target_up</code> and probe
+metrics are fresh in Prometheus and Grafana shows the target.</li>
+<li>A valid ConfigMap update changes the active config version. An invalid one is
+rejected visibly while collection continues. A partial reload failure rolls
+back or reports divergence and unreadiness.</li>
+<li>An unavailable SQL target shows as failed, healthy targets continue, and the
+collector does not restart just because a database is down.</li>
+<li>A singleton collector update drains the old pod before the new one polls; the
+collection gap and SQL-side concurrency are measured.</li>
+<li>A stateful restart keeps data designated as persistent; concurrent CI runs
+are isolated and cannot delete developer resources.</li>
+<li>The daily development loop meets an agreed time and resource budget.</li>
+</ul>
+<h2 id="implementation-2026-10-03">Implementation (2026-10-03)<a href="#implementation-2026-10-03" class="anchor" title="Link to this section">#</a></h2>
+<p>The chart is <a href="https://github.com/gdpais/Heartbeat/tree/master/infra/helm/heartbeat"><code>infra/helm/heartbeat</code></a>, values are
+in <a href="https://github.com/gdpais/Heartbeat/tree/master/infra/helm/values"><code>infra/helm/values</code></a>, and the workflow is
+<code>make kind-*</code> (<a href="../../guides/kubernetes-local.html">guide</a>). The proposed design
+was followed, with these differences:</p>
+<ul>
+<li>Object names are fixed (<code>db-collector</code>, <code>prometheus</code>, <code>alertmanager</code>, <code>loki</code>,
+<code>otel-collector</code>, ...) and one release runs per namespace, so in-cluster
+addresses match the Compose-era names that <code>integrations.yaml</code> and the engine
+configs already used.</li>
+<li>Grafana and Loki come from the <code>grafana-community</code> chart repository, where
+Grafana moved those charts. Every engine chart pins the same engine version
+Compose ran.</li>
+<li>The integrations schema is embedded in the chart's <code>values.schema.json</code>, so
+Helm rejects invalid config before applying anything; a Go test keeps the
+copy in sync and loads each rendered profile with the Go loader.</li>
+<li>Loki has no host port: its chart cannot set a NodePort. It is reached through
+Grafana or <code>kubectl port-forward</code>.</li>
+<li>PostgreSQL, Redis and the platform Compose stack were removed. Compose
+remains only as the disposable PostgreSQL test fixture.</li>
+<li>Helm 4 upgrades with server-side apply, so a hand edit to a chart-owned field
+makes the next upgrade conflict until the chart's version is re-applied.</li>
+</ul>
+<p>Acceptance criteria and how they are checked (<code>make chart-check</code> and
+<code>make kind-e2e</code>, both in CI). Measurements are from one kind run on an AMD64
+host; the e2e script prints them on every run.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fresh cluster loads both images on the node's architecture; all workloads ready</td>
+<td>e2e; <code>kind.sh</code> refuses an architecture mismatch</td>
+<td>All 7 workloads ready; full deploy about 50s after images load</td>
+</tr>
+<tr>
+<td>One chart renders for kind, CI and production values</td>
+<td>chart-check over 5 profiles, Helm 4 and Helm 3</td>
+<td>Pass</td>
+</tr>
+<tr>
+<td>A pod reaches the Docker SQL target (DNS, TCP, auth, TLS) without widening exposure</td>
+<td>e2e; SQL Server on the kind network, no host port in CI, loopback only locally</td>
+<td>Target up</td>
+</tr>
+<tr>
+<td>A code change produces a new running image</td>
+<td>Content-derived tags, <code>imagePullPolicy: Never</code>; e2e compares the running image to the built tag</td>
+<td>Pass</td>
+</tr>
+<tr>
+<td>Target metrics fresh in Prometheus; Grafana shows the target</td>
+<td>e2e queries Prometheus and Grafana's datasource proxy</td>
+<td>Pass</td>
+</tr>
+<tr>
+<td>Valid ConfigMap update changes the config version</td>
+<td>e2e, same pod</td>
+<td>About 65s (kubelet sync dominates)</td>
+</tr>
+<tr>
+<td>Invalid ConfigMap update rejected visibly while collection continues</td>
+<td>e2e checks <code>last_reload_err</code>, version and freshness</td>
+<td>Reported after about 90s; collection uninterrupted</td>
+</tr>
+<tr>
+<td>Partial reload failure rolls back or reports divergence</td>
+<td>Unit tests in the collector (not repeated on kind)</td>
+<td>Pass</td>
+</tr>
+<tr>
+<td>Unavailable target shows failed; others continue; no restart</td>
+<td>e2e stops the SQL container; a second, unresolvable target stays failed</td>
+<td>Down after about 20s, recovered about 60s after restart, restartCount 0</td>
+</tr>
+<tr>
+<td>Singleton update drains the old pod first; gap and SQL concurrency measured</td>
+<td>e2e samples running pods and SQL Server sessions every second during a rollout</td>
+<td>Never more than 1 collector or 2 sessions; collection gap 12s and 31s in two runs at a 20s scrape interval</td>
+</tr>
+<tr>
+<td>Stateful restart keeps persistent data</td>
+<td>e2e replaces the Prometheus and Alertmanager pods</td>
+<td>TSDB and silences kept</td>
+</tr>
+<tr>
+<td>Concurrent CI runs isolated, cannot delete developer resources</td>
+<td>e2e uses its own cluster name, kubeconfig and container names, and deletes only those</td>
+<td>By construction</td>
+</tr>
+<tr>
+<td>Daily loop meets an agreed budget</td>
+<td>Budget agreed 2026-10-28: the full profile holds at most 2.5 GiB of RAM in the kind node, the SQL Server sandbox and PatientZero not included. CI's <code>kind end-to-end</code> job times out after 25 minutes</td>
+<td>Full profile with the API, PostgreSQL and Valkey 1.85 GiB at its peak under <code>make patientzero-load LOAD=steady</code> (2026-11-02, method below); earlier, before them, about 2.0 GiB RAM in the kind node, measured idle, and 1.8 GiB after 12 hours up (SQL Server sandbox +0.9 GiB at first, 2.2 GiB after 12 hours: its 2 GiB cap limits SQL Server's own memory, not the container's); <code>kind end-to-end</code> 10–12 minutes in CI on 21–22 October, up to 18.6 on 28 October; redeploy under a minute; <code>minimal</code> profile for smaller machines</td>
+</tr>
+</tbody>
+</table></div>
+<p>Update 2026-10-28: the local loop's budget is agreed (last row above).</p>
+<ul>
+<li>Memory is the peak <code>docker stats</code> usage of the kind node container
+(<code>heartbeat-control-plane</code> for the default <code>KIND_CLUSTER</code>) over at least
+30 minutes of <code>make patientzero-load</code> after a deploy, less the
+<code>patientzero</code> namespace: PatientZero and its k6 Job (up to 512 MiB) run in
+the same node but are not part of the profile, and
+<code>docker exec heartbeat-control-plane crictl stats --label io.kubernetes.pod.namespace=patientzero</code>
+shows their share. Load grows Prometheus's head block and Loki's
+ingesters until they flush, so an idle reading understates it; the
+2.0 GiB above was measured idle. Yet every run by this method, each on a
+restarted node, has come in below it (1.44 and 1.79 GiB for
+<a href="../../reference/metrics-and-endpoints.html#what-the-telemetry-costs">the telemetry change</a>,
+1.71 and 1.85 GiB below); the idle reading's conditions were not
+recorded, so it stays as history, not as a baseline.</li>
+<li>The 4.1 chart change that adds the API, PostgreSQL and Valkey was
+measured this way on 2026-11-02 (chart at <code>8dd7efe</code>): the full profile
+with and without them, one after the other on the same node, restarted
+before each run, with <code>docker stats</code> every 10 seconds under
+<code>LOAD=steady</code>. With them the peak over the 30-minute run was 1,892 MiB
+(1.85 GiB), 0.65 GiB under the budget. Without them the sampler stopped
+after 25 minutes, short of the method's 30 (the host paused: k6's
+30-minute run took 40), so the two are compared over their first
+25 minutes: 1,867 against 1,756 MiB at the peak, 111 MiB more, and 1,757
+against 1,670 MiB on average, 87 MiB more. Their own containers held
+47 MiB at the peak (API 17, PostgreSQL 18, Valkey 12 MiB, from
+<code>crictl stats</code>); the rest is outside their containers and was not broken
+down.</li>
+<li>The budget gives up a second local cluster. A sandbox that has run for
+hours holds about 2.2 GiB, so the budget plus the sandbox is 4.7 GiB,
+which leaves the rest of this project's Docker host (7.6 GiB in
+<code>docker info</code>) for image builds. A second cluster with its own fresh SQL
+Server, such as <code>make kind-e2e</code>, adds about 3.4 GiB at the budget:
+8.1 GiB in all, more than the host has. Today's profile, 1.85 GiB at its
+peak, still fits, with about 0.8 GiB to spare (two profiles, the
+sandbox's 2.2 GiB and the second cluster's fresh SQL Server's 0.9 GiB).
+Run the second cluster's checks in CI, or
+<code>docker restart heartbeat-sqlserver-dev</code> first, which frees the
+sandbox's memory and keeps its databases. On 2026-10-22, before SQL
+Server's memory was capped, a load flood and a second cluster each got it
+killed.</li>
+<li>Time is bounded by CI, not by this budget: the <code>kind end-to-end</code> job
+fails after 25 minutes. It grew with its checks, not its pods, so when it
+nears the timeout the levers are the checks: shorter <code>wait_for</code> windows,
+waits run in parallel, or the job split in two.</li>
+</ul>
+<p>A change that would exceed the budget is trimmed first: smaller requests, or
+the component off in the <code>kind</code> profile. Otherwise it asks for a new budget
+instead of growing past this one.</p>
+<p>Not covered by kind (risk 4): cloud storage classes, ingress and TLS, IAM and
+External Secrets, ECR pulls, and SQL connectivity from the EKS VPC.</p>
+<h2 id="open-decisions">Open decisions<a href="#open-decisions" class="anchor" title="Link to this section">#</a></h2>
+<p>Production Kubernetes distribution and cloud; image and chart registry; deploy
+mechanism (GitOps or CI); where production values live; dead-man's-switch
+service; secrets backend; Grafana SSO provider. These are tracked in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/TODO.md">TODO.md</a>.</p>
+<p>Update 2026-09-30: decided in
+<a href="0005-production-delivery-and-operations-defaults.html">ADR 0005</a> (AWS EKS, Argo CD,
+ECR, AWS Secrets Manager, alert channels, Grafana access).</p>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0003-helm-on-kind-and-production.md"><code>docs/architecture/decisions/0003-helm-on-kind-and-production.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#proposed-design-as-planned-see-implementation-for-what-changed">Proposed design (as planned; see Implementation for what changed)</a></li>
+      <li class="toc-h2"><a href="#consequences-and-risks">Consequences and risks</a></li>
+      <li class="toc-h2"><a href="#acceptance-criteria">Acceptance criteria</a></li>
+      <li class="toc-h2"><a href="#implementation-2026-10-03">Implementation (2026-10-03)</a></li>
+      <li class="toc-h2"><a href="#open-decisions">Open decisions</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

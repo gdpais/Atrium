@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0005. Production delivery and operations defaults · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html" aria-current="page">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0005-production-delivery-and-operations-defaults">0005. Production delivery and operations defaults<a href="#0005-production-delivery-and-operations-defaults" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted. Chart side implemented 2026-10-03 (exact version pins,
+chart rules below, Watchdog route, <code>production.example.yaml</code>); the production
+infrastructure, config repository and Argo CD are not built yet. The kind
+profile has no Discord receiver yet.</li>
+<li>Date: 2026-09-30</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p><a href="0003-helm-on-kind-and-production.html">ADR 0003</a> chose Helm on kind and
+production Kubernetes but left production decisions open. Production will run
+on <strong>AWS</strong>. There is no production cluster yet and no GitOps tooling.</p>
+<p>The notification requirements and the constraints around them:</p>
+<ul>
+<li>Production notifications must reach Microsoft Teams, Slack and WhatsApp.</li>
+<li>Microsoft disabled the Office 365 connector webhooks for Teams in May 2026; Power Automate Workflows webhooks replace them.</li>
+<li>Alertmanager has no native WhatsApp receiver.</li>
+<li>WhatsApp Business allows business-initiated messages only through pre-approved templates.</li>
+<li>Amazon EKS supports Kubernetes up to 1.36 (upstream latest is 1.37).</li>
+</ul>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Platform</td>
+<td><strong>Amazon EKS</strong></td>
+<td>Production on AWS.</td>
+</tr>
+<tr>
+<td>Kubernetes version</td>
+<td>Newest minor EKS supports (<strong>1.36</strong> today). kind pins the same minor (<code>kindest/node:v1.36.4@sha256:099e0493…cbfaed</code>) and moves only when EKS does</td>
+<td>Local and CI test the API version production runs.</td>
+</tr>
+<tr>
+<td>Deploy mechanism</td>
+<td><strong>Argo CD (GitOps)</strong> from the first production deploy; no interim CI push pipeline</td>
+<td>Production does not exist yet, so a push pipeline would be thrown away. GitOps keeps cluster credentials out of CI, makes every change a reviewed commit, reverts manual drift, and rolls back via <code>git revert</code>.</td>
+</tr>
+<tr>
+<td>Desired state</td>
+<td>A separate config repository (<code>heartbeat-deploy</code>) with Argo CD <code>Application</code>s and per-environment values; this repo keeps the chart, defaults and <code>production.example.yaml</code></td>
+<td>Argo CD best practice: clean audit trail, separate write access for production, no CI commit loops.</td>
+</tr>
+<tr>
+<td>Registry</td>
+<td><strong>Amazon ECR</strong> for images (multi-arch, referenced by digest) and the chart (OCI). GitHub Actions pushes through GitHub OIDC → IAM role; no long-lived AWS keys</td>
+<td>EKS nodes pull with IAM (no pull secrets), in-region, with image scanning.</td>
+</tr>
+<tr>
+<td>Secrets</td>
+<td><strong>AWS Secrets Manager</strong>, synced into Kubernetes Secrets by <strong>External Secrets Operator</strong> using EKS Pod Identity. ESO also refreshes Argo CD's short-lived ECR credentials</td>
+<td>Managed, IAM-scoped, audited in CloudTrail, supports rotation. The chart only consumes <code>existingSecret</code> names, so the backend stays swappable.</td>
+</tr>
+<tr>
+<td>Versions</td>
+<td>Latest stable that production supports, pinned exactly (tools, CI runner image, node image by digest, <code>Chart.lock</code>, image digests in production); Renovate proposes updates, kind CI must pass</td>
+<td>Current without floating tags; upgrades are reviewed, one change at a time.</td>
+</tr>
+<tr>
+<td>Alert notifications</td>
+<td>Discord now; Slack (<code>slack_configs</code>) and Teams (<code>msteamsv2_configs</code>) in production; webhook URLs from mounted Secrets</td>
+<td>Native Alertmanager receivers; the legacy <code>msteams_configs</code> depends on the retired connectors.</td>
+</tr>
+<tr>
+<td>WhatsApp</td>
+<td>Production, <strong>critical severity only</strong>: Alertmanager <code>sns_configs</code> → Amazon SNS topic → small Lambda → AWS End User Messaging Social <code>SendWhatsAppMessage</code> with an approved utility template</td>
+<td>No custom code in the cluster; AWS-native IAM and audit; SNS can fan out to more channels later. Critical-only because messages cost money, reach personal phones and are rate-limited by Meta.</td>
+</tr>
+<tr>
+<td>Dead-man's switch</td>
+<td>Alertmanager Watchdog → healthchecks.io, which notifies the chat channels</td>
+<td>Chat receivers cannot detect silence; the watcher must be outside Heartbeat's failure domain (ADR 0003, risk 1), and outside AWS too.</td>
+</tr>
+<tr>
+<td>Grafana access</td>
+<td>Admin login. kind: <code>admin/admin</code>, loopback only. Production: generated admin password from Secrets Manager, anonymous access off, TLS at ingress</td>
+<td>Matches <a href="0004-core-technology-choices.html">ADR 0004</a>'s local-auth-first choice; SSO is a later values change.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Vault was considered for secrets and not chosen. It is a system to operate
+(HA storage, unsealing, upgrades) or a paid HCP service, and its license
+changed in 2023 (OpenBao is the open fork). It earns its cost for multi-cloud
+or dynamic secrets. Heartbeat is AWS-only, and the monitored databases belong to
+other teams, so dynamic SQL Server logins are unlikely to be allowed.</p>
+<p>Chart rules that follow from Argo CD (it renders with <code>helm template</code> and
+applies the result itself):</p>
+<ul>
+<li>Deterministic rendering: no <code>randAlphaNum</code>, <code>genCA</code> or <code>lookup</code>. Secrets are
+created outside the chart.</li>
+<li>No reliance on Helm release state (<code>.Release.Revision</code>, <code>IsInstall</code>, <code>IsUpgrade</code>),
+and no Helm hooks unless Argo's hook mapping is acceptable.</li>
+<li>The chart does not create its namespace.</li>
+<li>It must render with Helm 3 as well as Helm 4.</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li><code>helm list</code> shows nothing in production; history and rollback live in Git and Argo CD.</li>
+<li>The team has to learn Argo CD. An optional local rehearsal (Argo CD in kind)
+precedes the first production deploy.</li>
+<li>AWS-specific pieces (ECR, Secrets Manager, SNS, ingress, storage) live in
+production values and the config repo. kind keeps local equivalents (loaded
+images, generated Secrets, Discord only), so the local loop needs no AWS account.</li>
+<li>Production defaults, adjustable during the production track:
+<ul>
+<li>EKS Auto Mode (AWS manages nodes, EBS CSI, load balancing and VPC CNI with NetworkPolicy);</li>
+<li>infrastructure as code with OpenTofu and the community EKS module;</li>
+<li>internal ALB + ACM certificate for Grafana;</li>
+<li>gp3 EBS for Prometheus; S3 for Loki;</li>
+<li>RDS for PostgreSQL once the API needs it.</li>
+</ul>
+</li>
+<li>WhatsApp needs, before it can go live:
+<ul>
+<li>a Meta WhatsApp Business Account with a verified business and phone number, linked in AWS End User Messaging Social;</li>
+<li>an approved alert template;</li>
+<li>recipient opt-in. Phone numbers are personal data.
+WhatsApp gives no acknowledgement or escalation. If on-call escalation becomes a requirement, that calls for a paging tool, which would be a separate decision.</li>
+</ul>
+</li>
+<li>Still open: where the monitored SQL Servers live relative to the EKS VPC (on-premises
+via VPN/Direct Connect, EC2 or RDS). It determines network design and is needed
+before the first production deploy.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0005-production-delivery-and-operations-defaults.md"><code>docs/architecture/decisions/0005-production-delivery-and-operations-defaults.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0008. Extract OutSystems 11 logs from the logging database · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html" aria-current="page">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0008-extract-outsystems-11-logs-from-the-logging-database">0008. Extract OutSystems 11 logs from the logging database<a href="#0008-extract-outsystems-11-logs-from-the-logging-database" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted. Extraction, the eight log-type queries, the watermark
+volume, the Loki path, derived metrics and dashboards are built. The survey
+of a real logging database ran on 2026-10-19: the fixtures hold its DDL;
+the review of each query against it is pending
+(<a href="https://github.com/gdpais/Heartbeat/blob/master/TODO.md">TODO 3.3</a>).</li>
+<li>Date: 2026-10-10. Amended 2026-10-26: the recount (below) shows the rows
+committed past the lag, which the log delay metric could not.</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>The first OutSystems deployment Heartbeat must observe is <strong>OutSystems 11
+self-managed</strong> (Traditional and Reactive apps). Unlike OutSystems 11 on
+OutSystems Cloud (log streaming add-on) and ODC (App Analytics Stream), it has
+no native telemetry export: the platform writes its logs to the <code>oslog_*</code>
+tables of its logging database, a SQL Server database. The SRE team already
+has queries that read those tables well.</p>
+<p>The phase 2 plan assumed a push path: something sends JSON events to the OTel
+gateway, which normalizes them. Nothing in a self-managed installation sends
+those events, so that path does not apply. Heartbeat needs to poll the logging
+database, under the same rules as the SQL Server collector: no agents on
+database hosts, a least-privilege login, bounded queries that never block the
+platform.</p>
+<p>The db-collector already has everything such a poller needs except the log
+handling itself: SQL Server connections with pooling, credential references,
+login checks and session settings (<code>LOCK_TIMEOUT</code>, <code>DEADLOCK_PRIORITY LOW</code>), a
+hard deadline per query, per-target failure isolation and backoff, hot reload,
+readiness and self-metrics.</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>The <code>oslog_*</code> tables of the OutSystems 11 logging database, read with a login that has <code>SELECT</code> on them and nothing else</td>
+<td>The only complete log source in a self-managed installation; no agent on the platform servers.</td>
+</tr>
+<tr>
+<td>Where the extractor runs</td>
+<td>A new collector kind, <code>outsystems_logs</code>, in the <strong>db-collector</strong></td>
+<td>Reuses the SQL Server connector, safety settings, reload, backoff and readiness instead of copying them into another service. The logging database is a database; the collector already owns how Heartbeat reads databases.</td>
+</tr>
+<tr>
+<td>Where the queries live</td>
+<td>One <code>.sql</code> file per log type in <a href="https://github.com/gdpais/Heartbeat/blob/master/services/db-collector/internal/probes/outsystems/queries/README.md"><code>services/db-collector/internal/probes/outsystems/queries/</code></a>, embedded in the binary. The file name is the log type (<code>error.sql</code> → <code>error</code>)</td>
+<td>Queries are code: reviewed with the <a href="../database-observability.html#probe-review-checklist">probe review checklist</a>, tested in CI against SQL Server and versioned with the release. Not in Prometheus or OTel Collector config, which never talk to SQL Server.</td>
+</tr>
+<tr>
+<td>Choosing log types</td>
+<td><code>probes:</code> in the collector's YAML lists the log types to extract, as for the <code>sqlserver</code> kind. A <code>query_template</code> override per environment is allowed under the same contract and review</td>
+<td>Same configuration model and hot reload as the SQL Server probes (ADR 0002).</td>
+</tr>
+<tr>
+<td>Query contract</td>
+<td>Parameters <code>@from</code> (exclusive), <code>@to</code> (inclusive) and <code>@limit</code>; at most <code>@limit</code> rows ordered by an <code>Instant</code> column. Every other column becomes a log attribute <strong>under its OutSystems name, or under one standard name where the views disagree</strong> (entry point, operation, server, session, caller address, duration unit); <code>Message</code> becomes the log body; an optional <code>Severity</code> column sets the severity. Details in the <a href="https://github.com/gdpais/Heartbeat/blob/master/services/db-collector/internal/probes/outsystems/queries/README.md">queries README</a></td>
+<td>OutSystems field names stay queryable where they are consistent, so SRE habits carry over; one name per concept lets the derived metrics, the request timeline and Loki searches work across log types. The query author, who knows the tables, controls joins, filters and severity.</td>
+</tr>
+<tr>
+<td>Incremental reads</td>
+<td>A watermark per target and log type: read <code>Instant</code> in (<code>watermark</code>, <code>now − lag</code>], advance only after the batch is delivered. When a batch is full, rows sharing its last <code>Instant</code> are left for the next cycle. The watermark is stored in a file on the collector's volume; without one, start at <code>now − initial_lookback</code></td>
+<td>No gaps from rows the log service commits late (<code>lag</code>), none at batch boundaries, and a restart resumes where it stopped.</td>
+</tr>
+<tr>
+<td>Weekly rotation</td>
+<td>Each query reads the current week's view (<code>oslog_&lt;TYPE&gt;</code>) and the previous week's (<code>oslog_&lt;TYPE&gt;_Previous</code>) with <code>UNION ALL</code>. The platform keeps ten weekly cycle tables per log type and switches the views every Friday at 23:45</td>
+<td>Rows logged just before the switch are committed into the old table after it; reading only the current view would lose them every Friday, and could never look back past the switch.</td>
+</tr>
+<tr>
+<td>Lag per log type</td>
+<td><code>lag</code> is set per collector and can be overridden per log type (<code>probes[].lag</code>)</td>
+<td>A <code>screen</code> or <code>cyclic_job</code> row carries the start of the operation as <code>Instant</code> but is written when it ends, so its lag must cover the longest screen request or timer; the other log types keep the short default.</td>
+</tr>
+<tr>
+<td>Rows committed past the lag (2026-10-26)</td>
+<td>Once a minute, each log type counts again, per minute of <code>Instant</code>, the rows its own query returns in the <code>recount_window</code> (default 10 minutes) behind its watermark, and compares them with the rows it delivered there. More rows in the database are late rows, counted in <code>heartbeat_outsystems_late_rows_total</code> with an alert; fewer are rows read twice, <code>heartbeat_outsystems_duplicate_rows_total</code>. Each minute's difference is counted once. Nothing is read again or sent</td>
+<td>The extractor never reads behind its watermark, so a late row was lost silently: only the derived request rate dipped. Counting by minute finds each late row without a row identity, which the log tables do not have; wrapping the log type's own query counts exactly what extraction reads, overrides included, and SQL Server answers it from the <code>Instant</code> index (a few hundred logical reads for 100,000 rows). Sending the late rows too would need Loki to take rows out of order and a way to tell them from rows already sent; counting first shows whether it is needed.</td>
+</tr>
+<tr>
+<td>Delivery</td>
+<td>OTLP/HTTP logs to the OTel Collector (<code>opentelemetry.endpoint</code>), then Loki. At least once: a failed export is retried from the same watermark, so a retried batch can appear twice in Loki</td>
+<td>Keeps Loki behind the Collector like every other log source; the Collector stays the place for routing and processing.</td>
+</tr>
+<tr>
+<td>Loki labels</td>
+<td>Resource attributes <code>service.name</code> (the application), <code>deployment.environment.name</code> and <code>outsystems.log_type</code>. User, session and request IDs, client IP, module, screen and the rest stay structured metadata</td>
+<td>Few streams per application; high-cardinality fields stay filterable without becoming labels.</td>
+</tr>
+<tr>
+<td>Derived metrics</td>
+<td>Computed by the extractor from the rows it reads and exposed on the collector's <code>/metrics</code>, scraped by Prometheus. The catalog is in <a href="../application-observability.html#derived-metrics">application observability</a></td>
+<td>Exact counts and durations from every row, testable with fixtures, and the same Prometheus-scraped model as the SQL Server metrics.</td>
+</tr>
+<tr>
+<td>Traces</td>
+<td>None in this decision. Synthesizing request traces from <code>Request_Key</code> is designed in <a href="../application-observability.html#request-traces">application observability</a> and needs its own decision (storage)</td>
+<td>First prove the identifiers are reliable in real logs.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Considered and not chosen:</p>
+<ul>
+<li><strong>The OTel Collector's <code>sqlquery</code> receiver.</strong> No custom code, but it tracks
+progress by one column only, so it either loses rows that share an <code>Instant</code>
+at a batch boundary or rereads them; it has no lag window for late commits,
+no hard deadline or <code>LOCK_TIMEOUT</code> guarantee, and none of the collector's
+readiness and backoff.</li>
+<li><strong>The OTel gateway.</strong> It would need its own copy of the SQL Server
+connector, safety settings, reload and readiness.</li>
+<li><strong>A separate extractor service.</strong> The same copy, plus another image and
+deployment, for no isolation the per-collector failure isolation does not
+already give.</li>
+<li><strong>Queries in <code>integrations.yaml</code> only.</strong> Editable without a release, but
+unreviewed SQL against a production database, with no CI test. The
+per-environment <code>query_template</code> override covers the exceptions.</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>The db-collector is no longer stateless for this kind: it keeps a watermark
+per target and log type, so its StatefulSet gets a small persistent volume.
+The <code>sqlserver</code> kind stays stateless.</li>
+<li>The db-collector now pushes logs over OTLP as well as serving metrics, so it
+needs network access to the OTel Collector (NetworkPolicy egress).</li>
+<li>The OTel gateway takes no part in OutSystems 11 ingest. Its JSON event
+endpoint and alert sink are superseded; the service was then removed
+(<a href="0009-remove-the-otel-gateway.html">ADR 0009</a>).</li>
+<li>CI needs a SQL Server fixture per log type with the cycle tables and the
+two views the query reads, built from the real DDL, and rows copied from
+the logging database on both sides of a rotation.</li>
+<li>OutSystems 11 on OutSystems Cloud and ODC, when needed, send OTLP straight to
+the OTel Collector; the attribute names they use are mapped there, not in
+the extractor.</li>
+<li><code>Instant</code> is in the platform servers' own time zone: OutSystems Cloud runs
+UTC, a self-managed installation whatever its front-ends and database share
+(the platform requires them to agree). The time zone is a per-collector
+setting (default UTC), confirmed per installation against the database. In
+a zone with daylight saving time, rows logged in the hour that repeats when
+clocks go back can be missed; UTC avoids it.</li>
+<li>Rows the platform's log service commits later than the lag after their
+<code>Instant</code> are missed, and the recount counts them (<code>OutSystemsLateLogRows</code>
+fires) while they are within its window; rows committed later still go
+uncounted. For <code>screen</code> and <code>cyclic_job</code> the lag also delays every row by
+the longest operation it has to cover. The log delay metric
+(<code>heartbeat_outsystems_log_delay_seconds</code>) measures the newest row read,
+which is never newer than the lag: it shows how fresh extraction is, not
+how far behind the log service is, so it cannot warn of late commits; the
+late-row counter does.</li>
+<li>The recount's delivered counts are in memory. After a restart, or a reload
+that changes <code>recount_window</code> or the query, it compares only the minutes
+after the watermark it starts again at. A
+<code>query_template</code> must be a query a derived table holds (no <code>WITH</code>,
+<code>OPTION</code> or <code>FOR XML</code>, and an <code>ORDER BY</code> only with <code>TOP</code> or <code>OFFSET</code>), or
+the collector sets <code>recount_window: 0s</code>.</li>
+<li>The duplicate-row counter sees rows the extraction read twice, or rows
+deleted after they were sent. It does not see a batch sent again after
+the Collector had taken it, which delivery at least once allows.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0008-outsystems-11-log-extraction.md"><code>docs/architecture/decisions/0008-outsystems-11-log-extraction.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

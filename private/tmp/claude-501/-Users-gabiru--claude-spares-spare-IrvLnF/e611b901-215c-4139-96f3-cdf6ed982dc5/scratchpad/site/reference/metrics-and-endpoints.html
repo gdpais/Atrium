@@ -1,0 +1,2208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>Metrics and Endpoints Reference · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css?v=8486b06a573b">
+<script defer src="../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../architecture/overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../architecture/data-model.html">Data model</a>
+          </li>
+          <li><a href="../architecture/database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="../architecture/decisions/index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="../architecture/decisions/0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="../architecture/decisions/0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="../architecture/decisions/0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="../architecture/decisions/0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="../architecture/decisions/0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="../architecture/decisions/0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="../architecture/decisions/0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="../architecture/decisions/0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="../architecture/decisions/0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="../architecture/decisions/0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="metrics-and-endpoints.html" aria-current="page">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../architecture/application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../architecture/workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#local-ports-kind">Local ports (kind)</a></li>
+        <li class="toc-h2"><a href="#db-collector-8082">DB collector (:8082)</a></li>
+        <li class="toc-h2"><a href="#api-8081">API (:8081)</a></li>
+        <li class="toc-h3"><a href="#logging-in-and-sessions">Logging in and sessions</a></li>
+        <li class="toc-h3"><a href="#inventory">Inventory</a></li>
+        <li class="toc-h3"><a href="#telemetry-sources">Telemetry sources</a></li>
+        <li class="toc-h3"><a href="#database-targets">Database targets</a></li>
+        <li class="toc-h3"><a href="#probe-definitions">Probe definitions</a></li>
+        <li class="toc-h3"><a href="#probe-assignments">Probe assignments</a></li>
+        <li class="toc-h3"><a href="#users-and-roles">Users and roles</a></li>
+        <li class="toc-h2"><a href="#metrics">Metrics</a></li>
+        <li class="toc-h3"><a href="#sql-server-probe-metrics">SQL Server probe metrics</a></li>
+        <li class="toc-h3"><a href="#collector-self-observability">Collector self-observability</a></li>
+        <li class="toc-h3"><a href="#config-reloads">Config reloads</a></li>
+        <li class="toc-h3"><a href="#outsystems-log-extraction">OutSystems log extraction</a></li>
+        <li class="toc-h3"><a href="#api-requests">API requests</a></li>
+        <li class="toc-h3"><a href="#logins">Logins</a></li>
+        <li class="toc-h3"><a href="#audit-delivery">Audit delivery</a></li>
+        <li class="toc-h3"><a href="#heartbeats-own-telemetry">Heartbeat&#39;s own telemetry</a></li>
+        <li class="toc-h3"><a href="#prometheus-scrape-jobs-and-rules">Prometheus scrape jobs and rules</a></li>
+        <li class="toc-h2"><a href="#known-gaps">Known gaps</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="metrics-and-endpoints-reference">Metrics and Endpoints Reference<a href="#metrics-and-endpoints-reference" class="anchor" title="Link to this section">#</a></h1>
+<p>Ports, HTTP endpoints and Prometheus metrics exposed by the local stack and
+Heartbeat services. For how the pieces connect, see the
+<a href="../architecture/overview.html">architecture overview</a>.</p>
+<h2 id="local-ports-kind">Local ports (kind)<a href="#local-ports-kind" class="anchor" title="Link to this section">#</a></h2>
+<p>The kind cluster (<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/kind/cluster.yaml"><code>infra/kind/cluster.yaml</code></a>)
+maps fixed NodePorts to these ports on 127.0.0.1 only.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Host port(s)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DB collector</td>
+<td>8082</td>
+<td>Heartbeat service</td>
+</tr>
+<tr>
+<td>Prometheus</td>
+<td>9090</td>
+<td>15s scrape interval</td>
+</tr>
+<tr>
+<td>Grafana</td>
+<td>3001</td>
+<td>Local login <code>admin</code>/<code>admin</code>, anonymous viewer enabled. <strong>Local only.</strong></td>
+</tr>
+<tr>
+<td>Alertmanager</td>
+<td>9093</td>
+<td></td>
+</tr>
+<tr>
+<td>OpenTelemetry Collector</td>
+<td>4317 (OTLP gRPC), 4318 (OTLP HTTP)</td>
+<td><code>full</code> profile. Heartbeat's own logs use a third port, 4319, in-cluster only</td>
+</tr>
+<tr>
+<td>Loki</td>
+<td>none</td>
+<td>In-cluster only (<code>loki:3100</code>); query it through Grafana, or <code>kubectl port-forward svc/loki 3100</code></td>
+</tr>
+<tr>
+<td>Tempo</td>
+<td>none</td>
+<td>In-cluster only (<code>tempo:3200</code>, OTLP on <code>tempo:4318</code>); query it through Grafana, or <code>kubectl port-forward svc/tempo 3200</code>. <code>full</code> profile</td>
+</tr>
+<tr>
+<td>SQL Server (dev target only)</td>
+<td>127.0.0.1:11433</td>
+<td>Loopback-bound Docker container; see the <a href="../guides/local-development.html#sql-server-sandbox">local development guide</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>Inside the cluster every component keeps its Compose-era name and port
+(<code>prometheus:9090</code>, <code>alertmanager:9093</code>, <code>loki:3100</code>, <code>otel-collector:4318</code>,
+<code>db-collector:8082</code>), beside the API (<code>api:8081</code>), its PostgreSQL
+(<code>postgresql:5432</code>) and Valkey (<code>valkey:6379</code>). NetworkPolicies admit only
+the components that use each one
+(<a href="../guides/kubernetes-local.html#network-access">network access</a>): a pod of
+your own times out on them, so reach them through the host ports above,
+Grafana or <code>kubectl port-forward</code>; the API has no host port.</p>
+<h2 id="db-collector-8082">DB collector (<code>:8082</code>)<a href="#db-collector-8082" class="anchor" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /metrics</code></td>
+<td>none</td>
+<td>Prometheus exposition: probe metrics and self-observability</td>
+</tr>
+<tr>
+<td><code>GET /healthz</code> (alias <code>/healthcheck</code>)</td>
+<td>none</td>
+<td>Liveness only; 200 while the process serves HTTP</td>
+</tr>
+<tr>
+<td><code>GET /readyz</code></td>
+<td>none</td>
+<td>503 until every collector finishes its first cycle, when a collector is failed or crash-looping, when a collector has not completed a cycle within 2× its interval + 10s, or when the runtime diverged after a failed rollback. A monitored database being down does <strong>not</strong> make it unready, even when every target fails: readiness says whether the collector itself works, so a database outage never takes it out of its Service or fails a <code>helm upgrade --wait</code>. Target health is <code>heartbeat_collector_target_up</code> and the target states below. The body is only <code>{&quot;status&quot;:&quot;ready&quot;}</code> or <code>{&quot;status&quot;:&quot;not_ready&quot;}</code>; the reasons are in <code>GET /admin/config</code>.</td>
+</tr>
+<tr>
+<td><code>GET /admin/config</code></td>
+<td><code>Authorization: Bearer $HEARTBEAT_ADMIN_TOKEN</code></td>
+<td>Diagnostics, see below</td>
+</tr>
+<tr>
+<td><code>POST /admin/config/reload</code></td>
+<td><code>Authorization: Bearer $HEARTBEAT_ADMIN_TOKEN</code></td>
+<td>400 invalid config, 500 apply failure, 503 before the first reconcile or while another reload holds the lock. The body includes the error text and the readiness report</td>
+</tr>
+</tbody>
+</table></div>
+<p>Reload can also be triggered with <code>SIGHUP</code> or file polling.</p>
+<p><code>GET /admin/config</code> returns:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>version</code>, <code>loaded_at</code>, <code>last_reload_at</code></td>
+<td>Active config version (SHA-256 of the file) and timestamps</td>
+</tr>
+<tr>
+<td><code>last_reload_err</code>, <code>runtime_diverged</code>, <code>rollback_err</code></td>
+<td>Why the last reload was rejected or failed; set until the next successful reload. Monitoring sees it as <a href="#config-reloads"><code>heartbeat_collector_config_last_reload_successful</code></a> 0</td>
+</tr>
+<tr>
+<td><code>warnings</code></td>
+<td>Insecure startup settings, e.g. <code>sqlserver_trust_server_certificate</code></td>
+</tr>
+<tr>
+<td><code>readiness</code></td>
+<td>What <code>/readyz</code> decided and why: <code>status</code>, <code>reasons</code>, and per collector its phase, cycle age, restarts and targets. Each target has its state (<code>ok</code>, <code>failed</code>, <code>backoff</code>, <code>blocked</code> for an <code>outsystems_logs</code> target waiting for the OTel Collector, or <code>degraded</code> for a target with some probes failing), consecutive failures, last success and the raw driver <code>error</code> of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A <code>blocked</code> target's <code>error</code> says which log type waits, with how many rows, and for how long. A <code>degraded</code> target lists its failing <code>probes</code>, each with its state (<code>failed</code>, or <code>backoff</code> while it waits out its own backoff), consecutive failures, next attempt and <code>error</code></td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>The active config, redacted (<a href="configuration.html#validation-and-reload-behavior">configuration reference</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<pre><code class="language-bash">curl -s -H &quot;Authorization: Bearer local-admin-token&quot; localhost:8082/admin/config | jq .readiness   # kind
+</code></pre>
+<p><strong>Admin authentication.</strong> Both admin endpoints go through one check: exactly
+one <code>Authorization: Bearer &lt;token&gt;</code> header (scheme case-insensitive), whose
+SHA-256 digest is compared in constant time with the digest of
+<code>HEARTBEAT_ADMIN_TOKEN</code> computed at startup, so neither the token nor its
+length leaks through timing. A missing or wrong token gets 401 with a
+<code>WWW-Authenticate: Bearer</code> challenge before the method is checked (an
+authenticated wrong method gets 405). Admin responses are <code>Cache-Control: no-store</code>. With no token configured, both endpoints always answer 401.</p>
+<p><strong>Network access.</strong> In Kubernetes the <code>db-collector</code> NetworkPolicy admits only
+Prometheus and the configured operator peers to port 8082
+(<a href="../guides/kubernetes-local.html#what-the-chart-deploys">what the chart deploys</a>).
+Operators reach the admin endpoints with
+<code>kubectl -n heartbeat port-forward pod/db-collector-0 8082</code>, which
+NetworkPolicy does not apply to, or from a listed peer such as a VPN range.</p>
+<h2 id="api-8081">API (<code>:8081</code>)<a href="#api-8081" class="anchor" title="Link to this section">#</a></h2>
+<p>The control plane
+(<a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">ADR 0013</a>).
+The chart deploys it as <code>Deployment/api</code> behind <code>Service/api</code> (ClusterIP);
+reach it with <code>kubectl -n heartbeat port-forward svc/api 8081</code>. Its contract
+is <a href="https://github.com/gdpais/Heartbeat/blob/master/apps/api/openapi.yaml"><code>apps/api/openapi.yaml</code></a>; <code>/metrics</code> is
+served beside it.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Auth</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /metrics</code></td>
+<td>none</td>
+<td>Prometheus exposition: <a href="#api-requests">request metrics</a>, <a href="#logins">logins</a>, <a href="#audit-delivery">audit delivery</a>, Go runtime and process metrics</td>
+</tr>
+<tr>
+<td><code>GET /healthz</code></td>
+<td>none</td>
+<td>Liveness only; 200 <code>ok</code> while the process serves HTTP. It checks no dependency, so a PostgreSQL or Redis outage never restarts the pod</td>
+</tr>
+<tr>
+<td><code>GET /readyz</code></td>
+<td>none</td>
+<td>200 when every readiness check passes, 503 otherwise. The checks run concurrently on each call, 2s at most in all; a check without an answer by then fails. <code>postgresql</code>: a query reaches the database and its schema version is at least the newest migration the API embeds, and that migration is not dirty (a newer version passes, dirty or not, so the previous release keeps serving while the next one migrates). <code>redis</code>: a <code>PING</code> reaches Redis (Valkey) and authenticates. Each passes again on its own once its dependency is back. The body is only <code>{&quot;status&quot;:&quot;ready&quot;}</code> or <code>{&quot;status&quot;:&quot;not_ready&quot;}</code>; the failing checks and their errors (<code>schema not migrated</code>, a refused connection, a failed login, never a password) are logged when the status changes</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/session</code></td>
+<td>none; <code>Origin</code></td>
+<td>Log in: 201 with the session and its cookie (<a href="#logging-in-and-sessions">below</a>)</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/session</code></td>
+<td>session, <code>viewer</code></td>
+<td>200 with the current session and its user</td>
+</tr>
+<tr>
+<td><code>DELETE /api/v1/session</code></td>
+<td>session, <code>viewer</code>; <code>Origin</code></td>
+<td>Log out: 204, and the cookie is cleared</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/environments</code>, <code>/applications</code>, <code>/components</code> and <code>GET …/{id}</code></td>
+<td>session, <code>viewer</code></td>
+<td>The inventory (<a href="#inventory">below</a>)</td>
+</tr>
+<tr>
+<td><code>POST</code>, <code>PATCH /{id}</code> and <code>DELETE /{id}</code> on <code>/api/v1/environments</code>, <code>/applications</code>, <code>/components</code></td>
+<td>session, <code>operator</code>; <code>Origin</code></td>
+<td>Create, change and delete inventory, each audited (<a href="#inventory">below</a>)</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/telemetry-sources</code> and <code>GET …/{id}</code></td>
+<td>session, <code>viewer</code></td>
+<td>Telemetry sources, each with its observation (<a href="#telemetry-sources">below</a>)</td>
+</tr>
+<tr>
+<td><code>POST</code>, <code>PATCH /{id}</code> and <code>DELETE /{id}</code> on <code>/api/v1/telemetry-sources</code></td>
+<td>session, <code>operator</code>; <code>Origin</code></td>
+<td>Register, change and delete telemetry sources, each audited (<a href="#telemetry-sources">below</a>)</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/database-targets</code> and <code>GET /api/v1/database-targets/{id}</code></td>
+<td>session, <code>viewer</code></td>
+<td>Monitored databases (<a href="#database-targets">below</a>)</td>
+</tr>
+<tr>
+<td><code>POST</code>, <code>PATCH /{id}</code> and <code>DELETE /{id}</code> on <code>/api/v1/database-targets</code></td>
+<td>session, <code>operator</code>; <code>Origin</code></td>
+<td>Create, change and delete them</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/probe-definitions</code></td>
+<td>session, <code>viewer</code></td>
+<td>200 with the latest version of every probe definition (<a href="#probe-definitions">below</a>)</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/probe-definitions</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td>Create a custom definition: 201 with version 1</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/probe-definitions/{id}</code></td>
+<td>session, <code>viewer</code></td>
+<td>200 with that version, the latest or an older one</td>
+</tr>
+<tr>
+<td><code>PATCH /api/v1/probe-definitions/{id}</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td><code>{&quot;enabled&quot;: false}</code> disables a custom definition, every version of it; <code>true</code> enables it again</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/probe-definitions/{id}/versions</code></td>
+<td>session, <code>viewer</code></td>
+<td>200 with every version of the definition, the newest first</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/probe-definitions/{id}/versions</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td>Change a custom definition: 201 with the next version</td>
+</tr>
+<tr>
+<td><code>PUT /api/v1/account/password</code></td>
+<td>session, <code>viewer</code>; <code>Origin</code></td>
+<td>Change your own password: 204, every session of yours ends and the cookie is cleared (<a href="#users-and-roles">below</a>)</td>
+</tr>
+<tr>
+<td><code>GET /api/v1/users</code>, <code>GET /api/v1/users/{id}</code></td>
+<td>session, <code>admin</code></td>
+<td>The users, by email (<code>?status=active</code> or <code>disabled</code>), or one</td>
+</tr>
+<tr>
+<td><code>POST /api/v1/users</code>, <code>PATCH /api/v1/users/{id}</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td>Create a user, or change their email, name or status</td>
+</tr>
+<tr>
+<td><code>PUT /api/v1/users/{id}/password</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td>Set a user's password: 204, and every session of theirs ends</td>
+</tr>
+<tr>
+<td><code>PUT</code>, <code>DELETE /api/v1/users/{id}/roles/{role}</code></td>
+<td>session, <code>admin</code>; <code>Origin</code></td>
+<td>Grant or revoke a role</td>
+</tr>
+</tbody>
+</table></div>
+<p>On <code>SIGTERM</code> or <code>SIGINT</code> the API answers <code>GET /readyz</code> with 503 and keeps
+serving for <code>HEARTBEAT_API_SHUTDOWN_DELAY</code> (5s), while its Service stops
+sending it requests; then it stops accepting connections and its audit
+drainer, waits up to 10s for the requests in flight, closes the rest, then
+closes its PostgreSQL and Redis connections. An audit export in flight is
+abandoned, and its records are sent again by another replica or the next
+one; records the Collector already accepted are still deleted, within 5s.</p>
+<h3 id="logging-in-and-sessions">Logging in and sessions<a href="#logging-in-and-sessions" class="anchor" title="Link to this section">#</a></h3>
+<p>Local users log in with their email and password and get a cookie session
+(<a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">ADR 0013</a>
+§7–8). The first admin comes from
+<a href="configuration.html#api"><code>api users create-admin</code></a>; admins make the other users
+and give them roles through the API (<a href="#users-and-roles">users and roles</a>).</p>
+<p><strong>Who may call what.</strong> Every operation in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/apps/api/openapi.yaml"><code>openapi.yaml</code></a> declares it with <code>security</code>:
+<code>[]</code> for one anyone may call, or the <code>session</code> scheme with the least role it
+needs. Roles rank <code>viewer</code> (reads; wallboards) &lt; <code>operator</code> (changes
+inventory, sources, targets and probes) &lt; <code>admin</code> (everything, users and
+roles included); a user may call what any of their roles allows. The API
+reads each operation's rule from the spec at startup and refuses to start if
+one declares none, so no operation is served on a default.</p>
+<p><strong>Before each operation</strong>, in this order: the response gets an
+<code>X-Request-Id</code> (a UUID, the <code>request_id</code> of any audit record the request
+writes); a body over 1 MiB is refused; <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code>
+need one <code>Origin</code> header equal to <code>HEARTBEAT_API_SITE_ORIGIN</code> (403
+otherwise; browsers send it with every such request, so a page on another
+site cannot make one with the user's cookie); then, unless the operation is
+public, the session cookie must name a live session (401, and the cookie is
+cleared) whose user is active and has the role (403). The user and their
+roles are read on every request: disabling a user or changing their roles
+applies to their next request. Only then are the path and query parameters
+read (400 for a malformed one), so a request without a session gets 401
+whatever its parameters, and then the body: a JSON object whose members are
+all listed by the operation's schema, spelt exactly, or 400 naming the
+first that is not. A member that cannot be set is refused, never ignored.</p>
+<p><strong>Logging in.</strong> <code>POST /api/v1/session</code> with
+<code>{&quot;email&quot;: &quot;...&quot;, &quot;password&quot;: &quot;...&quot;}</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>201</td>
+<td>Logged in. The body is the session (<code>id</code>, <code>user</code> with <code>id</code>, <code>email</code>, <code>display_name</code>, <code>roles</code>, <code>created_at</code>, <code>expires_at</code>); <code>Set-Cookie</code> holds the session</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Not JSON, an email that is not an address, or a password that is empty, over 1,024 bytes or not UTF-8. Not counted as a failure</td>
+</tr>
+<tr>
+<td>401</td>
+<td>Wrong password, unknown email, disabled user, a user without a password: the same <code>wrong email or password</code> for all, after the same work (an unknown email is checked against a decoy hash), so neither the answer nor its time tells which accounts exist</td>
+</tr>
+<tr>
+<td>403</td>
+<td><code>Origin</code> missing or not the site</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Too many failures: 10 for the account, or 50 from the client address (an IPv6 address counts as its /64), within 15 minutes of the first. Refused without checking the password, even the right one, until the window ends; <code>Retry-After</code> says in how many seconds. A login counts before its password is checked, so concurrent attempts cannot pass the limits. A success clears the account's count, not the address's</td>
+</tr>
+</tbody>
+</table></div>
+<p>A hash made with older argon2id parameters is replaced with one made with the
+current ones at a successful login.</p>
+<p><strong>The cookie</strong> is <code>__Host-heartbeat_session</code>: <code>HttpOnly</code>, <code>Secure</code>,
+<code>SameSite=Lax</code>, <code>Path=/</code>, no <code>Domain</code>, kept until the session's absolute end.
+Its value is 256 random bits, base64url; Redis keeps only its SHA-256, as the
+key of the session (user, client address, created and last-seen times), which
+expires by itself at the earlier of 8 hours without a request and 7 days
+after login (<code>HEARTBEAT_API_SESSION_IDLE_TIMEOUT</code>, <code>_MAX_AGE</code>). The session's
+<code>id</code> in the body and in audit records is another random UUID: it identifies
+the session but cannot log in. A browser keeps a <code>Secure</code> cookie only from
+HTTPS, or from <code>localhost</code>.</p>
+<p><strong>Audit.</strong> A login, a logout and a failed login each write an audit record
+of entity type <code>session</code> (<a href="#audit-delivery">audit delivery</a>): <code>login</code> with
+the session in <code>after</code> and the user as actor, <code>logout</code> with it in <code>before</code>,
+<code>login_failed</code> with the email tried, the user's ID when it exists and the
+reason (<code>wrong_password</code>, <code>unknown_email</code>, <code>disabled</code>, <code>no_password</code>,
+<code>unreadable_hash</code>, <code>changed_meanwhile</code>) in <code>after</code>, and the client's address as actor (<code>client</code>).
+The client is never told the reason. No record holds a password, a hash, the
+token or its SHA-256. A login is written in one transaction with its record
+and the user's <code>last_login_at</code>; the session is created in Redis before it
+commits and deleted again if the commit fails. A logout whose session cannot
+be deleted fails and records nothing.</p>
+<p>On kind, through a port-forward, with the admin made by
+<a href="configuration.html#api"><code>api users create-admin</code></a>; the password comes from a
+file, never the command line:</p>
+<pre><code class="language-bash">kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &amp;
+jq -n --rawfile p admin-password '{email: &quot;admin@example.com&quot;, password: ($p | rtrimstr(&quot;\n&quot;))}' |
+  curl -sS -c cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/session
+curl -sS -b cookies localhost:8081/api/v1/session                     # the session and its user
+curl -sS -b cookies -X DELETE -H 'Origin: http://localhost:8081' localhost:8081/api/v1/session
+</code></pre>
+<h3 id="inventory">Inventory<a href="#inventory" class="anchor" title="Link to this section">#</a></h3>
+<p>Environments, their applications, and the applications' components
+(<a href="../architecture/data-model.html#environment-and-inventory">data model</a>),
+under <code>/api/v1</code>. Viewers read; operators create, change and delete. The
+fields and their limits are in <a href="https://github.com/gdpais/Heartbeat/blob/master/apps/api/openapi.yaml"><code>openapi.yaml</code></a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Operations</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/api/v1/environments</code></td>
+<td><code>GET</code> (<code>?status=</code>), <code>POST</code></td>
+<td>Listed whole, by name: an organisation has few</td>
+</tr>
+<tr>
+<td><code>/api/v1/environments/{id}</code></td>
+<td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td>
+<td><code>slug</code> cannot change</td>
+</tr>
+<tr>
+<td><code>/api/v1/applications</code></td>
+<td><code>GET</code> (<code>?environment_id=</code>, <code>?status=</code>, paged), <code>POST</code></td>
+<td><code>environment_id</code> in the body</td>
+</tr>
+<tr>
+<td><code>/api/v1/applications/{id}</code></td>
+<td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td>
+<td><code>environment_id</code> cannot change</td>
+</tr>
+<tr>
+<td><code>/api/v1/components</code></td>
+<td><code>GET</code> (<code>?application_id=</code>, paged), <code>POST</code></td>
+<td><code>application_id</code> in the body</td>
+</tr>
+<tr>
+<td><code>/api/v1/components/{id}</code></td>
+<td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td>
+<td><code>application_id</code> cannot change</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>One ownership path.</strong> An application belongs to the environment it was
+created in, and a component to its application, for good: the same system
+in another environment is another application. A component's
+<code>environment_id</code> is read through its application; it is not stored and
+cannot be set. A <code>PATCH</code> or <code>POST</code> naming an owner it cannot set is 400.</p>
+<p><strong>Environment slugs</strong> are what the collectors call the environment: each
+collector's <code>environment</code>, the <code>environment</code> label of the probe metrics and
+the logs' <code>deployment.environment.name</code>
+(<a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">ADR 0017</a>
+§2). Lower-case letters, digits and hyphens, 1 to 63, starting and ending
+with a letter or a digit (<code>prod</code>, <code>local-dev</code>); unique, and fixed once
+created.</p>
+<p><strong>Pages.</strong> Lists of applications and components hold <code>limit</code> items (1 to
+200, 50 by default), by name then ID, and a <code>next_cursor</code> while more follow;
+pass it as <code>cursor</code> for the next page. The cursor marks a position, not an
+offset, so an item added or removed meanwhile neither repeats nor skips
+another.</p>
+<p><strong>Changes.</strong> <code>POST</code> answers 201 with the entity and its <code>Location</code>. <code>PATCH</code>
+changes the members the body holds and keeps the others; <code>labels</code> are
+replaced whole. A <code>PATCH</code> that changes nothing answers 200 with the entity
+as it is, keeps <code>updated_at</code> and writes no audit record. Disable an
+environment or an application (<code>status: disabled</code>) to retire it; disabling
+an environment leaves its applications' status as it is.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>400</td>
+<td>A field out of its limits or format, an unknown member, a malformed ID, <code>limit</code> or <code>cursor</code></td>
+</tr>
+<tr>
+<td>404</td>
+<td>No entity has the ID</td>
+</tr>
+<tr>
+<td>409</td>
+<td>Another environment has the slug, the environment has an application of that name, or the application a component of that name and type; or a <code>DELETE</code> while other rows refer to the entity: the detail names them (an environment's applications, database targets or investigations; an application's components, telemetry sources, investigations, alert policies, notification routes, alert events or reports), and nothing is deleted. A deleted application's adaptive baselines go with it</td>
+</tr>
+<tr>
+<td>422</td>
+<td>The body's <code>environment_id</code> or <code>application_id</code> names nothing</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Audit.</strong> Each change writes one record in its transaction: entity type
+<code>environment</code>, <code>application</code> or <code>application_component</code>, action <code>create</code>,
+<code>update</code> or <code>delete</code>, the entity as the API shows it in <code>before</code> and
+<code>after</code>, the user as actor. A refused change records nothing.</p>
+<pre><code class="language-bash">curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{&quot;name&quot;: &quot;Production&quot;, &quot;slug&quot;: &quot;prod&quot;, &quot;type&quot;: &quot;production&quot;}' localhost:8081/api/v1/environments
+curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{&quot;environment_id&quot;: &quot;&lt;id&gt;&quot;, &quot;name&quot;: &quot;Claims Portal&quot;, &quot;platform&quot;: &quot;outsystems_traditional&quot;}' \
+  localhost:8081/api/v1/applications
+curl -sS -b cookies 'localhost:8081/api/v1/applications?environment_id=&lt;id&gt;&amp;limit=20'
+</code></pre>
+<h3 id="telemetry-sources">Telemetry sources<a href="#telemetry-sources" class="anchor" title="Link to this section">#</a></h3>
+<p>Which telemetry is an application's own
+(<a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">ADR 0017</a>),
+under <code>/api/v1/telemetry-sources</code>: <code>GET</code> (<code>?application_id=</code>,
+<code>?environment_id=</code>, <code>?source_type=</code>, <code>?status=</code>, paged by
+<code>application_name</code>) and <code>POST</code>; <code>GET</code>, <code>PATCH</code> and <code>DELETE</code> on <code>/{id}</code>.
+Viewers read; operators register, change and delete. Each change is
+audited as entity type <code>telemetry_source</code>.</p>
+<pre><code class="language-json">{&quot;application_id&quot;: &quot;&lt;id&gt;&quot;, &quot;source_type&quot;: &quot;outsystems&quot;, &quot;ingest_mode&quot;: &quot;agentless&quot;,
+ &quot;config&quot;: {&quot;application_name&quot;: &quot;Claims&quot;}}
+</code></pre>
+<ul>
+<li><strong>Owner.</strong> A source belongs to the application it was registered for, for
+good; its <code>environment_id</code> is the application's, read through it. Neither
+the application nor the source type can change.</li>
+<li><strong><code>config</code></strong> is checked against its type's JSON Schema,
+<a href="https://github.com/gdpais/Heartbeat/blob/master/packages/config-schema/src/telemetry-sources/outsystems.schema.json"><code>packages/config-schema/src/telemetry-sources</code></a>.
+For <code>outsystems</code>, <code>application_name</code> is the OutSystems <code>Application_Name</code>,
+the <code>service.name</code> of its logs, matched exactly. The schemas are closed and
+hold no credential: a schema names one only as a reference (<code>env/</code>, <code>kv/</code>
+or <code>secret/</code>, format <code>credential-ref</code>), and a test fails on a schema that
+breaks this. <code>ingest_mode</code> is <code>agentless</code> (OutSystems 11, read from the
+logging database) or <code>otlp</code> (OutSystems Cloud and ODC).</li>
+<li><strong>One name, one application.</strong> Within an environment, an
+<code>application_name</code> belongs to one application (409 otherwise), and an
+application has one source per type, ingest mode and name.</li>
+<li><strong>Observation.</strong> Each source says whether the DB collector observes it.
+The API reads the collector's redacted <code>GET /admin/config</code> with the
+collector's admin token, at most every 15 seconds, within 2 seconds.</li>
+</ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>observation.status</code></th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>observed</code></td>
+<td>An enabled <code>outsystems_logs</code> collector extracts a target whose environment is the source's environment's slug (the collector's <code>environment</code> unless the target sets its own; only the targets <code>target_names</code> selects). <code>collectors</code> lists them</td>
+</tr>
+<tr>
+<td><code>not_observed</code></td>
+<td>The collector answered, and none does. A source may be registered before its extraction is set up; nothing is refused</td>
+</tr>
+<tr>
+<td><code>unknown</code></td>
+<td>The collector could not be asked: no URL set, no answer, a refused token. <code>detail</code> says which; the request itself still succeeds</td>
+</tr>
+<tr>
+<td><code>not_applicable</code></td>
+<td>An <code>otlp</code> source, which sends its telemetry itself</td>
+</tr>
+</tbody>
+</table></div>
+<p>The observation is not stored or audited: it is read with the source.</p>
+<h3 id="database-targets">Database targets<a href="#database-targets" class="anchor" title="Link to this section">#</a></h3>
+<p>The databases the collector monitors [4.5], under <code>/api/v1/database-targets</code>
+(<code>GET</code> with <code>?environment_id=</code>, <code>?status=</code> and pages like applications';
+<code>POST</code>; <code>GET</code>, <code>PATCH</code> and <code>DELETE</code> on <code>/{id}</code>). Viewers read; operators
+create, change and delete. A target belongs to the environment it was
+created in, for good, as an application does.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>The <code>target</code> label of its metrics, beside the environment's: a slug like an environment's (<code>finance-prod</code>), unique in its environment, fixed once created. The collector refuses two targets of one environment with one name, since they would write the same series</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td><code>sqlserver</code>, the default; fixed</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>Checked as the collector checks it: a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; at most 253 characters; stored in lower case, and an IPv6 address in its canonical form</td>
+</tr>
+<tr>
+<td><code>port</code></td>
+<td>1 to 65535; 1433 when left out</td>
+</tr>
+<tr>
+<td><code>database_name</code></td>
+<td>Empty for the login's default database; at most 128 characters; compared without regard to case, as SQL Server does by default</td>
+</tr>
+<tr>
+<td><code>credential_ref</code></td>
+<td><code>kv/</code>, <code>secret/</code> or <code>env/</code> and a name of lower-case letters, digits and <code>-</code>, at most 200. The collector reads <code>username:password</code> from the key <code>HEARTBEAT_CREDENTIAL_&lt;REF&gt;</code> of its credentials Secret (<a href="configuration.html#credential-resolution">credential resolution</a>): <code>env/finance-prod</code> is <code>HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD</code>. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses, and each key has one spelling: <code>env/Finance.Prod</code>, which the collector would read from the same key, is refused rather than passing for another reference. A value shaped like a credential is refused, and the problem does not repeat it</td>
+</tr>
+<tr>
+<td><code>status</code>, <code>labels</code></td>
+<td>As for applications</td>
+</tr>
+</tbody>
+</table></div>
+<p>The environment, engine and host, port and database together are unique:
+a second target for the same database in one environment is 409.</p>
+<p><strong>Credentials and reachability.</strong> The API stores the reference only and
+never connects to a target (ADR 0013 §1): it has no credential to connect
+with. The credential reaches the collector on its own path, a Secret key
+(<a href="../guides/database-targets.html#3-provide-the-credential">database targets guide</a>).
+Whether a target is reachable is the collector's to report, once a
+<a href="#probe-assignments">probe assignment</a> renders it into a collector: its
+<code>heartbeat_collector_target_up</code>, and its state and driver error in
+<code>GET /admin/config</code> (<code>readiness.collectors[].targets[]</code>). A change to a
+target's host, port, database or credential reference sends its approved
+assignments back to draft, each with an audit record of its own: an
+approval covers the target as it was, so the collector never logs in to a
+server, or with a credential, that nobody approved. A change of status or
+labels keeps them: a disabled target is not rendered, and enabled again it
+runs as approved.</p>
+<p><strong>Deletes.</strong> A target's probe assignments would be deleted with it, so a
+delete is refused (409) while it has any: disable it instead
+(<code>status: disabled</code>).</p>
+<p><strong>Audit.</strong> Each change writes one record in its transaction: entity type
+<code>database_target</code>, action <code>create</code>, <code>update</code> or <code>delete</code>, the target as the
+API shows it, credential reference included, in <code>before</code> and <code>after</code>.</p>
+<pre><code class="language-bash">curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+  --data '{&quot;environment_id&quot;: &quot;&lt;id&gt;&quot;, &quot;name&quot;: &quot;finance-prod&quot;, &quot;host&quot;: &quot;sql01.finance.internal&quot;, &quot;credential_ref&quot;: &quot;env/finance-prod&quot;}' \
+  localhost:8081/api/v1/database-targets
+</code></pre>
+<h3 id="probe-definitions">Probe definitions<a href="#probe-definitions" class="anchor" title="Link to this section">#</a></h3>
+<p>A probe definition is what a <a href="#probe-assignments">probe assignment</a> runs
+against a database target [4.5]. It is versioned: each version is immutable once stored, except
+whether its definition is enabled, so an assignment that pins a version keeps
+what was approved, and nothing is ever deleted.</p>
+<ul>
+<li><strong>Built-in</strong> definitions are the db-collector's
+<a href="#sql-server-probe-metrics">SQL Server catalog</a>, one per probe, version 1,
+seeded by migration 0004 with no query: the collector runs its own. They
+are read-only (409) and change only with the collector; a test fails when
+the seed and the catalog differ. The OutSystems log types are not
+definitions: their collectors stay in YAML
+(<a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">ADR 0017</a>).</li>
+<li><strong>Custom</strong> definitions replace the query of the built-in they
+<code>overrides</code>, as a <a href="configuration.html#collectors"><code>query_template</code></a> does:
+that built-in's metric descriptors decode the rows, so the query returns the
+same columns in the same units, and the definition takes its category.
+Only admins create and change them, since their SQL runs on monitored
+databases; review each one with the
+<a href="../architecture/database-observability.html#probe-review-checklist">probe review checklist</a>.</li>
+</ul>
+<p><code>POST /api/v1/probe-definitions</code> takes <code>engine</code> (<code>sqlserver</code>), <code>name</code>
+(<code>custom_</code> and then lower-case snake_case, at most 63 characters: no
+built-in's name starts with <code>custom_</code>, so a probe the collector adds later
+never clashes with one), <code>overrides</code>, <code>query_template</code> and, optionally,
+<code>description</code> (at most 1,000 characters), <code>default_interval_seconds</code> (5 to
+3,600; 30, the collector's default, when left out) and <code>timeout_ms</code> (1 to
+25,000; left out, the collector's default, half the interval and at most
+10 s). <code>engine</code>, <code>name</code> and <code>overrides</code> are set once: every version
+overrides the same built-in. <code>POST /api/v1/probe-definitions/{id}/versions</code>
+takes the rest: a version is the whole content, so a field left out takes
+its default, not the previous version's value.</p>
+<p>The query must be one read-only <code>SELECT</code>, checked by the same function the
+db-collector runs when it loads <code>integrations.yaml</code>
+(<code>config.ValidateReadOnlySelect</code>), so the API stores no query the collector
+would refuse; the problem's detail says why, without quoting the query. As in
+the collector, the check is a safety net and the collector's read-only login
+is the control. It does not check which columns the query returns.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>201</td>
+<td>Created, or a version added; <code>Location</code> is the new version's URL</td>
+</tr>
+<tr>
+<td>200</td>
+<td>From <code>POST .../versions</code>: the content equals the version the path names, so nothing was added</td>
+</tr>
+<tr>
+<td>400</td>
+<td>A field out of bounds or an unknown member, an explicit <code>0</code> for <code>default_interval_seconds</code> or <code>timeout_ms</code>, an <code>overrides</code> that names no enabled built-in of the engine, a query that is not one read-only <code>SELECT</code>, or a malformed ID</td>
+</tr>
+<tr>
+<td>404</td>
+<td>No version has the ID</td>
+</tr>
+<tr>
+<td>409</td>
+<td>The name is taken; the definition is built-in, or disabled (enable it before adding a version); or the version the path names is no longer the latest, because someone added one since it was read: read the latest and change that, so no change is lost</td>
+</tr>
+</tbody>
+</table></div>
+<p>Changes to one definition take turns: each locks the definition until it
+commits. <strong>Audit.</strong> Every change writes an audit record of entity type
+<code>probe_definition</code> in the same transaction (<a href="#audit-delivery">audit delivery</a>),
+with the admin as actor and the versions in full, query included: <code>create</code>
+with version 1 in <code>after</code>; <code>update</code> for a new version, whose ID is the
+record's <code>entity_id</code>, with the version it follows in <code>before</code>; <code>disable</code> and
+<code>enable</code> with the version the request named.</p>
+<pre><code class="language-bash">curl -sS -b cookies localhost:8081/api/v1/probe-definitions | jq '.items[] | {id, name, version, builtin}'
+jq -n '{engine: &quot;sqlserver&quot;, name: &quot;custom_waits_lean&quot;, overrides: &quot;waits&quot;,
+        description: &quot;Waits over 1 ms only&quot;,
+        query_template: &quot;SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms &gt; 1&quot;}' |
+  curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/probe-definitions
+</code></pre>
+<h3 id="probe-assignments">Probe assignments<a href="#probe-assignments" class="anchor" title="Link to this section">#</a></h3>
+<p>A probe assignment runs one probe definition version against one database
+target, at an interval [4.5]
+(<a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">ADR 0014</a>),
+under <code>/api/v1/probe-assignments</code> (<code>GET</code> with <code>?database_target_id=</code>,
+<code>?state=</code> and pages; <code>POST</code>; <code>GET</code>, <code>PATCH</code> and <code>DELETE</code> on <code>/{id}</code>;
+<code>POST /{id}/approve</code> and <code>POST /{id}/reject</code>). Viewers read; operators
+create, change and delete; admins approve and reject.</p>
+<p>The API never writes cluster state. It renders every approved, enabled
+assignment of an active target and an enabled definition into one values
+file, the chart's <a href="configuration.html#collectors-rendered-by-the-api"><code>managedCollectors</code></a>:
+one <code>sqlserver</code> collector per target, with the ID
+<code>api-&lt;target id&gt;-&lt;interval&gt;s</code>, which the assignment shows as
+<code>collector_id</code>. A built-in definition is listed by name; a custom one by the
+name of the probe it overrides, with its query in full, for review. The file
+is deterministic (sorted, no timestamps), and checked with the integrations
+schema and the collector's loader before it leaves the API.
+<code>GET /api/v1/probe-assignments/rendered</code> serves it to operators as
+<code>application/yaml</code>; on kind, <code>make kind-assignments</code> deploys it. The pull
+request to <code>heartbeat-deploy</code> that carries it in production waits for that
+repository [18].</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>draft</code></td>
+<td>Created or changed, not yet approved; not rendered</td>
+</tr>
+<tr>
+<td><code>approved</code></td>
+<td>Approved by an admin; rendered</td>
+</tr>
+<tr>
+<td><code>applied</code></td>
+<td>The collector runs it as rendered: its collector is in <code>GET /admin/config</code>, enabled at the interval, with the target as rendered and the probe with the same query, timeout and row limit. The API checks every 30 s and moves <code>approved</code> to <code>applied</code> only</td>
+</tr>
+<tr>
+<td><code>rejected</code></td>
+<td>Refused by an admin, with the reason in <code>state_detail</code>; not rendered. Change it, or approve it after all, to try again</td>
+</tr>
+<tr>
+<td><code>proposed</code>, <code>failed</code></td>
+<td>With the pull request output: in an open pull request, or refused by the config repository's checks or by the collector</td>
+</tr>
+</tbody>
+</table></div>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>database_target_id</code></td>
+<td>Set at creation, for good</td>
+</tr>
+<tr>
+<td><code>probe_definition_id</code></td>
+<td>A version of an enabled definition for the target's engine, pinned: a new version changes nothing until the assignment is changed to it. A change may name another version of the same definition only</td>
+</tr>
+<tr>
+<td><code>interval_seconds</code></td>
+<td>5 to 3,600; the definition's <code>default_interval_seconds</code> when left out. A target runs at one interval, its collector's <code>scrape_interval</code>: an approval is refused while the target's other approved, enabled assignments run at another</td>
+</tr>
+<tr>
+<td><code>timeout_ms</code></td>
+<td>0 or left out for the definition's timeout, or else the collector's (half the interval, at most 10 s); at most 25,000 and at most the interval, the definition's counted when the assignment sets none</td>
+</tr>
+<tr>
+<td><code>max_rows</code></td>
+<td>0 or left out for the collector's 10,000; at most 100,000. A run that returns more fails</td>
+</tr>
+<tr>
+<td><code>enabled</code></td>
+<td><code>true</code> when left out. A disabled assignment is not rendered</td>
+</tr>
+</tbody>
+</table></div>
+<p>A target runs each probe once: a second assignment of a definition on one
+target, or of another definition that runs the same probe (a custom
+definition runs the built-in it overrides), is 409. <strong>Any change</strong>, to the assignment or
+to its target's connection, puts the assignment back to <code>draft</code>, unapproved, so the next render leaves it out
+until an admin approves it again: what runs is always what was approved.
+A body that changes nothing changes nothing. Changes to one target's
+assignments take turns, on the target's row lock.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>201</td>
+<td>Created, as a draft</td>
+</tr>
+<tr>
+<td>400</td>
+<td>A field out of bounds or an unknown member, a reason with control characters, or a malformed ID</td>
+</tr>
+<tr>
+<td>404</td>
+<td>No assignment has the ID</td>
+</tr>
+<tr>
+<td>409</td>
+<td>The probe is assigned on the target already; the definition is disabled, for another engine, or (on a change) another definition; an approval of an assignment that is not a draft or rejected, whose definition was disabled since, at another interval than the target's approved ones, or whose render the collector would refuse; a rejection of one that is not a draft</td>
+</tr>
+<tr>
+<td>422</td>
+<td>The target or the definition version does not exist</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Audit.</strong> Every change writes an audit record of entity type
+<code>probe_assignment</code> in its transaction, with the assignment as the API shows
+it in <code>before</code> and <code>after</code>: <code>create</code>, <code>update</code>, <code>delete</code>, and <code>approve</code> and
+<code>reject</code> by the admin. <code>apply</code> is written by the API itself, actor type
+<code>system</code> with the command <code>probe assignment applied check</code>.</p>
+<pre><code class="language-bash">jq -n --arg t &quot;&lt;target id&gt;&quot; --arg d &quot;&lt;definition version id&gt;&quot; \
+  '{database_target_id: $t, probe_definition_id: $d, interval_seconds: 30}' |
+  curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
+    --data @- localhost:8081/api/v1/probe-assignments
+curl -sS -b cookies -X POST -H 'Origin: http://localhost:8081' localhost:8081/api/v1/probe-assignments/&lt;id&gt;/approve
+curl -sS -b cookies localhost:8081/api/v1/probe-assignments/rendered
+</code></pre>
+<h3 id="users-and-roles">Users and roles<a href="#users-and-roles" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>What each role may do.</strong> Each user has one or more roles; a role allows
+what the roles below it do, and a user may call what any of their roles
+allows.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>May</th>
+<th>For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>viewer</code></td>
+<td>Read everything the API serves: inventory, telemetry sources, database targets, probes and their assignments. Show their own session, log out, change their own password. Nothing else changes</td>
+<td>Wallboards and people who only look. A wallboard logs in as a user of its own with only <code>viewer</code>, so its session, left on a shared screen, can change nothing</td>
+</tr>
+<tr>
+<td><code>operator</code></td>
+<td>What a viewer may, and create, change and delete inventory, telemetry sources, database targets and probe assignments</td>
+<td>The SREs who onboard applications and databases</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td>What an operator may, and manage custom probe definitions, whose SQL runs on monitored databases (<a href="#probe-definitions">below</a>), and users and roles</td>
+<td>Whoever runs Heartbeat. The first comes from <code>api users create-admin</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Each operation's least role is its <code>security</code> in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/apps/api/openapi.yaml"><code>openapi.yaml</code></a>, and the roles are rows in
+<code>roles</code> (migrations <code>0002</code> and <code>0003</code>).</p>
+<p><strong>Managing users</strong> takes <code>admin</code>. Users are never deleted: disable them.</p>
+<ul>
+<li><strong>Create:</strong> <code>POST /api/v1/users</code> with
+<code>{&quot;email&quot;, &quot;display_name&quot;, &quot;password&quot;, &quot;roles&quot;: [...]}</code>. <code>display_name</code>
+defaults to the email's local part, and at least one role is needed. The
+email is stored in lower case and must not belong to another user in any
+case (409). The password is 15 characters to 1,024 bytes and is stored
+only as its argon2id hash. It appears in no response, log or audit record.</li>
+<li><strong>Change:</strong> <code>PATCH /api/v1/users/{id}</code> with any of <code>email</code>,
+<code>display_name</code> and <code>status</code>.
+<ul>
+<li>Disabling a user ends every session they have at once, and refuses their
+logins until they are active again.</li>
+<li>A body that changes nothing changes and audits nothing.</li>
+</ul>
+</li>
+<li><strong>Set a password:</strong> <code>PUT /api/v1/users/{id}/password</code> with <code>{&quot;password&quot;}</code>,
+as for a user who has forgotten theirs. Every session of theirs ends.</li>
+<li><strong>Roles:</strong> <code>PUT</code> and <code>DELETE /api/v1/users/{id}/roles/{role}</code> grant and
+revoke one. Granting a role the user has, or revoking one they lack,
+changes nothing. A user keeps at least one role: revoking their only one
+is refused (409); disable them instead. The user's next request has the
+new roles; their sessions go on.</li>
+<li><strong>The last active admin</strong> can be neither disabled nor stripped of <code>admin</code>
+(409). The check and the change hold a lock on the <code>admin</code> role, so two
+admins cannot disable each other at the same moment and leave none.</li>
+</ul>
+<p>A password change and its sessions' end are one step. The change locks the
+user's row and ends their sessions in Redis before it commits; if the
+sessions cannot end, nothing changes. A login records itself only while the
+user is active and still has the hash it checked. So a login that checked
+the old password just before the change gets 401 instead of a session, and
+its audit record gives the reason <code>changed_meanwhile</code>.</p>
+<p><strong>Your own password:</strong> <code>PUT /api/v1/account/password</code> with
+<code>{&quot;current_password&quot;, &quot;new_password&quot;}</code> takes any role.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>204</td>
+<td>Changed. Every session of yours ends, this one included, and the cookie is cleared: log in again</td>
+</tr>
+<tr>
+<td>400</td>
+<td>A new password that is too short or too long, or a current one that is empty or over 1,024 bytes</td>
+</tr>
+<tr>
+<td>403</td>
+<td>The current password is wrong, or <code>Origin</code> is missing or not the site. A wrong current password counts against the <a href="#logging-in-and-sessions">login limits</a> as a failed login does, so a stolen session cannot be used to guess the password</td>
+</tr>
+<tr>
+<td>429</td>
+<td>Past those limits; refused without checking</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Audit.</strong> Each change writes a record of entity type <code>user</code>, with the
+admin, or the user themselves, as actor:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Change</th>
+<th>Record</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create</code></td>
+<td>a user created</td>
+<td>the user in <code>after</code></td>
+</tr>
+<tr>
+<td><code>update</code></td>
+<td>a user changed</td>
+<td>the user in <code>before</code> and <code>after</code>: <code>email</code>, <code>display_name</code>, <code>status</code>, <code>roles</code></td>
+</tr>
+<tr>
+<td><code>grant_role</code>, <code>revoke_role</code></td>
+<td>a role granted or revoked</td>
+<td>the user in <code>before</code> and <code>after</code></td>
+</tr>
+<tr>
+<td><code>set_password</code></td>
+<td>a password set, by an admin or the user</td>
+<td><code>after</code> is the user's <code>id</code>, their <code>email</code> and <code>sessions_ended: true</code></td>
+</tr>
+<tr>
+<td><code>set_password_failed</code></td>
+<td>a refused change of your own password</td>
+<td>the <code>reason</code> <code>wrong_password</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>No record holds a password, a hash or a session token: the
+<a href="#audit-delivery">secrets test</a> makes each of these changes and checks.</p>
+<h2 id="metrics">Metrics<a href="#metrics" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="sql-server-probe-metrics">SQL Server probe metrics<a href="#sql-server-probe-metrics" class="anchor" title="Link to this section">#</a></h3>
+<p>Every probe metric carries <code>environment</code> and <code>target</code> labels, plus the probe's
+own label columns. Names follow Prometheus conventions: base units (seconds,
+bytes) and a <code>_total</code> suffix on counters only.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Probe</th>
+<th>Source view</th>
+<th>Metric</th>
+<th>Type</th>
+<th>Extra labels</th>
+<th>Series per target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>waits</code></td>
+<td><code>sys.dm_os_wait_stats</code></td>
+<td><code>heartbeat_sqlserver_wait_seconds_total</code></td>
+<td>counter</td>
+<td><code>wait_type</code></td>
+<td>one per wait type with non-zero wait time, benign idle waits excluded: usually tens to low hundreds, at most the ~1,000 wait types SQL Server defines</td>
+</tr>
+<tr>
+<td><code>blocking</code></td>
+<td><code>sys.dm_exec_requests</code></td>
+<td><code>heartbeat_sqlserver_blocked_requests</code></td>
+<td>gauge</td>
+<td><code>blocking_session_id</code></td>
+<td>one per blocking session; none while nothing is blocked</td>
+</tr>
+<tr>
+<td><code>sessions</code></td>
+<td><code>sys.dm_exec_sessions</code></td>
+<td><code>heartbeat_sqlserver_sessions</code></td>
+<td>gauge</td>
+<td><code>status</code></td>
+<td>one per session status (about 5)</td>
+</tr>
+<tr>
+<td><code>memory_pressure</code></td>
+<td><code>sys.dm_os_performance_counters</code></td>
+<td><code>heartbeat_sqlserver_total_server_memory_bytes</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>storage</code></td>
+<td><code>sys.master_files</code></td>
+<td><code>heartbeat_sqlserver_database_file_size_bytes</code></td>
+<td>gauge</td>
+<td><code>database_name</code>, <code>file_name</code>, <code>file_type</code></td>
+<td>one per database file; tempdb files report their configured startup size, not their current size</td>
+</tr>
+<tr>
+<td><code>throughput</code></td>
+<td><code>sys.dm_os_performance_counters</code></td>
+<td><code>heartbeat_sqlserver_batch_requests_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>throughput</code></td>
+<td><code>sys.dm_os_performance_counters</code></td>
+<td><code>heartbeat_sqlserver_transactions_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>1 (server-wide <code>_Total</code>)</td>
+</tr>
+<tr>
+<td><code>cpu</code></td>
+<td><code>sys.dm_os_ring_buffers</code></td>
+<td><code>heartbeat_sqlserver_cpu_sql_process_ratio</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>cpu</code></td>
+<td><code>sys.dm_os_ring_buffers</code></td>
+<td><code>heartbeat_sqlserver_cpu_other_process_ratio</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1 on Windows, none on Linux</td>
+</tr>
+<tr>
+<td><code>buffer_cache</code></td>
+<td><code>sys.dm_os_performance_counters</code></td>
+<td><code>heartbeat_sqlserver_page_life_expectancy_seconds</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>buffer_cache</code></td>
+<td><code>sys.dm_os_performance_counters</code></td>
+<td><code>heartbeat_sqlserver_buffer_cache_hit_ratio</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>file_io</code></td>
+<td><code>sys.dm_io_virtual_file_stats</code>, <code>sys.master_files</code></td>
+<td><code>heartbeat_sqlserver_database_file_reads_total</code>, <code>heartbeat_sqlserver_database_file_writes_total</code></td>
+<td>counter</td>
+<td><code>database_name</code>, <code>file_name</code>, <code>file_type</code></td>
+<td>one per database file each</td>
+</tr>
+<tr>
+<td><code>file_io</code></td>
+<td><code>sys.dm_io_virtual_file_stats</code>, <code>sys.master_files</code></td>
+<td><code>heartbeat_sqlserver_database_file_read_bytes_total</code>, <code>heartbeat_sqlserver_database_file_written_bytes_total</code></td>
+<td>counter</td>
+<td><code>database_name</code>, <code>file_name</code>, <code>file_type</code></td>
+<td>one per database file each</td>
+</tr>
+<tr>
+<td><code>file_io</code></td>
+<td><code>sys.dm_io_virtual_file_stats</code>, <code>sys.master_files</code></td>
+<td><code>heartbeat_sqlserver_database_file_read_stall_seconds_total</code>, <code>heartbeat_sqlserver_database_file_write_stall_seconds_total</code></td>
+<td>counter</td>
+<td><code>database_name</code>, <code>file_name</code>, <code>file_type</code></td>
+<td>one per database file each</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Counters.</strong> Waits, throughput and file I/O are cumulative in SQL Server (the
+<code>Batch Requests/sec</code> and <code>Transactions/sec</code> performance counters are totals
+despite their names), so they are exported as counters with the value SQL
+Server reports. Query them with <code>rate()</code> or <code>increase()</code>, never raw. A SQL
+Server restart, a failover, or <code>DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR)</code>
+lowers the value; <code>rate()</code> and <code>increase()</code> treat that drop as a counter reset,
+so rates stay correct (the increase between the last scrape before the reset
+and the reset itself is lost). A failed probe, a target backing off or a
+collector restart leaves a gap but no reset: the counter resumes at SQL
+Server's value. A wait type appears when its wait time first becomes non-zero,
+so its first increase after SQL Server starts is not counted.</p>
+<p>The <code>waits</code> probe leaves out benign idle waits (system tasks sleeping, queues
+waiting for work, timers such as <code>SLEEP_TASK</code>, <code>LAZYWRITER_SLEEP</code> or
+<code>XE_TIMER_EVENT</code>), which grow by about a second per second on an idle server
+and would dominate top-N panels. The list follows Paul Randal's widely used
+wait statistics query and lives in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/services/db-collector/internal/probes/sqlserver/catalog.go"><code>catalog.go</code></a>.</p>
+<p><strong>CPU.</strong> SQL Server's scheduler monitor writes one record a minute with the
+host's CPU split over that minute: the SQL Server process, other processes,
+and idle. The <code>cpu</code> probe reads only the newest record, so both ratios (0–1,
+of all the CPUs SQL Server sees) change once a minute whatever the scrape
+interval, and lag the real load by up to a minute; idle is <code>1 -</code> their sum.
+SQL Server on Linux reports no idle time (always 0, measured on 2019 and
+2022), so <code>heartbeat_sqlserver_cpu_other_process_ratio</code> is exported on Windows
+only (the probe reads the platform from <code>@@VERSION</code>). Nothing is exported in
+the first minute after SQL Server starts, nor while the newest record is 3
+minutes old or more, so a scheduler monitor that stops writing shows as a gap
+rather than a frozen value.</p>
+<p><strong>Buffer cache.</strong> Page life expectancy (seconds) and the buffer cache hit ratio
+(0–1) come from the server-wide <code>Buffer Manager</code> performance counters, on
+default and named instances alike. There is no fixed good page life
+expectancy; compare a target with its own baseline. The hit ratio stays close
+to 1 on most servers even under memory pressure, so read it together with page
+life expectancy and file reads. Both are server-wide: on a server with several
+NUMA nodes, a page life expectancy drop on one node can hide in the
+<code>Buffer Manager</code> value. Per-node values (<code>Buffer Node</code> counters) are planned
+(TODO §11.2).</p>
+<p><strong>File I/O.</strong> <code>file_io</code> exports six counters per database file, labelled like
+the <code>storage</code> probe's file size: read and write operations, bytes read and
+written, and I/O stall seconds (the time SQL Server waited for reads or writes
+to complete). Average latency per operation is the stall rate over the
+operation rate, e.g.
+<code>rate(heartbeat_sqlserver_database_file_read_stall_seconds_total[5m]) / (rate(heartbeat_sqlserver_database_file_reads_total[5m]) &gt; 0)</code>,
+where <code>&gt; 0</code> leaves no value instead of dividing by zero for an idle file. The
+counters restart at 0 when SQL Server restarts or a database comes back online,
+which <code>rate()</code> treats as a reset. A stock instance has about 10 files (60
+series); budget 6 series per file, so a server with 100 databases and two files
+each exports about 1,200. <code>storage</code> and <code>file_io</code> label a database whose name
+SQL Server does not return (the login lacks <code>VIEW ANY DATABASE</code>, or the
+database was dropped during the query) <code>database_id:&lt;id&gt;</code>.</p>
+<p>A target, identified by environment and name, may be enabled in only one
+sqlserver collector: configuration that lists it twice is rejected, because
+both collectors would write the same series and double the load on the
+database. The exporter also keeps each counter series to a single writer and
+logs any other write instead of applying it.</p>
+<p>Each catalog metric descriptor sets the type and the unit scale applied to the
+query column (milliseconds to seconds, KB or 8 KB pages to bytes). A collector
+that overrides a probe's <code>query_template</code> must return the same columns in the
+same units.</p>
+<p>A failed probe clears its series instead of exporting stale values, and a
+removed collector's series are deleted. A failing probe fails only itself.
+For example, <code>storage</code> and <code>file_io</code> read <code>sys.master_files</code>, which a long
+<code>RESTORE</code> or schema change can lock until the probe times out. While the
+target's other probes succeed, the target is <code>degraded</code>, stays up
+(<code>heartbeat_collector_target_up</code> 1) and keeps collecting, and the failing
+probe (<code>heartbeat_collector_probe_up</code> 0) backs off on its own, with the same
+schedule as a target (the next cycle, then doubling up to 5m, with jitter)
+and its series cleared until it succeeds again. A target fails, and backs off
+as a whole, only when every probe that ran failed, as when its database is
+unreachable or its login is refused; the probes' own backoffs are then
+forgotten. When every probe of a target is backing off on its own, they all
+run. While a target backs off none of its probes run and all its probe
+series are cleared, so they leave a gap instead of a frozen value; only the
+<code>heartbeat_collector_target_*</code> and <code>heartbeat_collector_probe_up</code> series stay.</p>
+<p>A probe that returns no rows exports no series:
+<code>heartbeat_sqlserver_blocked_requests</code> is absent, not 0, while nothing is
+blocked. Queries that need a zero fall back to targets whose <code>blocking</code> probe
+succeeded (<code>heartbeat_collector_probe_up{probe=&quot;blocking&quot;} == 1</code>), as the
+dashboard's Blocked Requests panel does, so neither an unreachable target nor
+a failing <code>blocking</code> probe reads as 0. The catalog lives in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/services/db-collector/internal/probes/sqlserver/catalog.go"><code>catalog.go</code></a>.</p>
+<h3 id="collector-self-observability">Collector self-observability<a href="#collector-self-observability" class="anchor" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_collector_target_up</code></td>
+<td>gauge</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code></td>
+<td>1 if the last cycle for the target succeeded, including an <code>outsystems_logs</code> target that waits for the OTel Collector (<code>blocked</code>) and one with some probes failing (<code>degraded</code>)</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_probe_up</code></td>
+<td>gauge</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code>, <code>probe</code></td>
+<td>1 if the probe's last execution succeeded, waiting for the OTel Collector included; 0 if it failed, backs off on its own, or its target failed or backs off</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_target_consecutive_failures</code></td>
+<td>gauge</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code></td>
+<td>Failed cycles in a row; a <code>degraded</code> cycle is not one</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_target_last_success_timestamp_seconds</code></td>
+<td>gauge</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code></td>
+<td>Unix time of the last cycle that did not fail the target (<code>ok</code>, <code>blocked</code> or <code>degraded</code>); use it for freshness alerts, and <code>heartbeat_collector_probe_up</code> for a single probe</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_cycle_duration_seconds</code></td>
+<td>gauge</td>
+<td><code>collector</code></td>
+<td>Duration of the last collection cycle</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_cycle_seconds</code></td>
+<td>histogram</td>
+<td><code>collector</code></td>
+<td>Duration of every collection cycle; buckets 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_cycles_total</code></td>
+<td>counter</td>
+<td><code>collector</code>, <code>outcome</code></td>
+<td>Cycles by outcome: <code>on_time</code> (finished within its interval), <code>late</code> (used the whole interval: the deadline ended what was still running, and the next cycle starts late) or <code>panic</code>. Created at 0. A cycle ended by the collector stopping is not counted</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_cycle_start_delay_seconds</code></td>
+<td>histogram</td>
+<td><code>collector</code></td>
+<td>How much later than the interval after the previous start a cycle started; buckets 10ms, 100ms, 500ms, 1s, 5s, 15s, 60s</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_db_connections</code></td>
+<td>gauge</td>
+<td><code>environment</code>, <code>target</code>, <code>state</code></td>
+<td>Connections to a monitored database, <code>in_use</code> or <code>idle</code>. Read at each scrape, so a target's series go with its last connection pool. Targets on one server and database with one credential share a pool, reported under the first of them, in name order, used in the last 15 minutes; a renamed target takes its series over within 15 minutes</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_db_connection_waits_total</code>, <code>heartbeat_collector_db_connection_wait_seconds_total</code></td>
+<td>counter</td>
+<td><code>environment</code>, <code>target</code></td>
+<td>Waits for a free connection, and the time spent in them, including those of the target's pools closed since, as after a credential rotation</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_http_requests_total</code></td>
+<td>counter</td>
+<td><code>method</code>, <code>route</code>, <code>code</code></td>
+<td>Requests to the collector's own endpoints, as <a href="#api-requests">the API's</a></td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_http_request_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>method</code>, <code>route</code></td>
+<td>Time to serve them</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_target_login_sysadmin</code></td>
+<td>gauge</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code></td>
+<td>1 if the collector's login for the target is sysadmin-equivalent: a member of <code>sysadmin</code>, or holding <code>CONTROL SERVER</code> (it should be 0; see <a href="../guides/database-targets.html#collector-login-permissions">login permissions</a>). Checked when the collector first connects to the target and about every 10 minutes after; absent until the first check, and while SQL Server cannot tell</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_probe_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code>, <code>probe</code></td>
+<td>Probe execution time, failed and timed-out executions included (an abandoned probe is observed at the time it was abandoned); buckets 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_probe_errors_total</code></td>
+<td>counter</td>
+<td><code>collector</code>, <code>environment</code>, <code>target</code>, <code>probe</code>, <code>reason</code></td>
+<td>Failed probe executions. <code>reason</code> is one of <code>timeout</code> (probe timeout or cycle deadline reached while running, including a probe abandoned because it did not stop within 2s, or a database read or write that timed out), <code>error</code> (connection, login, query or decoding error, or more rows than the probe's <code>max_rows</code>), <code>not_started</code> (cycle deadline passed before the probe could start, or an abandoned probe of the target is still running), <code>panic</code>. Probes interrupted because the collector is stopping (shutdown or reload) are not counted</td>
+</tr>
+<tr>
+<td><code>go_*</code>, <code>process_*</code></td>
+<td></td>
+<td>none</td>
+<td>Go runtime (goroutines, GC, memory) and process (CPU, resident memory, open file descriptors, start time) metrics of the collector itself</td>
+</tr>
+</tbody>
+</table></div>
+<p>The probe error counters are created at 0 for every scheduled probe and reason
+when a collector starts, so <code>rate()</code> and <code>increase()</code> see the first error.
+Targets skipped during backoff run no probes, so they add neither errors nor
+durations; <code>heartbeat_collector_target_up</code> and
+<code>heartbeat_collector_target_consecutive_failures</code> cover them. Error text is
+logged, never used as a label. The probe series of a collector are deleted when
+it stops and recreated when it starts, so a reload that changes a collector
+resets its error counters to 0 (a counter reset for <code>rate()</code>) and drops the
+series of removed targets and probes.</p>
+<p>Per target, the self-observability series are 4 target gauges plus, per
+scheduled probe, 13 histogram series (10 buckets, <code>+Inf</code>, sum, count) and 4
+error counters: 157 series for a target with the 9 built-in probes. Probe
+metric series are listed in the table above.</p>
+<h3 id="config-reloads">Config reloads<a href="#config-reloads" class="anchor" title="Link to this section">#</a></h3>
+<p>The outcome of every load of <code>integrations.yaml</code>: at startup, and on each
+reload, whatever triggered it (file polling, <code>SIGHUP</code> or
+<code>POST /admin/config/reload</code>). 7 series in all.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_collector_config_last_reload_successful</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>1 if the last load or reload succeeded; 0 if it was rejected (invalid file) or could not be applied, until the next successful one. The last good config keeps running meanwhile, unless the rollback of a failed apply failed too (<code>runtime_diverged</code>, and <code>/readyz</code> returns 503). It is 0 exactly while <code>GET /admin/config</code> shows a <code>last_reload_err</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_config_last_reload_success_timestamp_seconds</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>Unix time of the last successful load or reload: when the active config was loaded</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_config_reloads_total</code></td>
+<td>counter</td>
+<td><code>result</code></td>
+<td>Loads and reloads by result, the <code>result</code> of <code>POST /admin/config/reload</code>: <code>ok</code>, <code>invalid_candidate</code> (unreadable or invalid file, nothing applied), <code>apply_failed</code> (valid file, collectors not reconciled; rolled back or diverged), <code>busy</code> (gave up waiting for another reload; nothing read, the gauges unchanged). Created at 0 for every result</td>
+</tr>
+<tr>
+<td><code>heartbeat_collector_config_info</code></td>
+<td>gauge</td>
+<td><code>version</code></td>
+<td>Always 1. <code>version</code> is the active config's SHA-256, as in <code>GET /admin/config</code>. One series, which changes only when a reload activates a different file</td>
+</tr>
+</tbody>
+</table></div>
+<p>The startup load counts as one <code>ok</code>: a file that fails validation at startup
+stops the collector instead (it exits, and Kubernetes restarts it), so
+<code>HeartbeatServiceDown</code> reports that case. A rejected reload therefore matters
+twice: the change has not taken effect, and if the file in the ConfigMap stays
+invalid, the next pod restart fails. <code>HeartbeatCollectorConfigReloadFailed</code>
+(below) fires on it.</p>
+<h3 id="outsystems-log-extraction">OutSystems log extraction<a href="#outsystems-log-extraction" class="anchor" title="Link to this section">#</a></h3>
+<p><code>outsystems_logs</code> collectors
+(<a href="configuration.html#outsystems_logs-collectors">configuration</a>) report these
+on the same <code>/metrics</code>, labelled <code>collector</code>, <code>environment</code>, <code>target</code> and
+<code>log_type</code>. Their targets also get the self-observability series above, with
+the log type as the <code>probe</code> label: one probe execution reads, delivers and
+acknowledges up to 10 batches.</p>
+<p>A batch the OTel Collector has not accepted by the end of the probe
+execution is backpressure, not a failure. Its export carries on in the
+background and the log type reads nothing more until the Collector takes it
+(the chart's Collector takes the next batch only once Loki has the one
+before; see <a href="../architecture/application-observability.html">application observability</a>).
+Meanwhile <code>heartbeat_outsystems_export_blocked</code> is 1, the target stays up
+(<code>heartbeat_collector_target_up</code> 1, no backoff, no probe error), and
+<code>GET /admin/config</code> shows it as <code>blocked</code>, counted in <code>targets_blocked</code>,
+with what it waits for. A database the collector cannot read still fails
+the target as before.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_outsystems_extract_rows_total</code></td>
+<td>counter</td>
+<td>Rows extracted and accepted by the OTel Collector</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_extract_lag_seconds</code></td>
+<td>gauge</td>
+<td>How far the watermark trails now, in real time: about the lag (the collector's, or the log type's own) plus the poll interval when extraction keeps up; it grows while extraction fails or falls behind</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_extract_lag_setting_seconds</code></td>
+<td>gauge</td>
+<td>The lag the log type is configured with, its own or the collector's: <code>heartbeat_outsystems_extract_lag_seconds</code> never goes below it. Set when the collector starts</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_export_failures_total</code></td>
+<td>counter</td>
+<td>Batches the OTel Collector rejected for good (a 4xx status other than 429). Network errors, timeouts, 429 and 5xx are retried with backoff (up to 5 s apart, 10 s per attempt) until the Collector accepts the batch. The watermark stays, so the rows are read again</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_export_blocked</code></td>
+<td>gauge</td>
+<td>1 while the log type waits for the OTel Collector to accept a batch, past the probe execution that read it: its extraction is paused, but its target is up. 0 otherwise. <code>OutSystemsLogExportBlocked</code> fires once it has been 1 for 2 minutes; meanwhile the lag grows, and <code>OutSystemsLogExtractionBehind</code> fires once it has been above 30 minutes for 10</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_extract_stuck_batches_total</code></td>
+<td>counter</td>
+<td>Cycles that failed because every row of a full batch had the same <code>Instant</code>. The log type does not move until <code>batch_limit</code> is raised</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_log_delay_seconds</code></td>
+<td>gauge</td>
+<td>Now minus the newest <code>Instant</code> extracted, set when rows arrive: about the lag plus the poll interval while extraction keeps up. A row is read only once it is older than the lag, so this cannot show OutSystems' log service falling behind; <code>heartbeat_outsystems_late_rows_total</code> does. Absent until the first row</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_late_rows_total</code></td>
+<td>counter</td>
+<td>Rows the recount found in the logging database behind the watermark that were never read: committed later than the lag after their <code>Instant</code>. They are not in Loki and are not sent (<a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">ADR 0008</a>). <code>OutSystemsLateLogRows</code> fires on any</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_duplicate_rows_total</code></td>
+<td>counter</td>
+<td>Rows the recount found delivered more often than the logging database holds them: read twice by the extraction, a defect, or deleted from the database after they were sent. It does not count a batch sent again after the OTel Collector had taken it (its answer lost, or a restart before the watermark was saved), which delivery at least once allows (<a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">ADR 0008</a>), so 0 does not mean Loki holds no row twice. <code>OutSystemsDuplicateLogRows</code> fires on any</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_recounts_total</code></td>
+<td>counter</td>
+<td>Recounts run, failed ones included: one in each minute that has a poll</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_recount_failures_total</code></td>
+<td>counter</td>
+<td>Recounts that failed (query error, more than 1,000,000 rows in the window). Late and duplicate rows are not counted meanwhile; extraction goes on</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two more have other labels. <code>heartbeat_outsystems_stage_duration_seconds</code>
+(histogram; <code>collector</code>, <code>log_type</code>, <code>stage</code>) is the time of one step of a batch:
+<code>read</code> (the query), <code>build</code> (rows to OTLP records), <code>export</code> (until the OTel
+Collector accepted it, waiting for Loki included), <code>derive</code> (the derived metrics)
+and <code>watermark</code> (the save to disk); buckets 10ms to 300s, at most 440 series per
+collector. <code>heartbeat_outsystems_held_bytes</code> (gauge, no labels) is the row data
+held in memory now, read, being exported or pending, against the 64 MiB allowed.</p>
+<p><strong>The recount.</strong> Once a minute (in each minute that has a poll), each log type counts again, per minute of
+<code>Instant</code>, the rows its query returns in the <code>recount_window</code> (default 10
+minutes, <a href="configuration.html#outsystems_logs-collectors">configuration</a>) behind
+its watermark, and compares them with the rows it delivered in each minute.
+Each minute's difference is counted once, however many recounts cover it.
+The count wraps the log type's own query, so it reads what extraction reads,
+from the <code>Instant</code> index. The delivered counts are in memory and start again after the current
+watermark after a restart, and when a reload changes <code>recount_window</code> or the
+query: only the minutes after it are compared. A row committed more than about the window after its <code>Instant</code>
+goes uncounted.</p>
+<p>The counters and <code>heartbeat_outsystems_export_blocked</code> are created at 0 when
+a collector starts and, like the probe series, deleted when it stops. Error text (contract violations, login and
+query errors) is logged and reported per target in <code>GET /admin/config</code>.</p>
+<h4 id="derived-outsystems-metrics">Derived OutSystems metrics<a href="#derived-outsystems-metrics" class="anchor" title="Link to this section">#</a></h4>
+<p>Computed from the rows each batch delivers, labelled <code>collector</code>,
+<code>environment</code> and <code>application</code> plus the labels shown. Design, label caps
+and the entry-point log types:
+<a href="../architecture/application-observability.html#derived-metrics">derived metrics</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_outsystems_operations_total</code></td>
+<td>counter</td>
+<td><code>module</code>, <code>log_type</code>, <code>operation</code>, <code>outcome</code></td>
+<td>Entry points: screens, Reactive server calls, timers and exposed APIs</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_operation_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>module</code>, <code>log_type</code>, <code>outcome</code></td>
+<td>Entry-point duration; buckets 0.1 to 60 s</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_operation_seconds_total</code></td>
+<td>counter</td>
+<td><code>module</code>, <code>log_type</code>, <code>operation</code></td>
+<td>Entry-point seconds, for the mean per operation</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_front_end_operations_total</code></td>
+<td>counter</td>
+<td><code>front_end</code>, <code>outcome</code></td>
+<td>Entry points per front-end server</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_integration_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>direction</code>, <code>type</code>, <code>outcome</code></td>
+<td>Integration calls, consumed and exposed</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_errors_total</code></td>
+<td>counter</td>
+<td><code>module</code></td>
+<td>Error log rows</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_slow_events_total</code></td>
+<td>counter</td>
+<td><code>module</code>, <code>kind</code></td>
+<td>Slow SQL and slow extension rows of the general log</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_timer_delay_seconds</code></td>
+<td>histogram</td>
+<td><code>operation</code></td>
+<td>Timer start minus its schedule; buckets 1 s to 1 h</td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_screen_state_bytes</code></td>
+<td>histogram</td>
+<td><code>module</code>, <code>kind</code></td>
+<td>Traditional web screen session and viewstate size; buckets 1 KiB to 16 MiB</td>
+</tr>
+</tbody>
+</table></div>
+<p>They are deleted with their collector. Per application, each operation adds
+3 counter series (two outcomes and its seconds) and each module, log type and
+outcome 13 histogram series (11 buckets, sum, count). The label caps bound
+each label, but they multiply: 100 modules and 100 operations per
+application and log type, up to 1,000 applications. So each collector holds
+at most <code>max_derived_series</code> of these series
+(<a href="configuration.html#outsystems_logs-collectors">configuration</a>), counted as
+Prometheus stores them. Past it, a row that needs a new series is not
+counted in that metric; series that exist keep counting, so the metrics of
+applications, modules and operations seen first stay right and later ones
+are missing. Each metric is admitted on its own: as the budget fills, a row
+can be counted in some metrics and not in others. The budget is freed with
+the series when the collector stops or a reload changes it.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_outsystems_derived_series</code></td>
+<td>gauge</td>
+<td><code>collector</code></td>
+<td>Derived series the collector holds, as the budget counts them; at most its <code>max_derived_series</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_outsystems_derived_series_overflow_total</code></td>
+<td>counter</td>
+<td><code>collector</code>, <code>metric</code></td>
+<td>Rows a derived metric (<code>metric</code>, its name) did not count because they needed a new series past <code>max_derived_series</code>: one per row and metric. <code>OutSystemsDerivedSeriesOverflow</code> fires on any</td>
+</tr>
+</tbody>
+</table></div>
+<p>Both are created, the counter at 0 for each of the nine metrics, when a
+collector starts, and deleted when it stops.</p>
+<h3 id="api-requests">API requests<a href="#api-requests" class="anchor" title="Link to this section">#</a></h3>
+<p>The API records every request it serves, <code>/metrics</code> and the health endpoints
+included. Prometheus scrapes it as job <code>api</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_api_http_requests_total</code></td>
+<td>counter</td>
+<td><code>method</code>, <code>route</code>, <code>code</code></td>
+<td>Requests served, by status code</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_http_request_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>method</code>, <code>route</code></td>
+<td>Time from receiving a request to its handler returning; the Prometheus client's default buckets, 5ms to 10s</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_db_connections</code></td>
+<td>gauge</td>
+<td><code>state</code></td>
+<td>PostgreSQL pool connections: <code>in_use</code>, <code>idle</code> or <code>constructing</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_api_db_connections_max</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>The most connections the pool opens</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_db_connection_waits_total</code>, <code>heartbeat_api_db_connection_wait_seconds_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>Acquires that found no idle connection, and the time they waited</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_redis_connections</code></td>
+<td>gauge</td>
+<td><code>state</code></td>
+<td>Redis pool connections: <code>in_use</code> or <code>idle</code></td>
+</tr>
+<tr>
+<td><code>heartbeat_api_redis_connection_timeouts_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>Commands that gave up waiting for a connection from the pool</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>route</code> is the pattern that served the request, without the method
+(<code>/readyz</code>, <code>/api/v1/applications/{id}</code>, never the ID itself), or
+<code>unmatched</code> when none did: a 404, a 405 or a redirect. <code>method</code> is the
+request's method, or <code>other</code> outside GET, HEAD, POST, PUT, PATCH, DELETE and
+OPTIONS. A scan of made-up paths and methods therefore lands in the
+<code>unmatched</code> and <code>other</code> series instead of adding new ones.</p>
+<h3 id="logins">Logins<a href="#logins" class="anchor" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_api_login_attempts_total</code></td>
+<td>counter</td>
+<td><code>outcome</code></td>
+<td>Logins this replica answered: <code>succeeded</code>; <code>failed</code> (wrong credentials, an unknown email, a disabled user, each also audited); <code>rate_limited</code> (refused unchecked, past the limits). Requests it could not check (400) are not counted. Each outcome starts at 0. A rise in <code>failed</code> or <code>rate_limited</code> is someone guessing; the audit records say which accounts and from where</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="audit-delivery">Audit delivery<a href="#audit-delivery" class="anchor" title="Link to this section">#</a></h3>
+<p>Every admin or operator change writes an audit record to the <code>audit_outbox</code>
+table in its own transaction; a drainer in each API replica sends the oldest
+records to the OTel Collector and deletes them once it accepts them
+(<a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">ADR 0016</a>).
+So far the audited changes are <code>api users create-admin</code>
+(<a href="configuration.html#api">configuration</a>), logins, logouts and failed logins
+(<a href="#logging-in-and-sessions">sessions</a>), inventory changes
+(<a href="#inventory">inventory</a>), telemetry sources
+(<a href="#telemetry-sources">telemetry sources</a>), and users and their roles
+(<a href="#users-and-roles">users and roles</a>). A test makes each audited change and
+fails if a record holds a password, a hash or a session token.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_api_audit_outbox_rows</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>Records waiting in the outbox, read at each scrape. Every replica reports the same table. Absent from a scrape while PostgreSQL does not answer within 2s; the rest of the scrape still works</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_audit_outbox_oldest_age_seconds</code></td>
+<td>gauge</td>
+<td>none</td>
+<td>Age of the oldest waiting record, 0 when none waits; normally a few seconds at most. <code>HeartbeatAuditDeliveryStalled</code> fires above 2 minutes for 2 minutes</td>
+</tr>
+<tr>
+<td><code>heartbeat_api_audit_records_delivered_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>Records this replica delivered: the Collector accepted them and they left the outbox. A record can be delivered twice (an export the Collector took after the API gave up on it); its id tells the copies apart</td>
+</tr>
+</tbody>
+</table></div>
+<p>The drainer claims up to 100 of the oldest rows at a time with
+<code>FOR UPDATE SKIP LOCKED</code>, so replicas never send the same rows at once, and
+sends them with the OTLP client the db-collector uses (<code>client=&quot;audit&quot;</code> in
+<code>heartbeat_otlp_export_attempts_total</code>): one export, retried for up to 30s,
+holds a round's rows. It goes on at once while it finds full batches, polls
+every 2s once the outbox is empty, and backs off from 1s to 30s while the
+Collector fails, logging <code>audit: delivery failed</code> once, then every minute,
+and <code>audit: delivery resumed</code>. A request the Collector accepts while refusing
+some of its records (OTLP partial success) is not sent again: those records
+are counted in <code>heartbeat_otlp_export_rejected_records_total{client=&quot;audit&quot;}</code>
+and <code>HeartbeatOTLPRecordsRejected</code> fires. Without <code>HEARTBEAT_API_AUDIT_ENDPOINT</code>, nothing
+is sent and records wait; the chart sets it to the bundled OTel Collector's
+<code>4318</code> while the Collector is on, so in the <code>minimal</code> profile records wait.
+A round that finds records is traced: <code>audit.drain</code> → <code>audit.export</code> and the
+<code>db.query</code> of the delete.</p>
+<p>Each record is an OTLP log record: severity INFO, the record's time, the
+record as compact JSON in the body
+(<a href="https://github.com/gdpais/Heartbeat/blob/master/packages/telemetry-contracts/src/audit_record.schema.json"><code>audit_record.schema.json</code></a>),
+attributes <code>event.name</code> = <code>heartbeat.audit</code> and <code>log.record.uid</code> = the record's
+id, and the resource <code>service.name</code> = <code>heartbeat-api</code> with the replica's
+<code>service.version</code>, <code>service.instance.id</code> and <code>deployment.environment.name</code>.
+There is no <code>service.namespace</code>, so audit records stay out of Heartbeat's own
+logs (<code>service_namespace=&quot;heartbeat&quot;</code>). The record's fields are <code>id</code>, <code>time</code>,
+<code>request_id</code>, <code>actor</code> (a user's <code>user_id</code> and <code>email</code>, a <code>cli</code> command and
+the <code>host</code> it ran on, or the <code>address</code> of a <code>client</code> that is not logged in),
+<code>action</code>, <code>entity_type</code>, <code>entity_id</code>, <code>before</code>, <code>after</code>
+and, for runtime config, <code>config_version</code>. In Grafana's Explore, on Loki:</p>
+<pre><code class="language-logql">{service_name=&quot;heartbeat-api&quot;} | event_name=&quot;heartbeat.audit&quot; | json | entity_type=&quot;user&quot;
+</code></pre>
+<h3 id="heartbeats-own-telemetry">Heartbeat's own telemetry<a href="#heartbeats-own-telemetry" class="anchor" title="Link to this section">#</a></h3>
+<p>Both services expose these
+(<a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">ADR 0018</a>).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat_service_info</code></td>
+<td>gauge</td>
+<td><code>service</code>, <code>version</code>, <code>revision</code>, <code>environment</code></td>
+<td>Always 1: what is running. <code>environment</code> is <code>telemetry.environment</code>, where the service itself runs; the <code>environment</code> of a <code>heartbeat_collector_*</code> series is the monitored target's</td>
+</tr>
+<tr>
+<td><code>heartbeat_telemetry_log_records_total</code></td>
+<td>counter</td>
+<td><code>outcome</code></td>
+<td>The service's own log records sent over OTLP: <code>exported</code>, <code>dropped_queue_full</code> (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or <code>dropped_export_failed</code> (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr</td>
+</tr>
+<tr>
+<td><code>heartbeat_telemetry_trace_errors_total</code></td>
+<td>counter</td>
+<td>none</td>
+<td>Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest</td>
+</tr>
+<tr>
+<td><code>heartbeat_otlp_export_attempts_total</code></td>
+<td>counter</td>
+<td><code>client</code>, <code>outcome</code></td>
+<td>OTLP/HTTP attempts: <code>accepted</code>, <code>retryable</code> (network error, timeout, 429, 5xx) or <code>rejected</code> (any other status). <code>client</code> is <code>self-logs</code>, <code>outsystems</code> on the collector, or <code>audit</code> on the API; <code>self-logs</code> and <code>audit</code> exist only while the service has their endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted</td>
+</tr>
+<tr>
+<td><code>heartbeat_otlp_export_attempt_duration_seconds</code></td>
+<td>histogram</td>
+<td><code>client</code></td>
+<td>Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for <code>outsystems</code>, the Collector waiting for Loki</td>
+</tr>
+<tr>
+<td><code>heartbeat_otlp_export_bytes_total</code></td>
+<td>counter</td>
+<td><code>client</code></td>
+<td>Compressed bytes of accepted requests</td>
+</tr>
+<tr>
+<td><code>heartbeat_otlp_export_rejected_records_total</code></td>
+<td>counter</td>
+<td><code>client</code></td>
+<td>Records the receiver refused inside a request it accepted (OTLP partial success). Such a request is not sent again, so the records are lost; <code>HeartbeatOTLPRecordsRejected</code> fires on any. Created at 0</td>
+</tr>
+</tbody>
+</table></div>
+<p>The logs themselves are in Loki with the labels <code>service_namespace=&quot;heartbeat&quot;</code>,
+<code>service_name</code> (<code>db-collector</code>, <code>api</code>) and <code>deployment_environment_name</code>:</p>
+<pre><code class="language-logql">{service_namespace=&quot;heartbeat&quot;, service_name=&quot;db-collector&quot;} | detected_level=&quot;error&quot;
+</code></pre>
+<p>Traces are in Tempo. A collection cycle is one trace, <code>collector.cycle</code> →
+<code>collector.target</code> → <code>collector.probe</code> → <code>db.query</code> or the <code>outsystems.read</code>,
+<code>outsystems.build</code>, <code>outsystems.export</code>, <code>outsystems.derive</code> and
+<code>outsystems.watermark</code> steps of a batch. An API request is <code>&lt;method&gt; &lt;route&gt;</code> →
+<code>db.query</code> and <code>redis.&lt;command&gt;</code>. <code>/metrics</code> and the health endpoints make none.
+A client's <code>traceparent</code> is linked, not continued. Spans name what ran, never
+query values, command arguments or error text, which can name a host and a
+login. A log line in a sampled span has its <code>trace_id</code>, and Grafana links the
+two ways; a line in a span that was not sampled has none, since Tempo never
+gets that trace.</p>
+<h4 id="what-the-telemetry-costs">What the telemetry costs<a href="#what-the-telemetry-costs" class="anchor" title="Link to this section">#</a></h4>
+<p>Measured on kind on 2026-11-02 under <code>make patientzero-load LOAD=steady</code>, the
+same way as the <a href="../guides/local-development.html#daily-loop">memory budget</a>,
+against the build before it (<code>2844ec1</code>), each on a freshly restarted node:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Before</th>
+<th>With it</th>
+<th>Budget</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Full profile in the kind node, peak less PatientZero</td>
+<td>1.44 GiB</td>
+<td>1.79 GiB (Tempo about 210 MiB of it)</td>
+<td>2.5 GiB</td>
+</tr>
+<tr>
+<td>db-collector resident memory, peak</td>
+<td>24.6 MiB</td>
+<td>32.9 MiB</td>
+<td>20 MiB more at most</td>
+</tr>
+<tr>
+<td>db-collector CPU</td>
+<td>2.7 millicores</td>
+<td>2.9 millicores</td>
+<td>within run-to-run noise (1.8 to 2.7)</td>
+</tr>
+<tr>
+<td>Collector <code>/metrics</code> series; scrape time, mean and max</td>
+<td>1,015; 7.5 and 12.5 ms</td>
+<td>1,697; 7.8 and 10.7 ms</td>
+<td>under 100 ms</td>
+</tr>
+<tr>
+<td>Probe p95</td>
+<td>35 ms</td>
+<td>30 ms</td>
+<td>no regression</td>
+</tr>
+<tr>
+<td>Rows extracted a second; extraction lag, max</td>
+<td>9.5; 61 s</td>
+<td>9.7; 60 s</td>
+<td>no regression</td>
+</tr>
+</tbody>
+</table></div>
+<p>Tempo kept every trace (<code>telemetry.traces.sampleRatio: 1</code>, now the default),
+about 5.6 spans a second, and its memory moved between 140 and 210 MiB without
+growing. A later 4.7-hour run on the same load took 4.8 spans and 655 bytes a
+second, stored about 190 bytes a span (some 80 MB a day, 550 MB over the 7-day
+retention, a quarter of its 2 GiB volume), and peaked at 249 MiB, so Tempo's
+limit went from 256 to 384 MiB. A log call costs about 1.4 µs and 18
+allocations with the OTLP export on, 0.45 µs and none with it off; a request
+that is not sampled about 1.7 µs in the tracing middleware.</p>
+<h3 id="prometheus-scrape-jobs-and-rules">Prometheus scrape jobs and rules<a href="#prometheus-scrape-jobs-and-rules" class="anchor" title="Link to this section">#</a></h3>
+<p>Scrape jobs (<code>prometheus.scrapeConfigs</code> in the chart's
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/values.yaml"><code>values.yaml</code></a>): <code>prometheus</code>,
+<code>otel-collector</code>, <code>db-collector</code>, <code>api</code>, <code>alertmanager</code>, <code>loki</code>, <code>tempo</code>; the <code>minimal</code>
+profile drops <code>otel-collector</code>, <code>loki</code> and <code>tempo</code>, which it does not deploy. <code>db-collector</code> and <code>api</code> use
+DNS discovery on the headless <code>db-collector-headless</code> and <code>api-headless</code>
+Services, which list the pods even while they are unready, so their failure
+metrics are still scraped. With <code>api.enabled: false</code>, turn the <code>api</code> job off
+too. Prometheus sends alerts to <code>alertmanager:9093</code>.</p>
+<p>Rules (<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml"><code>heartbeat.rules.yml</code></a>,
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/files/prometheus/rules/heartbeat-config-reload.rules.yml"><code>heartbeat-config-reload.rules.yml</code></a>
+for the config reload alert, and
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/files/prometheus/rules/heartbeat-collector-missing.rules.yml"><code>heartbeat-collector-missing.rules.yml</code></a>
+for a db-collector with no pod,
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/files/prometheus/rules/heartbeat-api-missing.rules.yml"><code>heartbeat-api-missing.rules.yml</code></a>
+for an API with no pod, and
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/files/prometheus/rules/heartbeat-self.rules.yml"><code>heartbeat-self.rules.yml</code></a>
+for Heartbeat's own objectives):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat:up:count</code>, <code>heartbeat:service_up:ratio</code></td>
+<td>Recording</td>
+</tr>
+<tr>
+<td><code>heartbeat:sqlserver_wait_seconds:rate5m</code></td>
+<td>Recording: wait seconds per second by <code>wait_type</code>, <code>rate()</code> of <code>heartbeat_sqlserver_wait_seconds_total</code></td>
+</tr>
+<tr>
+<td><code>heartbeat:sqlserver_blocked_requests:sum</code></td>
+<td>Recording: blocked requests per target; 0 when the target's <code>blocking</code> probe succeeded and nothing is blocked</td>
+</tr>
+<tr>
+<td><code>heartbeat:sqlserver_sessions:sum</code></td>
+<td>Recording: sessions per target, all statuses</td>
+</tr>
+<tr>
+<td><code>heartbeat:outsystems_operations:rate5m</code>, <code>heartbeat:outsystems_errors:rate5m</code></td>
+<td>Recording: OutSystems entry points per second by log type and outcome; error log rows per second by module</td>
+</tr>
+<tr>
+<td><code>heartbeat:outsystems_request_duration_seconds:p95_5m</code>, <code>heartbeat:outsystems_integration_duration_seconds:p95_5m</code></td>
+<td>Recording: p95 request and integration latency</td>
+</tr>
+<tr>
+<td><code>heartbeat:outsystems_request_errors:ratio_rate{5m,30m,1h,6h}</code>, <code>heartbeat:outsystems_request_slow:ratio_rate{5m,30m,1h,6h}</code>, <code>heartbeat:outsystems_requests:rate{1h,6h}</code></td>
+<td>Recording: availability and latency (2 s) SLIs per application over screens, Reactive server calls and exposed APIs, and their traffic</td>
+</tr>
+<tr>
+<td><code>OutSystemsErrorBudgetBurnFast</code>, <code>OutSystemsLatencyBudgetBurnFast</code></td>
+<td>Alert (critical): 14.4× burn of a 99.9% availability or 99%-within-2-s objective over 1h and 5m, for applications with at least five (availability) or one (latency) requests a minute</td>
+</tr>
+<tr>
+<td><code>OutSystemsErrorBudgetBurnSlow</code>, <code>OutSystemsLatencyBudgetBurnSlow</code></td>
+<td>Alert (warning): 6× burn over 6h and 30m</td>
+</tr>
+<tr>
+<td><code>OutSystemsLogExtractionBehind</code></td>
+<td>Alert (warning): a log type's extraction lag above 30 minutes for 10m; the OutSystems metrics and SLO alerts of that target are stale</td>
+</tr>
+<tr>
+<td><code>OutSystemsLogExportBlocked</code></td>
+<td>Alert (warning): <code>heartbeat_outsystems_export_blocked</code> 1 for 2m, one alert per target: the OTel Collector has not taken a batch, so its log types read nothing more, usually because Loki is down or slow. Nothing is lost while the rows are still in the logging database's views</td>
+</tr>
+<tr>
+<td><code>OutSystemsLateLogRows</code></td>
+<td>Alert (warning): <code>heartbeat_outsystems_late_rows_total</code> grew in the last 15 minutes, per log type: rows committed later than the lag, not in Loki. Raise the log type's <code>lag</code></td>
+</tr>
+<tr>
+<td><code>OutSystemsDuplicateLogRows</code></td>
+<td>Alert (warning): <code>heartbeat_outsystems_duplicate_rows_total</code> grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent</td>
+</tr>
+<tr>
+<td><code>OutSystemsDerivedSeriesOverflow</code></td>
+<td>Alert (warning): <code>heartbeat_outsystems_derived_series_overflow_total</code> grew in the last 15 minutes, per collector: its derived series reached <code>max_derived_series</code>, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise <code>max_derived_series</code> if the collector's memory allows</td>
+</tr>
+<tr>
+<td><code>OutSystemsLogRecountFailing</code></td>
+<td>Alert (warning): more than half of a log type's recounts failed in the last 15 minutes, of three or more, whatever the poll interval; the reason is in the collector's log</td>
+</tr>
+<tr>
+<td><code>HeartbeatServiceDown</code></td>
+<td>Alert (warning): <code>up == 0</code> for 2m for the DB collector, the API, the OTel Collector, Loki or Tempo; and no <code>up</code> series at all for the DB collector or the API, whose DNS discovery finds no target while they have no pod (<code>absent(up{job=&quot;db-collector&quot;})</code>, <code>absent(up{job=&quot;api&quot;})</code>). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the <code>up == 0</code> rule fires instead</td>
+</tr>
+<tr>
+<td><code>LokiDiscardingLogs</code></td>
+<td>Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (<code>loki_discarded_samples_total</code>); those rows are lost</td>
+</tr>
+<tr>
+<td><code>HeartbeatCollectorLoginElevated</code></td>
+<td>Alert (warning): <code>heartbeat_collector_target_login_sysadmin == 1</code> for 15m, the collector's login for a target is sysadmin-equivalent</td>
+</tr>
+<tr>
+<td><code>HeartbeatCollectorConfigReloadFailed</code></td>
+<td>Alert (warning): <code>heartbeat_collector_config_last_reload_successful == 0</code> for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is <code>last_reload_err</code> in <code>GET /admin/config</code> and the <code>config reload rejected</code> or <code>config reload failed</code> line in the pod log. Clears on the next successful reload. On by default; <code>prometheusRules.configReloadAlert.enabled: false</code> leaves it out</td>
+</tr>
+<tr>
+<td><code>heartbeat:collector_cycles_late:ratio_rate{5m,30m,1h,6h}</code>, <code>heartbeat:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}</code>, <code>heartbeat:api_request_errors:ratio_rate{5m,30m,1h,6h}</code>, <code>heartbeat:api_request_slow:ratio_rate{5m,1h}</code></td>
+<td>Recording: Heartbeat's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without <code>/metrics</code> and the health endpoints</td>
+</tr>
+<tr>
+<td><code>HeartbeatCollectorCyclesLateFast</code>, <code>HeartbeatCollectorCyclesLate</code></td>
+<td>Alert (warning): 14.4× over 1h and 5m, and 6× over 6h and 30m, burn of the objective of 99.5% of cycles on time, for collectors with at least 30 cycles an hour. A slow monitored database can cause it as well as Heartbeat, so it stays a warning</td>
+</tr>
+<tr>
+<td><code>HeartbeatExtractionFreshnessBurn</code>, <code>HeartbeatExtractionFreshnessBurnSlow</code></td>
+<td>Alert (warning): the same burn rates against an extraction lag within 5 minutes of its configured lag 99% of the time</td>
+</tr>
+<tr>
+<td><code>HeartbeatAPIErrorBudgetBurnFast</code> (critical), <code>HeartbeatAPIErrorBudgetBurnSlow</code> (warning), <code>HeartbeatAPISlow</code> (warning)</td>
+<td>Alert: 99.9% of the API's requests succeed and 95% answer within 250 ms, with at least five (errors) or one (latency) requests a minute</td>
+</tr>
+<tr>
+<td><code>HeartbeatServiceRestarting</code></td>
+<td>Alert (warning): more than 3 process starts in an hour, from <code>process_start_time_seconds</code></td>
+</tr>
+<tr>
+<td><code>HeartbeatServiceMemoryHigh</code></td>
+<td>Alert (warning): resident memory above <code>GOMEMLIMIT</code>, 80% of the container's limit under the chart, for 15m</td>
+</tr>
+<tr>
+<td><code>HeartbeatGoroutinesGrowing</code></td>
+<td>Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h</td>
+</tr>
+<tr>
+<td><code>HeartbeatOwnLogsDropped</code></td>
+<td>Alert (warning): <code>heartbeat_telemetry_log_records_total</code> counted drops in the last 15 minutes</td>
+</tr>
+<tr>
+<td><code>HeartbeatOTLPExportRejected</code></td>
+<td>Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes</td>
+</tr>
+<tr>
+<td><code>HeartbeatOTLPRecordsRejected</code></td>
+<td>Alert (warning): the OTel Collector accepted a request but refused some of its records (OTLP partial success) in the last 15 minutes, per client; those records are lost</td>
+</tr>
+<tr>
+<td><code>HeartbeatAuditDeliveryStalled</code></td>
+<td>Alert (warning): the oldest audit record in the API's outbox above 2 minutes old for 2 minutes, <code>max()</code> over the replicas, which report the same table: the Collector does not take audit records, or <code>HEARTBEAT_API_AUDIT_ENDPOINT</code> is unset. Changes still commit and no record is lost (<a href="#audit-delivery">audit delivery</a>)</td>
+</tr>
+<tr>
+<td><code>Watchdog</code></td>
+<td>Alert: always firing. Alertmanager routes it to the <code>deadmans-switch</code> receiver (healthchecks.io in production, ADR 0005), which notifies when it stops arriving</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>files/prometheus/rules/generated/</code> (in the chart) is loaded but empty; it is
+reserved for rules rendered from alert policies. The chart ships all rule files
+in the <code>heartbeat-prometheus-rules</code> ConfigMap. An alert that can be turned off
+has a rule file of its own, which the chart leaves out of the ConfigMap when
+its value is false, so operators do not edit rule files:
+<code>prometheusRules.configReloadAlert.enabled</code> for
+<code>heartbeat-config-reload.rules.yml</code>. <code>heartbeat-collector-missing.rules.yml</code>
+is in it only when the release has the db-collector and the bundled Prometheus
+scrapes it as job <code>db-collector</code> (not disabled, no <code>job_name</code> override):
+<code>absent()</code> fires wherever nothing matches. A shared Prometheus never gets it,
+even one that loads this ConfigMap and scrapes the collector as <code>db-collector</code>;
+it needs its own copy of the rule, for its own job name. <code>prometheusRules.enabled: false</code> leaves
+out every rule. <code>make rules-check</code> validates the
+rules and runs their promtool unit tests (<code>files/prometheus/rules/tests/</code>). A Go
+test fails if a rule, rule test, dashboard, script or metrics doc names a SQL
+Server metric the probe catalog does not emit, an OutSystems metric or a
+collector self-metric (<code>heartbeat_collector_*</code>) the collector does not export,
+or if a rule or dashboard reads a counter without <code>rate()</code> or <code>increase()</code>.</p>
+<h2 id="known-gaps">Known gaps<a href="#known-gaps" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li><strong>Alerts notify no one by default.</strong> Alerts reach Alertmanager, but the
+chart's default receiver has no integrations
+(<a href="../architecture/decisions/0009-remove-the-otel-gateway.html">ADR 0009</a>).
+Chat and WhatsApp receivers exist only in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/values/production.example.yaml"><code>production.example.yaml</code></a>.</li>
+<li><strong>Admin token attempts are not rate limited.</strong> The NetworkPolicy limits who
+can try. Tracked in TODO §15.2.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/reference/metrics-and-endpoints.md"><code>docs/reference/metrics-and-endpoints.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#local-ports-kind">Local ports (kind)</a></li>
+      <li class="toc-h2"><a href="#db-collector-8082">DB collector (:8082)</a></li>
+      <li class="toc-h2"><a href="#api-8081">API (:8081)</a></li>
+      <li class="toc-h3"><a href="#logging-in-and-sessions">Logging in and sessions</a></li>
+      <li class="toc-h3"><a href="#inventory">Inventory</a></li>
+      <li class="toc-h3"><a href="#telemetry-sources">Telemetry sources</a></li>
+      <li class="toc-h3"><a href="#database-targets">Database targets</a></li>
+      <li class="toc-h3"><a href="#probe-definitions">Probe definitions</a></li>
+      <li class="toc-h3"><a href="#probe-assignments">Probe assignments</a></li>
+      <li class="toc-h3"><a href="#users-and-roles">Users and roles</a></li>
+      <li class="toc-h2"><a href="#metrics">Metrics</a></li>
+      <li class="toc-h3"><a href="#sql-server-probe-metrics">SQL Server probe metrics</a></li>
+      <li class="toc-h3"><a href="#collector-self-observability">Collector self-observability</a></li>
+      <li class="toc-h3"><a href="#config-reloads">Config reloads</a></li>
+      <li class="toc-h3"><a href="#outsystems-log-extraction">OutSystems log extraction</a></li>
+      <li class="toc-h3"><a href="#api-requests">API requests</a></li>
+      <li class="toc-h3"><a href="#logins">Logins</a></li>
+      <li class="toc-h3"><a href="#audit-delivery">Audit delivery</a></li>
+      <li class="toc-h3"><a href="#heartbeats-own-telemetry">Heartbeat&#39;s own telemetry</a></li>
+      <li class="toc-h3"><a href="#prometheus-scrape-jobs-and-rules">Prometheus scrape jobs and rules</a></li>
+      <li class="toc-h2"><a href="#known-gaps">Known gaps</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

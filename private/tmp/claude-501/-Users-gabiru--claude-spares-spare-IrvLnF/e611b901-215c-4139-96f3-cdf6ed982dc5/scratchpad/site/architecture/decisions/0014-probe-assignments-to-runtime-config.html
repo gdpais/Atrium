@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0014. Approved probe assignments reach the collector as a pull request to the config repository · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html" aria-current="page">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0014-approved-probe-assignments-reach-the-collector-as-a-pull-request-to-the-config-repository">0014. Approved probe assignments reach the collector as a pull request to the config repository<a href="#0014-approved-probe-assignments-reach-the-collector-as-a-pull-request-to-the-config-repository" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-10-21. Amended 2026-11-04, when the API side was built [4.5]:
+a target runs at one interval, so it renders to one collector (§2); the
+<code>none</code> output renders in the API's pod for <code>make kind-assignments</code>, beside
+the endpoint (§5); approval, changes and the applied check are spelled out
+(§4).</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Phase 3 lets operators register database targets and assign probes to them
+in the API [4.5]. The DB collector must then run those probes. Constraints:</p>
+<ul>
+<li>The collector reads only <code>integrations.yaml</code>, mounted from the
+<code>heartbeat-integrations</code> ConfigMap, and hot-reloads it: file polling every
+5 s after the kubelet updates the volume (about a minute; 65 s measured on
+kind), or <code>POST /admin/config/reload</code>. An invalid file is rejected and the
+previous config keeps running (<a href="0002-runtime-config-in-yaml.html">ADR 0002</a>,
+<a href="../../reference/configuration.html#validation-and-reload-behavior">configuration reference</a>).</li>
+<li>The chart renders that ConfigMap from the <code>integrations</code> values. Values
+files are layered and lists replace, not merge: a second file that sets
+<code>integrations.collectors</code> replaces the whole list.</li>
+<li>Production deploys through Argo CD from the <code>heartbeat-deploy</code> config
+repository (<a href="0005-production-delivery-and-operations-defaults.html">ADR 0005</a>),
+which doesn't exist yet. Argo CD reverts changes made to the cluster
+outside git, so an API that writes the ConfigMap would be undone at the
+next sync, or would need Argo told to ignore it, and git would no longer
+be the desired state.</li>
+<li>On kind, <code>make kind-deploy</code> runs <code>helm upgrade</code> with <code>kind.yaml</code> plus the
+files in <code>EXTRA_VALUES</code>.</li>
+<li>The collector's model and the database's differ. A collector has one
+<code>scrape_interval</code>, a probe list and a target list; <code>probe_assignments</code> has
+an interval per assignment, <code>probe_definitions</code> carries a versioned
+<code>query_template</code>, and neither table has an approval state.</li>
+<li>Credentials are references (<code>env/…</code>, <code>kv/…</code>, <code>secret/…</code>). The collector
+resolves them from <code>HEARTBEAT_CREDENTIAL_*</code> variables loaded from one
+Secret, so a new reference needs a new Secret key and a collector restart.
+A missing one fails only that target's connection.</li>
+</ul>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>The API never writes cluster state.</strong> It has no Kubernetes credentials
+and runs no Helm. Its output is a values file.</li>
+<li><strong>One generated values file, owned by the API.</strong> The API renders every
+approved, enabled assignment into one file holding a new chart key,
+<code>managedCollectors</code>, a list of collectors. The chart appends it to
+<code>integrations.collectors</code> when it renders the ConfigMap, so hand-written
+collectors stay in the environment's own values and the API never edits
+them. Rendering rules:
+<ul>
+<li>one <code>sqlserver</code> collector per target and interval, with the ID
+<code>api-&lt;target id&gt;-&lt;interval&gt;s</code>; changing an interval replaces that
+collector, as any reload does when an ID changes. Hand-written
+collector IDs may not start with <code>api-</code> (schema check). <em>Amended
+2026-11-04:</em> a target runs at one interval, so it has one collector.
+The collector refuses a target that two enabled collectors scrape
+(<code>validateUniqueSQLServerTargets</code>): its series carry only the
+environment and target labels, so two collectors would write the same
+ones. An approval is therefore refused while the target's other
+approved, enabled assignments run at another interval; to change it,
+change each assignment and approve them again;</li>
+<li>targets carry name, host, port, database, environment name and
+<code>credential_ref</code>; probes are listed by name, and a custom
+<code>probe_definitions.query_template</code> is written out in full, so its SQL
+is reviewed in the pull request under the
+<a href="../database-observability.html#probe-review-checklist">probe review checklist</a>;</li>
+<li>output is deterministic (sorted, no timestamps): the same approvals
+render the same bytes, so nothing changes when nothing changed;</li>
+<li>the file is validated with the integrations schema and the Go loader
+before it leaves the API, and starts with a header saying it is
+generated.</li>
+</ul>
+</li>
+<li><strong>Approval opens a pull request; merging applies it.</strong> In production the
+API pushes the rendered file to one branch it owns on <code>heartbeat-deploy</code>
+(for example <code>heartbeat-api/assignments</code>) and opens, or updates, one pull
+request against the environment's path. Pending approvals share that one
+pull request, so they never conflict with each other. The description
+lists each assignment, who approved it, and any credential reference new
+to the file. The config repository's own CI (chart render, schema, loader)
+and review rules apply; Argo CD syncs the merge and the collector reloads.
+Approval in the API records intent; the merged commit is the change, with
+its review trail.</li>
+<li><strong>States are workflow metadata, separate from desired and observed
+state.</strong> An expand migration adds to each assignment a state (<code>draft</code>,
+<code>approved</code>, <code>proposed</code>, <code>applied</code>, <code>rejected</code>, <code>failed</code>), the pull
+request URL and the approver. <code>applied</code> is set only when the collector
+reports the collector ID with the rendered targets and probes in its
+redacted <code>GET /admin/config</code>; the API holds the admin token as a Secret
+reference and reads nothing else from the collector. PostgreSQL holds the
+request, git the desired state, the collector the observed state
+(ADR 0002).
+<em>Amended 2026-11-04:</em> operators create and change assignments; admins
+approve and reject them, as admins own probe definitions. A draft or a
+rejected assignment can be approved. A change (interval, timeout, row
+limit, enabled, or another version of the same definition), or to its
+target's host, port, database or credential reference, puts an
+assignment back to <code>draft</code>, so the next render leaves it out until it is
+approved again: what runs is always what was approved. An approval renders
+the whole file in its transaction and checks it with the schema and the
+loader, so one that would make an invalid file is refused. The applied
+check runs every 30 s and moves <code>approved</code> to <code>applied</code> only; an
+assignment the collector stops running stays <code>applied</code>, and the
+collector's reload metrics and readiness say why (§7). Its audit records
+name the API itself (actor type <code>system</code>) as the actor.</li>
+<li><strong>kind renders the same file.</strong> The API's output target is configurable:
+<code>github</code> (above) or <code>none</code>, which only serves the rendered file at an
+admin endpoint. On kind, a make target (for example
+<code>make kind-assignments</code>) downloads it to an ignored path and runs
+<code>make kind-deploy</code> with it in <code>EXTRA_VALUES</code>. Same renderer, same chart
+key, no pull request, and the API still needs no access to the host.
+<em>Amended 2026-11-04:</em> <code>make kind-assignments</code> runs
+<code>api probe-assignments render</code> in the API's pod, which reads PostgreSQL
+only, rather than downloading from the endpoint, so kind needs no login.
+The file stays in the cluster's ignored state directory, and later
+<code>make kind-deploy</code> runs keep it, as they keep the SQL Server sandbox. The
+endpoint, <code>GET /api/v1/probe-assignments/rendered</code>, serves the same bytes
+to operators. <code>none</code> is the only output until the config repository
+exists, so there is no setting yet.</li>
+<li><strong>Secrets are references only.</strong> The API validates the reference format
+and renders references; it never sees or stores a credential. The value
+reaches the cluster on its own path: External Secrets from AWS Secrets
+Manager in production, a <code>kubectl</code>-created Secret on kind
+(<a href="../../guides/database-targets.html#3-provide-the-credential">database targets guide</a>).
+Until the collector reads credentials from mounted files (the ADR 0002
+follow-up), a new reference also needs a collector restart, so the pull
+request flags it. A target whose credential is missing fails on its own,
+visibly in <code>GET /admin/config</code>; other targets keep running.</li>
+<li><strong>Drift and reconciliation.</strong>
+<ul>
+<li>Cluster against git: Argo CD's self-heal.</li>
+<li>Git against PostgreSQL: on every approval and on a schedule, the API
+renders the file and compares it with the default branch. A difference
+it didn't cause (a hand edit to the generated file) is reported and
+overwritten by its next pull request.</li>
+<li>Collector against git: the collector's <code>last_reload_err</code>,
+<code>runtime_diverged</code> and readiness, and the API's <code>applied</code> check.</li>
+</ul>
+</li>
+<li><strong>When it doesn't go through.</strong>
+<ul>
+<li>Pull request closed without merging: its assignments become <code>rejected</code>
+with the link, and later renders leave them out. To retry, edit and
+approve again.</li>
+<li>The config repository's checks fail: the assignments become <code>failed</code>
+with the check's link; the pull request stays open for the next render
+to fix.</li>
+<li>Merged, but the collector rejects or fails to apply the file: it keeps
+the previous config, the assignments become <code>failed</code>, and the fix is a
+revert or a new pull request.</li>
+<li>GitHub unreachable: the assignments stay <code>approved</code> and the API retries
+with backoff; nothing is lost.</li>
+</ul>
+</li>
+</ol>
+<p>Considered and not chosen:</p>
+<ul>
+<li><strong>The API writes the ConfigMap or patches the collector.</strong> Argo CD reverts
+it, or must ignore it; the API would need cluster write access; no review
+trail; git stops being the desired state.</li>
+<li><strong>The API commits straight to the config repository's default branch.</strong>
+Simpler, but it bypasses the repository's review and checks, and
+&quot;approved&quot; means one click.</li>
+<li><strong>The collector reads assignments from the API or PostgreSQL.</strong> Reverses
+ADR 0002: collection would depend on the control plane being up.</li>
+<li><strong>An Argo CD plugin or ApplicationSet generator that asks the API.</strong> The
+desired state would live in a database, not in git.</li>
+<li><strong>The API rewrites <code>integrations.collectors</code> directly.</strong> Lists replace, so
+it would have to own every collector, hand-written ones too.</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>Assigning a probe takes a review and a sync, minutes rather than seconds.
+That is the point for production; on kind the make target keeps it to one
+command.</li>
+<li>The chart gains <code>managedCollectors</code> (schema, render test, the <code>api-</code>
+prefix rule). The integrations file format itself doesn't change.</li>
+<li>To build the GitHub path, the API needs write access to <code>heartbeat-deploy</code>:
+a GitHub App installed on that repository only, with contents and pull
+requests read and write, its private key in AWS Secrets Manager through
+External Secrets [18]. Not set up now; until then the output target is
+<code>none</code>.</li>
+<li>The config repository needs CI that renders the chart with each
+environment's values and loads the result with the Go loader, and branch
+protection, before the API opens pull requests against it [18].</li>
+<li>The API needs a network path to the collector's admin port, allowed in the
+collector's NetworkPolicy.</li>
+<li>The same pattern (render to a file in the config repository, review, sync)
+fits rendered Prometheus rules and Alertmanager routes later [4.7]; that is
+a separate decision.</li>
+<li><code>outsystems_logs</code> collectors are not rendered: an OutSystems source maps an
+application to its logs, and the extraction collector stays in YAML
+(<a href="0017-outsystems-sources-map-application-identity.html">ADR 0017</a>).</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md"><code>docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

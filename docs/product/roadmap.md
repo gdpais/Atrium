@@ -12,7 +12,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
 | 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; next Grafana deep links [4.9], then the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
-| 4 | Web UI | Not started |
+| 4 | Web UI | Planned: built and served as [ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md) decides, a Vite app embedded in the API; next the scaffold [5.1] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
 | 7 | Investigations, alerting and reporting | Not started |
@@ -232,7 +232,9 @@ source and database target, whose approved probes the collector runs on kind.
 
 ## Phase 4 — Web UI
 
-- Bootstrap, auth, and inventory/onboarding screens on the phase-3 APIs [5]
+- Bootstrap, auth, and inventory/onboarding screens on the phase-3 APIs [5],
+  a Vite app embedded in the API and served from its origin
+  ([ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md))
 - Investigation, alert and report screens come in phase 7, with their APIs
   and workers
 

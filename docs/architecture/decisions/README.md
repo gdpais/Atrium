@@ -25,6 +25,7 @@ one; mark the old record *Superseded by ADR NNNN*.
 | [0017](0017-outsystems-sources-map-application-identity.md) | An OutSystems 11 telemetry source maps an application to its `service.name` (`application_name`); the `outsystems_logs` collector per installation stays in YAML, not rendered by the API | Accepted |
 | [0018](0018-heartbeats-own-telemetry.md) | Heartbeat's own telemetry: metrics stay on `/metrics`; logs go over OTLP as well as stderr, on their own Collector receiver and pipeline, never the OutSystems delivery path; traces use the OTel SDK and Tempo; opt-in loopback pprof | Accepted |
 | [0019](0019-keep-grafana-and-share-telemetry-as-otlp.md) | The Grafana stack is the platform; the ELK review is closed. Other applications receive Heartbeat's metrics, logs and traces as OTLP from optional Collector exporters; the API serves Heartbeat's own resources, not raw telemetry | Accepted; sharing not built [TODO 9.5] |
+| [0020](0020-web-ui-served-by-the-api.md) | Web UI: a Vite + React + TypeScript single-page app embedded in the API binary and served at `/`, same origin; client generated from `openapi.yaml` (openapi-typescript, openapi-fetch); TanStack Query, React Router, Mantine; a `web` CI job and Playwright in `kind-e2e` | Accepted; not built [TODO 5] |
 
 Template:
 

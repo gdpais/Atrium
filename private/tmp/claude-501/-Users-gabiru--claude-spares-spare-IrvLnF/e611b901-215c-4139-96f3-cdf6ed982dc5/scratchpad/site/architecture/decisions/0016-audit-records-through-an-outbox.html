@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html" aria-current="page">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0016-audit-records-are-written-in-the-changes-transaction-and-delivered-as-otlp-log-records">0016. Audit records are written in the change's transaction and delivered as OTLP log records<a href="#0016-audit-records-are-written-in-the-changes-transaction-and-delivered-as-otlp-log-records" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-10-27</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Phase 3 builds the API, the first component that changes Heartbeat's own
+records, so it needs an audit trail [4.10]. What is already said about it:</p>
+<ul>
+<li><a href="../workflows.html#audit">Operator workflows</a>: every operator or admin
+change appends one JSONL line (time, actor, action, entity type and ID,
+before and after, request ID, config version) to a dated file such as
+<code>audit/heartbeat-audit-YYYY-MM-DD.jsonl</code>; files are rotated and shipped to
+Loki or a SIEM [15.3]. Secrets never enter it.</li>
+<li><a href="0013-api-design-and-subsystem-boundaries.html">ADR 0013</a>: &quot;A request that
+writes several rows, and its audit record [4.10], runs in one transaction.&quot;</li>
+<li><a href="0001-postgresql-metadata-only.html">ADR 0001</a> and the
+<a href="../data-model.html">data model</a>: PostgreSQL holds no audit streams; an
+<code>audit_events</code> table only if relational audit search or compliance exports
+are needed [17].</li>
+<li><a href="0011-platform-agnostic-telemetry-boundary.html">ADR 0011</a>: services emit
+only OTLP and Prometheus exposition; only the OTel Collector names a
+platform.</li>
+</ul>
+<p>These don't fit together:</p>
+<ul>
+<li>A line appended to a file can't be part of a PostgreSQL transaction. If the
+file is written after the commit, a crash in between loses the record of a
+change that happened; if before, a rolled-back change leaves a record.</li>
+<li>The API is a Deployment that may run more than one replica. A file per pod
+needs a volume per pod (a Deployment can't give each replica its own
+<code>ReadWriteOnce</code> volume), or is lost with the pod on an <code>emptyDir</code>.</li>
+<li>Nothing in the stack ships container files or standard output: the
+platform receives OTLP from the services and scrapes Prometheus endpoints.
+Shipping files would mean a node log agent, which no other part of
+Heartbeat needs.</li>
+</ul>
+<p>Phase 2 built an ordered log path that loses nothing across restarts: OTLP
+to the OTel Collector, a persistent sending queue, Loki
+(<a href="../application-observability.html">application observability</a>).</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>The record.</strong> One JSON object per change: <code>id</code> (a UUID, unique per
+record), <code>time</code>, <code>request_id</code>, <code>actor</code> (user ID and email), <code>action</code>,
+<code>entity_type</code>, <code>entity_id</code>, <code>before</code>, <code>after</code>, and <code>config_version</code> when
+the change concerns runtime config. Defined as a JSON Schema,
+<code>audit_record.schema.json</code>, in <code>packages/telemetry-contracts</code>. A read is
+not audited; a failed login is, without the password.</li>
+<li><strong>Written in the same transaction.</strong> The API inserts the record into an
+<code>audit_outbox</code> table in the transaction that makes the change. A change
+that commits always has its record; one that rolls back has none.</li>
+<li><strong>Delivered as OTLP log records.</strong> A drainer in each API replica claims the
+oldest rows (<code>FOR UPDATE SKIP LOCKED</code>, in batches), sends them to the OTel
+Collector as OTLP/HTTP log records (the record as the body;
+<code>service.name = heartbeat-api</code>, <code>event.name = heartbeat.audit</code> and the
+record's <code>id</code> as attributes), and deletes them once the Collector accepts
+them. Delivery is at least once; the <code>id</code> identifies a duplicate. The
+Collector routes them to Loki through the same persistent queue as the
+OutSystems logs, and to a SIEM later by adding an exporter there.</li>
+<li><strong>The outbox is a queue, not a store.</strong> Rows live until the Collector
+accepts them, seconds normally. PostgreSQL answers no audit queries and
+keeps no history, so ADR 0001 holds. While the Collector is unreachable,
+changes still commit and rows wait. The API exports the outbox's row count
+and the age of its oldest row, and an alert fires when delivery has
+stalled for a few minutes, as <code>OutSystemsLogExportBlocked</code> does for logs.</li>
+<li><strong>Searched where it lands.</strong> Audit records are read in Grafana from Loki
+(<code>{service_name=&quot;heartbeat-api&quot;} | event_name=&quot;heartbeat.audit&quot;</code>). An
+audit search API and an <code>audit_events</code> table stay deferred [17].</li>
+<li><strong>No secrets, tested.</strong> Records hold credential references, never values;
+password hashes, session IDs and tokens never appear in <code>before</code> or
+<code>after</code>. A test changes each audited entity and fails if any of them shows
+up in a record.</li>
+<li><strong>Retention is Loki's for now</strong>: 15 days by default, 30 days in the
+production example. How long audit records must be kept is part of the
+compliance sign-off before production
+(<a href="0012-personal-data-in-telemetry.html">ADR 0012</a>, [9.2]); if it is longer,
+the Collector exports them to a SIEM or object storage as well.</li>
+</ol>
+<p>Considered and not chosen:</p>
+<ul>
+<li><strong>Dated JSONL files.</strong> Not atomic with the change, one file per replica
+needs a volume per pod, and shipping them needs a node agent.</li>
+<li><strong>Send OTLP straight after the commit.</strong> No table, but a crash after the
+commit, or a Collector outage longer than the retry, loses the record of a
+change that happened.</li>
+<li><strong>An <code>audit_events</code> table as the store.</strong> Atomic and searchable, but it
+makes PostgreSQL an audit store, which ADR 0001 keeps out until relational
+search or compliance exports are needed [17].</li>
+<li><strong>Standard output.</strong> Nothing collects it.</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>One expand migration adds <code>audit_outbox</code>; the API gains a small OTLP log
+exporter. The db-collector's (<code>internal/otlp</code>)
+is the model; sharing it is a refactor for that slice to weigh.</li>
+<li>The OTel Collector's NetworkPolicy admits the API on its OTLP port.</li>
+<li>Changes don't depend on the Collector being up; audit delivery does, and is
+alerted on.</li>
+<li>ADR 0013's sentence on the audit record now holds as written.</li>
+<li>The workflows doc's file-based audit, and TODO 15.3's file rotation, are
+replaced by this record; shipping to a SIEM becomes a Collector exporter.</li>
+<li>Collector reload results and collector add, remove and change decisions
+stay where they are: the collector's own logs and its
+<code>heartbeat_collector_config_*</code> metrics.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0016-audit-records-through-an-outbox.md"><code>docs/architecture/decisions/0016-audit-records-through-an-outbox.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

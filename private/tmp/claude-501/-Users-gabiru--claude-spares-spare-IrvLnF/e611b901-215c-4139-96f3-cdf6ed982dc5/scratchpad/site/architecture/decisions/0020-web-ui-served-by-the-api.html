@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0020. Web UI: a Vite single-page app served by the API · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html" aria-current="page">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+        <li class="toc-h2"><a href="#alternatives-considered">Alternatives considered</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0020-web-ui-a-vite-single-page-app-served-by-the-api">0020. Web UI: a Vite single-page app served by the API<a href="#0020-web-ui-a-vite-single-page-app-served-by-the-api" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-11-04</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Phase 4's outcome is that an operator onboards an application, a SQL Server
+target and its probes in a browser, with every change audited
+(<a href="../../product/roadmap.html">roadmap</a>). The API already does all of it
+[TODO 4.1–4.5].</p>
+<p>What is fixed already:</p>
+<ul>
+<li>TypeScript and React, no server-side rendering
+(<a href="0004-core-technology-choices.html">ADR 0004</a>).</li>
+<li>The UI owns nothing durable and talks only to the API, from the same origin
+(<a href="0013-api-design-and-subsystem-boundaries.html">ADR 0013</a> §1). The session
+is a <code>__Host-</code> cookie (<code>Secure</code>, <code>SameSite=Lax</code>, <code>Path=/</code>), and every unsafe
+request needs an <code>Origin</code> equal to <code>HEARTBEAT_API_SITE_ORIGIN</code> (§8).</li>
+<li>One chart for kind, CI and production, rendered by Argo CD
+(<a href="0003-helm-on-kind-and-production.html">ADR 0003</a>,
+<a href="0005-production-delivery-and-operations-defaults.html">ADR 0005</a>); one version
+for every image (<a href="0006-trunk-based-development-and-tagged-releases.html">ADR 0006</a>);
+CI jobs run when a change can affect them, behind one required check
+(<a href="0007-change-based-ci-with-one-required-check.html">ADR 0007</a>).</li>
+<li>The UI's client is generated from <code>apps/api/openapi.yaml</code> (ADR 0013 §4).</li>
+</ul>
+<p>Open: how the UI is built, where it is served from, which libraries it uses
+and how it is tested.</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>The API serves the UI.</strong> The built app is embedded in the API binary
+(<code>embed.FS</code>) and served at <code>/</code>. <code>/api/*</code>, <code>/metrics</code> and the health
+endpoints are unchanged; any other <code>GET</code> that accepts HTML gets
+<code>index.html</code>, so client routes survive a reload. Hashed assets are cached
+for a year as immutable, <code>index.html</code> is <code>no-cache</code>, and every UI response
+carries a strict Content-Security-Policy with no inline script. One image
+and one origin by construction: no new Deployment, Service,
+NetworkPolicy or ingress rule, and kind keeps working through the existing
+port-forward.</li>
+<li><strong>Build with Vite, TypeScript strict, in <code>apps/web</code>.</strong> Node is pinned to
+the active LTS in <code>apps/web/.nvmrc</code> and checked by <code>make tools-check</code>;
+packages come from npm with a committed lockfile (<code>npm ci</code>), at exact
+versions, kept current by Renovate.</li>
+<li><strong>Typed client generated from <code>openapi.yaml</code></strong> with <code>openapi-typescript</code>
+(types only) and <code>openapi-fetch</code> (a small typed <code>fetch</code>). <code>make generate</code>
+writes it and <code>make generate-check</code> fails when it is stale, as it does for
+oapi-codegen and sqlc.</li>
+<li><strong>TanStack Query for server state, React Router for routes</strong>, no global
+store. The UI reads the user's roles from <code>GET /api/v1/session</code> to show or
+hide actions; the API stays the authority, and the UI handles a 401 or 403
+rather than trying to prevent it.</li>
+<li><strong>Mantine for components</strong> (forms, tables, modals, notifications), with a
+light theme of our own and no Tailwind toolchain.</li>
+<li><strong>Tests.</strong> A <code>web</code> CI job, run when <code>apps/web</code> or <code>openapi.yaml</code> changes and
+counted by <code>ci-ok</code>, runs ESLint, <code>tsc --noEmit</code>, Vitest with Testing
+Library, the build and <code>npm audit</code>. Playwright (Chromium only) drives the
+UI against the real API in <code>kind-e2e</code>: log in, onboard PatientZero, approve
+a probe assignment, follow a deep link.</li>
+<li><strong>Development loop.</strong> <code>npm run dev</code> serves the app with Vite and proxies
+<code>/api</code> to the API port-forwarded from kind; kind's <code>api.siteOrigin</code> is the
+Vite origin, <code>http://localhost:5173</code>. Browsers treat <code>localhost</code> as a
+secure context, so the <code>__Host-</code> cookie works over plain HTTP there.</li>
+<li><strong>The API image builds the UI.</strong> A Node stage on the build platform runs
+<code>npm ci</code> and <code>npm run build</code>; the Go stage embeds <code>apps/web/dist</code>. A Go
+build without a bundle embeds a placeholder page, so <code>go test</code> and
+<code>go build</code> never need Node.</li>
+</ol>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>The UI and the API ship together, at one version, in one image; a UI-only
+change rebuilds the API image. That fits ADR 0006 and costs about 1 MB of
+assets in the image.</li>
+<li>The API grows a small static handler, its cache and CSP headers and the
+<code>index.html</code> fallback, all tested in Go.</li>
+<li>The UI is not a pod, so the API's NetworkPolicy gains no peer for it and
+the kind memory budget [TODO 0.4] is unchanged.</li>
+<li>npm brings a dependency tree into the repository: exact versions, a
+lockfile, <code>npm audit</code> in CI and Renovate keep it reviewable.</li>
+<li><code>kind-e2e</code> gains a browser run; it must stay within the job's 25-minute
+limit, measured when Playwright is added.</li>
+<li>Investigation, alert and report screens are built in phase 7 with their
+APIs and workers, not as shells now.</li>
+</ul>
+<h2 id="alternatives-considered">Alternatives considered<a href="#alternatives-considered" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li><strong>A separate static container (nginx or distroless) behind an ingress that
+splits <code>/</code> and <code>/api</code>.</strong> A second pod, image and release artefact, and kind
+would need an ingress just to get one origin. Worth revisiting only if the UI
+and the API must release on different schedules.</li>
+<li><strong>Next.js or another SSR framework.</strong> ADR 0004 rules out SSR, and an
+operator console needs none.</li>
+<li><strong>pnpm.</strong> Faster installs, but one more tool to pin; npm ships with Node.</li>
+<li><strong>orval or openapi-generator for the client.</strong> More generated code to review
+than types plus a 6 kB <code>fetch</code> wrapper.</li>
+<li><strong>Radix primitives with our own CSS, or MUI.</strong> Radix gives more control but
+is slower to the first screen; MUI is heavier. Mantine covers the forms and
+tables the onboarding screens need.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0020-web-ui-served-by-the-api.md"><code>docs/architecture/decisions/0020-web-ui-served-by-the-api.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      <li class="toc-h2"><a href="#alternatives-considered">Alternatives considered</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

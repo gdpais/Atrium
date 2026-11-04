@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html" aria-current="page">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h3"><a href="#boundaries-and-ownership-frozen">Boundaries and ownership (frozen)</a></li>
+        <li class="toc-h3"><a href="#http-and-contract">HTTP and contract</a></li>
+        <li class="toc-h3"><a href="#data">Data</a></li>
+        <li class="toc-h3"><a href="#identity">Identity</a></li>
+        <li class="toc-h3"><a href="#jobs">Jobs</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0013-api-design-stdlib-http-spec-first-openapi-sqlc-redis-sessions-and-job-streams-frozen-boundaries">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries<a href="#0013-api-design-stdlib-http-spec-first-openapi-sqlc-redis-sessions-and-job-streams-frozen-boundaries" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-10-21</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Phase 3 builds the API (<code>apps/api</code>), the first service that reads and writes
+PostgreSQL. Today <code>apps/api/cmd/api</code> and <code>apps/api/internal</code> are empty
+directories. What already constrains it:</p>
+<ul>
+<li>One backend language, few runtimes and dependencies, free for enterprise
+use; local RBAC first, OIDC later (<a href="0004-core-technology-choices.html">ADR 0004</a>).
+The module is on Go 1.27.</li>
+<li>The schema is <a href="https://github.com/gdpais/Heartbeat/blob/master/db/migrations/0001_foundations.up.sql"><code>db/migrations/0001_foundations.up.sql</code></a>
+with a matching <code>.down.sql</code>. Nothing records which migrations a database
+has: the integration tests apply the files with <code>psql</code>. <code>users</code> has no
+password column.</li>
+<li>PostgreSQL holds product metadata only (<a href="0001-postgresql-metadata-only.html">ADR 0001</a>);
+collector desired state comes from YAML, never from the API's tables
+(<a href="0002-runtime-config-in-yaml.html">ADR 0002</a>); services emit only OTLP and
+Prometheus exposition and read telemetry through platform adapters
+(<a href="0011-platform-agnostic-telemetry-boundary.html">ADR 0011</a>).</li>
+<li>Durable job state already has tables (<code>investigation_jobs</code>, <code>report_runs</code>),
+and the architecture guardrails say Redis is never the system of record and
+workers are idempotent.</li>
+<li>The Web UI (phase 4) needs a typed client, and production deploys through
+Argo CD, which renders the chart with <code>helm template</code>: no Helm hooks unless
+Argo's hook mapping fits (<a href="0005-production-delivery-and-operations-defaults.html">ADR 0005</a>).</li>
+</ul>
+<p>The subsystem boundaries and ownership rules have been open in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/TODO.md">TODO 0.1</a> since phase 0. Their content is already in ADRs
+0001, 0002 and 0011; the API is where they become interfaces, so this record
+freezes them.</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="boundaries-and-ownership-frozen">Boundaries and ownership (frozen)<a href="#boundaries-and-ownership-frozen" class="anchor" title="Link to this section">#</a></h3>
+<ol>
+<li>
+<p><strong>Who owns what.</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Subsystem</th>
+<th>Owns</th>
+<th>Talks to others only through</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API (<code>apps/api</code>)</td>
+<td>Every PostgreSQL table except job results (below); users, sessions, approvals; rendering approved probe assignments (<a href="0014-probe-assignments-to-runtime-config.html">ADR 0014</a>)</td>
+<td>Its OpenAPI contract (UI, scripts); job envelopes on Redis; telemetry adapters (ADR 0011); the collector's admin API, read-only</td>
+</tr>
+<tr>
+<td>DB collector</td>
+<td>Reading monitored databases; collector runtime state</td>
+<td><code>integrations.yaml</code>, <code>/metrics</code>, <code>/healthz</code>, <code>/readyz</code>, <code>/admin/config</code>, OTLP out</td>
+</tr>
+<tr>
+<td>Workers (session analyzer, reporting)</td>
+<td>Running jobs; the rows of the jobs they claimed, and their results (<code>investigation_results</code>, <code>evidence_links</code>, <code>report_runs</code> status)</td>
+<td>Job envelopes on Redis; PostgreSQL; telemetry adapters</td>
+</tr>
+<tr>
+<td>Web UI</td>
+<td>Nothing durable</td>
+<td>The API only, same origin</td>
+</tr>
+<tr>
+<td>OTel Collector and the observability platform</td>
+<td>Telemetry: metrics, logs, rules, alert routing</td>
+<td>OTLP and Prometheus scrapes (ADR 0011)</td>
+</tr>
+</tbody>
+</table></div>
+<p>The API never queries a monitored database and never writes cluster state.</p>
+</li>
+<li>
+<p><strong>Ownership rules.</strong></p>
+<ul>
+<li>Application-owned records derive their environment through
+<code>applications.environment_id</code>; there is one ownership path (ADR 0001).</li>
+<li>PostgreSQL stores control-plane metadata only (ADR 0001).</li>
+<li>YAML/Kubernetes stores integration and collector desired runtime config
+(ADR 0002). Approvals in PostgreSQL are requests; the config file in git
+is the desired state (<a href="0014-probe-assignments-to-runtime-config.html">ADR 0014</a>).</li>
+<li>The observability platform (Prometheus and Loki when bundled) stores
+telemetry (ADR 0011).</li>
+<li>Redis stores transient state only: job delivery, locks, idempotency
+keys, rate limits, short-lived caches and login sessions. Losing it
+logs users out and delays jobs; it loses no record.</li>
+</ul>
+</li>
+</ol>
+<h3 id="http-and-contract">HTTP and contract<a href="#http-and-contract" class="anchor" title="Link to this section">#</a></h3>
+<ol start="3">
+<li><strong>Routing: the standard library.</strong> <code>net/http</code>'s <code>ServeMux</code> with method and
+wildcard patterns (<code>GET /api/v1/applications/{id}</code>), middleware as
+<code>func(http.Handler) http.Handler</code>. No web framework. The resource API is
+under <code>/api/v1</code>; <code>/healthz</code>, <code>/readyz</code> and <code>/metrics</code> stay outside it.
+Errors are <code>application/problem+json</code> (RFC 9457).</li>
+<li><strong>Spec-first OpenAPI 3.1, server types generated with oapi-codegen.</strong> The
+contract is <code>apps/api/openapi.yaml</code>, written by hand and reviewed like
+code. <a href="https://github.com/oapi-codegen/oapi-codegen">oapi-codegen</a>
+generates the models and a strict, typed server interface for the
+standard library's <code>ServeMux</code> (its <code>std-http-server</code> target); handlers
+implement that interface. Generated code is committed, and CI regenerates
+it and fails on a difference. v2.8.0 added what its release notes call
+&quot;initial OpenAPI 3.1 support&quot; (it needs Go 1.25 or later), so the spec
+keeps to plain constructs (<code>type: [T, &quot;null&quot;]</code>, <code>oneOf</code> enums); one that
+doesn't generate is written another way, not a reason to change tools.
+The UI's client is generated from the same file (phase 4).
+Within <code>v1</code>, changes are additive; a breaking change is <code>v2</code>.</li>
+</ol>
+<h3 id="data">Data<a href="#data" class="anchor" title="Link to this section">#</a></h3>
+<ol start="5">
+<li><strong><code>pgx</code> with <code>sqlc</code>.</strong> <code>pgx</code> v5 (<code>pgxpool</code>) directly, not <code>database/sql</code>.
+Queries are <code>.sql</code> files under <code>apps/api/internal/store/queries/</code>;
+<a href="https://sqlc.dev/">sqlc</a> reads the schema from <code>db/migrations</code> (it parses
+<code>.up.sql</code> and skips <code>.down.sql</code>) and generates typed Go. No ORM: SQL stays
+reviewable, and a query that no longer matches the schema fails at
+generation, not at run time. Generated code is committed and checked in CI
+like the OpenAPI code. A request that writes several rows, and its audit
+record [4.10], runs in one transaction.</li>
+<li><strong>Migrations stay in <code>db/migrations</code>, applied by golang-migrate.</strong> The
+existing <code>NNNN_name.up.sql</code> / <code>.down.sql</code> pairs are the format
+<a href="https://github.com/golang-migrate/migrate">golang-migrate</a> reads, so
+nothing is renamed, and zero-padded numbers keep its numeric order and
+sqlc's lexical order the same. A small Go package in <code>db/migrations</code>
+embeds the files; the API image runs <code>api migrate up</code> as an init container
+before the API starts. golang-migrate records the version in
+<code>schema_migrations</code> and takes a PostgreSQL advisory lock, so replicas
+starting together apply each migration once. No Helm or Argo hook.
+Changes are expand, then contract (<a href="https://github.com/gdpais/Heartbeat/blob/master/CONTRIBUTING.md">CONTRIBUTING</a>);
+<code>.down.sql</code> files are for tests and local use, never run in production.</li>
+</ol>
+<h3 id="identity">Identity<a href="#identity" class="anchor" title="Link to this section">#</a></h3>
+<ol start="7">
+<li><strong>Local users, argon2id.</strong> A migration adds a password hash to <code>users</code>.
+Hashes are argon2id (<code>golang.org/x/crypto/argon2</code>) in the PHC string
+format, which carries its parameters, so they can be raised later and old
+hashes upgraded at the next login. Start with RFC 9106's second
+recommended setting (t=3, p=4, 64 MiB), and cap concurrent hashing so a
+burst of logins can't run the pod out of memory. Failed logins are
+rate-limited per account and per client address in Redis. There is no
+default password: the first admin is created with <code>api users create-admin</code>,
+which reads the password from standard input.</li>
+<li><strong>Cookie sessions held in Redis.</strong> A random 256-bit session ID in a
+<code>__Host-</code> cookie (<code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, <code>Path=/</code>); Redis
+keeps the ID's SHA-256 hash with the user, created and last-seen times,
+with an idle and an absolute expiry (configurable; proposed 8 hours and 7
+days). Unsafe methods also need an <code>Origin</code> header matching the configured
+site. Logout deletes the session; disabling a user or changing their
+password deletes all of theirs. Roles come from <code>roles</code> / <code>user_roles</code>
+(MVP: <code>admin</code>, <code>operator</code>, <code>viewer</code> for wallboards [4.2]); each operation
+declares the least role it needs, and the middleware checks it.</li>
+</ol>
+<h3 id="jobs">Jobs<a href="#jobs" class="anchor" title="Link to this section">#</a></h3>
+<ol start="9">
+<li>
+<p><strong>Versioned job envelopes on Redis Streams, with consumer groups.</strong> The
+PostgreSQL row (<code>investigation_jobs</code>, <code>report_runs</code>) is the job; the
+stream message only delivers it.</p>
+<ul>
+<li>One stream per job type (<code>heartbeat:jobs:&lt;type&gt;</code>), one consumer group per
+worker service, trimmed by length.</li>
+<li>The envelope carries <code>type</code>, <code>version</code>, <code>job_id</code>, <code>enqueued_at</code> and a
+typed <code>payload</code>, defined as JSON Schema beside the existing payload
+contracts in <code>packages/telemetry-contracts</code>. A breaking payload change
+bumps <code>version</code>; a consumer that doesn't know a version dead-letters the
+message instead of guessing.</li>
+<li>Workers are idempotent by <code>job_id</code>: a claim is a conditional update
+(<code>queued</code> → <code>running</code>), and a message is acknowledged (<code>XACK</code>) only after
+the result is committed. Messages idle too long are reclaimed
+(<code>XAUTOCLAIM</code>); after a set number of deliveries they go to a dead-letter
+stream and the job is marked <code>failed</code>.</li>
+<li>The API re-enqueues jobs that stay <code>queued</code> past a timeout, which covers
+a lost message or a Redis restart. A duplicate is harmless.</li>
+</ul>
+<p>Contracts are versioned before the first producer or consumer exists, and
+each workflow is integration-tested when its worker lands [4].</p>
+</li>
+</ol>
+<p>Considered and not chosen:</p>
+<ul>
+<li><strong>A router or framework (chi, Echo, Gin).</strong> Go's <code>ServeMux</code> has method and
+wildcard routing since 1.22, and oapi-codegen generates for it, so a
+dependency would add little.</li>
+<li><strong>ogen</strong> for the OpenAPI code. Fuller OpenAPI 3.1 support, but it brings
+its own router and runtime instead of the standard library's.</li>
+<li><strong>Code-first specs</strong> (annotations that generate the spec). The spec drifts
+from what reviewers read, and the UI client would depend on Go comments.</li>
+<li><strong>An ORM (GORM, ent).</strong> Hides the SQL that reviewers and the probe review
+culture expect to see, for a schema that is small and stable.</li>
+<li><strong>Sessions in PostgreSQL.</strong> Survives a Redis restart and keeps Redis off
+the request path, but writes a row on every request to refresh last-seen,
+and needs a cleanup job. Redis expires keys itself, and a Redis outage
+already stops jobs.</li>
+<li><strong>PostgreSQL as the queue</strong> (<code>FOR UPDATE SKIP LOCKED</code>). One store fewer and
+no re-enqueue sweep, and enough for the volumes expected. Not chosen
+because Redis is already in the stack (ADR 0004) for sessions and caches,
+consumer groups give per-service delivery, pending tracking and reclaiming
+without writing them, and polling stays off the small production database.
+It remains the fallback if Redis Streams prove more work than they save.</li>
+<li><strong>OIDC from the start.</strong> ADR 0004 defers it until corporate requirements
+demand it [17].</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>The API's dependencies are few and conventional: <code>pgx</code>, a Redis client,
+golang-migrate, <code>golang.org/x/crypto</code>, and the oapi-codegen runtime. Code
+generation needs two pinned tools (oapi-codegen, sqlc); CI checks that
+their output is current.</li>
+<li>Every API request needs both PostgreSQL and Redis: if Redis is down, nobody
+can log in or stay logged in. Readiness reports both.</li>
+<li><code>schema_migrations</code> appears in the database; the integration tests keep
+applying the files with <code>psql</code> and gain a test that golang-migrate applies
+them too.</li>
+<li>Job delivery is at least once; correctness rests on idempotent workers and
+conditional state changes, tested per workflow.</li>
+<li>The 0.1 freeze items are closed by this record; changing a boundary above
+now needs a new ADR.</li>
+<li>How assignments reach the collector is <a href="0014-probe-assignments-to-runtime-config.html">ADR 0014</a>;
+how PostgreSQL and Redis are deployed is <a href="0015-postgresql-and-redis-delivery.html">ADR 0015</a>;
+how the audit record is written in the transaction and delivered is
+<a href="0016-audit-records-through-an-outbox.html">ADR 0016</a>.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md"><code>docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h3"><a href="#boundaries-and-ownership-frozen">Boundaries and ownership (frozen)</a></li>
+      <li class="toc-h3"><a href="#http-and-contract">HTTP and contract</a></li>
+      <li class="toc-h3"><a href="#data">Data</a></li>
+      <li class="toc-h3"><a href="#identity">Identity</a></li>
+      <li class="toc-h3"><a href="#jobs">Jobs</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

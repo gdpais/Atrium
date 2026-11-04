@@ -1,0 +1,2775 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>Heartbeat Monitoring Platform Implementation Plan · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css?v=8486b06a573b">
+<script defer src="../assets/site.js?v=5b67932127bb"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js" integrity="sha384-EOXBFmc3gx5mb&#43;vn0vPvvGqACToJD24hhacX5Yx&#43;8NUUQrHIle/Qi5Bg9o3zKwW2" crossorigin="anonymous"></script>
+</head>
+<body data-root="../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../architecture/overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../architecture/data-model.html">Data model</a>
+          </li>
+          <li><a href="../architecture/database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="../architecture/decisions/index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="../architecture/decisions/0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="../architecture/decisions/0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="../architecture/decisions/0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="../architecture/decisions/0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="../architecture/decisions/0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="../architecture/decisions/0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="../architecture/decisions/0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="../architecture/decisions/0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="../architecture/decisions/0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="../architecture/decisions/0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../architecture/application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../architecture/workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="index.html" aria-current="page">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <div class="archived-banner" role="note">
+      <strong>Archived.</strong> This is a superseded planning document, kept for history. Do not treat it as current. See the <a href="index.html">archive index</a> for where its content lives now.
+    </div>
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#1-goal-and-product-scope">1. Goal and product scope</a></li>
+        <li class="toc-h3"><a href="#mvp-outcomes">MVP outcomes</a></li>
+        <li class="toc-h3"><a href="#explicit-non-goals-for-mvp">Explicit non-goals for MVP</a></li>
+        <li class="toc-h2"><a href="#2-current-context--assumptions">2. Current context / assumptions</a></li>
+        <li class="toc-h2"><a href="#3-proposed-high-level-architecture">3. Proposed high-level architecture</a></li>
+        <li class="toc-h3"><a href="#31-core-subsystems">3.1 Core subsystems</a></li>
+        <li class="toc-h3"><a href="#32-recommended-mvp-topology">3.2 Recommended MVP topology</a></li>
+        <li class="toc-h3"><a href="#33-integration-posture">3.3 Integration posture</a></li>
+        <li class="toc-h3"><a href="#34-core-system-decisions-for-mvp">3.4 Core system decisions for MVP</a></li>
+        <li class="toc-h3"><a href="#35-refined-service-architecture">3.5 Refined service architecture</a></li>
+        <li class="toc-h3"><a href="#36-data-flow-architecture">3.6 Data-flow architecture</a></li>
+        <li class="toc-h3"><a href="#37-refined-postgresql-persistence-model">3.7 Refined PostgreSQL persistence model</a></li>
+        <li class="toc-h3"><a href="#38-architectural-guardrails">3.8 Architectural guardrails</a></li>
+        <li class="toc-h3"><a href="#39-pre-implementation-review-findings-and-refinements">3.9 Pre-implementation review findings and refinements</a></li>
+        <li class="toc-h2"><a href="#4-recommended-repo-layout">4. Recommended repo layout</a></li>
+        <li class="toc-h3"><a href="#go-backend-layout-rule">Go backend layout rule</a></li>
+        <li class="toc-h2"><a href="#5-domain-model-to-design-early">5. Domain model to design early</a></li>
+        <li class="toc-h3"><a href="#primary-postgresql-entities">Primary PostgreSQL entities</a></li>
+        <li class="toc-h3"><a href="#non-postgresql-mvp-configstate">Non-PostgreSQL MVP config/state</a></li>
+        <li class="toc-h3"><a href="#key-relationships">Key relationships</a></li>
+        <li class="toc-h2"><a href="#6-mvp-feature-breakdown">6. MVP feature breakdown</a></li>
+        <li class="toc-h3"><a href="#61-application-observability--outsystems-first">6.1 Application observability / OutSystems-first</a></li>
+        <li class="toc-h3"><a href="#62-database-full-coverage-observability">6.2 Database full-coverage observability</a></li>
+        <li class="toc-h3"><a href="#63-end-to-end-telemetry-and-logs">6.3 End-to-end telemetry and logs</a></li>
+        <li class="toc-h3"><a href="#64-session-analysis">6.4 Session analysis</a></li>
+        <li class="toc-h3"><a href="#65-grafana--loki-integration">6.5 Grafana / Loki integration</a></li>
+        <li class="toc-h3"><a href="#66-alerting">6.6 Alerting</a></li>
+        <li class="toc-h3"><a href="#67-reporting">6.7 Reporting</a></li>
+        <li class="toc-h2"><a href="#7-phased-implementation-plan">7. Phased implementation plan</a></li>
+        <li class="toc-h2"><a href="#phase-0-requirements-and-architecture-baseline">Phase 0: Requirements and architecture baseline</a></li>
+        <li class="toc-h3"><a href="#task-01-write-product-requirements-document">Task 0.1: Write product requirements document</a></li>
+        <li class="toc-h3"><a href="#task-02-write-architecture-overview">Task 0.2: Write architecture overview</a></li>
+        <li class="toc-h3"><a href="#task-03-select-mvp-platform-choices">Task 0.3: Select MVP platform choices</a></li>
+        <li class="toc-h2"><a href="#phase-1-repository-and-platform-bootstrap">Phase 1: Repository and platform bootstrap</a></li>
+        <li class="toc-h3"><a href="#task-11-create-monorepo-scaffolding">Task 1.1: Create monorepo scaffolding</a></li>
+        <li class="toc-h3"><a href="#task-12-add-local-infrastructure-stack">Task 1.2: Add local infrastructure stack</a></li>
+        <li class="toc-h3"><a href="#task-13-define-shared-schemascontracts">Task 1.3: Define shared schemas/contracts</a></li>
+        <li class="toc-h2"><a href="#phase-2-application-observability-mvp--outsystems-first">Phase 2: Application observability MVP — OutSystems first</a></li>
+        <li class="toc-h3"><a href="#task-21-implement-outsystems-telemetry-source-management">Task 2.1: Implement OutSystems telemetry source management</a></li>
+        <li class="toc-h3"><a href="#task-22-implement-outsystems-normalization-contract">Task 2.2: Implement OutSystems normalization contract</a></li>
+        <li class="toc-h3"><a href="#task-23-wire-outsystems-logsmetrics-into-loki-and-prometheus">Task 2.3: Wire OutSystems logs/metrics into Loki and Prometheus</a></li>
+        <li class="toc-h3"><a href="#task-24-build-outsystems-dashboards-and-investigation-entry-points">Task 2.4: Build OutSystems dashboards and investigation entry points</a></li>
+        <li class="toc-h2"><a href="#phase-3-database-observability-mvp--sql-server-second">Phase 3: Database observability MVP — SQL Server second</a></li>
+        <li class="toc-h3"><a href="#task-31-implement-sql-server-connection-management">Task 3.1: Implement SQL Server connection management</a></li>
+        <li class="toc-h3"><a href="#task-32-implement-core-sql-server-metric-probes">Task 3.2: Implement core SQL Server metric probes</a></li>
+        <li class="toc-h3"><a href="#task-33-export-normalized-sql-server-metrics">Task 3.3: Export normalized SQL Server metrics</a></li>
+        <li class="toc-h3"><a href="#task-34-build-sql-server-dashboards">Task 3.4: Build SQL Server dashboards</a></li>
+        <li class="toc-h2"><a href="#phase-4-generic-otlp-and-additional-log-sources">Phase 4: Generic OTLP and additional log sources</a></li>
+        <li class="toc-h3"><a href="#task-41-harden-otlp-gateway">Task 4.1: Harden OTLP gateway</a></li>
+        <li class="toc-h3"><a href="#task-42-add-next-source-normalization">Task 4.2: Add next source normalization</a></li>
+        <li class="toc-h3"><a href="#task-43-wire-loki-log-viewssearch">Task 4.3: Wire Loki log views/search</a></li>
+        <li class="toc-h2"><a href="#phase-5-session-analysis">Phase 5: Session analysis</a></li>
+        <li class="toc-h3"><a href="#task-51-define-session-correlation-model">Task 5.1: Define session correlation model</a></li>
+        <li class="toc-h3"><a href="#task-52-build-investigation-api">Task 5.2: Build investigation API</a></li>
+        <li class="toc-h3"><a href="#task-53-build-session-investigation-ui">Task 5.3: Build session investigation UI</a></li>
+        <li class="toc-h2"><a href="#phase-6-alerting-and-adaptive-telemetry">Phase 6: Alerting and adaptive telemetry</a></li>
+        <li class="toc-h3"><a href="#task-61-implement-static-alert-policy-provisioning">Task 6.1: Implement static alert policy provisioning</a></li>
+        <li class="toc-h3"><a href="#task-62-implement-adaptive-baseline-calculation-v1">Task 6.2: Implement adaptive baseline calculation v1</a></li>
+        <li class="toc-h3"><a href="#task-63-implement-adaptive-telemetry-controls">Task 6.3: Implement adaptive telemetry controls</a></li>
+        <li class="toc-h2"><a href="#phase-7-reporting-and-integrations">Phase 7: Reporting and integrations</a></li>
+        <li class="toc-h3"><a href="#task-71-implement-report-templates-and-schedules">Task 7.1: Implement report templates and schedules</a></li>
+        <li class="toc-h3"><a href="#task-72-deliver-reports-and-artifacts">Task 7.2: Deliver reports and artifacts</a></li>
+        <li class="toc-h3"><a href="#task-73-harden-grafana-and-loki-integrations">Task 7.3: Harden Grafana and Loki integrations</a></li>
+        <li class="toc-h2"><a href="#phase-8-security-reliability-and-operability">Phase 8: Security, reliability, and operability</a></li>
+        <li class="toc-h3"><a href="#task-81-add-authnauthz-and-audit-logging">Task 8.1: Add authn/authz and audit logging</a></li>
+        <li class="toc-h3"><a href="#task-82-add-rate-limits-and-query-budgets">Task 8.2: Add rate limits and query budgets</a></li>
+        <li class="toc-h3"><a href="#task-83-add-service-health-and-runbooks">Task 8.3: Add service health and runbooks</a></li>
+        <li class="toc-h2"><a href="#8-files-likely-to-change-in-implementation">8. Files likely to change in implementation</a></li>
+        <li class="toc-h3"><a href="#productdocs">Product/docs</a></li>
+        <li class="toc-h3"><a href="#apiui">API/UI</a></li>
+        <li class="toc-h3"><a href="#services">Services</a></li>
+        <li class="toc-h3"><a href="#shared-packages">Shared packages</a></li>
+        <li class="toc-h3"><a href="#infra">Infra</a></li>
+        <li class="toc-h3"><a href="#tests">Tests</a></li>
+        <li class="toc-h2"><a href="#9-test-and-validation-strategy">9. Test and validation strategy</a></li>
+        <li class="toc-h2"><a href="#91-unit-tests">9.1 Unit tests</a></li>
+        <li class="toc-h2"><a href="#92-integration-tests">9.2 Integration tests</a></li>
+        <li class="toc-h2"><a href="#93-end-to-end-tests">9.3 End-to-end tests</a></li>
+        <li class="toc-h2"><a href="#94-performance--resilience-tests">9.4 Performance / resilience tests</a></li>
+        <li class="toc-h2"><a href="#95-mvp-exit-criteria">9.5 MVP exit criteria</a></li>
+        <li class="toc-h2"><a href="#10-risks-tradeoffs-open-questions">10. Risks, tradeoffs, open questions</a></li>
+        <li class="toc-h3"><a href="#risks">Risks</a></li>
+        <li class="toc-h3"><a href="#tradeoffs">Tradeoffs</a></li>
+        <li class="toc-h3"><a href="#open-questions">Open questions</a></li>
+        <li class="toc-h2"><a href="#11-recommended-delivery-order">11. Recommended delivery order</a></li>
+        <li class="toc-h2"><a href="#12-suggested-first-milestone">12. Suggested first milestone</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="heartbeat-monitoring-platform-implementation-plan">Heartbeat Monitoring Platform Implementation Plan<a href="#heartbeat-monitoring-platform-implementation-plan" class="anchor" title="Link to this section">#</a></h1>
+<blockquote>
+<p><strong>Archived.</strong> Superseded planning document kept for history; see <a href="index.html">docs/archive/README.md</a> for where its content lives now.</p>
+</blockquote>
+<blockquote>
+<p><strong>For Hermes:</strong> Use subagent-driven-development skill to implement this plan task-by-task.</p>
+</blockquote>
+<p><strong>Goal:</strong> Build Heartbeat, an SRE-focused monitoring platform that complements Dynatrace/Datadog by adding stronger database observability, end-to-end telemetry coverage, session-centric troubleshooting, adaptive alerting, and reporting.</p>
+<p><strong>Architecture:</strong> Start with an application-observability-first ingestion plane focused on OutSystems, a queryable telemetry store, a session-analysis workflow, and an operator-facing API/UI. Add SQL Server deep observability as the second major capability. Keep autonomous RCA out of MVP but design clean event/context pipelines so it can be added later.</p>
+<p><strong>Tech Stack:</strong> Go API/control plane and collectors, TypeScript/React web UI, PostgreSQL for product metadata, Prometheus for scraping/rules, Loki for logs, Grafana, Alertmanager, OpenTelemetry Collector, Redis for jobs/caching/ephemeral coordination, optional Mimir only if scale/retention require it, optional S3-compatible object storage for report artifacts, Kubernetes for deployment.</p>
+<hr>
+<h2 id="1-goal-and-product-scope">1. Goal and product scope<a href="#1-goal-and-product-scope" class="anchor" title="Link to this section">#</a></h2>
+<p>Heartbeat should fill gaps left by commercial APMs:</p>
+<ul>
+<li>Deep database observability beyond generic APM plugins</li>
+<li>Wait events, locks, memory pressure, connection/session saturation, storage pressure</li>
+<li>Cross-system telemetry for app/platform logs and metrics</li>
+<li>Session-centric issue discovery by application, user/IP, and time range; environment is derived from the application</li>
+<li>Flexible integrations instead of lock-in</li>
+</ul>
+<h3 id="mvp-outcomes">MVP outcomes<a href="#mvp-outcomes" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>OutSystems-first application observability</li>
+<li>OTLP metrics/log ingestion path</li>
+<li>session investigation workflow by application, user/IP, and time range</li>
+<li>Grafana integration for dashboards</li>
+<li>Loki-backed log exploration/search through Grafana</li>
+<li>Alerting w/ static rules + adaptive thresholds</li>
+<li>Scheduled operational reporting</li>
+<li>SQL Server deep observability as the second delivery priority</li>
+</ul>
+<h3 id="explicit-non-goals-for-mvp">Explicit non-goals for MVP<a href="#explicit-non-goals-for-mvp" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Full multi-database engine parity</li>
+<li>Full APM-style code-level tracing agent ecosystem</li>
+<li>Autonomous root cause analysis</li>
+<li>Custom dashboarding engine if Grafana already satisfies the need</li>
+</ul>
+<hr>
+<h2 id="2-current-context--assumptions">2. Current context / assumptions<a href="#2-current-context--assumptions" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>Repository is currently mostly empty: <code>README.md</code> and <code>Plan.md</code> exist.</li>
+<li>There is no established app/runtime structure yet.</li>
+<li>Product must complement, not replace, existing APMs.</li>
+<li>Database collectors must be safe for production use and use least-privilege credentials.</li>
+<li>OTel compatibility is required for future-proofing and ecosystem interoperability.</li>
+<li>Grafana and Loki are the go-to observability stack for MVP and default future direction; OpenSearch/Elastic is not part of the core architecture unless a future hard search requirement proves Loki insufficient.</li>
+<li>Alert quality matters more than alert count -&gt; reduce false positives early.</li>
+</ul>
+<hr>
+<h2 id="3-proposed-high-level-architecture">3. Proposed high-level architecture<a href="#3-proposed-high-level-architecture" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="31-core-subsystems">3.1 Core subsystems<a href="#31-core-subsystems" class="anchor" title="Link to this section">#</a></h3>
+<ol>
+<li><strong>Control plane</strong>
+<ul>
+<li>Manages environments, applications, telemetry sources, monitored database targets, rules, report schedules, and metadata</li>
+<li>Does not own runtime integration/collector desired state in MVP; that comes from versioned YAML delivered through Kubernetes</li>
+</ul>
+</li>
+<li><strong>Collection plane</strong>
+<ul>
+<li>DB collectors for engine-specific probes</li>
+<li>OTLP ingestion for metrics/logs/traces where available</li>
+</ul>
+</li>
+<li><strong>Storage/query plane</strong>
+<ul>
+<li>Time-series store for metrics</li>
+<li>Search/index store for logs and session evidence</li>
+<li>Relational metadata store for Heartbeat config/state</li>
+</ul>
+</li>
+<li><strong>Analysis plane</strong>
+<ul>
+<li>Session correlation engine</li>
+<li>Adaptive threshold engine</li>
+<li>Report generation jobs</li>
+</ul>
+</li>
+<li><strong>Presentation plane</strong>
+<ul>
+<li>API for UI/integrations</li>
+<li>UI for SRE workflows</li>
+<li>Grafana/Loki exports and deep links</li>
+</ul>
+</li>
+</ol>
+<h3 id="32-recommended-mvp-topology">3.2 Recommended MVP topology<a href="#32-recommended-mvp-topology" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>apps/api</code> =&gt; REST API for control plane and investigation workflows</li>
+<li><code>apps/web</code> =&gt; operator UI</li>
+<li><code>services/otel-gateway</code> =&gt; OTLP gateway + OutSystems-first normalization pipeline</li>
+<li><code>services/session-analyzer</code> =&gt; correlates logs/metrics/events for user/IP/time range</li>
+<li><code>services/reporting</code> =&gt; scheduled report jobs and export generation</li>
+<li><code>services/db-collector</code> =&gt; SQL Server metrics/waits/locks/session polling as second delivery priority</li>
+<li><code>infra/</code> =&gt; docker-compose/k8s, Grafana, Loki, Prometheus, Alertmanager, storage wiring</li>
+</ul>
+<h3 id="33-integration-posture">3.3 Integration posture<a href="#33-integration-posture" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Prefer standards and pluggable adapters</li>
+<li>OTLP in, Prometheus out, Loki log export/search</li>
+<li>Grafana dashboard provisioning as code</li>
+<li>Avoid building custom charting/reporting primitives unless required</li>
+</ul>
+<h3 id="34-core-system-decisions-for-mvp">3.4 Core system decisions for MVP<a href="#34-core-system-decisions-for-mvp" class="anchor" title="Link to this section">#</a></h3>
+<p>These are the recommended default choices given the constraints:</p>
+<ul>
+<li>used inside a major company</li>
+<li>minimize dependencies and operational moving parts</li>
+<li>free to use in an enterprise environment</li>
+</ul>
+<h4 id="programming-languages">Programming languages<a href="#programming-languages" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>API / control plane:</strong> Go
+<ul>
+<li>Reason: one backend language across product logic and collectors -&gt; fewer runtimes, fewer frameworks, simpler deploys, good performance, easy static binaries</li>
+</ul>
+</li>
+<li><strong>Web UI:</strong> TypeScript + React
+<ul>
+<li>Reason: practical choice for internal operator UI; avoid unnecessary SSR complexity unless later required</li>
+</ul>
+</li>
+<li><strong>Collectors / telemetry-heavy workers:</strong> Go
+<ul>
+<li>Reason: best fit for concurrent polling, long-running services, low memory footprint, and strong telemetry tooling</li>
+</ul>
+</li>
+<li><strong>Infra as code / packaging:</strong> Helm + Kubernetes manifests</li>
+</ul>
+<h4 id="databases--storage-systems">Databases / storage systems<a href="#databases--storage-systems" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>System-of-record metadata DB:</strong> PostgreSQL
+<ul>
+<li>Stores environments, minimal app/inventory metadata, monitored targets, users, alert policies, report schedules, and investigation/report metadata</li>
+<li>Does not store integration config, audit logs, raw sessions, raw logs, or raw metrics in MVP</li>
+</ul>
+</li>
+<li><strong>Metrics backend (MVP):</strong> Prometheus
+<ul>
+<li>Reason: free, proven, Grafana-native, smallest dependency footprint for a serious MVP</li>
+</ul>
+</li>
+<li><strong>Metrics backend (scale-up path):</strong> Mimir
+<ul>
+<li>Introduce only if retention, HA, multi-tenancy, or cross-region scale outgrow Prometheus</li>
+</ul>
+</li>
+<li><strong>Logs backend (MVP):</strong> Loki
+<ul>
+<li>Reason: free, Grafana-native, materially fewer moving parts than OpenSearch/Elastic</li>
+</ul>
+</li>
+<li><strong>Redis:</strong> required in MVP
+<ul>
+<li>Used for background jobs, report generation queues, alert webhook/enrichment jobs, short-lived session-analysis caches, and lightweight distributed coordination</li>
+</ul>
+</li>
+<li><strong>Report artifact storage:</strong> S3-compatible object storage only if report persistence/export requires it in MVP
+<ul>
+<li>Otherwise generate reports on demand and store metadata in PostgreSQL</li>
+</ul>
+</li>
+</ul>
+<h4 id="core-platform-components">Core platform components<a href="#core-platform-components" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>Telemetry ingress:</strong> OpenTelemetry Collector</li>
+<li><strong>Dashboarding:</strong> Grafana</li>
+<li><strong>Alert routing:</strong> Alertmanager</li>
+<li><strong>Deployment target:</strong> Kubernetes for staging/prod, Docker Compose for local dev</li>
+<li><strong>Auth for MVP:</strong> local RBAC first, OIDC/SSO if corporate requirements demand it early</li>
+</ul>
+<h4 id="why-these-revised-choices">Why these revised choices<a href="#why-these-revised-choices" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>Go over NestJS for API:</strong> fewer runtime layers and dependencies; better fit for an internal enterprise platform</li>
+<li><strong>Prometheus over VictoriaMetrics/Mimir for MVP:</strong> smallest operational surface while staying Grafana-native</li>
+<li><strong>Mimir as later option, not day-1 dependency:</strong> better for enterprise scale, but heavier to operate</li>
+<li><strong>Loki over OpenSearch for MVP:</strong> keeps the stack coherent and much simpler to run</li>
+<li><strong>Redis kept in MVP:</strong> justified because alerting, reporting, and session workflows are asynchronous enough to benefit from a dedicated queue/cache layer</li>
+<li><strong>PostgreSQL as the primary durable state store:</strong> reliable, free, well understood in enterprise environments</li>
+</ul>
+<h4 id="important-tradeoff">Important tradeoff<a href="#important-tradeoff" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>Loki is the core/default log backend</strong> for Heartbeat.</li>
+<li>OpenSearch/Elastic is not part of MVP or default future architecture.</li>
+<li>Reconsider OpenSearch/Elastic only if a validated future requirement needs rich document search that Loki cannot support without harmful label cardinality or query complexity.</li>
+<li>Clean recommendation:
+<ul>
+<li><strong>MVP and default path:</strong> Grafana + Prometheus + Loki + PostgreSQL + Redis</li>
+<li><strong>Scale path:</strong> add Mimir only if Prometheus retention/HA/multi-tenancy requirements outgrow the MVP topology</li>
+</ul>
+</li>
+</ul>
+<h3 id="35-refined-service-architecture">3.5 Refined service architecture<a href="#35-refined-service-architecture" class="anchor" title="Link to this section">#</a></h3>
+<h4 id="a-api--control-plane-service-appsapi">A. API / control-plane service (<code>apps/api</code>)<a href="#a-api--control-plane-service-appsapi" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns product-facing state and orchestration.</p>
+<p><strong>Responsibilities</strong></p>
+<ul>
+<li>environment, application, and component management</li>
+<li>database target and probe policy onboarding</li>
+<li>telemetry source registration</li>
+<li>alert policy CRUD</li>
+<li>report schedule CRUD</li>
+<li>user/role/RBAC management</li>
+<li>investigation query APIs</li>
+<li>Grafana deep-link generation from YAML URL templates</li>
+<li>append-only audit event logging to files</li>
+</ul>
+<p><strong>Internal modules</strong></p>
+<ul>
+<li><code>auth</code></li>
+<li><code>users</code></li>
+<li><code>environments</code></li>
+<li><code>applications</code></li>
+<li><code>database_targets</code></li>
+<li><code>telemetry_sources</code></li>
+<li><code>investigations</code></li>
+<li><code>alerts</code></li>
+<li><code>reports</code></li>
+<li><code>integrations</code></li>
+<li><code>audit</code></li>
+</ul>
+<p><strong>Storage</strong></p>
+<ul>
+<li>PostgreSQL for durable data</li>
+<li>Redis for queues, ephemeral state, idempotency keys, and cached investigation summaries</li>
+</ul>
+<h4 id="b-otel-gateway-and-application-normalizer-servicesotel-gateway">B. OTel gateway and application normalizer (<code>services/otel-gateway</code>)<a href="#b-otel-gateway-and-application-normalizer-servicesotel-gateway" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns ingestion and normalization of application telemetry, with OutSystems as the first supported platform.</p>
+<p><strong>Responsibilities</strong></p>
+<ul>
+<li>receive OTLP metrics/logs</li>
+<li>ingest supported OutSystems logs/events/metrics</li>
+<li>parse source-specific payloads when required</li>
+<li>normalize labels and event fields</li>
+<li>forward logs to Loki</li>
+<li>expose or forward metrics to Prometheus-compatible ingestion path</li>
+<li>emit correlation hints for session analysis</li>
+</ul>
+<p><strong>OutSystems-first normalization targets</strong></p>
+<ul>
+<li>application name/module</li>
+<li>environment</li>
+<li>tenant, when available</li>
+<li>user/session/request identifiers</li>
+<li>request path/action/screen/API operation</li>
+<li>error category/message/stack fingerprint</li>
+<li>latency/duration</li>
+<li>host/node/runtime metadata</li>
+</ul>
+<p><strong>Rule</strong></p>
+<ul>
+<li>keep this service thin; do not rebuild the whole OTel Collector in app code</li>
+<li>use OpenTelemetry Collector config first, custom code second</li>
+<li>custom parsers must output the shared telemetry contract</li>
+</ul>
+<h4 id="c-db-collector-service-servicesdb-collector">C. DB collector service (<code>services/db-collector</code>)<a href="#c-db-collector-service-servicesdb-collector" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns SQL Server probing and DB-specific normalization as the second delivery priority.</p>
+<p><strong>Responsibilities</strong></p>
+<ul>
+<li>secure connection handling to SQL Server targets</li>
+<li>scheduled execution of approved probe sets</li>
+<li>query timeout/budget enforcement</li>
+<li>metric normalization into Prometheus-friendly series</li>
+<li>session/blocking snapshots for investigation evidence</li>
+<li>collector self-observability</li>
+<li>hot-reload collector runtime config from <code>config/integrations.yaml</code> via the shared config manager</li>
+<li>read target/probe metadata from API/PostgreSQL when SQL Server observability is enabled; YAML controls collector runtime groups, integration endpoints, and credential refs, not the full target catalog</li>
+</ul>
+<p><strong>Key subcomponents</strong></p>
+<ul>
+<li>connector manager</li>
+<li>probe scheduler</li>
+<li>probe executors</li>
+<li>metric transformer</li>
+<li>evidence snapshot publisher</li>
+<li>health exporter</li>
+</ul>
+<p><strong>Output</strong></p>
+<ul>
+<li>Prometheus scrape endpoint</li>
+<li>optional event payloads to Redis for downstream investigation/report jobs</li>
+</ul>
+<h4 id="d-session-analyzer-servicessession-analyzer">D. Session analyzer (<code>services/session-analyzer</code>)<a href="#d-session-analyzer-servicessession-analyzer" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns investigation-time correlation logic.</p>
+<p><strong>Responsibilities</strong></p>
+<ul>
+<li>accept investigation jobs from API</li>
+<li>fan out queries across PostgreSQL, Prometheus, Loki, and collector evidence</li>
+<li>correlate by application, derived environment, user, IP, service/component, host, and time range</li>
+<li>compute anomaly windows and likely bottleneck summaries</li>
+<li>cache short-lived results in Redis</li>
+</ul>
+<p><strong>Outputs</strong></p>
+<ul>
+<li>investigation timeline</li>
+<li>evidence bundle</li>
+<li>links to Grafana dashboards/log views</li>
+<li>summarized incident narrative seeds for reporting/RCA later</li>
+</ul>
+<h4 id="e-reporting-service-servicesreporting">E. Reporting service (<code>services/reporting</code>)<a href="#e-reporting-service-servicesreporting" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns scheduled and on-demand report generation.</p>
+<p><strong>Responsibilities</strong></p>
+<ul>
+<li>consume schedules from API/DB</li>
+<li>enqueue and run report jobs via Redis</li>
+<li>gather metrics/log/investigation summaries</li>
+<li>render HTML/CSV/PDF outputs</li>
+<li>persist run metadata in PostgreSQL</li>
+<li>store artifacts in object storage when enabled</li>
+</ul>
+<h4 id="f-web-ui-appsweb">F. Web UI (<code>apps/web</code>)<a href="#f-web-ui-appsweb" class="anchor" title="Link to this section">#</a></h4>
+<p>Owns operator workflows.</p>
+<p><strong>Primary screens</strong></p>
+<ul>
+<li>environments/applications</li>
+<li>DB targets onboarding</li>
+<li>SQL Server overview and drill-down entry points</li>
+<li>investigations</li>
+<li>alert policies</li>
+<li>reports</li>
+<li>integrations/admin</li>
+</ul>
+<h3 id="36-data-flow-architecture">3.6 Data-flow architecture<a href="#36-data-flow-architecture" class="anchor" title="Link to this section">#</a></h3>
+<h4 id="flow-1-outsystems-application-observability">Flow 1: OutSystems application observability<a href="#flow-1-outsystems-application-observability" class="anchor" title="Link to this section">#</a></h4>
+<ol>
+<li>OutSystems emits logs/events/metrics through supported export path or OTLP-compatible bridge</li>
+<li>OpenTelemetry Collector receives and routes data where possible</li>
+<li>OTel gateway normalizes OutSystems-specific fields into Heartbeat telemetry contract</li>
+<li>Logs land in Loki w/ controlled low-cardinality labels</li>
+<li>Metrics land in Prometheus-compatible path</li>
+<li>Session analyzer uses normalized identifiers for user/IP/session/time-range investigations</li>
+<li>Grafana visualizes application health and links to Loki log views</li>
+</ol>
+<h4 id="flow-2-session-investigation">Flow 2: Session investigation<a href="#flow-2-session-investigation" class="anchor" title="Link to this section">#</a></h4>
+<ol>
+<li>User submits application + user/IP/session + time range in UI</li>
+<li>API derives environment from the application and creates investigation record in PostgreSQL</li>
+<li>API enqueues analysis job in Redis</li>
+<li>Session analyzer pulls job</li>
+<li>Analyzer queries Prometheus, Loki, collector evidence, and metadata DB</li>
+<li>Analyzer stores short-lived summary/cache in Redis and durable result metadata in PostgreSQL</li>
+<li>UI retrieves result and renders timeline + evidence links</li>
+</ol>
+<h4 id="flow-3-database-observability">Flow 3: Database observability<a href="#flow-3-database-observability" class="anchor" title="Link to this section">#</a></h4>
+<ol>
+<li>API stores SQL Server target/probe metadata in PostgreSQL when SQL Server observability is enabled</li>
+<li>DB collector loads runtime collector config from YAML and target/probe metadata from the API/PostgreSQL</li>
+<li>Collector probes SQL Server on schedule</li>
+<li>Collector exposes normalized metrics</li>
+<li>Prometheus scrapes collector</li>
+<li>Grafana visualizes metrics</li>
+<li>Alertmanager routes alert events from Prometheus rules</li>
+</ol>
+<h4 id="flow-4-reporting">Flow 4: Reporting<a href="#flow-4-reporting" class="anchor" title="Link to this section">#</a></h4>
+<ol>
+<li>Scheduler or user triggers report request</li>
+<li>API/reporting service enqueues job in Redis</li>
+<li>Reporting service gathers required metrics/logs/investigation summaries</li>
+<li>Report output is generated and stored</li>
+<li>UI/API exposes downloadable report and run status</li>
+</ol>
+<h3 id="37-refined-postgresql-persistence-model">3.7 Refined PostgreSQL persistence model<a href="#37-refined-postgresql-persistence-model" class="anchor" title="Link to this section">#</a></h3>
+<p>PostgreSQL is the durable system of record for product metadata. It stores environments, minimal app/inventory metadata, lifecycle state, investigation metadata, alert/report metadata, and monitored target metadata. It does <strong>not</strong> store raw metrics, raw logs, raw sessions, integration config, or audit log streams in MVP; those stay in Prometheus, Loki, YAML config, and append-only audit files as appropriate.</p>
+<h4 id="schema-conventions">Schema conventions<a href="#schema-conventions" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li>Primary keys: UUIDs</li>
+<li>Timestamps: <code>created_at</code>, <code>updated_at</code>, <code>deleted_at</code> for soft-delete where relevant</li>
+<li>Status fields: explicit enums/check constraints where practical</li>
+<li>Config fields: <code>jsonb</code> only for flexible integration/provider config, not for core relational data</li>
+<li>Secrets: store secret references only, not raw passwords/tokens</li>
+<li>Auditability: every operator/admin mutation should append a JSONL audit event to the configured audit log path</li>
+</ul>
+<h4 id="terminology-and-examples">Terminology and examples<a href="#terminology-and-examples" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li>
+<p><code>assets</code></p>
+<ul>
+<li>Meaning: concrete infrastructure/runtime things Heartbeat can point at, monitor, or relate to other infrastructure.</li>
+<li>Fits here: VM, Windows server, Linux host, SQL Server instance host, IIS node, Kubernetes namespace, Redis instance, queue, gateway, load balancer.</li>
+<li>Why PostgreSQL: this is metadata, not telemetry. It gives stable IDs for ownership, topology, database target placement, collector assignment, and human-readable investigation context.</li>
+<li>MVP constraint: keep it minimal. If phase 1 only observes applications and not host/database topology, defer <code>asset_relationships</code> and optional app/component <code>asset_id</code> links.</li>
+<li>Examples:
+<ul>
+<li><code>name = prd-iis-01</code>, <code>asset_type = server</code>, <code>platform = windows</code></li>
+<li><code>name = sql-prod-01</code>, <code>asset_type = database_server</code>, <code>platform = sqlserver</code></li>
+<li><code>name = public-lb</code>, <code>asset_type = load_balancer</code>, <code>platform = nginx</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><code>applications</code></p>
+<ul>
+<li>Meaning: business/application-level system operators care about.</li>
+<li>Fits here: OutSystems app, customer portal, admin portal, payment service, batch processing app.</li>
+<li>Examples:
+<ul>
+<li><code>name = Claims Portal</code>, <code>platform = outsystems_traditional</code>, <code>criticality = high</code></li>
+<li><code>name = Mobile API</code>, <code>platform = dotnet</code>, <code>criticality = medium</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><code>application_components</code></p>
+<ul>
+<li>Meaning: pieces inside an application. A component may run on an asset, but it is not itself the infrastructure asset.</li>
+<li>Fits here: OutSystems module, Reactive screen group, Traditional eSpace, background job, API endpoint group, worker, frontend, backend service.</li>
+<li>Examples:
+<ul>
+<li><code>application = Claims Portal</code>, <code>name = ClaimsWeb</code>, <code>component_type = outsystems_module</code>, <code>runtime_name = ClaimsWeb</code></li>
+<li><code>application = Claims Portal</code>, <code>name = Login</code>, <code>component_type = screen_or_flow</code></li>
+<li><code>application = Mobile API</code>, <code>name = auth-worker</code>, <code>component_type = worker</code>, <code>asset_id = prd-worker-02</code></li>
+</ul>
+</li>
+<li>Rule: use <code>assets</code> for <em>where it runs</em>; use <code>application_components</code> for <em>what part of the app it is</em>.</li>
+</ul>
+</li>
+<li>
+<p><code>telemetry_sources</code></p>
+<ul>
+<li>Meaning: a configured source/feed of telemetry for one application.</li>
+<li>Fits here: OutSystems log export for Claims Portal, OTLP receiver for Mobile API, Prometheus scrape source for one app, Loki label selector config for one app.</li>
+<li>Examples:
+<ul>
+<li><code>application = Claims Portal</code>, <code>source_type = outsystems</code>, <code>ingest_mode = loki_query</code>, <code>config = {&quot;log_labels&quot;:{&quot;app&quot;:&quot;Claims&quot;}}</code></li>
+<li><code>application = Mobile API</code>, <code>source_type = otel</code>, <code>ingest_mode = otlp</code>, <code>config = {&quot;service_name&quot;:&quot;mobile-api&quot;}</code></li>
+</ul>
+</li>
+<li>Rule: no direct <code>environment_id</code> on <code>telemetry_sources</code> in MVP. The environment is derived through <code>telemetry_sources.application_id -&gt; applications.environment_id</code>. This avoids duplicate ownership paths while still supporting multiple apps per environment, each w/ different sources.</li>
+</ul>
+</li>
+<li>
+<p><code>outsystems_sources</code></p>
+<ul>
+<li>MVP decision: do <strong>not</strong> create this as a physical table initially.</li>
+<li>Reasoning: OutSystems is an application platform/source type, not a separate domain object parallel to <code>applications</code>. Creating <code>outsystems_sources</code> too early risks duplicating application identity.</li>
+<li>MVP placement: OutSystems-specific source settings live in <code>telemetry_sources.config</code>, with <code>applications.platform</code> and <code>application_components.component_type</code> carrying the app/component model.</li>
+<li>Future-only reason to add it: if OutSystems needs many queryable/validated fields, constraints, migrations, or UI workflows that become awkward inside <code>telemetry_sources.config</code>.</li>
+<li>Future examples if promoted later: <code>environment_key</code>, <code>application_key</code>, <code>tenant_key</code>, <code>log_format_version</code>, <code>module_mapping_strategy</code>.</li>
+</ul>
+</li>
+<li>
+<p><code>normalization_rules</code></p>
+<ul>
+<li>Meaning: versioned parsing/mapping rules that convert source-specific telemetry fields into Heartbeat's normalized labels and fields.</li>
+<li>Fits here: mapping OutSystems <code>SessionId</code> -&gt; <code>session.id</code>, <code>UserId</code> -&gt; <code>enduser.id</code>, module/action fields -&gt; normalized component/action fields, IP extraction logic.</li>
+<li>Examples:
+<ul>
+<li><code>source_type = outsystems</code>, <code>version = default-log-v1</code>, <code>rule_config = {&quot;session_field&quot;:&quot;SessionId&quot;,&quot;user_field&quot;:&quot;UserId&quot;}</code></li>
+<li><code>source_type = otel</code>, <code>version = semantic-conventions-v1</code>, <code>rule_config = {&quot;service_field&quot;:&quot;service.name&quot;}</code></li>
+</ul>
+</li>
+<li>Rule: rules are source-type/version scoped, not environment-owned.</li>
+</ul>
+</li>
+<li>
+<p>Session identity mappings</p>
+<ul>
+<li>MVP decision: do <strong>not</strong> store session/user correlation mappings in PostgreSQL.</li>
+<li>Reasoning: sessions are telemetry-derived, high-volume, potentially sensitive, and better reconstructed from Loki logs/metrics during investigation.</li>
+<li>Use PostgreSQL only for the investigation request/result metadata; use Loki/Prometheus for session evidence and correlation.</li>
+</ul>
+</li>
+</ul>
+<h4 id="data-ownership-boundary">Data ownership boundary<a href="#data-ownership-boundary" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>PostgreSQL:</strong> product metadata, application inventory, investigation requests/results, report metadata, alert policy metadata, and alert event history</li>
+<li><strong>Prometheus:</strong> raw/derived metrics, recording rules, and live metric alert evaluation</li>
+<li><strong>Loki:</strong> raw/normalized logs and LogQL investigation queries</li>
+<li><strong>Alertmanager:</strong> alert grouping, deduplication, routing, silencing, and notification delivery</li>
+<li><strong>Redis:</strong> queues, short-lived caches, idempotency keys, worker locks, and transient processing state</li>
+<li><strong>YAML config files:</strong> deployment-owned integration endpoints, dashboard URL templates, and runtime collector desired state</li>
+<li><strong>Append-only log files:</strong> audit events in JSONL format for MVP</li>
+<li><strong>Object storage / filesystem:</strong> report artifacts when persistence is needed</li>
+</ul>
+<p>Rules:</p>
+<ul>
+<li>PostgreSQL must not store raw OutSystems metrics.</li>
+<li>PostgreSQL must not store raw logs.</li>
+<li>PostgreSQL must not perform live alert evaluation.</li>
+<li>PostgreSQL must not store report binaries.</li>
+<li>Heartbeat can store alert definitions in PostgreSQL, but executable rules are rendered to Prometheus/Alertmanager configuration or APIs.</li>
+</ul>
+<h4 id="identity-and-access">Identity and access<a href="#identity-and-access" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>users</code>
+<ul>
+<li><code>id</code>, <code>email</code>, <code>display_name</code>, <code>status</code>, <code>last_login_at</code></li>
+</ul>
+</li>
+<li><code>roles</code>
+<ul>
+<li><code>id</code>, <code>name</code>, <code>description</code></li>
+</ul>
+</li>
+<li><code>user_roles</code>
+<ul>
+<li><code>user_id</code>, <code>role_id</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="environment-and-inventory">Environment and inventory<a href="#environment-and-inventory" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>environments</code>
+<ul>
+<li><code>id</code>, <code>name</code>, <code>slug</code>, <code>type</code>, <code>description</code>, <code>status</code>, <code>labels jsonb</code></li>
+</ul>
+</li>
+<li><code>applications</code>
+<ul>
+<li><code>id</code>, <code>environment_id</code>, <code>name</code>, <code>platform</code>, <code>owner_team</code>, <code>criticality</code>, <code>status</code></li>
+</ul>
+</li>
+<li><code>application_components</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>name</code>, <code>component_type</code>, <code>runtime_name</code>, <code>labels jsonb</code></li>
+</ul>
+</li>
+<li><code>telemetry_sources</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>source_type</code>, <code>ingest_mode</code>, <code>status</code>, <code>config jsonb</code></li>
+</ul>
+</li>
+<li><code>normalization_rules</code>
+<ul>
+<li><code>id</code>, <code>source_type</code>, <code>version</code>, <code>enabled</code>, <code>rule_config jsonb</code>, <code>created_by</code></li>
+</ul>
+</li>
+<li>Deferred until SQL Server/host topology is in scope:
+<ul>
+<li><code>assets</code>: <code>id</code>, <code>environment_id</code>, <code>name</code>, <code>asset_type</code>, <code>platform</code>, <code>status</code>, <code>labels jsonb</code></li>
+<li><code>asset_relationships</code>: <code>id</code>, <code>source_asset_id</code>, <code>target_asset_id</code>, <code>relationship_type</code></li>
+<li><code>applications.primary_asset_id</code></li>
+<li><code>application_components.asset_id</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="database-observability--sql-server-second-priority">Database observability / SQL Server second priority<a href="#database-observability--sql-server-second-priority" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>database_targets</code>
+<ul>
+<li><code>id</code>, <code>environment_id</code>, <code>asset_id nullable</code>, <code>engine</code>, <code>name</code>, <code>host</code>, <code>port</code>, <code>database_name nullable</code>, <code>status</code>, <code>credential_ref</code>, <code>labels jsonb</code></li>
+</ul>
+</li>
+<li><code>probe_definitions</code>
+<ul>
+<li><code>id</code>, <code>engine</code>, <code>name</code>, <code>version</code>, <code>category</code>, <code>default_interval_seconds</code>, <code>timeout_ms</code>, <code>query_template</code>, <code>enabled</code></li>
+</ul>
+</li>
+<li><code>probe_assignments</code>
+<ul>
+<li><code>id</code>, <code>database_target_id</code>, <code>probe_definition_id</code>, <code>interval_seconds</code>, <code>enabled</code>, <code>config jsonb</code></li>
+</ul>
+</li>
+<li>Not stored in PostgreSQL for MVP:
+<ul>
+<li>collector desired state, collector groups, integration endpoints, and runtime add/remove config live in YAML/Kubernetes</li>
+<li>collector runtime state should be exposed through <code>/metrics</code>, <code>/healthz</code>, <code>/readyz</code>, and logs first; add PostgreSQL runtime tables only if the UI needs historical fleet inventory</li>
+</ul>
+</li>
+</ul>
+<h4 id="investigations-and-evidence">Investigations and evidence<a href="#investigations-and-evidence" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>investigations</code>
+<ul>
+<li><code>id</code>, <code>environment_id</code>, <code>created_by</code>, <code>status</code>, <code>subject_type</code>, <code>subject_value</code>, <code>time_start</code>, <code>time_end</code>, <code>query jsonb</code></li>
+</ul>
+</li>
+<li><code>investigation_jobs</code>
+<ul>
+<li><code>id</code>, <code>investigation_id</code>, <code>status</code>, <code>queued_at</code>, <code>started_at</code>, <code>finished_at</code>, <code>error_message nullable</code></li>
+</ul>
+</li>
+<li><code>investigation_results</code>
+<ul>
+<li><code>id</code>, <code>investigation_id</code>, <code>summary</code>, <code>severity</code>, <code>result jsonb</code>, <code>created_at</code></li>
+</ul>
+</li>
+<li><code>evidence_links</code>
+<ul>
+<li><code>id</code>, <code>investigation_id</code>, <code>source_type</code>, <code>title</code>, <code>url</code>, <code>time_start</code>, <code>time_end</code>, <code>metadata jsonb</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="alerting">Alerting<a href="#alerting" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>alert_policies</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>name</code>, <code>signal_type</code>, <code>severity</code>, <code>enabled</code>, <code>condition jsonb</code>, <code>labels jsonb</code>, <code>rendered_rule_ref nullable</code></li>
+</ul>
+</li>
+<li><code>adaptive_baselines</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>signal_key</code>, <code>window</code>, <code>method</code>, <code>parameters jsonb</code>, <code>last_computed_at</code></li>
+</ul>
+</li>
+<li><code>notification_routes</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>name</code>, <code>channel_type</code>, <code>target_ref</code>, <code>routing_rules jsonb</code>, <code>enabled</code>, <code>alertmanager_route_ref nullable</code></li>
+</ul>
+</li>
+<li><code>alert_events</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>alert_policy_id nullable</code>, <code>status</code>, <code>severity</code>, <code>fingerprint</code>, <code>started_at</code>, <code>resolved_at nullable</code>, <code>labels jsonb</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="reporting">Reporting<a href="#reporting" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>report_templates</code>
+<ul>
+<li><code>id</code>, <code>name</code>, <code>description</code>, <code>template_type</code>, <code>template_config jsonb</code>, <code>enabled</code></li>
+</ul>
+</li>
+<li><code>report_schedules</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>report_template_id</code>, <code>cron_expression</code>, <code>timezone</code>, <code>recipients jsonb</code>, <code>enabled</code></li>
+</ul>
+</li>
+<li><code>report_runs</code>
+<ul>
+<li><code>id</code>, <code>application_id</code>, <code>report_schedule_id nullable</code>, <code>requested_by nullable</code>, <code>status</code>, <code>time_start</code>, <code>time_end</code>, <code>artifact_uri nullable</code>, <code>started_at</code>, <code>finished_at</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="integrations-and-audit">Integrations and audit<a href="#integrations-and-audit" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li>No PostgreSQL tables for integrations/audit in MVP.</li>
+<li>Integration endpoints and Grafana URL templates live in versioned YAML config files.</li>
+<li>Audit events are written as append-only JSONL files.</li>
+</ul>
+<h4 id="recommended-indexes">Recommended indexes<a href="#recommended-indexes" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><code>environments(slug)</code> unique</li>
+<li><code>applications(environment_id, name)</code></li>
+<li><code>telemetry_sources(application_id, source_type, status)</code></li>
+<li><code>database_targets(environment_id, engine, status)</code></li>
+<li><code>investigations(environment_id, created_at desc)</code></li>
+<li><code>investigations(environment_id, subject_type, subject_value, time_start, time_end)</code></li>
+<li><code>alert_events(application_id, fingerprint, started_at desc)</code></li>
+<li>Deferred w/ asset tables: <code>assets(environment_id, asset_type)</code></li>
+</ul>
+<h4 id="postgresql-er-diagram">PostgreSQL ER diagram<a href="#postgresql-er-diagram" class="anchor" title="Link to this section">#</a></h4>
+<p>This is the authoritative PostgreSQL model for the current plan. It intentionally excludes integration config, Grafana link templates, audit streams, raw telemetry, raw logs, raw sessions, and report binaries.</p>
+<div class="diagram"><pre class="diagram-source"><code>erDiagram
+  users {
+    uuid id PK
+    text email UK
+    text display_name
+    text status
+    timestamptz last_login_at
+  }
+
+  roles {
+    uuid id PK
+    text name UK
+    text description
+  }
+
+  user_roles {
+    uuid user_id FK
+    uuid role_id FK
+  }
+
+  environments {
+    uuid id PK
+    text name
+    text slug UK
+    text type
+    text description
+    text status
+    jsonb labels
+  }
+
+  applications {
+    uuid id PK
+    uuid environment_id FK
+    text name
+    text platform
+    text owner_team
+    text criticality
+    text status
+  }
+
+  application_components {
+    uuid id PK
+    uuid application_id FK
+    text name
+    text component_type
+    text runtime_name
+    jsonb labels
+  }
+
+  telemetry_sources {
+    uuid id PK
+    uuid application_id FK
+    text source_type
+    text ingest_mode
+    text status
+    jsonb config
+  }
+
+  normalization_rules {
+    uuid id PK
+    text source_type
+    text version
+    boolean enabled
+    jsonb rule_config
+    uuid created_by FK
+  }
+
+  database_targets {
+    uuid id PK
+    uuid environment_id FK
+    uuid asset_id &quot;nullable deferred FK&quot;
+    text engine
+    text name
+    text host
+    integer port
+    text database_name
+    text status
+    text credential_ref
+    jsonb labels
+  }
+
+  probe_definitions {
+    uuid id PK
+    text engine
+    text name
+    text version
+    text category
+    integer default_interval_seconds
+    integer timeout_ms
+    text query_template
+    boolean enabled
+  }
+
+  probe_assignments {
+    uuid id PK
+    uuid database_target_id FK
+    uuid probe_definition_id FK
+    integer interval_seconds
+    boolean enabled
+    jsonb config
+  }
+
+  investigations {
+    uuid id PK
+    uuid environment_id FK
+    uuid created_by FK
+    text status
+    text subject_type
+    text subject_value
+    timestamptz time_start
+    timestamptz time_end
+    jsonb query
+  }
+
+  investigation_jobs {
+    uuid id PK
+    uuid investigation_id FK
+    text status
+    timestamptz queued_at
+    timestamptz started_at
+    timestamptz finished_at
+    text error_message
+  }
+
+  investigation_results {
+    uuid id PK
+    uuid investigation_id FK
+    text summary
+    text severity
+    jsonb result
+    timestamptz created_at
+  }
+
+  evidence_links {
+    uuid id PK
+    uuid investigation_id FK
+    text source_type
+    text title
+    text url
+    timestamptz time_start
+    timestamptz time_end
+    jsonb metadata
+  }
+
+  alert_policies {
+    uuid id PK
+    uuid application_id FK
+    text name
+    text signal_type
+    text severity
+    boolean enabled
+    jsonb condition
+    jsonb labels
+    text rendered_rule_ref
+  }
+
+  adaptive_baselines {
+    uuid id PK
+    uuid application_id FK
+    text signal_key
+    text window
+    text method
+    jsonb parameters
+    timestamptz last_computed_at
+  }
+
+  notification_routes {
+    uuid id PK
+    uuid application_id FK
+    text name
+    text channel_type
+    text target_ref
+    jsonb routing_rules
+    boolean enabled
+    text alertmanager_route_ref
+  }
+
+  alert_events {
+    uuid id PK
+    uuid application_id FK
+    uuid alert_policy_id FK
+    text status
+    text severity
+    text fingerprint
+    timestamptz started_at
+    timestamptz resolved_at
+    jsonb labels
+  }
+
+  report_templates {
+    uuid id PK
+    text name UK
+    text description
+    text template_type
+    jsonb template_config
+    boolean enabled
+  }
+
+  report_schedules {
+    uuid id PK
+    uuid application_id FK
+    uuid report_template_id FK
+    text cron_expression
+    text timezone
+    jsonb recipients
+    boolean enabled
+  }
+
+  report_runs {
+    uuid id PK
+    uuid application_id FK
+    uuid report_schedule_id FK
+    uuid requested_by FK
+    text status
+    timestamptz time_start
+    timestamptz time_end
+    text artifact_uri
+    timestamptz started_at
+    timestamptz finished_at
+  }
+
+  users ||--o{ user_roles : has
+  roles ||--o{ user_roles : grants
+
+  environments ||--o{ applications : contains
+  applications ||--o{ application_components : decomposes_into
+  applications ||--o{ telemetry_sources : emits_from
+  users ||--o{ normalization_rules : creates
+
+  environments ||--o{ database_targets : contains
+  database_targets ||--o{ probe_assignments : probes
+  probe_definitions ||--o{ probe_assignments : defines
+
+  environments ||--o{ investigations : scopes
+  users ||--o{ investigations : creates
+  investigations ||--o{ investigation_jobs : runs
+  investigations ||--o{ investigation_results : produces
+  investigations ||--o{ evidence_links : references
+
+  applications ||--o{ alert_policies : owns
+  applications ||--o{ adaptive_baselines : owns
+  applications ||--o{ notification_routes : owns
+  applications ||--o{ alert_events : receives
+  alert_policies ||--o{ alert_events : emits
+
+  report_templates ||--o{ report_schedules : schedules
+  applications ||--o{ report_schedules : owns
+  applications ||--o{ report_runs : reports
+  report_schedules ||--o{ report_runs : triggers
+  users ||--o{ report_runs : requests
+</code></pre></div>
+<p>Deferred topology extension, only when SQL Server/host topology is in scope:</p>
+<div class="diagram"><pre class="diagram-source"><code>erDiagram
+  environments ||--o{ assets : contains
+  assets ||--o{ database_targets : hosts
+  assets ||--o{ asset_relationships : source
+  assets ||--o{ asset_relationships : target
+
+  assets {
+    uuid id PK
+    uuid environment_id FK
+    text name
+    text asset_type
+    text platform
+    text status
+    jsonb labels
+  }
+
+  asset_relationships {
+    uuid id PK
+    uuid source_asset_id FK
+    uuid target_asset_id FK
+    text relationship_type
+  }
+</code></pre></div>
+<h4 id="exact-er-relationships">Exact ER relationships<a href="#exact-er-relationships" class="anchor" title="Link to this section">#</a></h4>
+<p>This is the authoritative MVP relationship model. Keep it simple; avoid redundant joins unless a real workflow requires them.</p>
+<h5 id="identity-and-access-1">Identity and access<a href="#identity-and-access-1" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>users.id</code> 1 -&gt; N <code>user_roles.user_id</code>
+<ul>
+<li>FK: <code>user_roles.user_id -&gt; users.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict user deletion if audit/history exists; prefer <code>users.status = disabled</code></li>
+</ul>
+</li>
+<li><code>roles.id</code> 1 -&gt; N <code>user_roles.role_id</code>
+<ul>
+<li>FK: <code>user_roles.role_id -&gt; roles.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>users.email</code> unique</li>
+<li><code>roles.name</code> unique</li>
+<li><code>user_roles(user_id, role_id)</code> unique</li>
+</ul>
+</li>
+</ul>
+<h5 id="environment-and-inventory-1">Environment and inventory<a href="#environment-and-inventory-1" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>environments.id</code> 1 -&gt; N <code>applications.environment_id</code>
+<ul>
+<li>FK: <code>applications.environment_id -&gt; environments.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict if applications exist</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>application_components.application_id</code>
+<ul>
+<li>FK: <code>application_components.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade only on hard-delete; prefer soft-delete/status changes</li>
+</ul>
+</li>
+<li>Deferred asset/topology relationships for SQL Server/host observability slice:
+<ul>
+<li><code>environments.id</code> 1 -&gt; N <code>assets.environment_id</code></li>
+<li><code>assets.id</code> 1 -&gt; N <code>applications.primary_asset_id</code></li>
+<li><code>assets.id</code> 1 -&gt; N <code>application_components.asset_id</code></li>
+<li><code>assets.id</code> N -&gt; N <code>assets.id</code> through <code>asset_relationships</code></li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>environments.slug</code> unique</li>
+<li><code>applications(environment_id, name)</code> unique</li>
+<li><code>application_components(application_id, name, component_type)</code> unique</li>
+<li>deferred w/ asset tables: <code>assets(environment_id, name)</code> unique</li>
+<li>deferred w/ asset tables: <code>asset_relationships(source_asset_id, target_asset_id, relationship_type)</code> unique</li>
+</ul>
+</li>
+<li>Explicit non-relationships:
+<ul>
+<li>no <code>environment -&gt; environment</code> relation in MVP</li>
+<li>no <code>environment_assets</code> join table</li>
+<li>no direct <code>application -&gt; database_target</code> relation in MVP</li>
+</ul>
+</li>
+</ul>
+<h5 id="telemetry-source-and-outsystems">Telemetry source and OutSystems<a href="#telemetry-source-and-outsystems" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>applications.id</code> 1 -&gt; N <code>telemetry_sources.application_id</code>
+<ul>
+<li>FK: <code>telemetry_sources.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict if active; cascade only through intentional application hard-delete cleanup</li>
+</ul>
+</li>
+<li><code>users.id</code> 1 -&gt; N <code>normalization_rules.created_by</code>
+<ul>
+<li>FK: <code>normalization_rules.created_by -&gt; users.id</code></li>
+<li>Required: no for system-created rules</li>
+<li>Delete behavior: set null</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>telemetry_sources(application_id, source_type, ingest_mode)</code> partial/conditional as needed</li>
+<li><code>normalization_rules(source_type, version)</code> unique</li>
+</ul>
+</li>
+<li>Notes:
+<ul>
+<li>OutSystems Traditional and Reactive should be represented through <code>applications.platform</code>, <code>application_components.component_type</code>, and <code>telemetry_sources.config</code> only where necessary.</li>
+<li>Do not create <code>outsystems_sources</code> in the MVP unless OutSystems-specific config becomes large, queryable, or constraint-heavy enough to justify a source-specific extension table.</li>
+<li>Keep default OutSystems log field compatibility before adding improved mappings.</li>
+</ul>
+</li>
+</ul>
+<h5 id="sql-server-collector">SQL Server collector<a href="#sql-server-collector" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>environments.id</code> 1 -&gt; N <code>database_targets.environment_id</code>
+<ul>
+<li>FK: <code>database_targets.environment_id -&gt; environments.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict if probe assignments/history exist</li>
+</ul>
+</li>
+<li><code>assets.id</code> 1 -&gt; N <code>database_targets.asset_id</code>
+<ul>
+<li>FK: <code>database_targets.asset_id -&gt; assets.id</code></li>
+<li>Required: no</li>
+<li>Delete behavior: set null</li>
+<li>Deferred: only active when asset/topology extension is enabled</li>
+</ul>
+</li>
+<li><code>database_targets.id</code> 1 -&gt; N <code>probe_assignments.database_target_id</code>
+<ul>
+<li>FK: <code>probe_assignments.database_target_id -&gt; database_targets.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade assignment rows only</li>
+</ul>
+</li>
+<li><code>probe_definitions.id</code> 1 -&gt; N <code>probe_assignments.probe_definition_id</code>
+<ul>
+<li>FK: <code>probe_assignments.probe_definition_id -&gt; probe_definitions.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict; disable/version probes instead of deleting</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>database_targets(environment_id, engine, host, port, database_name)</code> unique</li>
+<li><code>probe_definitions(engine, name, version)</code> unique</li>
+<li><code>probe_assignments(database_target_id, probe_definition_id)</code> unique</li>
+</ul>
+</li>
+<li>Notes:
+<ul>
+<li>Collector desired state, grouping, scaling, and runtime add/remove are controlled by YAML/Kubernetes, not PostgreSQL assignment tables.</li>
+<li>If the UI later needs collector fleet history, add observed runtime tables separately; do not mix desired runtime config into target/probe metadata.</li>
+</ul>
+</li>
+<li>Safety invariant:
+<ul>
+<li>SQL Server probe definitions must be reviewed for non-blocking behavior before assignment to production targets.</li>
+</ul>
+</li>
+</ul>
+<h5 id="investigations-and-evidence-1">Investigations and evidence<a href="#investigations-and-evidence-1" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>environments.id</code> 1 -&gt; N <code>investigations.environment_id</code>
+<ul>
+<li>FK: <code>investigations.environment_id -&gt; environments.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict; retain investigation history according to policy</li>
+</ul>
+</li>
+<li><code>users.id</code> 1 -&gt; N <code>investigations.created_by</code>
+<ul>
+<li>FK: <code>investigations.created_by -&gt; users.id</code></li>
+<li>Required: yes for user-created investigations; system user can be used for automation</li>
+<li>Delete behavior: restrict or set to retained system/deleted user marker</li>
+</ul>
+</li>
+<li><code>investigations.id</code> 1 -&gt; N <code>investigation_jobs.investigation_id</code>
+<ul>
+<li>FK: <code>investigation_jobs.investigation_id -&gt; investigations.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade only if investigation is hard-deleted by retention job</li>
+</ul>
+</li>
+<li><code>investigations.id</code> 1 -&gt; N <code>investigation_results.investigation_id</code>
+<ul>
+<li>FK: <code>investigation_results.investigation_id -&gt; investigations.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade only by retention job</li>
+</ul>
+</li>
+<li><code>investigations.id</code> 1 -&gt; N <code>evidence_links.investigation_id</code>
+<ul>
+<li>FK: <code>evidence_links.investigation_id -&gt; investigations.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade only by retention job</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li>optional <code>investigation_jobs(investigation_id, status)</code> partial unique for one active job per investigation</li>
+</ul>
+</li>
+<li>Notes:
+<ul>
+<li><code>investigations.subject_type</code> should start with <code>user</code>, <code>ip</code>, <code>session</code>, <code>request</code>.</li>
+<li><code>evidence_links</code> points to Grafana/Loki/Prometheus views; it does not store raw evidence payloads.</li>
+</ul>
+</li>
+</ul>
+<h5 id="alerting-1">Alerting<a href="#alerting-1" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>applications.id</code> 1 -&gt; N <code>alert_policies.application_id</code>
+<ul>
+<li>FK: <code>alert_policies.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict; disable policies instead of deleting</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>adaptive_baselines.application_id</code>
+<ul>
+<li>FK: <code>adaptive_baselines.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: cascade only through retention/config cleanup</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>notification_routes.application_id</code>
+<ul>
+<li>FK: <code>notification_routes.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict if referenced by active policies/config</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>alert_events.application_id</code>
+<ul>
+<li>FK: <code>alert_events.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: retention-based cleanup</li>
+</ul>
+</li>
+<li><code>alert_policies.id</code> 1 -&gt; N <code>alert_events.alert_policy_id</code>
+<ul>
+<li>FK: <code>alert_events.alert_policy_id -&gt; alert_policies.id</code></li>
+<li>Required: no; external/unmapped Alertmanager events may exist</li>
+<li>Delete behavior: set null or restrict; prefer policy disablement</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>alert_policies(application_id, name)</code> unique</li>
+<li><code>adaptive_baselines(application_id, signal_key, window, method)</code> unique</li>
+<li><code>notification_routes(application_id, name)</code> unique</li>
+<li><code>alert_events(application_id, fingerprint, started_at)</code> unique</li>
+</ul>
+</li>
+<li>Notes:
+<ul>
+<li>Alerting is application-owned in MVP. Environment context is derived through <code>applications.environment_id</code>.</li>
+<li>PostgreSQL stores policy intent and alert event metadata only.</li>
+<li>Prometheus evaluates; Alertmanager routes/dedupes/delivers.</li>
+</ul>
+</li>
+</ul>
+<h5 id="reporting-1">Reporting<a href="#reporting-1" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li><code>report_templates.id</code> 1 -&gt; N <code>report_schedules.report_template_id</code>
+<ul>
+<li>FK: <code>report_schedules.report_template_id -&gt; report_templates.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict if schedules exist; disable templates instead</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>report_schedules.application_id</code>
+<ul>
+<li>FK: <code>report_schedules.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict</li>
+</ul>
+</li>
+<li><code>applications.id</code> 1 -&gt; N <code>report_runs.application_id</code>
+<ul>
+<li>FK: <code>report_runs.application_id -&gt; applications.id</code></li>
+<li>Required: yes</li>
+<li>Delete behavior: restrict while report history is retained</li>
+</ul>
+</li>
+<li><code>report_schedules.id</code> 1 -&gt; N <code>report_runs.report_schedule_id</code>
+<ul>
+<li>FK: <code>report_runs.report_schedule_id -&gt; report_schedules.id</code></li>
+<li>Required: no; on-demand report runs may not have a schedule</li>
+<li>Delete behavior: set null or restrict based on retention policy</li>
+</ul>
+</li>
+<li><code>users.id</code> 1 -&gt; N <code>report_runs.requested_by</code>
+<ul>
+<li>FK: <code>report_runs.requested_by -&gt; users.id</code></li>
+<li>Required: no; scheduled/system reports may not have a requester</li>
+<li>Delete behavior: set null</li>
+</ul>
+</li>
+<li>Unique constraints:
+<ul>
+<li><code>report_templates(name)</code> unique</li>
+<li><code>report_schedules(application_id, report_template_id, cron_expression, timezone)</code> unique</li>
+</ul>
+</li>
+<li>Notes:
+<ul>
+<li>Reporting is application-owned in MVP. Environment-level summaries can be generated later by aggregating application reports.</li>
+<li><code>report_runs.artifact_uri</code> is a pointer only.</li>
+<li>Report artifacts may be deleted after confirmed delivery; keep only run metadata if no retention is required.</li>
+</ul>
+</li>
+</ul>
+<h5 id="integrations-runtime-collectors-and-audit">Integrations, runtime collectors, and audit<a href="#integrations-runtime-collectors-and-audit" class="anchor" title="Link to this section">#</a></h5>
+<ul>
+<li>No PostgreSQL ER relationships for integration config in MVP.</li>
+<li><code>config/integrations.yaml</code> owns integration endpoint metadata, credential references, dashboard URL templates, and collector definitions.</li>
+<li>Runtime add/remove is supported by hot-reloading the YAML file, not by storing integration config in PostgreSQL.</li>
+<li>Services load config through a shared config manager that validates the YAML, computes a config version/hash, and atomically swaps the active collector set.</li>
+<li>Collector lifecycle is derived from config diff:
+<ul>
+<li>new collector in YAML -&gt; validate -&gt; start/register collector</li>
+<li>removed collector from YAML -&gt; graceful drain -&gt; unregister/stop collector</li>
+<li>changed collector config -&gt; validate -&gt; restart or live-update that collector depending on connector support</li>
+</ul>
+</li>
+<li>Reload triggers:
+<ul>
+<li>filesystem watch for local/dev</li>
+<li>explicit <code>SIGHUP</code> or <code>/admin/config/reload</code> endpoint for production</li>
+<li>Kubernetes ConfigMap/Secret projected-volume update or rollout-compatible reload sidecar if deployed on K8s</li>
+</ul>
+</li>
+<li>Keep collector runtime state in <code>/metrics</code>, <code>/healthz</code>, <code>/readyz</code>, and logs for MVP; add PostgreSQL fleet tables only if later UI/history workflows need them.</li>
+<li>Audit events are append-only JSONL files under a configured audit directory.</li>
+<li>Future PostgreSQL audit/config tables are only justified if the product needs UI-driven integration CRUD, relational audit search, or DB-backed compliance exports.</li>
+</ul>
+<h4 id="postgresql-topic-review">PostgreSQL topic review<a href="#postgresql-topic-review" class="anchor" title="Link to this section">#</a></h4>
+<h5 id="identity-and-access-2">Identity and access<a href="#identity-and-access-2" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: control the minimal wallboard/admin access needed for MVP.</p>
+<p>Review:</p>
+<ul>
+<li>Keep auth intentionally simple for phase 1: one shared SRE/admin-style user is acceptable.</li>
+<li><code>users</code>, <code>roles</code>, and <code>user_roles</code> are enough for MVP.</li>
+<li>Do not add permissions, SSO-specific tables, or environment-scoped RBAC yet.</li>
+<li>Keep the schema easy to extend later if named users or SSO become necessary.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Do not let a temporary shared-user model leak into long-term enterprise design. Treat it as an MVP shortcut.</li>
+</ul>
+<h5 id="environment-and-inventory-2">Environment and inventory<a href="#environment-and-inventory-2" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: define the clean ownership tree for everything Heartbeat monitors.</p>
+<p>Review:</p>
+<ul>
+<li><code>environment</code> is the top boundary. Everything observable belongs to exactly one environment.</li>
+<li><code>application</code> belongs to one <code>environment</code>.</li>
+<li><code>application_component</code> belongs to one <code>application</code>.</li>
+<li><code>asset</code> is deferred unless SQL Server/host topology is part of the active MVP slice. If enabled, assets represent concrete runtime/infrastructure/database nodes, not telemetry.</li>
+<li><code>asset_relationships</code> is deferred w/ assets and is only for asset-to-asset dependency links such as app server -&gt; database, gateway -&gt; backend, worker -&gt; queue.</li>
+</ul>
+<p>Canonical MVP relationships:</p>
+<ul>
+<li><code>environment</code> 1 -&gt; N <code>applications</code></li>
+<li><code>application</code> 1 -&gt; N <code>application_components</code></li>
+</ul>
+<p>Deferred topology relationships:</p>
+<ul>
+<li><code>environment</code> 1 -&gt; N <code>assets</code></li>
+<li><code>application_component</code> N -&gt; 1 <code>asset</code> optional</li>
+<li><code>asset</code> N -&gt; N <code>asset</code> through <code>asset_relationships</code></li>
+</ul>
+<p>MVP decision:</p>
+<ul>
+<li>Keep <code>assets</code> only if SQL Server/host topology work is in scope for the same MVP slice.</li>
+<li>If the first slice is strictly OutSystems/application observability, defer <code>assets</code>, <code>asset_relationships</code>, <code>applications.primary_asset_id</code>, and <code>application_components.asset_id</code> until DB/host topology is needed.</li>
+<li>The argument for keeping assets in PostgreSQL is that they are stable inventory metadata used for ownership and collector targeting, not raw telemetry.</li>
+</ul>
+<p>Rules to avoid redundancy:</p>
+<ul>
+<li>no <code>environment -&gt; environment</code> relationship table for MVP</li>
+<li>no direct <code>environment_assets</code> join table; <code>assets.environment_id</code> is enough</li>
+<li>no direct <code>application -&gt; database_target</code> relation unless a real workflow requires it later</li>
+<li>no duplicate ownership paths; ownership should be inferable from foreign keys</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Asset modeling can become a CMDB. Keep only what Heartbeat needs for observability and investigation.</li>
+</ul>
+<h5 id="application-observability--outsystems-first">Application observability / OutSystems-first<a href="#application-observability--outsystems-first" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: make OutSystems the first-class phase-1 platform without making it a separate domain object parallel to applications.</p>
+<p>Review:</p>
+<ul>
+<li><code>applications</code> and <code>application_components</code> represent business apps, modules, services, screens/actions, or runtime components.</li>
+<li><code>telemetry_sources</code> is generic and application-owned so future platforms fit without schema churn.</li>
+<li>Do not create <code>outsystems_sources</code> in MVP. Put OutSystems-specific source configuration in <code>telemetry_sources.config</code> unless it grows into queryable/validated relational data.</li>
+<li>OutSystems ingestion should follow the default OutSystems log pattern first so existing SRE troubleshooting queries remain reusable.</li>
+<li>The model must support both <strong>Traditional</strong> and <strong>Reactive</strong> OutSystems instances from the start.</li>
+<li><code>normalization_rules</code> lets parsers evolve by source type/version, but phase 1 should begin w/ faithful normalization rather than aggressive reinterpretation.</li>
+<li>Session/user correlation is reconstructed from Loki/Prometheus during investigations; do not persist session identity mappings in PostgreSQL for MVP.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Session correlation depends on consistent source fields and normalization. Validate the default OutSystems log fields early.</li>
+<li>Avoid storing PII unnecessarily; prefer hashed/normalized values in logs where possible.</li>
+<li>If we identify improvements over the default OutSystems pattern, confirm before implementing them so we do not break current operational workflows.</li>
+</ul>
+<h5 id="database-observability--sql-server-second-priority-1">Database observability / SQL Server second priority<a href="#database-observability--sql-server-second-priority-1" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: prepare the DB collector domain without making it phase-1 blocker.</p>
+<p>Review:</p>
+<ul>
+<li><code>database_targets</code> stores DB endpoint metadata and secret references.</li>
+<li>Runtime collector groups/add-remove config live in <code>config/integrations.yaml</code> and Kubernetes, not PostgreSQL.</li>
+<li>Collector target selection should read <code>database_targets</code>/<code>probe_assignments</code> from API/PostgreSQL when SQL Server observability is enabled.</li>
+<li><code>probe_definitions</code> versions safe SQL probes.</li>
+<li><code>probe_assignments</code> allows per-target enablement and intervals.</li>
+<li>All production extraction access must use <strong>non-blocking transactions</strong> and query patterns that do not interfere with workload execution.</li>
+<li>This matters especially for extraction queues and recurring production reads.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Never store raw DB credentials.</li>
+<li>Probe definitions need review/versioning because unsafe SQL can hurt production DBs.</li>
+<li>Blocking reads on production are unacceptable; collector queries must be explicitly designed and reviewed for non-blocking behavior.</li>
+</ul>
+<h5 id="investigations-and-evidence-2">Investigations and evidence<a href="#investigations-and-evidence-2" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: persist investigation lifecycle and durable summaries while raw data remains in Prometheus/Loki.</p>
+<p>Review:</p>
+<ul>
+<li><code>investigations</code> stores the query intent: subject, environment, time range, and filters.</li>
+<li><code>investigation_jobs</code> tracks async execution through Redis-backed workers.</li>
+<li><code>investigation_results</code> stores durable summary output, not raw logs/metrics.</li>
+<li><code>evidence_links</code> points to Grafana/Loki/Prometheus views and specific time windows.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Do not duplicate raw telemetry into PostgreSQL.</li>
+<li>Keep result JSON bounded; large evidence payloads belong in object storage or generated views.</li>
+</ul>
+<h5 id="alerting-2">Alerting<a href="#alerting-2" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: store application-owned alert configuration and alert history while Prometheus/Alertmanager remain the live alerting plane.</p>
+<p>Review:</p>
+<ul>
+<li><code>alert_policies</code> stores UI-managed policy intent and metadata for one application. These policies are rendered into Prometheus-compatible rules; PostgreSQL does not evaluate them live.</li>
+<li><code>adaptive_baselines</code> stores per-application computed threshold parameters that rule generation or analysis jobs can use.</li>
+<li><code>notification_routes</code> stores per-application route intent and references to Alertmanager routes; Alertmanager performs grouping, dedupe, silence, and delivery.</li>
+<li><code>alert_events</code> records application-scoped lifecycle/fingerprint from Alertmanager/webhook events for audit, dedupe, reporting, and investigation context.</li>
+<li>Environment context is derived from <code>application.environment_id</code>; do not duplicate <code>environment_id</code> in alert tables for MVP.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Avoid splitting alert truth across too many systems. Prometheus evaluates alerts, Alertmanager routes alerts, PostgreSQL tracks product-owned intent/history.</li>
+<li>Do not build a second alert engine in PostgreSQL.</li>
+</ul>
+<h5 id="reporting-2">Reporting<a href="#reporting-2" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: schedule, run, and audit generated operational reports for one application.</p>
+<p>Review:</p>
+<ul>
+<li><code>report_templates</code> defines report structure.</li>
+<li><code>report_schedules</code> defines cadence, timezone, recipients, and application.</li>
+<li><code>report_runs</code> records executions, application, requester, and artifact references.</li>
+<li>PostgreSQL should store report metadata and delivery state only.</li>
+<li>Report artifacts may be deleted after confirmed delivery if retention is not required.</li>
+<li>Environment-level reporting can be added later as aggregation across applications in the same environment.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Report artifacts should not live as large blobs or binaries in PostgreSQL. Store URI/reference only.</li>
+</ul>
+<h5 id="integrations-runtime-collectors-and-audit-1">Integrations, runtime collectors, and audit<a href="#integrations-runtime-collectors-and-audit-1" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: keep deployment-owned integrations simple while still allowing collector add/remove at runtime through validated YAML hot-reload.</p>
+<p>Review:</p>
+<ul>
+<li>Use YAML config files for integrations in MVP.
+<ul>
+<li>Primary file: <code>config/integrations.yaml</code></li>
+<li>Contents: Grafana base URL, Loki endpoint, Alertmanager endpoint, SMTP/webhook provider, credential references, Grafana URL templates, and collector definitions.</li>
+<li>Store secret references only; raw secrets stay in the secret manager or environment-specific secret files.</li>
+</ul>
+</li>
+<li>Runtime add/remove works by reloading YAML and diffing desired collector config vs currently running collectors.
+<ul>
+<li>Add: new YAML collector entry -&gt; validate -&gt; instantiate/start/register collector.</li>
+<li>Remove: deleted YAML collector entry -&gt; graceful drain -&gt; unregister/stop collector.</li>
+<li>Change: modified YAML collector entry -&gt; validate -&gt; live-update if supported, otherwise restart that collector only.</li>
+</ul>
+</li>
+<li>Implement a shared config manager.
+<ul>
+<li>Parse and schema-validate YAML before applying anything.</li>
+<li>Compute <code>config_version</code> / hash.</li>
+<li>Apply changes atomically: invalid config keeps the previous active config.</li>
+<li>Expose current config version and reload status via health/admin endpoint.</li>
+</ul>
+</li>
+<li>Kubernetes/Go reload strategy:
+<ul>
+<li>Treat YAML as desired state delivered by Kubernetes <code>ConfigMap</code> plus secret references, not raw secrets.</li>
+<li>Mount config as a projected volume, but do not rely on watching the file itself; Kubernetes updates ConfigMap volumes through symlink swaps, so watch the parent directory and debounce events.</li>
+<li>Support explicit <code>SIGHUP</code> and authenticated <code>/admin/config/reload</code> as deterministic production reload triggers.</li>
+<li>Prefer an off-the-shelf reload sidecar/controller for production rollout signaling if needed, e.g. checksum-annotation rollout or reloader sidecar that calls <code>/admin/config/reload</code>; do not build a fragile custom Kubernetes watcher first.</li>
+<li>In Go, implement a small config manager around typed structs, YAML decoding, schema/business validation, config hashing, and <code>atomic.Value</code>/copy-on-write snapshots.</li>
+<li>Never mutate active config in place. Build a candidate config, validate all dependencies, compute the diff, then swap active config only after successful collector reconciliation.</li>
+<li>Collector manager owns lifecycle: <code>Start(ctx, cfg)</code>, <code>Update(ctx, cfg)</code> when safe, <code>Drain(ctx)</code>, <code>Stop(ctx)</code>.</li>
+<li>Expose <code>/healthz</code>, <code>/readyz</code>, <code>/admin/config</code>, and <code>/metrics</code> with current <code>config_version</code>, last reload timestamp, last reload result, and per-collector state.</li>
+</ul>
+</li>
+<li>Do not create a <code>grafana_links</code> PostgreSQL table in MVP.
+<ul>
+<li>Prefer deterministic Grafana URLs from templates and variables in YAML.</li>
+<li>Add a table only if operators need editable per-app/per-panel dashboard mappings from the UI.</li>
+</ul>
+</li>
+<li>Use append-only audit log files in MVP, preferably JSONL.
+<ul>
+<li>Example file pattern: <code>audit/heartbeat-audit-YYYY-MM-DD.jsonl</code></li>
+<li>Each line: timestamp, actor, action, entity_type, entity_id, before/after metadata, request_id, config_version.</li>
+<li>Log config reload success/failure and collector add/remove/change decisions.</li>
+</ul>
+</li>
+<li>PostgreSQL audit/config tables become useful later if we need UI CRUD, relational audit search, compliance exports, or multi-tenant admin workflows.</li>
+</ul>
+<p>Example <code>config/integrations.yaml</code> shape:</p>
+<pre><code class="language-yaml">version: 1
+integrations:
+  grafana:
+    base_url: https://grafana.example.com
+    dashboard_templates:
+      app_health: /d/app-health?var-env=${environment.slug}&amp;var-app=${application.name}
+  loki:
+    endpoint: https://loki.example.com
+    credential_ref: secret://heartbeat/loki
+  alertmanager:
+    endpoint: https://alertmanager.example.com
+    credential_ref: secret://heartbeat/alertmanager
+collectors:
+  - id: outsystems-claims-logs
+    type: outsystems_logs
+    enabled: true
+    application: claims-portal
+    source:
+      mode: loki_query
+      labels:
+        app: Claims
+    normalization_rule: outsystems-default-log-v1
+  - id: sql-prod-main
+    type: sqlserver
+    enabled: true
+    environment: prd
+    target:
+      host: sql-prod-01
+      port: 1433
+      database: Claims
+      credential_ref: secret://heartbeat/sql-prod-main
+    probes:
+      - waits
+      - sessions
+</code></pre>
+<p>Risk:</p>
+<ul>
+<li>Hot reload must be conservative: invalid YAML, missing secrets, duplicate collector IDs, or unsafe collector changes must fail closed and keep the previous active config.</li>
+<li>Kubernetes ConfigMap updates are eventually reflected in mounted volumes and use symlink replacement semantics. File watchers must watch the directory and debounce, or production should use explicit reload signaling.</li>
+<li>Runtime config files can drift from Git if edited manually on servers. Prefer GitOps or controlled deployment path even though the running service can hot-reload.</li>
+<li>Reloads must be observable. Alert on repeated reload failures, stale config versions, collector crash loops, and collectors stuck draining.</li>
+<li>File audit logs need rotation, retention, and shipping; otherwise they become hard to query.</li>
+<li>Audit should store metadata diffs and secret references only; never raw credentials/tokens.</li>
+</ul>
+<p>Next implementation steps:</p>
+<ol>
+<li>Convert the PostgreSQL ER diagram into explicit migrations and constraints.
+<ul>
+<li>Create migration files for core tables: users/roles, environments/applications/components, telemetry sources, normalization rules, investigations/evidence, alerting, reporting.</li>
+<li>Keep assets/topology, integrations, Grafana links, sessions, and audit streams out of PostgreSQL for MVP unless separately approved.</li>
+</ul>
+</li>
+<li>Add database-level safety constraints.
+<ul>
+<li>Unique indexes listed above.</li>
+<li>FK delete behavior matching the ER relationship section.</li>
+<li>Check constraints for status/severity/type enums where practical.</li>
+<li>JSONB shape validation only where stable enough; avoid over-constraining early config blobs.</li>
+</ul>
+</li>
+<li>Add schema tests/verification.
+<ul>
+<li>Migration up/down smoke test.</li>
+<li>FK/unique constraint tests.</li>
+<li>Query-plan checks for first investigation, alert, and reporting lookups.</li>
+</ul>
+</li>
+<li>Define <code>config/integrations.yaml</code> schema and sample fixtures.</li>
+<li>Create Go config package, likely <code>internal/config</code>, with typed structs, YAML decoder, validation, hashing, and redacted rendering.</li>
+<li>Create Go collector lifecycle interface, likely <code>internal/collectors</code>, with <code>Start</code>, <code>Update</code>, <code>Drain</code>, <code>Stop</code>, <code>Status</code>.</li>
+<li>Create config reconciliation loop that diffs desired collectors by stable <code>id</code> and applies add/remove/change operations w/ rollback/fail-closed behavior.</li>
+<li>Add reload triggers: <code>SIGHUP</code>, authenticated <code>POST /admin/config/reload</code>, and optional fsnotify parent-directory watcher for dev/local.</li>
+<li>Add Kubernetes manifests: ConfigMap for YAML, Secrets or external-secret refs for credentials, projected volume mount, probes, metrics scrape config, and optional reloader sidecar/controller.</li>
+<li>Add config/reload tests: valid/invalid YAML, duplicate IDs, missing secret refs, config hash stability, atomic swap behavior, collector add/remove/change diffing, failed reload keeps previous active config, K8s-style symlink swap watcher behavior if fsnotify is enabled.</li>
+</ol>
+<h5 id="indexing-strategy">Indexing strategy<a href="#indexing-strategy" class="anchor" title="Link to this section">#</a></h5>
+<p>Purpose: keep the first workflows fast.</p>
+<p>Review:</p>
+<ul>
+<li>Index environment-scoped lookups first.</li>
+<li>Prioritize investigation queries by subject + time range.</li>
+<li>Prioritize audit lookups by entity + timestamp.</li>
+<li>Add more indexes from query plans, not guesses.</li>
+</ul>
+<p>Risk:</p>
+<ul>
+<li>Too many early indexes slow writes and migrations. Start with the listed indexes only.</li>
+</ul>
+<h4 id="redis-data-classes">Redis data classes<a href="#redis-data-classes" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li>job queues: <code>report:*</code>, <code>investigation:*</code>, <code>alert:*</code></li>
+<li>short TTL caches for expensive investigation results</li>
+<li>distributed locks for singleton schedulers/workers</li>
+<li>idempotency keys for retried jobs</li>
+<li>rate-limit counters for expensive operations</li>
+</ul>
+<h4 id="observability-backends">Observability backends<a href="#observability-backends" class="anchor" title="Link to this section">#</a></h4>
+<ul>
+<li><strong>Prometheus:</strong> metrics and recording rules</li>
+<li><strong>Loki:</strong> logs and derived log queries</li>
+<li><strong>Grafana:</strong> dashboards, exploration, and alert entry links</li>
+</ul>
+<h3 id="38-architectural-guardrails">3.8 Architectural guardrails<a href="#38-architectural-guardrails" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Do not let the API service query SQL Server directly -&gt; all DB-specific collection stays in <code>db-collector</code></li>
+<li>Do not make Redis the system of record -&gt; durable truth stays in PostgreSQL</li>
+<li>Store durable job/request state in PostgreSQL and use Redis for dispatch, locks, retry coordination, and short-lived caches only</li>
+<li>Do not over-label Loki streams -&gt; keep label cardinality controlled; place high-cardinality fields in log payload/body</li>
+<li>Do not put adaptive alert math inside Grafana dashboards -&gt; compute/version baselines in services and render executable rules to Prometheus</li>
+<li>Do not let custom parsers bypass the shared telemetry contract -&gt; normalization must be centralized</li>
+<li>Do not duplicate ownership paths: app-owned children derive environment through <code>applications.environment_id</code></li>
+<li>Do not put runtime collector desired state in PostgreSQL for MVP; YAML/Kubernetes is the desired-state source, metrics/logs expose runtime state</li>
+</ul>
+<h3 id="39-pre-implementation-review-findings-and-refinements">3.9 Pre-implementation review findings and refinements<a href="#39-pre-implementation-review-findings-and-refinements" class="anchor" title="Link to this section">#</a></h3>
+<p>Concerns found and resolved before implementation:</p>
+<ol>
+<li>
+<p><strong>Environment vs application ownership drift</strong></p>
+<ul>
+<li>Earlier wording mixed environment-scoped session searches, telemetry sources, alerts, and reports.</li>
+<li>Refined rule: application-owned workflows use <code>application_id</code>; environment is derived from the application.</li>
+<li>Environment remains useful for grouping, database targets, and coarse filtering.</li>
+</ul>
+</li>
+<li>
+<p><strong>Assets were leaking back into the MVP</strong></p>
+<ul>
+<li>Earlier service/UI wording implied first-class asset management even though assets are deferred.</li>
+<li>Refined rule: phase-1 UI/API focuses on environments, applications, components, telemetry sources, investigations, alerts, and reports.</li>
+<li>Assets/topology are introduced only when SQL Server/host topology needs them.</li>
+</ul>
+</li>
+<li>
+<p><strong>Collector runtime state conflicted with YAML hot-reload</strong></p>
+<ul>
+<li>Earlier ER included <code>collector_instances</code> and <code>collector_assignments</code>, which conflicts with YAML/Kubernetes as desired runtime state.</li>
+<li>Refined rule: PostgreSQL stores database targets and probe policies; YAML/Kubernetes stores collector runtime groups/add-remove config.</li>
+<li>Collector health/status is exposed via <code>/metrics</code>, <code>/healthz</code>, <code>/readyz</code>, and logs first. Add DB fleet tables only if product UI needs historical collector inventory.</li>
+</ul>
+</li>
+<li>
+<p><strong>Go project layout should follow Go conventions</strong></p>
+<ul>
+<li>Avoid Node-style <code>src/modules</code> as the real backend layout.</li>
+<li>Use <code>cmd/&lt;service&gt;/main.go</code>, <code>internal/&lt;domain&gt;/</code>, and <code>pkg/</code> only for intentionally shared libraries.</li>
+<li>Existing task paths that say <code>src/modules</code> are conceptual; implementation should use idiomatic Go packages.</li>
+</ul>
+</li>
+<li>
+<p><strong>OTel gateway should not become a second OTel Collector</strong></p>
+<ul>
+<li>Use stock OpenTelemetry Collector config and processors first.</li>
+<li>Custom Go code is justified only for OutSystems-specific parsing/normalization that cannot be cleanly expressed in collector config.</li>
+<li>Any custom parser must output the shared Heartbeat telemetry contract.</li>
+</ul>
+</li>
+<li>
+<p><strong>Redis durability boundary needed tightening</strong></p>
+<ul>
+<li>Redis is acceptable for queues, locks, and caches.</li>
+<li>Durable job state belongs in PostgreSQL tables like <code>investigation_jobs</code> and <code>report_runs</code>; workers should be idempotent and recover from Redis/job retries.</li>
+</ul>
+</li>
+<li>
+<p><strong>Kubernetes config reload needs explicit production semantics</strong></p>
+<ul>
+<li>ConfigMap projected volumes use symlink swap behavior and eventually-consistent update timing.</li>
+<li>Production should support explicit <code>SIGHUP</code> or authenticated <code>/admin/config/reload</code>; fsnotify is optional/dev-friendly and must watch the parent directory with debounce.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="4-recommended-repo-layout">4. Recommended repo layout<a href="#4-recommended-repo-layout" class="anchor" title="Link to this section">#</a></h2>
+<p>Create the project as a monorepo so shared schemas and deployment assets stay aligned.</p>
+<pre><code class="language-text">projects/LifeLine/Heartbeat/
+  README.md
+  docs/
+    architecture/
+      overview.md
+      database-observability.md
+      session-analysis.md
+      alerting.md
+    product/
+      requirements.md
+      phased-roadmap.md
+    runbooks/
+      local-dev.md
+      sqlserver-onboarding.md
+      alert-tuning.md
+  apps/
+    api/
+      cmd/api/
+      internal/
+        auth/
+        users/
+        environments/
+        applications/
+        telemetrysources/
+        databasetargets/
+        investigations/
+        alerts/
+        reports/
+        audit/
+    web/
+  services/
+    db-collector/
+      cmd/db-collector/
+      internal/
+        config/
+        collectors/
+        connectors/sqlserver/
+        probes/sqlserver/
+        export/
+    otel-gateway/
+      cmd/otel-gateway/
+      internal/
+        normalization/
+        parsers/outsystems/
+    session-analyzer/
+      cmd/session-analyzer/
+      internal/
+        analysis/
+        evidence/
+    reporting/
+      cmd/reporting/
+      internal/
+        templates/
+        jobs/
+  packages/
+    config-schema/
+    telemetry-contracts/
+    ui-components/
+    shared-test-fixtures/
+  infra/
+    docker-compose.yml
+    k8s/
+    grafana/
+    prometheus/
+    loki/
+    otel-collector/
+    alertmanager/
+  tests/
+    integration/
+    e2e/
+    performance/
+  .hermes/
+    plans/
+</code></pre>
+<h3 id="go-backend-layout-rule">Go backend layout rule<a href="#go-backend-layout-rule" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Backend services are Go services. Use idiomatic Go layout:
+<ul>
+<li><code>cmd/&lt;service&gt;/main.go</code> for entrypoints</li>
+<li><code>internal/&lt;domain&gt;/</code> for service-private packages</li>
+<li><code>pkg/</code> only for intentionally shared public libraries</li>
+</ul>
+</li>
+<li>Avoid Node-style <code>src/modules</code> in implementation. Any later task path mentioning <code>src/modules</code> should be translated to the matching Go <code>internal/&lt;domain&gt;</code> package.</li>
+<li>Keep shared schemas/contracts generated or versioned under <code>packages/</code> only if multiple services consume them; otherwise keep code local to the service.</li>
+</ul>
+<hr>
+<h2 id="5-domain-model-to-design-early">5. Domain model to design early<a href="#5-domain-model-to-design-early" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="primary-postgresql-entities">Primary PostgreSQL entities<a href="#primary-postgresql-entities" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>Environment</code></li>
+<li><code>Application</code></li>
+<li><code>ApplicationComponent</code></li>
+<li><code>TelemetrySource</code></li>
+<li><code>NormalizationRule</code></li>
+<li><code>DatabaseTarget</code></li>
+<li><code>ProbeDefinition</code></li>
+<li><code>ProbeAssignment</code></li>
+<li><code>SessionInvestigation</code></li>
+<li><code>InvestigationJob</code></li>
+<li><code>InvestigationResult</code></li>
+<li><code>EvidenceLink</code></li>
+<li><code>AlertPolicy</code></li>
+<li><code>AdaptiveBaseline</code></li>
+<li><code>NotificationRoute</code></li>
+<li><code>AlertEvent</code></li>
+<li><code>ReportTemplate</code></li>
+<li><code>ReportSchedule</code></li>
+<li><code>ReportRun</code></li>
+<li><code>User</code></li>
+<li><code>Role</code></li>
+</ul>
+<h3 id="non-postgresql-mvp-configstate">Non-PostgreSQL MVP config/state<a href="#non-postgresql-mvp-configstate" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>IntegrationConnection</code> equivalent lives in <code>config/integrations.yaml</code>.</li>
+<li>Grafana dashboard/deep-link mappings live in YAML/templates and Grafana provisioning.</li>
+<li>Audit events are append-only JSONL and should be shipped to Loki/SIEM.</li>
+<li>Runtime collector desired state lives in YAML/Kubernetes.</li>
+<li>Runtime collector health/state lives in metrics/logs/health endpoints first.</li>
+<li><code>Asset</code> and <code>AssetRelationship</code> are deferred until SQL Server/host topology needs explicit inventory modeling.</li>
+</ul>
+<h3 id="key-relationships">Key relationships<a href="#key-relationships" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>An <code>Environment</code> owns many <code>Applications</code>.</li>
+<li>An <code>Application</code> owns many <code>ApplicationComponents</code>, <code>TelemetrySources</code>, alert policies, notification routes, baselines, and report schedules.</li>
+<li>A <code>DatabaseTarget</code> belongs to an <code>Environment</code> and has probe assignments; collector runtime groups select/read targets but are not modeled as PostgreSQL assignments in MVP.</li>
+<li>A <code>SessionInvestigation</code> is scoped by environment plus query payload and should normally be created from an application-centric UI flow.</li>
+<li><code>AlertPolicy</code> is application-owned and rendered to Prometheus/Alertmanager.</li>
+<li><code>ReportSchedule</code> is application-owned; environment-level reporting is a later aggregation feature.</li>
+</ul>
+<hr>
+<h2 id="6-mvp-feature-breakdown">6. MVP feature breakdown<a href="#6-mvp-feature-breakdown" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="61-application-observability--outsystems-first">6.1 Application observability / OutSystems-first<a href="#61-application-observability--outsystems-first" class="anchor" title="Link to this section">#</a></h3>
+<p>Start with OutSystems as the first application platform.</p>
+<p><strong>Required OutSystems signals</strong></p>
+<ul>
+<li>application/module health</li>
+<li>request latency and error rate</li>
+<li>user/session/request correlation identifiers</li>
+<li>environment and tenant labels where available</li>
+<li>slow actions/screens/API calls</li>
+<li>exception fingerprints and recurring error patterns</li>
+<li>deployment/version context where available</li>
+<li>host/node/runtime metadata</li>
+<li>compatibility with default OutSystems log fields and query patterns used by current SRE workflows</li>
+<li>support for both Traditional and Reactive OutSystems instances</li>
+</ul>
+<p><strong>Output expectations</strong></p>
+<ul>
+<li>normalized Heartbeat event envelope for OutSystems telemetry</li>
+<li>faithful mapping of default OutSystems logs first, so existing troubleshooting queries can be reused</li>
+<li>Loki logs with controlled labels: environment, application, component, severity, event type</li>
+<li>Prometheus metrics for latency, throughput, errors, availability, and saturation where available</li>
+<li>Grafana dashboards for OutSystems application health and investigation entry points</li>
+</ul>
+<h3 id="62-database-full-coverage-observability">6.2 Database full-coverage observability<a href="#62-database-full-coverage-observability" class="anchor" title="Link to this section">#</a></h3>
+<p>SQL Server is the second delivery priority after OutSystems application observability.</p>
+<p><strong>Required SQL Server signals</strong></p>
+<ul>
+<li>Instance availability</li>
+<li>CPU pressure indicators</li>
+<li>Memory pressure indicators</li>
+<li>Buffer/cache hit behavior</li>
+<li>Wait statistics</li>
+<li>Blocking chains and locks</li>
+<li>Active sessions and connection saturation</li>
+<li>Query latency and throughput</li>
+<li>Transaction rate / rollbacks</li>
+<li>Physical/logical reads/writes</li>
+<li>TempDB pressure</li>
+<li>Database size / free space / growth trends</li>
+<li>Error events where available</li>
+</ul>
+<p><strong>Output expectations</strong></p>
+<ul>
+<li>Stable normalized metric names</li>
+<li>Labels for environment, cluster, host, database, instance, application, user where safe</li>
+<li>Dashboards for overview, waits/locks, sessions, storage, performance regressions</li>
+</ul>
+<h3 id="63-end-to-end-telemetry-and-logs">6.3 End-to-end telemetry and logs<a href="#63-end-to-end-telemetry-and-logs" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>OTLP metrics/log ingestion endpoint</li>
+<li>OutSystems log/event normalization first</li>
+<li>MuleSoft and generic JSON/plaintext inputs later</li>
+<li>Source normalization into a common event envelope</li>
+<li>Mapping to environment/service/component labels</li>
+</ul>
+<h3 id="64-session-analysis">6.4 Session analysis<a href="#64-session-analysis" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Inputs: application, user or IP, time range</li>
+<li>Outputs:
+<ul>
+<li>correlated metrics and logs</li>
+<li>affected services/assets</li>
+<li>anomaly windows</li>
+<li>likely bottlenecks and evidence links</li>
+</ul>
+</li>
+<li>Must support drilling from session view -&gt; logs -&gt; dashboards</li>
+</ul>
+<h3 id="65-grafana--loki-integration">6.5 Grafana / Loki integration<a href="#65-grafana--loki-integration" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Provision Grafana datasources and dashboards</li>
+<li>Provide Loki log views and saved LogQL queries</li>
+<li>Deep-link from Heartbeat UI -&gt; Grafana panel / Loki explore view</li>
+</ul>
+<h3 id="66-alerting">6.6 Alerting<a href="#66-alerting" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Static threshold rules for hard limits</li>
+<li>Adaptive thresholds for noisy metrics</li>
+<li>Alert grouping/dedupe/routing</li>
+<li>Alert evidence links to sessions, dashboards, logs</li>
+</ul>
+<h3 id="67-reporting">6.7 Reporting<a href="#67-reporting" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Scheduled daily/weekly health reports</li>
+<li>Top regressions</li>
+<li>recurring wait/lock hotspots</li>
+<li>alert noise summary</li>
+<li>application/service health summary</li>
+</ul>
+<hr>
+<h2 id="7-phased-implementation-plan">7. Phased implementation plan<a href="#7-phased-implementation-plan" class="anchor" title="Link to this section">#</a></h2>
+<h2 id="phase-0-requirements-and-architecture-baseline">Phase 0: Requirements and architecture baseline<a href="#phase-0-requirements-and-architecture-baseline" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-01-write-product-requirements-document">Task 0.1: Write product requirements document<a href="#task-01-write-product-requirements-document" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Convert the feature summary into a concrete MVP spec.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>docs/product/requirements.md</code></li>
+<li>Create: <code>docs/product/phased-roadmap.md</code></li>
+</ul>
+<p><strong>Deliverables:</strong></p>
+<ul>
+<li>MVP feature list</li>
+<li>non-goals</li>
+<li>personas: SRE, DBA, support engineer</li>
+<li>acceptance criteria per feature</li>
+<li>phase 2+ future items</li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Review doc covers every user-provided feature</li>
+<li>Review doc separates MVP vs future clearly</li>
+</ul>
+<h3 id="task-02-write-architecture-overview">Task 0.2: Write architecture overview<a href="#task-02-write-architecture-overview" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Freeze the initial system boundaries before implementation starts.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>docs/architecture/overview.md</code></li>
+<li>Create: <code>docs/architecture/database-observability.md</code></li>
+<li>Create: <code>docs/architecture/session-analysis.md</code></li>
+<li>Create: <code>docs/architecture/alerting.md</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Diagrams or structured sections cover ingest, store, analyze, present</li>
+<li>Each subsystem has responsibilities and interfaces</li>
+</ul>
+<h3 id="task-03-select-mvp-platform-choices">Task 0.3: Select MVP platform choices<a href="#task-03-select-mvp-platform-choices" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Avoid stalling later on infra debates.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Modify: <code>docs/architecture/overview.md</code></li>
+<li>Modify: <code>docs/product/requirements.md</code></li>
+</ul>
+<p><strong>Decisions to make:</strong></p>
+<ul>
+<li>API stack</li>
+<li>Web stack</li>
+<li>Metrics backend for MVP</li>
+<li>Log backend for MVP</li>
+<li>queue/job mechanism</li>
+<li>local dev topology</li>
+</ul>
+<p><strong>Open recommendation:</strong></p>
+<ul>
+<li>API: Go</li>
+<li>Web: React + TypeScript</li>
+<li>Jobs/cache: Redis-backed workers</li>
+<li>Metadata DB: PostgreSQL</li>
+<li>Metrics/logs: Prometheus + Loki</li>
+</ul>
+<hr>
+<h2 id="phase-1-repository-and-platform-bootstrap">Phase 1: Repository and platform bootstrap<a href="#phase-1-repository-and-platform-bootstrap" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-11-create-monorepo-scaffolding">Task 1.1: Create monorepo scaffolding<a href="#task-11-create-monorepo-scaffolding" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Establish a clean workspace layout.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>apps/api/</code></li>
+<li>Create: <code>apps/web/</code></li>
+<li>Create: <code>services/db-collector/</code></li>
+<li>Create: <code>services/otel-gateway/</code></li>
+<li>Create: <code>services/session-analyzer/</code></li>
+<li>Create: <code>services/reporting/</code></li>
+<li>Create: <code>packages/config-schema/</code></li>
+<li>Create: <code>packages/telemetry-contracts/</code></li>
+<li>Create: <code>tests/integration/</code></li>
+<li>Create: <code>tests/e2e/</code></li>
+<li>Create: <code>tests/performance/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Fresh clone boots local workspace successfully</li>
+</ul>
+<h3 id="task-12-add-local-infrastructure-stack">Task 1.2: Add local infrastructure stack<a href="#task-12-add-local-infrastructure-stack" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Make the system runnable in dev before app logic grows.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>infra/docker-compose.yml</code></li>
+<li>Create: <code>infra/grafana/</code></li>
+<li>Create: <code>infra/prometheus/</code></li>
+<li>Create: <code>infra/loki/</code></li>
+<li>Create: <code>infra/otel-collector/</code></li>
+<li>Create: <code>infra/alertmanager/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Local stack starts w/ metadata DB, metrics store, log store, Grafana, Alertmanager</li>
+<li>Health checks are documented in <code>docs/runbooks/local-dev.md</code></li>
+</ul>
+<h3 id="task-13-define-shared-schemascontracts">Task 1.3: Define shared schemas/contracts<a href="#task-13-define-shared-schemascontracts" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Prevent drift between services.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>packages/config-schema/</code></li>
+<li>Create: <code>packages/telemetry-contracts/</code></li>
+</ul>
+<p><strong>Schema subjects:</strong></p>
+<ul>
+<li>normalized metric naming</li>
+<li>environment/asset labels</li>
+<li>session event envelope</li>
+<li>alert evidence payload</li>
+<li>report payloads</li>
+</ul>
+<hr>
+<h2 id="phase-2-application-observability-mvp--outsystems-first">Phase 2: Application observability MVP — OutSystems first<a href="#phase-2-application-observability-mvp--outsystems-first" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-21-implement-outsystems-telemetry-source-management">Task 2.1: Implement OutSystems telemetry source management<a href="#task-21-implement-outsystems-telemetry-source-management" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Support onboarding OutSystems applications/environments before database collectors.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>apps/api/internal/applications/</code></li>
+<li>Create: <code>apps/api/internal/telemetrysources/</code></li>
+<li>Create: <code>apps/web/src/pages/applications/</code></li>
+<li>Create: <code>apps/web/src/pages/telemetry-sources/</code></li>
+<li>Test: <code>tests/integration/outsystems-sources/</code></li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Add/edit/disable an OutSystems telemetry source</li>
+<li>Associate source to application; derive environment from the application</li>
+<li>Validate required labels and ingest configuration</li>
+<li>Store only secret references, not raw credentials</li>
+</ul>
+<h3 id="task-22-implement-outsystems-normalization-contract">Task 2.2: Implement OutSystems normalization contract<a href="#task-22-implement-outsystems-normalization-contract" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Convert OutSystems logs/events into Heartbeat's canonical event model.</p>
+<p><strong>Normalization rule:</strong></p>
+<ul>
+<li>phase 1 must follow the default OutSystems log pattern first so current SRE monitoring and troubleshooting queries remain reusable</li>
+<li>if we discover improvements to the pattern or query model, document them and ask before changing the default mapping</li>
+<li>support both Traditional and Reactive OutSystems instances</li>
+</ul>
+<p><strong>Fields to normalize first:</strong></p>
+<ul>
+<li>environment</li>
+<li>application/module</li>
+<li>component/action/screen/API operation</li>
+<li>user/session/request identifiers</li>
+<li>client IP where available</li>
+<li>severity</li>
+<li>error fingerprint</li>
+<li>duration/latency</li>
+<li>host/node/runtime metadata</li>
+</ul>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>packages/telemetry-contracts/src/application_event.*</code></li>
+<li>Create: <code>services/otel-gateway/internal/parsers/outsystems/</code></li>
+<li>Create: <code>services/otel-gateway/internal/normalization/outsystems/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Parsed events contain consistent environment/application/session labels</li>
+<li>High-cardinality fields are kept out of Loki labels where possible</li>
+</ul>
+<h3 id="task-23-wire-outsystems-logsmetrics-into-loki-and-prometheus">Task 2.3: Wire OutSystems logs/metrics into Loki and Prometheus<a href="#task-23-wire-outsystems-logsmetrics-into-loki-and-prometheus" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Make application telemetry visible through Grafana stack.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>infra/otel-collector/collector.yaml</code></li>
+<li>Create: <code>infra/loki/</code></li>
+<li>Create: <code>infra/prometheus/prometheus.yml</code></li>
+<li>Create: <code>infra/prometheus/rules/outsystems-recording-rules.yml</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Sample OutSystems telemetry appears in Loki</li>
+<li>Derived/application metrics appear in Prometheus</li>
+<li>Grafana can query both</li>
+</ul>
+<h3 id="task-24-build-outsystems-dashboards-and-investigation-entry-points">Task 2.4: Build OutSystems dashboards and investigation entry points<a href="#task-24-build-outsystems-dashboards-and-investigation-entry-points" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Provide immediate application-level operator value.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>infra/grafana/dashboards/outsystems-overview.json</code></li>
+<li>Create: <code>infra/grafana/dashboards/outsystems-errors.json</code></li>
+<li>Create: <code>infra/grafana/dashboards/outsystems-latency.json</code></li>
+<li>Create: <code>infra/grafana/provisioning/dashboards/heartbeat.yaml</code></li>
+<li>Create: <code>infra/grafana/provisioning/datasources/*.yaml</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Dashboards load without manual setup</li>
+<li>Drill-down from application overview -&gt; errors/latency -&gt; Loki logs works</li>
+</ul>
+<hr>
+<h2 id="phase-3-database-observability-mvp--sql-server-second">Phase 3: Database observability MVP — SQL Server second<a href="#phase-3-database-observability-mvp--sql-server-second" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-31-implement-sql-server-connection-management">Task 3.1: Implement SQL Server connection management<a href="#task-31-implement-sql-server-connection-management" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Support secure target onboarding after application telemetry is in place.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/db-collector/internal/connectors/sqlserver/</code></li>
+<li>Create: <code>apps/api/internal/databasetargets/</code></li>
+<li>Create: <code>apps/web/src/pages/database-targets/</code></li>
+<li>Test: <code>tests/integration/sqlserver-targets/</code></li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Add/edit/disable a SQL Server target</li>
+<li>Validate credentials/network reachability safely</li>
+<li>Store secrets via secret provider reference, not plaintext where possible</li>
+</ul>
+<h3 id="task-32-implement-core-sql-server-metric-probes">Task 3.2: Implement core SQL Server metric probes<a href="#task-32-implement-core-sql-server-metric-probes" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Capture high-value DB signals after the application path is working.</p>
+<p><strong>Safety rule:</strong></p>
+<ul>
+<li>all production extraction queries must use non-blocking transaction patterns</li>
+<li>especially for queue-reading/extraction workflows, collector access must never block production processing</li>
+<li>query approach must be reviewed for lock behavior before rollout</li>
+</ul>
+<p><strong>Metric groups:</strong></p>
+<ul>
+<li>waits</li>
+<li>locks/blocking</li>
+<li>sessions/connections</li>
+<li>memory pressure</li>
+<li>disk/file usage</li>
+<li>throughput/latency</li>
+</ul>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/db-collector/internal/probes/sqlserver/waits/</code></li>
+<li>Create: <code>services/db-collector/internal/probes/sqlserver/locks/</code></li>
+<li>Create: <code>services/db-collector/internal/probes/sqlserver/sessions/</code></li>
+<li>Create: <code>services/db-collector/internal/probes/sqlserver/memory/</code></li>
+<li>Create: <code>services/db-collector/internal/probes/sqlserver/storage/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Probe outputs conform to shared metric schema</li>
+<li>Polling budgets and timeout guards exist</li>
+</ul>
+<h3 id="task-33-export-normalized-sql-server-metrics">Task 3.3: Export normalized SQL Server metrics<a href="#task-33-export-normalized-sql-server-metrics" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Make SQL Server metrics usable by Grafana/Alertmanager.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/db-collector/internal/export/</code></li>
+<li>Create: <code>infra/prometheus/prometheus.yml</code></li>
+<li>Create: <code>infra/prometheus/rules/sqlserver-recording-rules.yml</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Prometheus scrapes collector</li>
+<li>Grafana can graph normalized metrics</li>
+</ul>
+<h3 id="task-34-build-sql-server-dashboards">Task 3.4: Build SQL Server dashboards<a href="#task-34-build-sql-server-dashboards" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Provide database deep-dive value after OutSystems visibility exists.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>infra/grafana/dashboards/sqlserver-overview.json</code></li>
+<li>Create: <code>infra/grafana/dashboards/sqlserver-waits-and-locks.json</code></li>
+<li>Create: <code>infra/grafana/dashboards/sqlserver-sessions.json</code></li>
+<li>Create: <code>infra/grafana/provisioning/dashboards/heartbeat.yaml</code></li>
+<li>Create: <code>infra/grafana/provisioning/datasources/*.yaml</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Dashboards load without manual setup</li>
+<li>Drill-down from overview -&gt; waits/locks -&gt; sessions works</li>
+</ul>
+<hr>
+<h2 id="phase-4-generic-otlp-and-additional-log-sources">Phase 4: Generic OTLP and additional log sources<a href="#phase-4-generic-otlp-and-additional-log-sources" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-41-harden-otlp-gateway">Task 4.1: Harden OTLP gateway<a href="#task-41-harden-otlp-gateway" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Accept metrics/logs from external systems using standard protocols after OutSystems path is proven.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Modify: <code>services/otel-gateway/</code></li>
+<li>Modify: <code>infra/otel-collector/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Test emitter can send OTLP metrics/logs</li>
+<li>Events are normalized and routed correctly</li>
+</ul>
+<h3 id="task-42-add-next-source-normalization">Task 4.2: Add next source normalization<a href="#task-42-add-next-source-normalization" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Extend normalization beyond OutSystems only when MVP value is proven.</p>
+<p><strong>Inputs to support next:</strong></p>
+<ul>
+<li>generic OTLP</li>
+<li>MuleSoft log format</li>
+<li>generic JSON/plaintext inputs</li>
+</ul>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/otel-gateway/internal/parsers/mulesoft/</code></li>
+<li>Create: <code>services/otel-gateway/internal/normalization/generic/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Parsed events contain consistent environment/service/session labels</li>
+</ul>
+<h3 id="task-43-wire-loki-log-viewssearch">Task 4.3: Wire Loki log views/search<a href="#task-43-wire-loki-log-viewssearch" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Support operational investigation workflows through Grafana/Loki.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>infra/loki/</code></li>
+<li>Create: <code>apps/api/internal/logsearch/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Search by time range, environment, service, user, IP where fields are present</li>
+<li>Saved query/deep-link support exists</li>
+</ul>
+<hr>
+<h2 id="phase-5-session-analysis">Phase 5: Session analysis<a href="#phase-5-session-analysis" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-51-define-session-correlation-model">Task 5.1: Define session correlation model<a href="#task-51-define-session-correlation-model" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Turn user/IP/time-range requests into deterministic queries.</p>
+<p><strong>Persistence rule:</strong> Do not create a PostgreSQL session table or session identity mapping table. Session correlation is computed from Loki/Prometheus at investigation time.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>docs/architecture/session-analysis.md</code></li>
+<li>Create: <code>packages/telemetry-contracts/src/session.*</code></li>
+</ul>
+<p><strong>Correlation dimensions:</strong></p>
+<ul>
+<li>environment</li>
+<li>user id</li>
+<li>IP</li>
+<li>request/session ids</li>
+<li>host/service/component</li>
+<li>time windows</li>
+</ul>
+<h3 id="task-52-build-investigation-api">Task 5.2: Build investigation API<a href="#task-52-build-investigation-api" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Expose the session analysis workflow.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>apps/api/internal/investigations/</code></li>
+<li>Test: <code>tests/integration/investigations/</code></li>
+</ul>
+<p><strong>Key endpoints:</strong></p>
+<ul>
+<li>create investigation query</li>
+<li>fetch correlated logs/metrics/events</li>
+<li>fetch anomaly summary</li>
+<li>fetch evidence links</li>
+</ul>
+<h3 id="task-53-build-session-investigation-ui">Task 5.3: Build session investigation UI<a href="#task-53-build-session-investigation-ui" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Let SREs discover issues quickly.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>apps/web/src/pages/investigations/</code></li>
+<li>Create: <code>apps/web/src/components/session-analysis/</code></li>
+<li>Test: <code>tests/e2e/session-analysis/</code></li>
+</ul>
+<p><strong>Required UX:</strong></p>
+<ul>
+<li>filter by application + user/IP + time range</li>
+<li>render event timeline</li>
+<li>highlight anomaly windows</li>
+<li>link out to Grafana/Loki</li>
+</ul>
+<hr>
+<h2 id="phase-6-alerting-and-adaptive-telemetry">Phase 6: Alerting and adaptive telemetry<a href="#phase-6-alerting-and-adaptive-telemetry" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-61-implement-static-alert-policy-provisioning">Task 6.1: Implement static alert policy provisioning<a href="#task-61-implement-static-alert-policy-provisioning" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Store Heartbeat alert policy intent and render executable rules to Prometheus/Alertmanager instead of evaluating alerts in PostgreSQL.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>apps/api/internal/alerts/</code></li>
+<li>Create: <code>apps/api/internal/rulerendering/</code></li>
+<li>Create: <code>infra/alertmanager/alertmanager.yml</code></li>
+<li>Create: <code>infra/prometheus/rules/*.yml</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Heartbeat policy is persisted in PostgreSQL</li>
+<li>executable rule is rendered/provisioned into Prometheus</li>
+<li>Alertmanager handles grouping/routing/delivery</li>
+<li>Hard-limit rules trigger, route, dedupe, resolve correctly</li>
+</ul>
+<h3 id="task-62-implement-adaptive-baseline-calculation-v1">Task 6.2: Implement adaptive baseline calculation v1<a href="#task-62-implement-adaptive-baseline-calculation-v1" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Reduce alert noise for variable workloads while keeping live evaluation in Prometheus-compatible rules.</p>
+<p><strong>Approach:</strong></p>
+<ul>
+<li>start simple: rolling median + MAD or EWMA bands</li>
+<li>compute per metric/application/period class</li>
+<li>store baseline parameters/version metadata in PostgreSQL</li>
+<li>render executable thresholds/rules to Prometheus-compatible rule definitions</li>
+<li>never replace hard guardrails</li>
+</ul>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/session-analyzer/internal/baselines/</code></li>
+<li>Create: <code>apps/api/internal/adaptivealerting/</code></li>
+<li>Test: <code>tests/integration/adaptive-alerting/</code></li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul>
+<li>Baselines are explainable</li>
+<li>Outlier events are reproducible and auditable</li>
+<li>Alert suppression rules do not hide critical issues</li>
+</ul>
+<h3 id="task-63-implement-adaptive-telemetry-controls">Task 6.3: Implement adaptive telemetry controls<a href="#task-63-implement-adaptive-telemetry-controls" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Increase sampling/detail only when signals justify it.</p>
+<p><strong>Design hint:</strong></p>
+<ul>
+<li>telemetry profiles by asset/environment</li>
+<li>escalation on anomalies or incident mode</li>
+<li>cooldown back to normal collection rates</li>
+</ul>
+<p><strong>Risk:</strong></p>
+<ul>
+<li>extra collection must not amplify DB load during incidents</li>
+</ul>
+<hr>
+<h2 id="phase-7-reporting-and-integrations">Phase 7: Reporting and integrations<a href="#phase-7-reporting-and-integrations" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-71-implement-report-templates-and-schedules">Task 7.1: Implement report templates and schedules<a href="#task-71-implement-report-templates-and-schedules" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Deliver recurring operational summaries.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li>Create: <code>services/reporting/internal/templates/</code></li>
+<li>Create: <code>services/reporting/internal/jobs/</code></li>
+<li>Create: <code>apps/api/internal/reports/</code></li>
+<li>Create: <code>apps/web/src/pages/reports/</code></li>
+</ul>
+<p><strong>Report sections:</strong></p>
+<ul>
+<li>environment health summary</li>
+<li>top alerts / noisy alerts</li>
+<li>wait-event regressions</li>
+<li>lock hotspots</li>
+<li>SLA/SLO deltas if available</li>
+</ul>
+<h3 id="task-72-deliver-reports-and-artifacts">Task 7.2: Deliver reports and artifacts<a href="#task-72-deliver-reports-and-artifacts" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Make reports usable outside the app.</p>
+<p><strong>Delivery options:</strong></p>
+<ul>
+<li>email</li>
+<li>downloadable HTML/PDF/CSV</li>
+<li>object storage retention</li>
+</ul>
+<h3 id="task-73-harden-grafana-and-loki-integrations">Task 7.3: Harden Grafana and Loki integrations<a href="#task-73-harden-grafana-and-loki-integrations" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Turn integrations into productized features.</p>
+<p><strong>Features:</strong></p>
+<ul>
+<li>integration config validation from YAML</li>
+<li>datasource validation</li>
+<li>deep links</li>
+<li>permission-aware sharing</li>
+</ul>
+<hr>
+<h2 id="phase-8-security-reliability-and-operability">Phase 8: Security, reliability, and operability<a href="#phase-8-security-reliability-and-operability" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="task-81-add-authnauthz-and-audit-logging">Task 8.1: Add authn/authz and audit logging<a href="#task-81-add-authnauthz-and-audit-logging" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Secure operator access and trace changes.</p>
+<p><strong>Files likely:</strong></p>
+<ul>
+<li><code>apps/api/internal/auth/</code></li>
+<li><code>apps/api/internal/audit/</code></li>
+<li><code>apps/web/src/pages/admin/</code></li>
+</ul>
+<h3 id="task-82-add-rate-limits-and-query-budgets">Task 8.2: Add rate limits and query budgets<a href="#task-82-add-rate-limits-and-query-budgets" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Protect monitored databases and shared infra.</p>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>max polling concurrency per target</li>
+<li>timeout caps</li>
+<li>query allowlists/versioning</li>
+<li>backoff on failures</li>
+</ul>
+<h3 id="task-83-add-service-health-and-runbooks">Task 8.3: Add service health and runbooks<a href="#task-83-add-service-health-and-runbooks" class="anchor" title="Link to this section">#</a></h3>
+<p><strong>Objective:</strong> Make Heartbeat operable by SRE teams.</p>
+<p><strong>Files:</strong></p>
+<ul>
+<li>Create: <code>docs/runbooks/local-dev.md</code></li>
+<li>Create: <code>docs/runbooks/sqlserver-onboarding.md</code></li>
+<li>Create: <code>docs/runbooks/alert-tuning.md</code></li>
+</ul>
+<hr>
+<h2 id="8-files-likely-to-change-in-implementation">8. Files likely to change in implementation<a href="#8-files-likely-to-change-in-implementation" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="productdocs">Product/docs<a href="#productdocs" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>README.md</code></li>
+<li><code>docs/product/requirements.md</code></li>
+<li><code>docs/product/phased-roadmap.md</code></li>
+<li><code>docs/architecture/overview.md</code></li>
+<li><code>docs/architecture/database-observability.md</code></li>
+<li><code>docs/architecture/session-analysis.md</code></li>
+<li><code>docs/architecture/alerting.md</code></li>
+<li><code>docs/runbooks/*.md</code></li>
+</ul>
+<h3 id="apiui">API/UI<a href="#apiui" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>apps/api/internal/**</code></li>
+<li><code>apps/web/src/pages/**</code></li>
+<li><code>apps/web/src/components/**</code></li>
+</ul>
+<h3 id="services">Services<a href="#services" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>services/db-collector/internal/**</code></li>
+<li><code>services/otel-gateway/internal/**</code></li>
+<li><code>services/session-analyzer/internal/**</code></li>
+<li><code>services/reporting/internal/**</code></li>
+</ul>
+<h3 id="shared-packages">Shared packages<a href="#shared-packages" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>packages/config-schema/src/**</code></li>
+<li><code>packages/telemetry-contracts/src/**</code></li>
+</ul>
+<h3 id="infra">Infra<a href="#infra" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>infra/docker-compose.yml</code></li>
+<li><code>infra/k8s/**</code></li>
+<li><code>infra/prometheus/**</code></li>
+<li><code>infra/grafana/**</code></li>
+<li><code>infra/loki/**</code></li>
+<li><code>infra/otel-collector/**</code></li>
+<li><code>infra/alertmanager/**</code></li>
+</ul>
+<h3 id="tests">Tests<a href="#tests" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li><code>tests/integration/**</code></li>
+<li><code>tests/e2e/**</code></li>
+<li><code>tests/performance/**</code></li>
+</ul>
+<hr>
+<h2 id="9-test-and-validation-strategy">9. Test and validation strategy<a href="#9-test-and-validation-strategy" class="anchor" title="Link to this section">#</a></h2>
+<h2 id="91-unit-tests">9.1 Unit tests<a href="#91-unit-tests" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>SQL normalization logic</li>
+<li>metric labeling/schema validation</li>
+<li>adaptive threshold calculations</li>
+<li>session correlation rules</li>
+<li>report rendering logic</li>
+</ul>
+<h2 id="92-integration-tests">9.2 Integration tests<a href="#92-integration-tests" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>collector -&gt; metrics backend</li>
+<li>OTLP ingest -&gt; normalized store</li>
+<li>API -&gt; metadata DB</li>
+<li>alert rules -&gt; Alertmanager routing</li>
+<li>investigation query -&gt; logs + metrics evidence assembly</li>
+</ul>
+<h2 id="93-end-to-end-tests">9.3 End-to-end tests<a href="#93-end-to-end-tests" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>onboard OutSystems telemetry source</li>
+<li>ingest sample OutSystems logs/events</li>
+<li>see application health in Grafana</li>
+<li>investigate by user/IP/time range</li>
+<li>onboard SQL Server target as second capability</li>
+<li>trigger alert</li>
+<li>generate/download report</li>
+</ul>
+<h2 id="94-performance--resilience-tests">9.4 Performance / resilience tests<a href="#94-performance--resilience-tests" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>high-cardinality telemetry labels</li>
+<li>slow or unreachable SQL Server targets</li>
+<li>burst log ingestion</li>
+<li>alert storm conditions</li>
+<li>storage retention pressure</li>
+</ul>
+<h2 id="95-mvp-exit-criteria">9.5 MVP exit criteria<a href="#95-mvp-exit-criteria" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>One OutSystems application/environment can be onboarded end-to-end</li>
+<li>SRE can see application health, errors, latency, and correlated Loki logs in Grafana</li>
+<li>Session analysis returns useful correlated evidence for a real OutSystems incident sample</li>
+<li>SQL Server collector is implemented as second capability or at least fully designed and ready for implementation</li>
+<li>Static + adaptive alerting both function and are auditable</li>
+<li>Weekly report runs automatically and exports successfully</li>
+</ul>
+<hr>
+<h2 id="10-risks-tradeoffs-open-questions">10. Risks, tradeoffs, open questions<a href="#10-risks-tradeoffs-open-questions" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="risks">Risks<a href="#risks" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>OutSystems telemetry quality may vary by deployment/version and available export paths</li>
+<li>Session analysis can become fuzzy if source systems lack stable correlation ids</li>
+<li>Loki requires careful label design; high-cardinality user/session/IP labels can damage performance</li>
+<li>Database-specific observability can sprawl fast -&gt; keep SQL Server second and focused</li>
+<li>Adaptive alerting can degrade trust if it is opaque</li>
+<li>Building both a UI and deep integrations can spread the team thin</li>
+</ul>
+<h3 id="tradeoffs">Tradeoffs<a href="#tradeoffs" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Grafana/Loki reuse =&gt; faster delivery, less custom UI/search freedom</li>
+<li>OutSystems-first priority =&gt; faster application value, but delays DB observability proof</li>
+<li>SQL polling =&gt; strong DB insights, but query safety/load management is critical</li>
+<li>OTel-first =&gt; interoperability, but upstream data quality may vary a lot</li>
+</ul>
+<h3 id="open-questions">Open questions<a href="#open-questions" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>Which OutSystems version/deployment model is phase 1 targeting?</li>
+<li>What OutSystems telemetry export paths are available today?</li>
+<li>Which user/session/request identifiers are reliably present in OutSystems logs?</li>
+<li>Do we need traces in MVP or only metrics/logs?</li>
+<li>Do reports need email delivery in MVP or is in-app download enough?</li>
+<li>What auth model is required: local RBAC, SSO/OIDC, or both?</li>
+<li>What scale should MVP target: number of environments, apps, daily log volume, retention?</li>
+<li>Is SQL Server definitely the only phase-2 DB engine?</li>
+</ul>
+<hr>
+<h2 id="11-recommended-delivery-order">11. Recommended delivery order<a href="#11-recommended-delivery-order" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li>Requirements + architecture docs</li>
+<li>Repo bootstrap + local infra</li>
+<li>PostgreSQL schema + migrations for environments, applications, telemetry sources, investigations, alerts, reports</li>
+<li>OutSystems telemetry source onboarding</li>
+<li>OutSystems normalization + Loki/Prometheus ingestion</li>
+<li>Grafana dashboards for OutSystems application health</li>
+<li>SQL Server collector + normalized metrics</li>
+<li>SQL Server Grafana dashboards</li>
+<li>Session investigation API/UI</li>
+<li>Static alert policy provisioning to Prometheus/Alertmanager</li>
+<li>Adaptive baseline calculation v1</li>
+<li>Reporting</li>
+<li>Security/operability hardening</li>
+<li>Generic OTLP/MuleSoft/additional sources after the OutSystems + SQL Server paths are proven</li>
+</ol>
+<p>This order gets operator value early through application observability, then adds SQL Server coverage as the second priority, then expands correlation, alerting, reporting, and additional sources.</p>
+<hr>
+<h2 id="12-suggested-first-milestone">12. Suggested first milestone<a href="#12-suggested-first-milestone" class="anchor" title="Link to this section">#</a></h2>
+<p><strong>Milestone: OutSystems Application Observability Slice</strong></p>
+<ul>
+<li>onboard one OutSystems application/environment</li>
+<li>ingest representative logs/events/metrics</li>
+<li>normalize user/session/request identifiers</li>
+<li>store metadata in PostgreSQL</li>
+<li>route logs to Loki and derived metrics to Prometheus</li>
+<li>visualize health/errors/latency in Grafana</li>
+<li>run one user/IP/time-range investigation</li>
+<li>document onboarding + Loki label rules</li>
+</ul>
+<p>If this slice is weak, the application-first product thesis is weak. If it is strong, SQL Server observability becomes a powerful second layer instead of the only initial value proposition.</p>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/archive/2026-05-30-mvp-implementation-plan.md"><code>docs/archive/2026-05-30-mvp-implementation-plan.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#1-goal-and-product-scope">1. Goal and product scope</a></li>
+      <li class="toc-h3"><a href="#mvp-outcomes">MVP outcomes</a></li>
+      <li class="toc-h3"><a href="#explicit-non-goals-for-mvp">Explicit non-goals for MVP</a></li>
+      <li class="toc-h2"><a href="#2-current-context--assumptions">2. Current context / assumptions</a></li>
+      <li class="toc-h2"><a href="#3-proposed-high-level-architecture">3. Proposed high-level architecture</a></li>
+      <li class="toc-h3"><a href="#31-core-subsystems">3.1 Core subsystems</a></li>
+      <li class="toc-h3"><a href="#32-recommended-mvp-topology">3.2 Recommended MVP topology</a></li>
+      <li class="toc-h3"><a href="#33-integration-posture">3.3 Integration posture</a></li>
+      <li class="toc-h3"><a href="#34-core-system-decisions-for-mvp">3.4 Core system decisions for MVP</a></li>
+      <li class="toc-h3"><a href="#35-refined-service-architecture">3.5 Refined service architecture</a></li>
+      <li class="toc-h3"><a href="#36-data-flow-architecture">3.6 Data-flow architecture</a></li>
+      <li class="toc-h3"><a href="#37-refined-postgresql-persistence-model">3.7 Refined PostgreSQL persistence model</a></li>
+      <li class="toc-h3"><a href="#38-architectural-guardrails">3.8 Architectural guardrails</a></li>
+      <li class="toc-h3"><a href="#39-pre-implementation-review-findings-and-refinements">3.9 Pre-implementation review findings and refinements</a></li>
+      <li class="toc-h2"><a href="#4-recommended-repo-layout">4. Recommended repo layout</a></li>
+      <li class="toc-h3"><a href="#go-backend-layout-rule">Go backend layout rule</a></li>
+      <li class="toc-h2"><a href="#5-domain-model-to-design-early">5. Domain model to design early</a></li>
+      <li class="toc-h3"><a href="#primary-postgresql-entities">Primary PostgreSQL entities</a></li>
+      <li class="toc-h3"><a href="#non-postgresql-mvp-configstate">Non-PostgreSQL MVP config/state</a></li>
+      <li class="toc-h3"><a href="#key-relationships">Key relationships</a></li>
+      <li class="toc-h2"><a href="#6-mvp-feature-breakdown">6. MVP feature breakdown</a></li>
+      <li class="toc-h3"><a href="#61-application-observability--outsystems-first">6.1 Application observability / OutSystems-first</a></li>
+      <li class="toc-h3"><a href="#62-database-full-coverage-observability">6.2 Database full-coverage observability</a></li>
+      <li class="toc-h3"><a href="#63-end-to-end-telemetry-and-logs">6.3 End-to-end telemetry and logs</a></li>
+      <li class="toc-h3"><a href="#64-session-analysis">6.4 Session analysis</a></li>
+      <li class="toc-h3"><a href="#65-grafana--loki-integration">6.5 Grafana / Loki integration</a></li>
+      <li class="toc-h3"><a href="#66-alerting">6.6 Alerting</a></li>
+      <li class="toc-h3"><a href="#67-reporting">6.7 Reporting</a></li>
+      <li class="toc-h2"><a href="#7-phased-implementation-plan">7. Phased implementation plan</a></li>
+      <li class="toc-h2"><a href="#phase-0-requirements-and-architecture-baseline">Phase 0: Requirements and architecture baseline</a></li>
+      <li class="toc-h3"><a href="#task-01-write-product-requirements-document">Task 0.1: Write product requirements document</a></li>
+      <li class="toc-h3"><a href="#task-02-write-architecture-overview">Task 0.2: Write architecture overview</a></li>
+      <li class="toc-h3"><a href="#task-03-select-mvp-platform-choices">Task 0.3: Select MVP platform choices</a></li>
+      <li class="toc-h2"><a href="#phase-1-repository-and-platform-bootstrap">Phase 1: Repository and platform bootstrap</a></li>
+      <li class="toc-h3"><a href="#task-11-create-monorepo-scaffolding">Task 1.1: Create monorepo scaffolding</a></li>
+      <li class="toc-h3"><a href="#task-12-add-local-infrastructure-stack">Task 1.2: Add local infrastructure stack</a></li>
+      <li class="toc-h3"><a href="#task-13-define-shared-schemascontracts">Task 1.3: Define shared schemas/contracts</a></li>
+      <li class="toc-h2"><a href="#phase-2-application-observability-mvp--outsystems-first">Phase 2: Application observability MVP — OutSystems first</a></li>
+      <li class="toc-h3"><a href="#task-21-implement-outsystems-telemetry-source-management">Task 2.1: Implement OutSystems telemetry source management</a></li>
+      <li class="toc-h3"><a href="#task-22-implement-outsystems-normalization-contract">Task 2.2: Implement OutSystems normalization contract</a></li>
+      <li class="toc-h3"><a href="#task-23-wire-outsystems-logsmetrics-into-loki-and-prometheus">Task 2.3: Wire OutSystems logs/metrics into Loki and Prometheus</a></li>
+      <li class="toc-h3"><a href="#task-24-build-outsystems-dashboards-and-investigation-entry-points">Task 2.4: Build OutSystems dashboards and investigation entry points</a></li>
+      <li class="toc-h2"><a href="#phase-3-database-observability-mvp--sql-server-second">Phase 3: Database observability MVP — SQL Server second</a></li>
+      <li class="toc-h3"><a href="#task-31-implement-sql-server-connection-management">Task 3.1: Implement SQL Server connection management</a></li>
+      <li class="toc-h3"><a href="#task-32-implement-core-sql-server-metric-probes">Task 3.2: Implement core SQL Server metric probes</a></li>
+      <li class="toc-h3"><a href="#task-33-export-normalized-sql-server-metrics">Task 3.3: Export normalized SQL Server metrics</a></li>
+      <li class="toc-h3"><a href="#task-34-build-sql-server-dashboards">Task 3.4: Build SQL Server dashboards</a></li>
+      <li class="toc-h2"><a href="#phase-4-generic-otlp-and-additional-log-sources">Phase 4: Generic OTLP and additional log sources</a></li>
+      <li class="toc-h3"><a href="#task-41-harden-otlp-gateway">Task 4.1: Harden OTLP gateway</a></li>
+      <li class="toc-h3"><a href="#task-42-add-next-source-normalization">Task 4.2: Add next source normalization</a></li>
+      <li class="toc-h3"><a href="#task-43-wire-loki-log-viewssearch">Task 4.3: Wire Loki log views/search</a></li>
+      <li class="toc-h2"><a href="#phase-5-session-analysis">Phase 5: Session analysis</a></li>
+      <li class="toc-h3"><a href="#task-51-define-session-correlation-model">Task 5.1: Define session correlation model</a></li>
+      <li class="toc-h3"><a href="#task-52-build-investigation-api">Task 5.2: Build investigation API</a></li>
+      <li class="toc-h3"><a href="#task-53-build-session-investigation-ui">Task 5.3: Build session investigation UI</a></li>
+      <li class="toc-h2"><a href="#phase-6-alerting-and-adaptive-telemetry">Phase 6: Alerting and adaptive telemetry</a></li>
+      <li class="toc-h3"><a href="#task-61-implement-static-alert-policy-provisioning">Task 6.1: Implement static alert policy provisioning</a></li>
+      <li class="toc-h3"><a href="#task-62-implement-adaptive-baseline-calculation-v1">Task 6.2: Implement adaptive baseline calculation v1</a></li>
+      <li class="toc-h3"><a href="#task-63-implement-adaptive-telemetry-controls">Task 6.3: Implement adaptive telemetry controls</a></li>
+      <li class="toc-h2"><a href="#phase-7-reporting-and-integrations">Phase 7: Reporting and integrations</a></li>
+      <li class="toc-h3"><a href="#task-71-implement-report-templates-and-schedules">Task 7.1: Implement report templates and schedules</a></li>
+      <li class="toc-h3"><a href="#task-72-deliver-reports-and-artifacts">Task 7.2: Deliver reports and artifacts</a></li>
+      <li class="toc-h3"><a href="#task-73-harden-grafana-and-loki-integrations">Task 7.3: Harden Grafana and Loki integrations</a></li>
+      <li class="toc-h2"><a href="#phase-8-security-reliability-and-operability">Phase 8: Security, reliability, and operability</a></li>
+      <li class="toc-h3"><a href="#task-81-add-authnauthz-and-audit-logging">Task 8.1: Add authn/authz and audit logging</a></li>
+      <li class="toc-h3"><a href="#task-82-add-rate-limits-and-query-budgets">Task 8.2: Add rate limits and query budgets</a></li>
+      <li class="toc-h3"><a href="#task-83-add-service-health-and-runbooks">Task 8.3: Add service health and runbooks</a></li>
+      <li class="toc-h2"><a href="#8-files-likely-to-change-in-implementation">8. Files likely to change in implementation</a></li>
+      <li class="toc-h3"><a href="#productdocs">Product/docs</a></li>
+      <li class="toc-h3"><a href="#apiui">API/UI</a></li>
+      <li class="toc-h3"><a href="#services">Services</a></li>
+      <li class="toc-h3"><a href="#shared-packages">Shared packages</a></li>
+      <li class="toc-h3"><a href="#infra">Infra</a></li>
+      <li class="toc-h3"><a href="#tests">Tests</a></li>
+      <li class="toc-h2"><a href="#9-test-and-validation-strategy">9. Test and validation strategy</a></li>
+      <li class="toc-h2"><a href="#91-unit-tests">9.1 Unit tests</a></li>
+      <li class="toc-h2"><a href="#92-integration-tests">9.2 Integration tests</a></li>
+      <li class="toc-h2"><a href="#93-end-to-end-tests">9.3 End-to-end tests</a></li>
+      <li class="toc-h2"><a href="#94-performance--resilience-tests">9.4 Performance / resilience tests</a></li>
+      <li class="toc-h2"><a href="#95-mvp-exit-criteria">9.5 MVP exit criteria</a></li>
+      <li class="toc-h2"><a href="#10-risks-tradeoffs-open-questions">10. Risks, tradeoffs, open questions</a></li>
+      <li class="toc-h3"><a href="#risks">Risks</a></li>
+      <li class="toc-h3"><a href="#tradeoffs">Tradeoffs</a></li>
+      <li class="toc-h3"><a href="#open-questions">Open questions</a></li>
+      <li class="toc-h2"><a href="#11-recommended-delivery-order">11. Recommended delivery order</a></li>
+      <li class="toc-h2"><a href="#12-suggested-first-milestone">12. Suggested first milestone</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html" aria-current="page">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0017-an-outsystems-11-telemetry-source-maps-an-application-to-its-log-identity-the-extraction-collector-stays-in-yaml">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML<a href="#0017-an-outsystems-11-telemetry-source-maps-an-application-to-its-log-identity-the-extraction-collector-stays-in-yaml" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-10-27</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>Phase 3 registers telemetry sources through the API [4.4], and its exit
+registers PatientZero with its source. What exists:</p>
+<ul>
+<li><code>telemetry_sources</code> rows belong to one application (<code>application_id not null</code>), with <code>source_type</code>, <code>ingest_mode</code> (<code>otlp</code>, <code>file</code>, <code>api</code> or
+<code>agentless</code>) and a <code>config</code> JSON object; the environment is derived through
+the application (<a href="../data-model.html">data model</a>).</li>
+<li>OutSystems 11 self-managed keeps every application's logs in one logging
+database per installation. One <code>outsystems_logs</code> collector reads all of it,
+sets <code>service.name</code> from each row's <code>Application_Name</code> and
+<code>deployment.environment.name</code> from its own <code>environment</code> setting
+(<a href="0008-outsystems-11-log-extraction.html">ADR 0008</a>; example in
+<code>infra/helm/values/production.example.yaml</code>). Its settings (log types,
+<code>lag</code>, <code>batch_limit</code>, time zone, the logging database and its credential)
+belong to the installation, not to an application.</li>
+<li><a href="0014-probe-assignments-to-runtime-config.html">ADR 0014</a> renders approved
+probe assignments into <code>sqlserver</code> collectors. It says nothing about
+<code>outsystems_logs</code>.</li>
+<li>What the API and later workers need from a source is which telemetry
+belongs to an application: deep links [4.9], investigations [6], alert
+policies [13] and reports [14] all filter Loki and Prometheus by
+<code>service.name</code> and <code>deployment.environment.name</code>.</li>
+</ul>
+<p>So a source per application can't own an extraction collector: two
+applications on one installation would read the same database twice.</p>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>A source is an identity mapping.</strong> An OutSystems 11 source is
+<code>source_type = outsystems</code>, <code>ingest_mode = agentless</code> (Heartbeat reads the
+logging database; nothing is installed on the platform), with <code>config</code>
+holding <code>application_name</code>: the OutSystems <code>Application_Name</code>, which is the
+<code>service.name</code> of its logs and the application label of its derived
+metrics. The API validates <code>config</code> against a JSON Schema per source type
+in <code>packages/config-schema</code>. No migration.</li>
+<li><strong>One path for the environment.</strong> The source has no environment of its
+own; it is its application's. The environment's <code>slug</code> must equal the
+extraction collector's <code>environment</code>, the logs'
+<code>deployment.environment.name</code>. Within an environment, an <code>application_name</code>
+maps to one application.</li>
+<li><strong>The extraction collector stays in YAML.</strong> One <code>outsystems_logs</code>
+collector per installation, hand-written in the environment's values and
+reviewed there (<a href="0002-runtime-config-in-yaml.html">ADR 0002</a>). Installations
+change rarely; applications change often, and the API manages those.</li>
+<li><strong>The API checks the mapping is observed.</strong> Using the same read-only
+access to the collector's redacted <code>GET /admin/config</code> as ADR 0014's
+<code>applied</code> check, the API shows whether an enabled <code>outsystems_logs</code>
+collector reports the source's environment. A source can be registered
+before extraction is set up; the check reports it, it doesn't block it.</li>
+<li><strong>OTLP sources map the same way.</strong> OutSystems Cloud and ODC, and other
+OTLP sources [3.4], send <code>service.name</code> themselves; their source carries
+the same <code>application_name</code>, with <code>ingest_mode = otlp</code>.</li>
+</ol>
+<p>Considered and not chosen:</p>
+<ul>
+<li><strong>The API renders the <code>outsystems_logs</code> collector too.</strong> The logging
+database would become a database target, the log types probe definitions
+assigned to it, and ADR 0014's renderer would emit an <code>outsystems_logs</code>
+collector for them. One onboarding path, but more renderer and state for
+something set up once per installation. Revisit, in a new record, if
+installations are onboarded from the UI [10.1].</li>
+<li><strong>One collector per source.</strong> Reads the same logging database once per
+application.</li>
+<li><strong>Match applications by name</strong>, with no mapping. Display names and
+OutSystems <code>Application_Name</code> differ, and renaming either breaks the link.</li>
+</ul>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>Registering an OutSystems application is metadata only: no pull request,
+no reload. Adding an installation is a values change, as today.</li>
+<li>The data model's example for <code>telemetry_sources</code> changes from <code>ingest_mode = api</code> with <code>log_labels</code> to <code>agentless</code> with <code>application_name</code>.</li>
+<li>Deep links, and later investigations, alerts and reports, filter by the
+source's <code>application_name</code> and the environment's <code>slug</code>.</li>
+<li>An <code>application_name</code> that matches no logs shows nothing; the observed
+check covers the collector, not the name. Checking the name against Loki
+would need the API to query telemetry, which waits for the adapters
+investigations need [6].</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md"><code>docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

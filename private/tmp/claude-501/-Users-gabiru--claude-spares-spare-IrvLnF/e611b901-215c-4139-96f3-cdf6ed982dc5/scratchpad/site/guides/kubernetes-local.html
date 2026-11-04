@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>Kubernetes Delivery (Helm on kind) · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css?v=8486b06a573b">
+<script defer src="../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../architecture/overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="local-development.html">Local development</a>
+          </li>
+          <li><a href="kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="live-demo.html">Live demo</a>
+          </li>
+          <li><a href="kubernetes-local.html" aria-current="page">Kubernetes delivery</a>
+          </li>
+          <li><a href="../architecture/data-model.html">Data model</a>
+          </li>
+          <li><a href="../architecture/database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="../architecture/decisions/index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="../architecture/decisions/0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="../architecture/decisions/0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="../architecture/decisions/0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="../architecture/decisions/0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="../architecture/decisions/0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="../architecture/decisions/0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="../architecture/decisions/0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="../architecture/decisions/0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="../architecture/decisions/0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="../architecture/decisions/0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../architecture/application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../architecture/workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#layout">Layout</a></li>
+        <li class="toc-h2"><a href="#what-the-chart-deploys">What the chart deploys</a></li>
+        <li class="toc-h2"><a href="#network-access">Network access</a></li>
+        <li class="toc-h2"><a href="#secrets">Secrets</a></li>
+        <li class="toc-h2"><a href="#images">Images</a></li>
+        <li class="toc-h2"><a href="#the-cluster">The cluster</a></li>
+        <li class="toc-h2"><a href="#working-with-it">Working with it</a></li>
+        <li class="toc-h2"><a href="#production">Production</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="kubernetes-delivery-helm-on-kind">Kubernetes Delivery (Helm on kind)<a href="#kubernetes-delivery-helm-on-kind" class="anchor" title="Link to this section">#</a></h1>
+<p>Heartbeat is packaged as one Helm chart, used unchanged for kind, CI and
+production with environment-specific values
+(<a href="../architecture/decisions/0003-helm-on-kind-and-production.html">ADR 0003</a>,
+<a href="../architecture/decisions/0005-production-delivery-and-operations-defaults.html">ADR 0005</a>).
+To just run it, see <a href="local-development.html">local development</a>. This page
+explains what is deployed and how to work with it.</p>
+<h2 id="layout">Layout<a href="#layout" class="anchor" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infra/helm/heartbeat/</code></td>
+<td>The chart: Heartbeat templates, <code>values.yaml</code> defaults, <code>values.schema.json</code>, <code>Chart.yaml</code>/<code>Chart.lock</code></td>
+</tr>
+<tr>
+<td><code>infra/helm/heartbeat/files/</code></td>
+<td>Prometheus rules (and their promtool tests) and Grafana dashboards, shipped as ConfigMaps</td>
+</tr>
+<tr>
+<td><code>infra/helm/values/</code></td>
+<td>Environment values: <code>kind.yaml</code>, <code>minimal.yaml</code>, <code>sqlserver-dev.yaml</code>, <code>production.example.yaml</code>, and <code>external-platform.example.yaml</code> (no bundled engines; the OTel Collector sends everything as OTLP to another platform, <a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">ADR 0011</a>)</td>
+</tr>
+<tr>
+<td><code>infra/kind/cluster.yaml</code></td>
+<td>kind cluster: one node, host port mappings on 127.0.0.1</td>
+</tr>
+<tr>
+<td><code>infra/kind/e2e.yaml</code></td>
+<td>The temporary cluster of <code>make kind-e2e</code>: no host ports, and a 10 s kubelet sync so changed ConfigMaps and Secrets arrive sooner</td>
+</tr>
+<tr>
+<td><code>scripts/kind.sh</code></td>
+<td>Cluster, image and deploy workflow behind the <code>make kind-*</code> targets</td>
+</tr>
+<tr>
+<td><code>scripts/kind-e2e.sh</code></td>
+<td>Acceptance checks on an isolated, temporary cluster (<code>make kind-e2e</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="what-the-chart-deploys">What the chart deploys<a href="#what-the-chart-deploys" class="anchor" title="Link to this section">#</a></h2>
+<p>Heartbeat's own objects (fixed names; one release per namespace):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Object</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>StatefulSet/db-collector</code></td>
+<td>Always one replica: a replacement pod starts only after the old one is gone, so SQL targets are never polled twice. <code>podManagementPolicy: Parallel</code>, so an upgrade replaces a pod that never became Ready (<a href="https://github.com/kubernetes/kubernetes/issues/67250">kubernetes/kubernetes#67250</a>); the field cannot change in place, so an install from chart 0.1.0 <a href="install-from-release.html#upgrade">deletes the StatefulSet once</a>. Liveness <code>/healthz</code> (process only), readiness <code>/readyz</code>. No config checksum: ConfigMap changes hot-reload without a restart</td>
+</tr>
+<tr>
+<td><code>Service/db-collector-headless</code></td>
+<td>Headless, <code>publishNotReadyAddresses</code>; Prometheus discovers the collector through it even while it is unready</td>
+</tr>
+<tr>
+<td><code>Service/db-collector</code></td>
+<td>Operator access (health, admin endpoints); ready pods only. kind: NodePort with <code>externalTrafficPolicy: Local</code>, so the NetworkPolicy sees the host's address</td>
+</tr>
+<tr>
+<td><code>NetworkPolicy/db-collector</code></td>
+<td>Ingress to port 8082 only from the bundled Prometheus, the API (its <code>GET /admin/config</code>, for whether telemetry sources are observed), and the <code>dbCollector.networkPolicy.scrapers</code> (a shared Prometheus or another platform's scraper) and <code>.operators</code> peers; no peers means deny all. kind adds every source outside the pod subnet <code>10.244.0.0/16</code> (the host through the loopback NodePort, and containers on the Docker <code>kind</code> network); the production example adds a VPN range. Kubelet probes and <code>kubectl port-forward</code> are not affected. Needs a CNI that enforces NetworkPolicy (kind's kindnet does)</td>
+</tr>
+<tr>
+<td><code>Deployment/api</code></td>
+<td>The API (<a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">ADR 0013</a>), <code>api.replicas</code> pods. Its init container <code>migrate</code> runs <code>api migrate up</code> from the same image before the API starts, so a new image applies its migrations first; golang-migrate's advisory lock lets replicas start together. No Helm or Argo CD hook. Liveness <code>/healthz</code> (process only), readiness <code>/readyz</code>: PostgreSQL at the newest migration the image embeds, and Redis. Logins from the <code>api.credentials</code> Secret, mounted as files. A 30s grace period covers its shutdown: 5s serving unready while the Service drops it, a 10s drain, the audit drainer's last delete and its last logs</td>
+</tr>
+<tr>
+<td><code>Service/api-headless</code>, <code>Service/api</code></td>
+<td>As the collector's: the headless one for Prometheus, ready or not; <code>api</code> (8081, <code>ClusterIP</code>) for clients; an ingress in front of it serves the site's origin, <code>api.siteOrigin</code>, which logins must come from (<code>http://localhost:8081</code> on kind, for <code>kubectl port-forward</code>)</td>
+</tr>
+<tr>
+<td><code>StatefulSet/postgresql</code>, <code>Service/postgresql</code>, <code>PersistentVolumeClaim/postgresql-data</code></td>
+<td>The API's PostgreSQL on the <code>postgres</code> image (<a href="../architecture/decisions/0015-postgresql-and-redis-delivery.html">ADR 0015</a>): one replica, data on a 1 GiB claim that a pod restart keeps, readiness <code>pg_isready</code>, user 999, read-only root filesystem. For kind and CI: no backups, replicas or major-version upgrades; production turns it off (<code>postgresql.enabled</code>) for Amazon RDS</td>
+</tr>
+<tr>
+<td><code>StatefulSet/valkey</code>, <code>Service/valkey</code></td>
+<td>Redis, run as Valkey on <code>valkey/valkey</code>: one replica, an emptyDir (<code>valkey.persistence</code> puts an append-only file on a claim), <code>noeviction</code> below its memory limit, readiness <code>valkey-cli ping</code>. Its password reaches it on standard input, never a command line. Production turns it off for Amazon ElastiCache</td>
+</tr>
+<tr>
+<td><code>NetworkPolicy/api</code>, <code>/postgresql</code>, <code>/valkey</code></td>
+<td>The API's 8081 from Prometheus and <code>api.networkPolicy.peers</code>; PostgreSQL's 5432 and Valkey's 6379 from the API and their <code>extraPeers</code> only</td>
+</tr>
+<tr>
+<td><code>NetworkPolicy/otel-collector</code>, <code>/prometheus</code>, <code>/alertmanager</code>, <code>/loki</code>, <code>/tempo</code></td>
+<td>Ingress to each bundled engine only from the components that use it, on their ports; see <a href="#network-access">network access</a>. Rendered only for an engine that is on</td>
+</tr>
+<tr>
+<td><code>ConfigMap/heartbeat-integrations</code></td>
+<td><code>integrations.yaml</code>, rendered from the <code>integrations</code> values, with the <code>managedCollectors</code> list appended to its collectors (<a href="../reference/configuration.html#collectors-rendered-by-the-api">collectors rendered by the API</a>)</td>
+</tr>
+<tr>
+<td><code>ConfigMap/heartbeat-prometheus-rules</code></td>
+<td>Rule files; Prometheus mounts them at <code>/etc/prometheus-rules</code> and its config reloader reloads on change. <code>prometheusRules.configReloadAlert.enabled: false</code> leaves out the config reload alert (<a href="../reference/metrics-and-endpoints.html#prometheus-scrape-jobs-and-rules">rules</a>)</td>
+</tr>
+<tr>
+<td><code>ConfigMap/heartbeat-dashboards</code></td>
+<td>Dashboards; label <code>grafana_dashboard: &quot;1&quot;</code> for shared Grafanas with a dashboard sidecar</td>
+</tr>
+<tr>
+<td><code>PersistentVolumeClaim/otel-collector-queue</code></td>
+<td>The OTel Collector's logs export queue (<code>otelCollectorQueue.persistence</code>, 1 GiB): rows the Collector accepted survive its restart. Only with the Collector, so not in the <code>minimal</code> profile. kind uses its default <code>standard</code> (local-path) class, a directory on the node that lives as long as the cluster. Without persistence the queue is an emptyDir, which survives a container restart but not a new pod</td>
+</tr>
+</tbody>
+</table></div>
+<p>Third-party engines are pinned chart dependencies, each turned off with
+<code>&lt;name&gt;.enabled=false</code> so an environment can use shared services instead:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Dependency</th>
+<th>Version</th>
+<th>Engine</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prometheus</code> (prometheus-community)</td>
+<td>29.35.0</td>
+<td>Prometheus v3.15.0, Alertmanager v0.34.1</td>
+<td>Static and DNS discovery only, no cluster RBAC. Sends alerts to Alertmanager</td>
+</tr>
+<tr>
+<td><code>grafana</code> (grafana-community)</td>
+<td>13.2.7</td>
+<td>Grafana 13.2.3</td>
+<td>Stateless; datasources and dashboards from source</td>
+</tr>
+<tr>
+<td><code>loki</code> (grafana-community)</td>
+<td>18.13.7</td>
+<td>Loki 3.7.8</td>
+<td>Monolithic, filesystem storage locally</td>
+</tr>
+<tr>
+<td><code>opentelemetry-collector</code> (alias <code>otelCollector</code>)</td>
+<td>0.175.0</td>
+<td>otelcol-contrib 0.161.0</td>
+<td>One-replica StatefulSet (<code>otel-collector-0</code>), so only one pod at a time opens the export queue. Metrics to Prometheus, logs to Loki through a queue on disk</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rules the chart keeps (checked by <code>make chart-check</code>): only namespaced
+objects, no CRDs; deterministic rendering (no random values, lookups or
+hooks), because Argo CD renders the chart itself; Secrets created outside the
+chart and referenced by name; unknown values rejected by the schema, at the
+top level and inside the chart's own components;
+renders with Helm 3 and Helm 4.</p>
+<h2 id="network-access">Network access<a href="#network-access" class="anchor" title="Link to this section">#</a></h2>
+<p>Every Heartbeat component and bundled engine except Grafana has an ingress
+NetworkPolicy, so a pod in the namespace (or in another one) reaches only what
+the chart lists. Loki holds raw user IDs, session IDs and client IPs, so who
+reaches it is part of their protection
+(<a href="../architecture/decisions/0012-personal-data-in-telemetry.html">ADR 0012</a>).
+The engine policies are <code>backendNetworkPolicies</code> in the values; the
+collector's is <code>dbCollector.networkPolicy</code>, the API's <code>api.networkPolicy</code>,
+and PostgreSQL's and Valkey's their own <code>networkPolicy</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Port</th>
+<th>Admitted from</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>db-collector</code></td>
+<td>8082</td>
+<td>Prometheus</td>
+<td>Scrape</td>
+</tr>
+<tr>
+<td><code>db-collector</code></td>
+<td>8082</td>
+<td>API</td>
+<td><code>GET /admin/config</code> with the collector's admin token, for telemetry source observation</td>
+</tr>
+<tr>
+<td><code>api</code></td>
+<td>8081</td>
+<td>Prometheus, <code>api.networkPolicy.peers</code></td>
+<td>Scrape; the API's clients when they exist (the Web UI [5])</td>
+</tr>
+<tr>
+<td><code>postgresql</code></td>
+<td>5432</td>
+<td>API</td>
+<td>Its database; the workers join when they exist</td>
+</tr>
+<tr>
+<td><code>valkey</code></td>
+<td>6379</td>
+<td>API</td>
+<td>Sessions, jobs, locks; the workers join when they exist</td>
+</tr>
+<tr>
+<td><code>otel-collector</code></td>
+<td>4318</td>
+<td>db-collector, API</td>
+<td>OTLP/HTTP: logs from <code>outsystems_logs</code> collectors, the API's audit records (<a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">ADR 0016</a>), and both services' spans</td>
+</tr>
+<tr>
+<td><code>otel-collector</code></td>
+<td>4319</td>
+<td>db-collector, API, while <code>telemetry.enabled</code></td>
+<td>OTLP/HTTP: the services' own logs (<a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">ADR 0018</a>)</td>
+</tr>
+<tr>
+<td></td>
+<td>8889</td>
+<td>Prometheus</td>
+<td>Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP)</td>
+</tr>
+<tr>
+<td><code>prometheus</code></td>
+<td>9090</td>
+<td>Grafana</td>
+<td>Prometheus datasource</td>
+</tr>
+<tr>
+<td><code>alertmanager</code></td>
+<td>9093</td>
+<td>Prometheus</td>
+<td>Alerts, and the <code>alertmanager</code> scrape job</td>
+</tr>
+<tr>
+<td><code>tempo</code></td>
+<td>4318</td>
+<td>OTel Collector</td>
+<td>OTLP/HTTP traces</td>
+</tr>
+<tr>
+<td></td>
+<td>3200</td>
+<td>Grafana, Prometheus</td>
+<td>Tempo datasource; scrape</td>
+</tr>
+<tr>
+<td><code>loki</code></td>
+<td>3100</td>
+<td>OTel Collector</td>
+<td>OTLP log pushes</td>
+</tr>
+<tr>
+<td></td>
+<td>3100</td>
+<td>Grafana</td>
+<td>Loki datasource</td>
+</tr>
+<tr>
+<td></td>
+<td>3100</td>
+<td>Prometheus</td>
+<td>The <code>loki</code> scrape job</td>
+</tr>
+<tr>
+<td></td>
+<td>9095, 7946</td>
+<td>Loki</td>
+<td>Its own gRPC (compactor address) and memberlist ring, through its Services</td>
+</tr>
+</tbody>
+</table></div>
+<p>A row exists only while both ends are on: <code>minimal</code> renders no Loki or
+Collector policy and admits neither to anything, a disabled scrape job admits
+no Prometheus, and the external-platform example renders only the Collector's
+policy, for the db-collector. An engine nothing uses denies all ingress
+(<code>ingress: []</code>); an empty <code>from</code>, which would admit every source, is never
+rendered. Peers match by the pods' <code>app.kubernetes.io/name</code> and <code>instance</code>
+labels in the release namespace, so whoever may create pods there can claim
+them: RBAC on the namespace is part of the access control.</p>
+<p>Not covered, by design:</p>
+<ul>
+<li><strong>Grafana</strong> has no policy. Whatever serves its UI (an ingress, a load
+balancer, the operator) must reach port 3000, and its login is the control.
+Anonymous viewing is on only in the kind values, so on kind any pod, and
+any container on the Docker <code>kind</code> network, can query Loki through
+Grafana's datasource; that is why kind holds only synthetic data. Grafana has no
+Alertmanager datasource and Prometheus does not scrape Grafana, so neither
+flow is admitted anywhere.</li>
+<li><strong>Kubelet probes</strong> come from the pod's node, which NetworkPolicy does not
+filter: the collector's <code>:8082</code>, the API's <code>:8081</code>, the Collector's <code>:13133</code>, Prometheus's
+<code>:9090</code> and its reloader's <code>:8080</code>, Alertmanager's <code>:9093</code> and its
+reloader's <code>:8080</code>, Loki's <code>:3100</code>, Tempo's <code>:3200</code> and Grafana's <code>:3000</code>.</li>
+<li><strong><code>kubectl port-forward</code></strong> connects from inside the pod, so NetworkPolicy
+never sees it. It is how operators reach Loki, and the others outside kind:
+<code>kubectl -n heartbeat port-forward svc/loki 3100</code>. <code>kubectl exec</code> into
+<code>postgresql-0</code> (<code>psql -U heartbeat</code>) is the operator's way into the
+database, unfiltered for the same reason.</li>
+<li><strong>PatientZero</strong> sends nothing to the engines: it writes its logs to SQL
+Server, and the db-collector reads them.</li>
+</ul>
+<p><strong>The collector's egress.</strong> The policies above limit what reaches each
+pod. <code>dbCollector.networkPolicy.egress</code> also limits where the collector
+connects, off by default and on in <code>kind.yaml</code> and the production example:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Destination</th>
+<th>Ports</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>egress.dns</code> (kube-dns in <code>kube-system</code> by default)</td>
+<td>UDP and TCP 53</td>
+<td>Name resolution</td>
+</tr>
+<tr>
+<td>The bundled OTel Collector, while it is on</td>
+<td>its OTLP/HTTP container ports, 4318 and, while <code>telemetry.enabled</code>, 4319 by default</td>
+<td>OTLP/HTTP logs: OutSystems rows, and the service's own</td>
+</tr>
+<tr>
+<td><code>egress.targets</code></td>
+<td>each <code>port</code> of the enabled collectors' targets (1433 while there are none)</td>
+<td>The monitored SQL Servers and logging databases</td>
+</tr>
+<tr>
+<td><code>egress.extraRules</code></td>
+<td>as given</td>
+<td>An OTel Collector outside the chart, a proxy</td>
+</tr>
+</tbody>
+</table></div>
+<p>NetworkPolicy matches addresses, not host names, so <code>egress.targets</code> are
+peers, usually ipBlock CIDRs of the databases' subnets; with egress on and a
+target configured, an install without them fails rather than cutting the
+collector off its databases. On kind they are everything outside the pod
+subnet, since the sandbox SQL Server is a container on the Docker <code>kind</code>
+network: the collector can reach it, DNS and the OTel Collector, and times
+out on any other pod or Service, which <code>make kind-e2e</code> checks.</p>
+<p><code>egress.dns</code> takes peers and allows port 53 only. Where cluster DNS is
+something else, set <code>dns: []</code> and allow it in <code>egress.extraRules</code>: with
+NodeLocal DNSCache, ipBlocks for its address (<code>169.254.20.10/32</code> by default)
+and for the kube-dns Service IP; on OpenShift, the <code>openshift-dns</code> pods on
+port 5353.</p>
+<p><strong>Keep the collector's Service ClusterIP in production.</strong> <code>/metrics</code> and
+<code>/healthz</code> are unauthenticated and name the collectors, targets and
+environments. A NodePort or LoadBalancer Service makes port 8082 reachable
+from anything that reaches a node, and with <code>externalTrafficPolicy: Cluster</code>
+the NetworkPolicy then sees the node's address instead of the client's, so
+its peers no longer tell sources apart. <code>kind.yaml</code> uses a NodePort only
+because kind binds it to <code>127.0.0.1</code>.</p>
+<p><code>backendNetworkPolicies.&lt;engine&gt;.extraPeers</code> admits more NetworkPolicyPeers
+to an engine's ports (the Collector: 4317, 4318, 4319, and 8889 while its exporter
+is on; Prometheus 9090; Alertmanager 9093; Loki 3100; Tempo 3200 and 4318), such as a shared
+Grafana or Prometheus in another namespace (a <code>namespaceSelector</code> and a
+<code>podSelector</code> in one peer) or an operator range. <code>kind.yaml</code> adds every
+source outside the pod subnet to Prometheus, Alertmanager and the Collector,
+as for the collector, so the loopback NodePorts and <code>make health</code> keep
+working; Loki has no NodePort and stays limited to its three clients.
+<code>backendNetworkPolicies.enabled: false</code> removes the four engine policies.</p>
+<p>On kind, the API server's service and pod proxy (which <code>make kind-e2e</code> uses)
+also comes from the node, so it is not filtered either; in a cluster whose
+control plane runs elsewhere it is. kind's kindnet enforces NetworkPolicy,
+and <code>make kind-e2e</code> checks it: pods the policies do not list, in the
+namespace and in another one with Grafana's labels, time out on the
+collector, the API, PostgreSQL, Valkey, Loki, Tempo, Prometheus, Alertmanager
+and the Collector, while the flows above keep working. A cluster whose CNI does not enforce NetworkPolicy
+accepts the objects and drops nothing.</p>
+<h2 id="secrets">Secrets<a href="#secrets" class="anchor" title="Link to this section">#</a></h2>
+<p>The chart never creates Secrets. <code>scripts/kind.sh</code> creates kind-only values;
+an install from a release creates its own
+(<a href="install-from-release.html#1-create-the-namespace-and-secrets">installing a release</a>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Secret</th>
+<th>Keys</th>
+<th>kind value</th>
+<th>Production</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>heartbeat-runtime</code></td>
+<td><code>admin-token</code></td>
+<td><code>local-admin-token</code></td>
+<td>External Secrets Operator</td>
+</tr>
+<tr>
+<td><code>heartbeat-postgresql</code></td>
+<td><code>password</code></td>
+<td>Random, generated once per cluster and then kept: PostgreSQL reads it only when it creates its database</td>
+<td>Not used: RDS</td>
+</tr>
+<tr>
+<td><code>heartbeat-valkey</code></td>
+<td><code>password</code></td>
+<td>Random, generated once per cluster and then kept</td>
+<td>Not used: ElastiCache</td>
+</tr>
+<tr>
+<td><code>heartbeat-api-credentials</code></td>
+<td><code>HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES</code>, <code>HEARTBEAT_CREDENTIAL_SECRET_API_REDIS</code></td>
+<td><code>heartbeat:</code> and <code>default:</code> with the two passwords above, rewritten on every deploy</td>
+<td>External Secrets Operator: the RDS login and the ElastiCache user</td>
+</tr>
+<tr>
+<td><code>grafana-admin</code></td>
+<td><code>admin-user</code>, <code>admin-password</code></td>
+<td><code>admin</code> / <code>admin</code></td>
+<td>Generated, External Secrets Operator</td>
+</tr>
+<tr>
+<td><code>heartbeat-sqlserver-dev-credentials</code></td>
+<td><code>HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV</code></td>
+<td>From <code>.env.sqlserver-dev</code></td>
+<td>Per-environment credential Secret</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="images">Images<a href="#images" class="anchor" title="Link to this section">#</a></h2>
+<p>The chart's default images are the release's,
+<code>ghcr.io/gdpais/heartbeat/db-collector</code> and <code>ghcr.io/gdpais/heartbeat/api</code> at
+the chart's <code>appVersion</code>. On kind, <code>kind.yaml</code> points them at the local
+<code>heartbeat/db-collector</code> and <code>heartbeat/api</code> instead: <code>make kind-images</code>
+builds each for the node's CPU architecture (it refuses a mismatch), tags it
+<code>dev-&lt;first 12 hex of the image ID&gt;</code> and loads it with <code>kind load</code>. The API's
+image embeds <code>db/migrations</code>, so its own <code>apps/api/Dockerfile.dockerignore</code>
+keeps them in the build context that the root <code>.dockerignore</code> leaves them out
+of. Pods use <code>imagePullPolicy: Never</code>, so the cluster can only run
+what was loaded. The tag changes whenever the binary changes, so a code change
+always produces a new pod. Production references ECR images by digest
+(<code>image.digest</code>).</p>
+<p>The tags are kept in <code>.tmp/kind/&lt;cluster&gt;/images.env</code>. <code>make kind-deploy</code>, and
+everything that deploys through it (<code>make sqlserver-dev-up</code>, PatientZero),
+rebuilds first when a file under <code>services/</code>, <code>apps/</code>, <code>db/</code> or <code>internal/</code>,
+<code>go.mod</code> or <code>go.sum</code> is newer than that file, or when it has no tag for an
+image, so a pull or a branch switch never leaves the
+current chart running an image built from older code. Unchanged code builds
+from cache to the same tag, and nothing rolls out.</p>
+<h2 id="the-cluster">The cluster<a href="#the-cluster" class="anchor" title="Link to this section">#</a></h2>
+<p><code>make kind-up</code> creates <code>heartbeat</code> from the node image pinned in the Makefile
+(<code>KIND_NODE_IMAGE</code>, the newest Kubernetes minor EKS supports) and
+<code>infra/kind/cluster.yaml</code>. NodePorts map to the Compose-era host ports on
+127.0.0.1 only. Every <code>kubectl</code>/<code>helm</code> call in the scripts names the
+<code>kind-heartbeat</code> context, so they never act on another cluster.</p>
+<p>SQL Server is not in the cluster: <code>make sqlserver-dev-up</code> runs it as a Docker
+container on the <code>kind</code> network, and pods reach it by container name.</p>
+<h2 id="working-with-it">Working with it<a href="#working-with-it" class="anchor" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">make kind-status                                   # pods and services
+kubectl --context kind-heartbeat -n heartbeat logs statefulset/db-collector
+kubectl --context kind-heartbeat -n heartbeat port-forward svc/loki 3100
+helm --kube-context kind-heartbeat -n heartbeat get values heartbeat
+EXTRA_VALUES=my-values.yaml make kind-deploy        # layer your own values
+</code></pre>
+<p>Change the deployed config through values and <code>make kind-deploy</code>. Helm 4
+upgrades with server-side apply, so a field you edit by hand with <code>kubectl</code>
+(for example the integrations ConfigMap) becomes owned by kubectl, and the next
+upgrade fails with a conflict. Re-apply the chart's version with
+<code>--server-side --field-manager=helm --force-conflicts</code>, or delete the object
+and redeploy. In production Argo CD reverts such drift.</p>
+<h2 id="production">Production<a href="#production" class="anchor" title="Link to this section">#</a></h2>
+<p>Production values live in the <code>heartbeat-deploy</code> config repository and Argo CD
+renders the chart from them (ADR 0005).
+<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/values/production.example.yaml"><code>production.example.yaml</code></a>
+shows the shape (ECR digests, External Secrets, gp3 volumes, S3 for Loki,
+the API on Amazon RDS and ElastiCache over TLS with the RDS CA bundle mounted,
+internal ALB for Grafana, Slack/Teams/WhatsApp and healthchecks.io receivers)
+and is rendered in CI so it stays valid. kind does not test cloud storage,
+networking, identity, ingress or TLS; those need testing in the target
+environment.</p>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/guides/kubernetes-local.md"><code>docs/guides/kubernetes-local.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#layout">Layout</a></li>
+      <li class="toc-h2"><a href="#what-the-chart-deploys">What the chart deploys</a></li>
+      <li class="toc-h2"><a href="#network-access">Network access</a></li>
+      <li class="toc-h2"><a href="#secrets">Secrets</a></li>
+      <li class="toc-h2"><a href="#images">Images</a></li>
+      <li class="toc-h2"><a href="#the-cluster">The cluster</a></li>
+      <li class="toc-h2"><a href="#working-with-it">Working with it</a></li>
+      <li class="toc-h2"><a href="#production">Production</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

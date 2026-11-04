@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>Configuration Reference · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css?v=8486b06a573b">
+<script defer src="../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../architecture/overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../architecture/data-model.html">Data model</a>
+          </li>
+          <li><a href="../architecture/database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="../architecture/decisions/index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="../architecture/decisions/0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="../architecture/decisions/0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="../architecture/decisions/0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="../architecture/decisions/0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="../architecture/decisions/0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="../architecture/decisions/0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="../architecture/decisions/0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="../architecture/decisions/0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="../architecture/decisions/0012-personal-data-in-telemetry.html">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="../architecture/decisions/0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="../architecture/decisions/0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="../architecture/decisions/0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="configuration.html" aria-current="page">Configuration reference</a>
+          </li>
+          <li><a href="metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../architecture/application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../architecture/workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#config-files-by-environment">Config files by environment</a></li>
+        <li class="toc-h3"><a href="#collectors-rendered-by-the-api">Collectors rendered by the API</a></li>
+        <li class="toc-h2"><a href="#integrationsyaml">integrations.yaml</a></li>
+        <li class="toc-h3"><a href="#endpoints">Endpoints</a></li>
+        <li class="toc-h3"><a href="#notification-channels">Notification channels</a></li>
+        <li class="toc-h3"><a href="#credential-references">Credential references</a></li>
+        <li class="toc-h3"><a href="#collectors">Collectors</a></li>
+        <li class="toc-h3"><a href="#validation-and-reload-behavior">Validation and reload behavior</a></li>
+        <li class="toc-h2"><a href="#credential-resolution">Credential resolution</a></li>
+        <li class="toc-h2"><a href="#environment-variables">Environment variables</a></li>
+        <li class="toc-h3"><a href="#db-collector">DB collector</a></li>
+        <li class="toc-h3"><a href="#api">API</a></li>
+        <li class="toc-h3"><a href="#local-development-files">Local development files</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="configuration-reference">Configuration Reference<a href="#configuration-reference" class="anchor" title="Link to this section">#</a></h1>
+<p>Heartbeat services are configured by one integrations file plus environment
+variables. Why config lives in YAML rather than PostgreSQL is explained in
+<a href="../architecture/decisions/0002-runtime-config-in-yaml.html">ADR 0002</a>.</p>
+<p>Sources of truth:</p>
+<ul>
+<li>Loader and validation: <a href="https://github.com/gdpais/Heartbeat/blob/master/internal/config/config.go"><code>internal/config/config.go</code></a></li>
+<li>JSON schema: <a href="https://github.com/gdpais/Heartbeat/blob/master/packages/config-schema/src/integrations.schema.json"><code>packages/config-schema/src/integrations.schema.json</code></a></li>
+<li>Deployed config: the <code>integrations</code> key of the Helm chart's values
+(<a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/heartbeat/values.yaml">defaults</a>, no SQL Server targets),
+overridden per environment by files in <a href="https://github.com/gdpais/Heartbeat/tree/master/infra/helm/values"><code>infra/helm/values/</code></a></li>
+<li>Binary default for running a service outside Kubernetes:
+<a href="https://github.com/gdpais/Heartbeat/blob/master/config/integrations.yaml"><code>config/integrations.yaml</code></a></li>
+</ul>
+<h2 id="config-files-by-environment">Config files by environment<a href="#config-files-by-environment" class="anchor" title="Link to this section">#</a></h2>
+<p>The chart renders <code>integrations</code> into the <code>heartbeat-integrations</code> ConfigMap,
+mounted at <code>/app/config/integrations.yaml</code>. Helm merges maps across values
+files but <strong>replaces lists</strong>, so an environment that changes <code>collectors</code>
+restates the whole list.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Where <code>integrations</code> comes from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kind</td>
+<td>Chart defaults (<code>values.yaml</code>) plus <a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/values/kind.yaml"><code>kind.yaml</code></a></td>
+</tr>
+<tr>
+<td>kind with the SQL Server sandbox</td>
+<td>Adds <a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/values/sqlserver-dev.yaml"><code>sqlserver-dev.yaml</code></a></td>
+</tr>
+<tr>
+<td>Production</td>
+<td>Values in the <code>heartbeat-deploy</code> config repository; <a href="https://github.com/gdpais/Heartbeat/blob/master/infra/helm/values/production.example.yaml"><code>production.example.yaml</code></a> shows the shape</td>
+</tr>
+<tr>
+<td>Service run directly (<code>go run</code>)</td>
+<td><code>config/integrations.yaml</code>, or <code>HEARTBEAT_INTEGRATIONS_PATH</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Helm validates <code>integrations</code> against the integrations schema (embedded in the
+chart's <code>values.schema.json</code>) before anything is applied, and <code>make chart-check</code>
+loads each profile's rendered file with the Go loader.</p>
+<h3 id="collectors-rendered-by-the-api">Collectors rendered by the API<a href="#collectors-rendered-by-the-api" class="anchor" title="Link to this section">#</a></h3>
+<p>Approved probe assignments reach the collector as collectors of their own,
+which the API renders into a generated values file it owns
+(<a href="../architecture/decisions/0014-probe-assignments-to-runtime-config.html">ADR 0014</a>).
+That file sets the chart key <code>managedCollectors</code>, not <code>integrations</code>, and the
+chart appends that list to <code>integrations.collectors</code> when it renders
+<code>integrations.yaml</code>. Because lists replace, the separate key keeps the two
+apart: the environment's values hold the hand-written collectors, the API's
+file holds its own, and neither overwrites the other. The rendered file has
+the same format either way; the collector loads it like any other and does
+not know which collectors came from the API.</p>
+<p>The API renders the file from approved assignments
+(<a href="metrics-and-endpoints.html#probe-assignments">probe assignments</a>): on kind,
+<code>make kind-assignments</code> deploys it; in production a pull request to
+<code>heartbeat-deploy</code> will carry it [18]. Empty or absent, the chart renders
+exactly what <code>integrations</code> alone renders. Managed targets count like
+hand-written ones: the collector's egress NetworkPolicy opens their ports,
+and the install notes count them.</p>
+<p>Helm checks these rules whenever it renders the chart (<code>helm template</code>,
+<code>install</code> and <code>upgrade</code>, and Argo CD's render), before anything is applied:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Checked by</th>
+<th>Helm's error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Each <code>managedCollectors</code> entry is a <a href="#collectors">collector</a> of kind <code>sqlserver</code>; <code>outsystems_logs</code> collectors stay hand-written (<a href="../architecture/decisions/0017-outsystems-sources-map-application-identity.html">ADR 0017</a>)</td>
+<td>values schema</td>
+<td><code>at '/managedCollectors/0/kind': value must be 'sqlserver'</code></td>
+</tr>
+<tr>
+<td>A <code>managedCollectors</code> id starts with <code>api-</code>; the API writes <code>api-&lt;target id&gt;-&lt;interval&gt;s</code></td>
+<td>values schema</td>
+<td><code>at '/managedCollectors/0/id': 'finance' does not match pattern '^api-'</code></td>
+</tr>
+<tr>
+<td>A hand-written id, in <code>integrations.collectors</code>, does not start with <code>api-</code>, leading spaces included</td>
+<td>values schema</td>
+<td><code>at '/integrations/collectors/0/id': 'not' failed</code></td>
+</tr>
+<tr>
+<td>An id appears once across both lists, compared without surrounding spaces, as the collector compares them</td>
+<td>chart templates</td>
+<td><code>collector id &quot;sql&quot; is listed twice, at integrations.collectors[0] and integrations.collectors[1]</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The last rule covers the hand-written list on its own too: a duplicate id
+there used to render, and the collector then rejected the file at its next
+reload, or failed to start.</p>
+<h2 id="integrationsyaml"><code>integrations.yaml</code><a href="#integrationsyaml" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="endpoints">Endpoints<a href="#endpoints" class="anchor" title="Link to this section">#</a></h3>
+<p>Heartbeat never writes to the observability platform itself: logs go to the
+OpenTelemetry Collector, and metrics are scraped from <code>/metrics</code>
+(<a href="../architecture/decisions/0011-platform-agnostic-telemetry-boundary.html">ADR 0011</a>).
+These keys say where the platform's UI and query APIs are, for links and,
+later, the API's queries.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>platform</code></td>
+<td>no</td>
+<td><code>grafana</code> (default: Grafana, Prometheus, Loki, Alertmanager) or <code>generic</code> (any other platform; <code>dashboards</code>, <code>logs</code> and <code>alerting</code> must then be empty). Anything else is rejected</td>
+</tr>
+<tr>
+<td><code>dashboards.base_url</code></td>
+<td>no</td>
+<td>The platform's UI (Grafana), as seen from the operator's browser</td>
+</tr>
+<tr>
+<td><code>dashboards.dashboard_templates</code></td>
+<td>no</td>
+<td>Map of name → dashboard path, e.g. <code>sqlserver-overview: /d/sqlserver-overview</code></td>
+</tr>
+<tr>
+<td><code>dashboards.deep_link_templates</code></td>
+<td>no</td>
+<td>Map of name → path with <code>${variables}</code>, e.g. <code>/d/sqlserver-overview?var-target=${target}</code></td>
+</tr>
+<tr>
+<td><code>logs.base_url</code></td>
+<td>no</td>
+<td>The platform's log query API (Loki)</td>
+</tr>
+<tr>
+<td><code>alerting.base_url</code></td>
+<td>no</td>
+<td>The platform's alert API (Alertmanager)</td>
+</tr>
+<tr>
+<td><code>opentelemetry.endpoint</code></td>
+<td>for <code>outsystems_logs</code></td>
+<td>Absolute base URL of the OTel Collector's OTLP/HTTP receiver, e.g. <code>http://otel-collector:4318</code>; logs go to <code>&lt;endpoint&gt;/v1/logs</code>. The chart's NetworkPolicy admits the collector to the bundled Collector's port 4318 only (<a href="../guides/kubernetes-local.html#network-access">network access</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<p>No URL may embed credentials (<code>https://user:password@host</code>): the loader rejects
+userinfo in every <code>base_url</code>, <code>endpoint</code>, dashboard and deep-link template, and
+channel <code>target_ref</code>, for all four sections. Put secrets in a
+<code>credential_ref</code> instead; URLs end up in logs, diagnostics and browser links.
+The check also catches templates with <code>${variables}</code> in the host and the
+forms browsers accept (<code>http:\\user@host</code>, <code>http:user@host</code>, tabs or newlines
+inside the URL). A <code>target_ref</code> is also rejected when it is a scheme-less
+<code>user:password@host</code>, which tools like curl read as credentials; plain
+addresses (<code>ops@example.com</code>) and <code>mailto:</code> are fine.</p>
+<h3 id="notification-channels">Notification channels<a href="#notification-channels" class="anchor" title="Link to this section">#</a></h3>
+<pre><code class="language-yaml">notification_channels:
+  - id: default-webhook          # required, unique
+    channel_type: webhook        # required
+    target_ref: http://…         # required
+    credential_ref: env/HEARTBEAT_WEBHOOK_TOKEN   # optional secret reference
+    config:                      # optional string map
+      timeout: 10s
+</code></pre>
+<h3 id="credential-references">Credential references<a href="#credential-references" class="anchor" title="Link to this section">#</a></h3>
+<p><code>credential_refs</code> is an optional map of name → secret reference. Every
+credential reference in the file (<code>credential_refs.*</code>, collector, target and
+channel <code>credential_ref</code>) must start with <code>env/</code>, <code>kv/</code> or <code>secret/</code>. Values
+are never stored in the file.</p>
+<h3 id="collectors">Collectors<a href="#collectors" class="anchor" title="Link to this section">#</a></h3>
+<pre><code class="language-yaml">collectors:
+  - id: sqlserver-default        # required, unique; stable ID used for reload diffs
+    kind: sqlserver              # required; sqlserver or outsystems_logs (below)
+    enabled: true
+    credential_ref: kv/sqlserver-default   # default for targets without their own
+    config:
+      environment: local         # default environment label for targets
+      scrape_interval: 30s       # Go duration, &gt; 0; default 30s
+      target_names: []           # optional subset of targets to run; empty = all
+      probes:                    # default probe set for targets without their own
+        - name: waits
+        - name: blocking
+          timeout_ms: 5000       # optional per-probe timeout override
+          max_rows: 1000         # optional; the most rows the probe may return, 1–100000; default 10000
+        - name: storage
+          query_template: &quot;…&quot;    # optional SQL override of the catalog query: one read-only SELECT
+      targets:
+        - name: finance-prod     # required, unique within the collector; becomes the `target` label
+          environment: prod      # optional; defaults to config.environment
+          host: finance-sql.internal   # required; name, IPv4 or bare IPv6, no port
+          port: 1433             # required, 1–65535
+          database_name: FinanceDB     # initial database
+          credential_ref: env/finance-prod   # optional; defaults to the collector's
+          probes: []             # optional; defaults to config.probes
+</code></pre>
+<p>In the chart's values, collector ids that start with <code>api-</code> are reserved for
+the <a href="#collectors-rendered-by-the-api">collectors the API renders</a>.</p>
+<p><code>host</code> is a DNS name or IPv4 address (letters, digits, <code>.</code>, <code>-</code>, <code>_</code>) or a bare
+IPv6 address such as <code>2001:db8::5</code>, without brackets. A port (<code>db:1433</code>),
+credentials, a path, an instance name (<code>db\INST</code>) or whitespace is rejected:
+the collector builds the connection URL from it, and an unparsable URL would
+put the password into the driver's error.</p>
+<p>Built-in probe names: <code>waits</code>, <code>blocking</code>, <code>sessions</code>, <code>memory_pressure</code>,
+<code>storage</code>, <code>throughput</code>, <code>cpu</code>, <code>buffer_cache</code>, <code>file_io</code>. See the
+<a href="metrics-and-endpoints.html#sql-server-probe-metrics">metrics reference</a>. Any
+other name, in an enabled collector or not, is rejected when the file is
+loaded or reloaded, and the error lists the valid ones. A <code>query_template</code>
+replaces a built-in probe's query; it cannot add a probe.</p>
+<p>Probe timeout defaults to <code>min(scrape_interval / 2, 10s)</code>; <code>timeout_ms</code> overrides
+it and is capped at the interval. <code>timeout_ms</code> may not exceed 25000 (25s): a
+larger value is rejected when the configuration is loaded or reloaded. A probe
+that has not stopped 2s after its timeout is abandoned and fails as a timeout.
+Every database read also gives up after 30s, the 25s maximum plus a margin for
+the cancel round trip, so the driver never cuts off a probe that is still
+within its timeout; only an already-dead connection reaches it.</p>
+<p>A probe reads at most <code>max_rows</code> rows (default 10000, at most 100000). When
+its query returns more, the collector stops reading at the first row past the
+limit, cancels the query and fails the probe for that cycle, as for a query
+error: the error is logged (<code>returned more rows than max_rows</code>), the target is
+reported failed, and <code>heartbeat_collector_probe_errors_total{reason=&quot;error&quot;}</code>
+grows (<a href="metrics-and-endpoints.html#collector-self-observability">metrics reference</a>).
+The built-in probes return at most a few hundred rows; the limit stops an
+override, or a server with unusually many databases or files, from filling
+the collector's memory and the metric series. <code>max_rows</code> applies to <code>sqlserver</code>
+collectors only and is rejected on other kinds.</p>
+<p>A <code>query_template</code> override runs with the same login and the same session
+settings. It must be exactly one read-only <code>SELECT</code>, optionally led by <code>WITH</code>
+(CTEs); the configuration is rejected when it is loaded or reloaded
+otherwise, with an error that names the collector, target and probe and the
+reason, without quoting the query. Rejected:</p>
+<ul>
+<li>more than one statement: anything after a <code>;</code> other than comments or more
+<code>;</code>, or a second top-level <code>SELECT</code> that does not follow <code>UNION</code>, <code>EXCEPT</code>
+or <code>INTERSECT</code> (T-SQL needs no <code>;</code> between statements);</li>
+<li>a first word other than <code>SELECT</code> or <code>WITH</code>, so a bare procedure name too;</li>
+<li>DML and DDL (<code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>MERGE</code>, <code>TRUNCATE</code>, <code>CREATE</code>,
+<code>ALTER</code>, <code>DROP</code>, <code>ADD</code>), permissions (<code>GRANT</code>, <code>DENY</code>, <code>REVOKE</code>), <code>EXEC</code> and
+<code>EXECUTE</code>, <code>SELECT … INTO</code>, <code>OPENROWSET</code>, <code>OPENQUERY</code>, <code>OPENDATASOURCE</code>,
+<code>WAITFOR</code>, <code>SHUTDOWN</code>, <code>DBCC</code>, <code>BACKUP</code>, <code>RESTORE</code>, <code>USE</code>, and the other
+T-SQL statement keywords: <code>SET</code>, <code>DECLARE</code>, transactions (<code>BEGIN</code>,
+<code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVE</code>), <code>KILL</code>, <code>RECONFIGURE</code> and the like (the full
+list is in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/internal/config/query.go"><code>query.go</code></a>). The query hints
+<code>MERGE JOIN</code>, <code>MERGE UNION</code>, <code>USE HINT (…)</code> and <code>USE PLAN</code> are allowed;</li>
+<li>a name starting with <code>sp_</code> or <code>xp_</code> (system and extended procedures), and an
+<code>END</code> without a matching <code>CASE</code>;</li>
+<li>unbalanced parentheses, an unterminated string, comment or quoted
+identifier, or a control or Unicode line-separator character other than
+tab, CR and LF.</li>
+</ul>
+<p>Keywords inside string literals (<code>'…'</code>, <code>N'…'</code>), comments (<code>--</code>, nested
+<code>/* */</code>) and quoted identifiers (<code>[…]</code>, <code>&quot;…&quot;</code>) are ignored, so a column named
+<code>[Backup]</code> is fine, while <code>t.Backup</code> is rejected (a reserved word must be
+quoted there too). A statement after a comment, or glued to a number as in
+<code>SELECT 1DROP …</code>, <code>SELECT 1.DROP …</code> or <code>SELECT 1eDROP …</code>, is still caught.
+The built-in probe and log-type queries pass the same check. It is a safety
+net, not the
+control: a text check cannot prove a query has no side effects. What keeps
+probes read-only is the collector's login, which holds only read grants
+(<a href="../guides/database-targets.html#collector-login-permissions">login permissions</a>).
+Review every override against the
+<a href="../architecture/database-observability.html#probe-review-checklist">probe review checklist</a>
+and with the DBAs.</p>
+<h4 id="outsystems_logs-collectors"><code>outsystems_logs</code> collectors<a href="#outsystems_logs-collectors" class="anchor" title="Link to this section">#</a></h4>
+<p>An <code>outsystems_logs</code> collector extracts OutSystems 11 logs from the logging
+database and sends them to the OTel Collector as OTLP logs
+(<a href="../architecture/decisions/0008-outsystems-11-log-extraction.html">ADR 0008</a>).
+It uses the same document as <code>sqlserver</code>: <code>environment</code>, <code>credential_ref</code>,
+<code>target_names</code>, <code>targets</code> (the logging databases) and <code>probes</code>. Each probe is
+a log type, named after its query file in
+<a href="https://github.com/gdpais/Heartbeat/blob/master/services/db-collector/internal/probes/outsystems/queries/README.md"><code>queries/</code></a>
+(<code>error.sql</code> is <code>error</code>). <code>query_template</code> replaces that query for one
+collector, under the same contract, and must be one read-only <code>SELECT</code> as for
+SQL Server probes; <code>timeout_ms</code> works as for SQL Server probes. <code>max_rows</code>
+does not apply: <code>batch_limit</code> bounds every read. <code>scrape_interval</code> is the poll
+interval.</p>
+<pre><code class="language-yaml">collectors:
+  - id: outsystems-prod
+    kind: outsystems_logs
+    enabled: true
+    credential_ref: env/oslog-prod
+    config:
+      environment: prod
+      scrape_interval: 30s     # poll interval; default 30s
+      lag: 60s                 # read up to now minus lag; default 60s
+      batch_limit: 5000        # rows per query, 1–50000; default 5000
+      initial_lookback: 15m    # where a log type without a watermark starts; default 15m
+      log_timezone: UTC        # IANA time zone Instant is stored in; default UTC
+      recount_window: 10m      # recount behind the watermark; default 10m, 0s off
+      max_derived_series: 50000 # derived-metric series this collector may hold, 1–1000000; default 50000
+      probes:
+        - name: error
+        - name: cyclic_job
+          lag: 25m             # this log type's lag: Instant is the timer's start
+      targets:
+        - name: oslogging-prod
+          host: oslog-sql.internal
+          port: 1433
+          database_name: OSLogging
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lag</code></td>
+<td><code>60s</code></td>
+<td>Go duration, &gt; 0. Rows the log service commits later than this after their <code>Instant</code> are missed</td>
+</tr>
+<tr>
+<td><code>probes[].lag</code></td>
+<td>the collector's <code>lag</code></td>
+<td>Go duration, &gt; 0. Replaces <code>lag</code> for one log type. A <code>screen</code> or <code>cyclic_job</code> row has the operation's start as <code>Instant</code> and is written when it ends, so set it above the longest screen request or timer (the timer timeout, 20 minutes by default)</td>
+</tr>
+<tr>
+<td><code>batch_limit</code></td>
+<td><code>5000</code></td>
+<td>1–50000. A full batch is followed at once by the next, up to 10 per cycle. If every row of a full batch has the same <code>Instant</code>, the cycle fails and <code>heartbeat_outsystems_extract_stuck_batches_total</code> grows: raise <code>batch_limit</code>. A batch also ends early at about 8 MiB of row data (below)</td>
+</tr>
+<tr>
+<td><code>initial_lookback</code></td>
+<td><code>15m</code></td>
+<td>Go duration, &gt; 0. Also used when the stored watermark is unreadable or belongs to another database</td>
+</tr>
+<tr>
+<td><code>log_timezone</code></td>
+<td><code>UTC</code></td>
+<td>IANA name such as <code>Europe/Lisbon</code>; <code>Local</code> is rejected. With a zone that has daylight saving time, rows logged in the hour that repeats when clocks go back can be missed: <code>Instant</code> itself is ambiguous then</td>
+</tr>
+<tr>
+<td><code>recount_window</code></td>
+<td><code>10m</code></td>
+<td><code>0s</code> (off), or whole minutes from <code>2m</code> to <code>1h</code>. Once a minute, each log type counts again the rows in this window behind its watermark, to find rows committed past the <code>lag</code> (<code>heartbeat_outsystems_late_rows_total</code>) or read twice (<a href="metrics-and-endpoints.html#outsystems-log-extraction">recount</a>). A wider window finds later commits and counts more index rows each minute</td>
+</tr>
+<tr>
+<td><code>max_derived_series</code></td>
+<td><code>50000</code></td>
+<td>1–1000000. The most series the <a href="metrics-and-endpoints.html#derived-outsystems-metrics">derived metrics</a> hold for this collector, counted as Prometheus stores them: one per counter, and a histogram's buckets, <code>+Inf</code>, sum and count (13 for the latency and timer histograms, 11 for screen state). Past it, a row that needs a new series is not counted in that metric, <code>heartbeat_outsystems_derived_series_overflow_total</code> grows and <code>OutSystemsDerivedSeriesOverflow</code> fires; series that exist keep counting. Each series takes about 690 bytes of the collector's memory, so 50000 is about 33 MiB. The default is a proposal, not a measured need: 29 times the 1,716 series of PatientZero's <a href="https://github.com/gdpais/Heartbeat/blob/master/tools/patientzero/README.md#production-sized-logging-database">production-sized profile</a> (6 applications, 14 modules, 8 screens each, 20 timers, 4 front-ends); size it from <code>heartbeat_outsystems_derived_series</code> on the real installation. Changing it restarts the collector, which deletes its derived series and starts counting again</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rules:</p>
+<ul>
+<li><code>opentelemetry.endpoint</code> is required while the collector is enabled.
+Changing it restarts every <code>outsystems_logs</code> collector.</li>
+<li>A log type with no query file is rejected when the file is loaded or
+reloaded, and so is a log type listed twice for one target (each has one
+watermark).</li>
+<li>A log type of one logging database (same host, port and database name,
+compared case-insensitively) can be extracted by one enabled collector
+only; two would send every row twice.</li>
+<li><code>lag</code>, <code>batch_limit</code>, <code>initial_lookback</code>, <code>log_timezone</code>, <code>recount_window</code>,
+<code>max_derived_series</code> and <code>probes[].lag</code> are rejected on other kinds, and
+<code>probes[].max_rows</code> on this one.</li>
+<li>With the recount on, a <code>query_template</code> must be one a derived table holds:
+no <code>WITH</code>, top-level <code>OPTION</code>, or <code>FOR XML</code>, <code>JSON</code> or <code>BROWSE</code>, an
+<code>ORDER BY</code> only with <code>TOP (@limit)</code> or <code>OFFSET</code>, and every column named.
+All but unnamed columns are rejected when the file is loaded; otherwise
+set <code>recount_window: 0s</code>.</li>
+<li>A query reads at most <code>batch_limit</code> rows: the collector stops at the first
+row past it and fails the cycle without sending anything, so a
+<code>query_template</code> that ignores <code>@limit</code> cannot fill the collector's memory.</li>
+<li>A batch stops reading once it holds about 8 MiB of row data, at the next
+row with a new <code>Instant</code>, and is then handled as a full batch: rows that
+share an <code>Instant</code> are never split. This bounds the collector's memory when
+a backlog of error rows with long stacks builds up, which <code>batch_limit</code>
+alone does not; a smaller batch is followed at once by the next.</li>
+<li>The body and every text attribute of a record are cut at 16 KiB, on a
+character boundary and ending in <code>…[truncated]</code>, and the record gets
+<code>outsystems.truncated = true</code>. <code>Stack</code> and <code>EnvironmentInformation</code> are
+the usual ones; Loki keeps attributes as structured metadata, 64 KB per
+line by default. <code>error.fingerprint</code> is computed from the whole <code>Message</code>
+and <code>Stack</code>, so it does not change.</li>
+<li>The watermark of each collector, target and log type is a file under
+<code>HEARTBEAT_STATE_DIR</code> (<code>outsystems_logs/&lt;collector&gt;.&lt;target&gt;.&lt;log type&gt;.json</code>).
+It moves only after the OTel Collector accepted the batch, so delivery is at
+least once. The chart's Collector keeps the batch it accepted on disk (the
+<code>otelCollectorQueue</code> volume), so a Collector restart does not lose it, and
+accepts the next one only once Loki has taken it
+(<a href="../architecture/application-observability.html">application observability</a>).</li>
+<li>A batch the Collector has not accepted by the end of the probe execution
+is not a failure: its export carries on in the background, retried until
+the Collector accepts it, and the log type reads nothing more meanwhile.
+<code>heartbeat_outsystems_export_blocked</code> is 1 and the target stays up
+(<a href="metrics-and-endpoints.html#outsystems-log-extraction">metrics</a>). At most
+64 MiB of row data is held in such batches across all log types; near
+that, a batch reads only what is left, and with less than 1 MiB left the
+other log types wait too. In each cycle the calls of one target wait for
+the Collector at most half the poll interval in all, so its other log
+types still run. The error in <code>GET /admin/config</code> names the last failed
+attempt, and an attempt that failed for another reason than waiting (a
+wrong <code>opentelemetry.endpoint</code>, a 5xx) is also logged as a warning.
+Removing a collector leaves its files; a collector re-added with the same
+<code>id</code> resumes from them.</li>
+<li>The login needs <code>SELECT</code> on the <code>oslog_*</code> views the queries read (the
+current and the previous week's) and nothing else; see
+<a href="../guides/database-targets.html#outsystems-logging-database">database targets</a>.</li>
+</ul>
+<h3 id="validation-and-reload-behavior">Validation and reload behavior<a href="#validation-and-reload-behavior" class="anchor" title="Link to this section">#</a></h3>
+<ul>
+<li>The file is validated on startup and on every reload. Values that fail the
+schema never render; a ConfigMap edited by hand can still be invalid, and is
+then rejected as below.</li>
+<li>An invalid candidate is rejected and the previous config keeps running.
+<code>POST /admin/config/reload</code> returns 400 for invalid config and 500 for a
+failed apply. At startup there is no previous config: the collector exits,
+so a file left invalid stops the next pod from starting.</li>
+<li>A rejected reload, or a failed one that was rolled back, does not make the
+pod unready. Monitoring shows it:
+<code>heartbeat_collector_config_last_reload_successful</code> is 0 until the next
+successful reload, and <code>HeartbeatCollectorConfigReloadFailed</code> fires after 2
+minutes (<a href="metrics-and-endpoints.html#config-reloads">config reload metrics</a>).</li>
+<li>Collectors are diffed by <code>id</code>; only changed, added or removed collectors are
+restarted. A failed apply is rolled back. If the rollback also fails,
+<code>runtime_diverged</code> is reported and <code>/readyz</code> returns 503.</li>
+<li>Reload triggers: <code>SIGHUP</code>, authenticated <code>POST /admin/config/reload</code>, and file
+polling when <code>HEARTBEAT_CONFIG_WATCH_INTERVAL</code> is set.</li>
+<li><code>GET /admin/config</code> shows the active config redacted: credential values and
+every notification channel <code>config</code> value are masked, and userinfo is
+stripped from URLs.</li>
+</ul>
+<h2 id="credential-resolution">Credential resolution<a href="#credential-resolution" class="anchor" title="Link to this section">#</a></h2>
+<p>The DB collector looks up a <code>credential_ref</code>, and the API its PostgreSQL and
+Redis credential references, under one name:</p>
+<pre><code class="language-text">HEARTBEAT_CREDENTIAL_&lt;REF&gt;
+</code></pre>
+<p><code>&lt;REF&gt;</code> is the full reference upper-cased, with <code>/</code>, <code>-</code> and <code>.</code> replaced by
+<code>_</code>. The value must be <code>username:password</code>; the password is everything after
+the first <code>:</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>credential_ref</code></th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>env/sqlserver-b</code></td>
+<td><code>HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_B</code></td>
+</tr>
+<tr>
+<td><code>kv/sqlserver-default</code></td>
+<td><code>HEARTBEAT_CREDENTIAL_KV_SQLSERVER_DEFAULT</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>It is looked up, in order:</p>
+<ol>
+<li>A file of that name in <code>HEARTBEAT_CREDENTIALS_DIR</code>, when that is set. A
+trailing line break is ignored.</li>
+<li>An environment variable of that name.</li>
+</ol>
+<p>Both read the file every time they open a connection, never cache it, so a
+new or changed credential needs no restart. A file that exists but cannot be
+read, or holds no <code>:</code>, fails that connection (a collector target, or the
+API's readiness); it never falls back to the environment variable. The
+lookup is <a href="https://github.com/gdpais/Heartbeat/blob/master/internal/credentials/credentials.go"><code>internal/credentials</code></a>.</p>
+<p>In Kubernetes the chart mounts the Secret named by
+<code>dbCollector.credentials.existingSecret</code> as that directory
+(<code>/var/run/secrets/heartbeat/credentials</code>), one file per Secret key. After
+you add or change a key, the kubelet updates the files within about a minute,
+and the next collection cycle uses them; the collector is not restarted. A
+target whose credential is missing fails on its own, and the others keep
+running. The Secret is not loaded into the environment, so a
+<code>HEARTBEAT_CREDENTIAL_*</code> variable reaches the container only through
+<code>dbCollector.extraEnv</code>.</p>
+<p>The chart mounts the API's Secret, <code>api.credentials.existingSecret</code>, the
+same way, in the API's container and in its <code>migrate</code> init container; its
+keys are <code>HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES</code> and
+<code>HEARTBEAT_CREDENTIAL_SECRET_API_REDIS</code> (<a href="#api">API</a>).</p>
+<p>Outside Kubernetes (<code>go run</code>, tests), leave <code>HEARTBEAT_CREDENTIALS_DIR</code> unset
+and export the variables; exporting them in your host shell does not pass them
+into a pod.</p>
+<h2 id="environment-variables">Environment variables<a href="#environment-variables" class="anchor" title="Link to this section">#</a></h2>
+<h3 id="db-collector">DB collector<a href="#db-collector" class="anchor" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HEARTBEAT_DB_COLLECTOR_LISTEN_ADDR</code></td>
+<td><code>:8082</code></td>
+<td>HTTP listen address</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_INTEGRATIONS_PATH</code></td>
+<td><code>config/integrations.yaml</code></td>
+<td>Integrations file path</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_ADMIN_TOKEN</code></td>
+<td>unset</td>
+<td>Bearer token for <code>GET /admin/config</code> and <code>POST /admin/config/reload</code>; both answer 401 without it, and startup logs a warning. Surrounding whitespace is ignored</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_CONFIG_WATCH_INTERVAL</code></td>
+<td>unset (off)</td>
+<td>Go duration; poll the config file for changes (the chart sets <code>5s</code>, <code>dbCollector.configWatchInterval</code>)</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_STATE_DIR</code></td>
+<td><code>/var/lib/heartbeat</code></td>
+<td>Writable directory for state that must survive a restart: the <code>outsystems_logs</code> watermarks. Created on the first save; the <code>sqlserver</code> kind never uses it. The chart mounts the <code>dbCollector.persistence</code> volume there</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE</code></td>
+<td><code>false</code></td>
+<td>Skip TLS certificate verification. <strong>Local dev container only</strong>; applies to every target. When set, startup logs a warning and <code>GET /admin/config</code> lists it under <code>warnings</code></td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_CREDENTIALS_DIR</code></td>
+<td>unset</td>
+<td>Directory with one <code>HEARTBEAT_CREDENTIAL_&lt;REF&gt;</code> file per credential, read on every connection; references without a file come from the environment. The chart sets it to the mounted <code>dbCollector.credentials.existingSecret</code>. See <a href="#credential-resolution">credential resolution</a></td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_CREDENTIAL_&lt;REF&gt;</code></td>
+<td>—</td>
+<td>Target credentials, see <a href="#credential-resolution">credential resolution</a></td>
+</tr>
+<tr>
+<td><code>GOMEMLIMIT</code></td>
+<td>unset</td>
+<td>Go's soft memory limit, such as <code>200MiB</code>. The chart sets 80% of <code>dbCollector.resources.limits.memory</code> (<code>204MiB</code> for the default <code>256Mi</code>), so the garbage collector works harder before the pod is OOM-killed; <code>dbCollector.goMemLimit</code> overrides it, <code>off</code> disables it</td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_LOGS_ENDPOINT</code></td>
+<td>unset (stderr only)</td>
+<td>Where the service sends its own logs, besides stderr: the OTel Collector's <code>otlp/self</code> receiver, such as <code>http://otel-collector:4319/v1/logs</code>. The chart sets it while <code>telemetry.enabled</code> and <code>otelCollector.enabled</code> are on. Not read from <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>, whose port is the OutSystems delivery path (<a href="../architecture/decisions/0018-heartbeats-own-telemetry.html">ADR 0018</a>)</td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_TRACES_ENDPOINT</code></td>
+<td>unset (no spans)</td>
+<td>Where the service sends its spans, such as <code>http://otel-collector:4318/v1/traces</code>. The chart sets it while <code>telemetry.traces.enabled</code> and <code>otelCollector.enabled</code> are on. The OpenTelemetry SDK reads the other standard variables itself</td>
+</tr>
+<tr>
+<td><code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code></td>
+<td>always on</td>
+<td>The chart sets <code>parentbased_traceidratio</code> and <code>telemetry.traces.sampleRatio</code>: every cycle and request by default</td>
+</tr>
+<tr>
+<td><code>OTEL_RESOURCE_ATTRIBUTES</code></td>
+<td>unset</td>
+<td><code>deployment.environment.name</code> is read from it: the environment Heartbeat itself runs in. The chart sets it from <code>telemetry.environment</code></td>
+</tr>
+<tr>
+<td><code>OTEL_SDK_DISABLED</code></td>
+<td>unset</td>
+<td><code>true</code> turns off the OTLP export; stderr is unaffected</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_PPROF_ADDR</code></td>
+<td>unset (off)</td>
+<td>Loopback address for the runtime profiles at <code>/debug/pprof/</code>, such as <code>127.0.0.1:6060</code>; any other address is refused with an error in the log. Set it with <code>dbCollector.extraEnv</code>, then <code>kubectl port-forward pod/db-collector-0 6060</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="api">API<a href="#api" class="anchor" title="Link to this section">#</a></h3>
+<p>The chart sets these from the <code>api</code> values: <code>api.postgres</code> and <code>api.redis</code>,
+or, when those are empty, the bundled <code>postgresql</code> and <code>valkey</code> without TLS
+(<code>disable</code> and <code>false</code>); any other server gets <code>verify-full</code> and TLS unless
+the values turn them off. <code>HEARTBEAT_API_SITE_ORIGIN</code> comes from
+<code>api.siteOrigin</code>; the other session settings take their defaults, or
+<code>api.extraEnv</code>. The telemetry variables are set as the collector's. A value
+that cannot work stops startup with an error naming the variable, instead of
+falling back to the default.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HEARTBEAT_API_LISTEN_ADDR</code></td>
+<td><code>:8081</code></td>
+<td>HTTP listen address, <code>host:port</code></td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_HOST</code></td>
+<td>required</td>
+<td>PostgreSQL server: a host name or IP address, without a port</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_PORT</code></td>
+<td><code>5432</code></td>
+<td>PostgreSQL port</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_DATABASE</code></td>
+<td><code>heartbeat</code></td>
+<td>Database name</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_SSLMODE</code></td>
+<td><code>verify-full</code></td>
+<td><code>disable</code>, <code>require</code>, <code>verify-ca</code> or <code>verify-full</code>, with libpq's meaning. <code>allow</code> and <code>prefer</code> are rejected: they fall back to plaintext without saying so. <code>disable</code> is for a server without TLS on a trusted network: kind, a local container</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_SSLROOTCERT</code></td>
+<td>unset (the system's CAs)</td>
+<td>PEM file of the CA certificates <code>verify-ca</code> and <code>verify-full</code> trust. Amazon RDS needs its CA bundle here</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_POSTGRES_CREDENTIAL_REF</code></td>
+<td><code>secret/api-postgres</code></td>
+<td>Credential reference of the login, <code>username:password</code> (<a href="#credential-resolution">credential resolution</a>): by default <code>HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES</code>. <code>api migrate up</code> uses it too; give that command another reference to migrate as a different role, such as the schema's owner</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_REDIS_ADDR</code></td>
+<td>required</td>
+<td>Redis (Valkey) server, <code>host:port</code></td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_REDIS_TLS</code></td>
+<td><code>true</code></td>
+<td>TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. <code>false</code> for a server without TLS on a trusted network: kind, a local container</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_REDIS_CREDENTIAL_REF</code></td>
+<td><code>secret/api-redis</code></td>
+<td>Credential reference of the login, <code>username:password</code>: by default <code>HEARTBEAT_CREDENTIAL_SECRET_API_REDIS</code>. For Valkey's <code>requirepass</code> or an ElastiCache AUTH token, the username is <code>default</code>, or empty to send the password alone</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_CREDENTIALS_DIR</code></td>
+<td>unset</td>
+<td>As for the DB collector: a directory of <code>HEARTBEAT_CREDENTIAL_&lt;REF&gt;</code> files, read on every new connection</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_AUDIT_ENDPOINT</code></td>
+<td>unset (records wait)</td>
+<td>OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as <code>http://otel-collector:4318</code>; a trailing <code>/v1/logs</code> is dropped. The chart sets it while <code>otelCollector.enabled</code> is on. Unset, the API logs <code>audit delivery off</code> at startup and the records wait in the outbox, which <code>HeartbeatAuditDeliveryStalled</code> reports (<a href="metrics-and-endpoints.html#audit-delivery">audit delivery</a>). Not <code>OTEL_SDK_DISABLED</code>'s to turn off: audit records are not the API's own telemetry, and never go to the <code>4319</code> receiver of its own logs</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_SITE_ORIGIN</code></td>
+<td>unset (unsafe requests refused)</td>
+<td>The origin browsers reach the API at, such as <code>https://heartbeat.example.com</code>: scheme and host, a port only when it is not the scheme's default, no path. <code>POST</code>, <code>PUT</code>, <code>PATCH</code> and <code>DELETE</code> need one <code>Origin</code> header equal to it, or are refused with 403 before they run, logging in included (<a href="metrics-and-endpoints.html#logging-in-and-sessions">sessions</a>). Written as a browser writes the header: lower case, without <code>:443</code> or <code>:80</code> or a trailing slash. Unset, the API logs a warning at startup and nobody can log in</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_SESSION_IDLE_TIMEOUT</code></td>
+<td><code>8h</code></td>
+<td>A session ends after this long without a request. A Go duration, at least <code>1m</code>, at most the max age. Requests move the deadline at most once a minute</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_SESSION_MAX_AGE</code></td>
+<td><code>168h</code> (7 days)</td>
+<td>A session ends this long after login, however active. At least <code>1m</code>. The cookie's <code>Max-Age</code> too</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_TRUSTED_PROXIES</code></td>
+<td>unset (none)</td>
+<td>Comma-separated addresses or CIDRs, such as <code>10.0.0.0/8</code>, of proxies (an ingress controller) whose <code>X-Forwarded-For</code> names the client. The API reads the header from its end, only as far as these proxies wrote it, so a client cannot choose its own address. The client address is what failed logins are counted by and what audit records show; unset, it is the TCP peer's</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_COLLECTOR_URL</code></td>
+<td>unset (observations unknown)</td>
+<td>The DB collector's base URL, such as <code>http://db-collector:8082</code>, without a path. The API reads its redacted <code>GET /admin/config</code>, at most every 15s, to say whether a telemetry source is observed (<a href="metrics-and-endpoints.html#telemetry-sources">telemetry sources</a>). The chart sets it to the <code>db-collector</code> Service while <code>dbCollector.enabled</code> is on, and the collector's NetworkPolicy admits the API</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN</code></td>
+<td>unset</td>
+<td>The collector's admin token (its <code>HEARTBEAT_ADMIN_TOKEN</code>), sent as a bearer token. The chart takes it from the collector's Secret, <code>dbCollector.adminToken</code>; it is never logged. Without it the collector answers 401, and observations are unknown. Both services read the token at startup, so rotating it means restarting the collector and the API; until both run with the new one, observations are unknown (<code>refused the API's admin token</code>)</td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_API_SHUTDOWN_DELAY</code></td>
+<td><code>5s</code></td>
+<td>How long the API keeps serving after <code>SIGTERM</code>, with <code>GET /readyz</code> answering 503, before it stops accepting connections: time for its Service to stop sending it requests. <code>0s</code> to <code>1m</code>. The chart's <code>api.terminationGracePeriodSeconds</code> (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay</td>
+</tr>
+<tr>
+<td><code>OTEL_EXPORTER_OTLP_LOGS_ENDPOINT</code>, <code>OTEL_EXPORTER_OTLP_TRACES_ENDPOINT</code>, <code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code>, <code>OTEL_RESOURCE_ATTRIBUTES</code>, <code>OTEL_SDK_DISABLED</code>, <code>HEARTBEAT_PPROF_ADDR</code></td>
+<td>unset</td>
+<td>As for the DB collector. The <code>api migrate</code> and <code>api users</code> commands send no telemetry</td>
+</tr>
+<tr>
+<td><code>GOMEMLIMIT</code></td>
+<td>unset</td>
+<td>As for the DB collector, from <code>api.resources.limits.memory</code> and <code>api.goMemLimit</code></td>
+</tr>
+<tr>
+<td><code>HEARTBEAT_CREDENTIAL_&lt;REF&gt;</code></td>
+<td>—</td>
+<td>A credential without a file, see <a href="#credential-resolution">credential resolution</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>The settings above win over libpq's <code>PG*</code> environment variables, which the
+PostgreSQL driver also reads. Each replica keeps at most 8 PostgreSQL
+connections (<code>application_name</code> <code>heartbeat-api</code>); a connection attempt gives
+up after 5s.</p>
+<p>The API connects lazily: it starts while PostgreSQL or Redis is down or its
+credential is missing, and <code>GET /readyz</code> answers 503 until both work
+(<a href="metrics-and-endpoints.html#api-8081">endpoints</a>).</p>
+<p>The same binary applies the migrations and creates admins
+(<a href="../architecture/decisions/0013-api-design-and-subsystem-boundaries.html">ADR 0013</a>):
+the chart runs <code>api migrate up</code> in each API pod's <code>migrate</code> init container,
+before the API starts. These commands read only the PostgreSQL settings and
+the credential lookup, then exit:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api migrate up</code></td>
+<td>Applies, in order, each migration of <a href="https://github.com/gdpais/Heartbeat/tree/master/db/migrations"><code>db/migrations</code></a> newer than the database's version, and records it in <code>schema_migrations</code>. Replicas may run it at once: a PostgreSQL advisory lock makes the others wait and each migration runs once. Each wait for the lock ends after 5 minutes, or on SIGTERM, and fails the command. A database already past the newest migration it embeds (after rolling the API back) is left alone, and the command succeeds. A dirty version fails it (<a href="../guides/local-development.html#change-a-query-or-a-migration">repair</a>)</td>
+</tr>
+<tr>
+<td><code>api migrate version</code></td>
+<td>Prints the schema version, <code>0</code> when never migrated, with <code> (dirty)</code> while a migration runs or after one failed partway. It only reads <code>schema_migrations</code>: it creates nothing and does not wait for a migration in progress</td>
+</tr>
+<tr>
+<td><code>api users create-admin --email ADDRESS [--name NAME]</code></td>
+<td>Creates a user with the <code>admin</code> role and the password read from standard input, and its audit record, in one transaction. There is no default password: this is how the first admin is made, and how anyone who can run a command in an API container gets back in. The email is stored in lower case and must not belong to a user already, in any case; the name defaults to the email's local part. The password is the first line of standard input, its line end dropped, from 15 characters (<a href="https://pages.nist.gov/800-63-4/sp800-63b.html">NIST SP 800-63B-4</a>'s minimum for a single factor) to 1,024 bytes, stored only as its argon2id hash (RFC 9106's second recommended setting: 64 MiB, t=3, p=4). A terminal is refused, since it echoes what is typed: pipe the password in. Fails, writing nothing, on a schema older than the API's (<code>run api migrate up</code>). Logs the user's ID and the audit record's ID; the record is sent by the API's drainer, as <code>api users create-admin</code> on the pod's host name</td>
+</tr>
+</tbody>
+</table></div>
+<p>Creating the first admin, where the password never reaches the command line
+or the shell history; on a cluster, the same through <code>kubectl exec -i</code> into an
+API pod (the chart adds the API [4.1]):</p>
+<pre><code class="language-bash">read -rs PASSWORD &amp;&amp; printf '%s\n' &quot;$PASSWORD&quot; | \
+  api users create-admin --email admin@example.com --name &quot;First Admin&quot;; unset PASSWORD
+</code></pre>
+<h3 id="local-development-files">Local development files<a href="#local-development-files" class="anchor" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Tracked</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.env.sqlserver-dev.example</code></td>
+<td>yes</td>
+<td>Template for the SQL Server sandbox</td>
+</tr>
+<tr>
+<td><code>.env.sqlserver-dev</code></td>
+<td>no (mode 600)</td>
+<td>Random per-machine SA password and least-privilege collector credential (<code>heartbeat_collector:&lt;password&gt;</code>), generated by <code>make sqlserver-dev-init</code>; <code>make sqlserver-dev-up</code> creates that login with <code>sa</code> and copies only the collector credential into the <code>heartbeat-sqlserver-dev-credentials</code> Secret</td>
+</tr>
+<tr>
+<td><code>infra/helm/values/sqlserver-dev.yaml</code></td>
+<td>yes</td>
+<td>Values that point the collector at the sandbox container</td>
+</tr>
+</tbody>
+</table></div>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/reference/configuration.md"><code>docs/reference/configuration.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#config-files-by-environment">Config files by environment</a></li>
+      <li class="toc-h3"><a href="#collectors-rendered-by-the-api">Collectors rendered by the API</a></li>
+      <li class="toc-h2"><a href="#integrationsyaml">integrations.yaml</a></li>
+      <li class="toc-h3"><a href="#endpoints">Endpoints</a></li>
+      <li class="toc-h3"><a href="#notification-channels">Notification channels</a></li>
+      <li class="toc-h3"><a href="#credential-references">Credential references</a></li>
+      <li class="toc-h3"><a href="#collectors">Collectors</a></li>
+      <li class="toc-h3"><a href="#validation-and-reload-behavior">Validation and reload behavior</a></li>
+      <li class="toc-h2"><a href="#credential-resolution">Credential resolution</a></li>
+      <li class="toc-h2"><a href="#environment-variables">Environment variables</a></li>
+      <li class="toc-h3"><a href="#db-collector">DB collector</a></li>
+      <li class="toc-h3"><a href="#api">API</a></li>
+      <li class="toc-h3"><a href="#local-development-files">Local development files</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Heartbeat docsite (make docs-site)">
+<meta name="color-scheme" content="light dark">
+<title>0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them · Heartbeat docs</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M2 12h4l3-7 4 14 3-7h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/style.css?v=8486b06a573b">
+<script defer src="../../assets/site.js?v=5b67932127bb"></script>
+</head>
+<body data-root="../../" data-search-index="assets/search-index.js?v=c83488c9ddf1">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="topbar">
+  <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="visually-hidden">Menu</span>
+  </button>
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Heartbeat <span class="brand-sub">docs</span>
+  </a>
+</header>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="Documentation">
+    <a class="brand" href="../../index.html">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Heartbeat <span class="brand-sub">docs</span>
+    </a>
+    <div class="search" role="search">
+      <label class="visually-hidden" for="search-input">Search the docs</label>
+      <input id="search-input" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false">
+      <div class="search-results" id="search-results" hidden></div>
+    </div>
+    <div class="nav-groups">
+      <ul class="nav-list">
+        <li><a href="../../index.html">Home</a></li>
+      </ul>
+      <section class="nav-group">
+        <h2>New to Heartbeat</h2><p class="nav-note">clients, stakeholders, new team members</p>
+        <ul class="nav-list">
+          <li><a href="../../product/overview.html">Product overview</a>
+          </li>
+          <li><a href="../../product/roadmap.html">Roadmap</a>
+          </li>
+          <li><a href="../../product/operating-model.html">How we work</a>
+          </li>
+          <li><a href="../overview.html">Architecture overview</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Developers</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/local-development.html">Local development</a>
+          </li>
+          <li><a href="../../guides/kind-walkthrough.html">Walkthrough</a>
+          </li>
+          <li><a href="../../guides/live-demo.html">Live demo</a>
+          </li>
+          <li><a href="../../guides/kubernetes-local.html">Kubernetes delivery</a>
+          </li>
+          <li><a href="../data-model.html">Data model</a>
+          </li>
+          <li><a href="../database-observability.html">Probe review checklist</a>
+          </li>
+          <li><a href="index.html">Architecture decisions</a>
+            <ul class="nav-list nav-children">
+              <li><a href="0001-postgresql-metadata-only.html">0001. PostgreSQL stores durable product metadata only</a></li>
+              <li><a href="0002-runtime-config-in-yaml.html">0002. Runtime integration and collector config come from YAML/Kubernetes</a></li>
+              <li><a href="0003-helm-on-kind-and-production.html">0003. Deliver the platform with Helm on kind and production Kubernetes</a></li>
+              <li><a href="0004-core-technology-choices.html">0004. Core technology choices</a></li>
+              <li><a href="0005-production-delivery-and-operations-defaults.html">0005. Production delivery and operations defaults</a></li>
+              <li><a href="0006-trunk-based-development-and-tagged-releases.html">0006. Trunk-based development and tagged releases</a></li>
+              <li><a href="0007-change-based-ci-with-one-required-check.html">0007. Change-based CI with one required check</a></li>
+              <li><a href="0008-outsystems-11-log-extraction.html">0008. Extract OutSystems 11 logs from the logging database</a></li>
+              <li><a href="0009-remove-the-otel-gateway.html">0009. Remove the OTel gateway</a></li>
+              <li><a href="0010-patientzero-test-application.html">0010. PatientZero, a synthetic OutSystems application to test against</a></li>
+              <li><a href="0011-platform-agnostic-telemetry-boundary.html">0011. Keep the observability platform replaceable; bundle the Grafana stack</a></li>
+              <li><a href="0012-personal-data-in-telemetry.html" aria-current="page">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them</a></li>
+              <li><a href="0013-api-design-and-subsystem-boundaries.html">0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries</a></li>
+              <li><a href="0014-probe-assignments-to-runtime-config.html">0014. Approved probe assignments reach the collector as a pull request to the config repository</a></li>
+              <li><a href="0015-postgresql-and-redis-delivery.html">0015. PostgreSQL and Redis: small chart templates for kind and CI, managed services in production; Redis runs as Valkey</a></li>
+              <li><a href="0016-audit-records-through-an-outbox.html">0016. Audit records are written in the change&#39;s transaction and delivered as OTLP log records</a></li>
+              <li><a href="0017-outsystems-sources-map-application-identity.html">0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML</a></li>
+              <li><a href="0018-heartbeats-own-telemetry.html">0018. Heartbeat&#39;s own telemetry</a></li>
+              <li><a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">0019. Keep the Grafana stack; share telemetry as OTLP from the Collector</a></li>
+              <li><a href="0020-web-ui-served-by-the-api.html">0020. Web UI: a Vite single-page app served by the API</a></li>
+            </ul>
+          </li>
+          <li><a href="../../services/db-collector/index.html">DB collector</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>Operators and SREs</h2>
+        <ul class="nav-list">
+          <li><a href="../../guides/install-from-release.html">Installing a release</a>
+          </li>
+          <li><a href="../../guides/database-targets.html">Onboarding SQL Server targets</a>
+          </li>
+          <li><a href="../../reference/configuration.html">Configuration reference</a>
+          </li>
+          <li><a href="../../reference/metrics-and-endpoints.html">Metrics and endpoints reference</a>
+          </li>
+        </ul>
+      </section>
+      <section class="nav-group">
+        <h2>More pages</h2>
+        <ul class="nav-list">
+          <li><a href="../application-observability.html">Application Observability Architecture</a>
+          </li>
+          <li><a href="../workflows.html">Operator Workflows</a>
+          </li>
+        </ul>
+      </section>
+      <ul class="nav-list nav-archive">
+        <li><a href="../../archive/index.html">Archive</a></li>
+      </ul>
+    </div>
+  </nav>
+  <div class="scrim" hidden></div>
+  <main id="content" tabindex="-1">
+    <details class="toc-inline">
+      <summary>On this page</summary>
+      <ul>
+        <li class="toc-h2"><a href="#context">Context</a></li>
+        <li class="toc-h2"><a href="#decision">Decision</a></li>
+        <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+      </ul>
+    </details>
+    <article class="markdown">
+<h1 id="0012-keep-user-ids-session-ids-and-client-ips-raw-in-loki-restrict-who-reaches-them">0012. Keep user IDs, session IDs and client IPs raw in Loki; restrict who reaches them<a href="#0012-keep-user-ids-session-ids-and-client-ips-raw-in-loki-restrict-who-reaches-them" class="anchor" title="Link to this section">#</a></h1>
+<ul>
+<li>Status: Accepted; compliance sign-off required before production</li>
+<li>Date: 2026-10-21</li>
+</ul>
+<h2 id="context">Context<a href="#context" class="anchor" title="Link to this section">#</a></h2>
+<p>OutSystems 11 log rows carry user IDs, session IDs, request keys and client
+IPs. The extractor sends them to the OTel Collector, and Loki keeps them as
+structured metadata, never as index labels
+(<a href="../application-observability.html">application observability</a>). Whether to
+keep them raw, replace them with a keyed hash (HMAC) or truncate them (for
+example, the last octet of an IPv4 address) was left open in the
+<a href="../../product/overview.html#open-questions">product overview</a>, and the
+2026-10-19 security review flagged that any pod in the namespace can reach
+Loki.</p>
+<p>What each option costs:</p>
+<ul>
+<li><strong>Raw.</strong> Investigations search for the user or session that reported a
+problem, by the value support gives them, and correlate it with the
+application's own screens and tables. Nothing to manage. The data is
+personal data wherever Loki or a copy of it goes.</li>
+<li><strong>Keyed hash.</strong> Still correlates within Heartbeat, and the key can be
+rotated. But support has the raw value, so every search needs the key to
+hash it first, and Grafana's log views show only hashes. The key becomes a
+secret every environment must hold and protect, and anyone with the key
+and the data can reverse a known value anyway.</li>
+<li><strong>Truncate.</strong> Loses the per-user and per-session answers the dashboards and
+investigations need (active users and sessions come from Loki [10.4]).
+Only fits client IPs, and only when nobody needs the exact address.</li>
+</ul>
+<h2 id="decision">Decision<a href="#decision" class="anchor" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>Keep user IDs, session IDs, request keys and client IPs raw</strong> in Loki's
+structured metadata. They stay out of index labels and metric labels, as
+before.</li>
+<li><strong>Restrict who can reach them.</strong> NetworkPolicies allow only the components
+that use Loki to reach it [9.6]. Grafana, the only human path to the logs,
+needs a login outside kind (anonymous viewing is allowed only in the kind
+values, behind loopback ports). Later Heartbeat features that copy
+identifiers out of Loki (investigation evidence, reports) keep them under
+the same access rules and retention.</li>
+<li><strong>The extractor stays able to hash before export.</strong> If compliance asks
+for a keyed hash or truncation, it is added in the extractor behind a
+setting, without changing the pipeline, the labels or the queries' shape.</li>
+<li><strong>Production needs compliance sign-off first.</strong> Before the first
+production deploy [18], someone accountable for data protection confirms
+raw storage, Loki's retention and who has Grafana access, or asks for
+option 3. Until then raw identifiers live only on kind and in test
+environments with synthetic (PatientZero) or approved data.</li>
+</ol>
+<h2 id="consequences">Consequences<a href="#consequences" class="anchor" title="Link to this section">#</a></h2>
+<ul>
+<li>Investigations and dashboards keep working on the values support and the
+SRE team already use.</li>
+<li>Access is restricted in the chart: Loki admits only the OTel Collector,
+Grafana and Prometheus, and the other bundled engines only their own
+clients [9.6]. Operators reach Loki through Grafana or <code>kubectl port-forward</code> (<a href="../../guides/kubernetes-local.html#network-access">network access</a>).</li>
+<li>Loki is a store of personal data: its retention, backups and access are
+part of the production review, and any application that receives the logs
+as OTLP (<a href="0019-keep-grafana-and-share-telemetry-as-otlp.html">ADR 0019</a>) must
+carry the same access rules [18].</li>
+<li><code>docs/architecture/workflows.md</code>'s &quot;prefer hashed identifiers&quot; rule now
+reads as &quot;keep identifiers out of labels; raw values only behind access
+control&quot; and points here.</li>
+<li>Switching to a keyed hash later re-keys every stored value: old and new
+logs don't correlate across the switch unless the old ones age out first.</li>
+</ul>
+
+    </article>
+    <footer class="page-footer">
+      Generated from <a href="https://github.com/gdpais/Heartbeat/blob/master/docs/architecture/decisions/0012-personal-data-in-telemetry.md"><code>docs/architecture/decisions/0012-personal-data-in-telemetry.md</code></a> by <code>make docs-site</code>. Edit the Markdown, not this page.
+    </footer>
+  </main>
+  <aside class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li class="toc-h2"><a href="#context">Context</a></li>
+      <li class="toc-h2"><a href="#decision">Decision</a></li>
+      <li class="toc-h2"><a href="#consequences">Consequences</a></li>
+    </ul>
+  </aside>
+</div>
+</body>
+</html>
