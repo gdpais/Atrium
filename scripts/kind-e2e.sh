@@ -666,14 +666,15 @@ wait_for 120 "the session's login and logout records in Loki" session_audited
 pass "login from $site set the __Host- cookie; session $session_id is the admin's; logout ended it (401 after); both audited in Loki"
 
 # ----------------------------------------------------------------------------
-step "a viewer logs in to the Web UI in Chromium, sees what the role allows and logs out"
+step "in the Web UI, in Chromium, a viewer reads and an operator onboards an environment and an application"
 # Playwright (apps/web/e2e) drives the UI the API serves, at the site's
 # origin: the port-forward listens on localhost:8081, which is kind's
 # api.siteOrigin, so the browser's Origin passes the API's check as a user's
 # would and the __Host- cookie is set (localhost is a secure context). The
-# admin creates the viewer through the API; its password stays in a file. CI
-# installs Playwright and Chromium (ci.yml); a local run without them, or
-# with 8081 taken by a dev port-forward, skips this step and says why.
+# admin creates a viewer and an operator through the API; their passwords
+# stay in files. CI installs Playwright and Chromium (ci.yml); a local run
+# without them, or with 8081 taken by a dev port-forward, skips this step and
+# says why.
 playwright=apps/web/node_modules/.bin/playwright
 ui_skip() {
 	[ -z "${CI:-}" ] || fail "$1"
@@ -706,22 +707,29 @@ else
 		(
 			umask 077
 			sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
-			openssl rand -hex 16 >"$WORK/viewer-password"
-			jq -n --rawfile password "$WORK/viewer-password" \
-				'{email: "kind-e2e-viewer@example.com", display_name: "E2E Viewer", password: ($password | rtrimstr("\n")), roles: ["viewer"]}' >"$WORK/viewer.json"
 		)
-		code=$(api_call POST /api/v1/users -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/viewer.json")
-		[ "$code" = 201 ] || fail "creating the viewer returned $code: $(cat "$WORK/api-body")"
+		# A viewer and an operator, each with that role only.
+		for role in viewer operator; do
+			(
+				umask 077
+				openssl rand -hex 16 >"$WORK/$role-password"
+				jq -n --arg role "$role" --rawfile password "$WORK/$role-password" \
+					'{email: ("kind-e2e-" + $role + "@example.com"), display_name: ("E2E " + $role), password: ($password | rtrimstr("\n")), roles: [$role]}' >"$WORK/$role.json"
+			)
+			code=$(api_call POST /api/v1/users -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/$role.json")
+			[ "$code" = 201 ] || fail "creating the $role returned $code: $(cat "$WORK/api-body")"
+		done
 		code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
 		[ "$code" = 204 ] || fail "the admin's logout returned $code: $(cat "$WORK/api-body")"
 		ui_start=$(date +%s)
 		HEARTBEAT_UI_URL=http://localhost:8081 HEARTBEAT_E2E_OUTPUT="$WORK/playwright" \
 			HEARTBEAT_E2E_VIEWER_EMAIL=kind-e2e-viewer@example.com HEARTBEAT_E2E_VIEWER_PASSWORD_FILE="$WORK/viewer-password" \
+			HEARTBEAT_E2E_OPERATOR_EMAIL=kind-e2e-operator@example.com HEARTBEAT_E2E_OPERATOR_PASSWORD_FILE="$WORK/operator-password" \
 			"$playwright" test --config apps/web/playwright.config.ts ||
 			fail "the Web UI's browser tests failed (apps/web/e2e)"
 		kill "$port_forward_pid" 2>/dev/null || true
 		port_forward_pid=
-		pass "in Chromium a wrong password is refused; the viewer logs in from $site, sees every section but users, is refused /users (403 at the API), and logs out (401 after), in $(($(date +%s) - ui_start))s"
+		pass "in Chromium a wrong password is refused; the viewer logs in from $site, sees every section but users, is refused /users (403 at the API), reads the inventory with nothing to change it, and logs out (401 after); the operator creates an environment and an application in it, sees the API's 409 for a taken slug, and disables the application; in $(($(date +%s) - ui_start))s"
 	fi
 fi
 

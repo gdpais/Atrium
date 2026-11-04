@@ -33,6 +33,18 @@ export default defineConfig({
     emptyOutDir: true,
     // Hashed file names under assets/, which the API caches as immutable.
     assetsDir: "assets",
+    rollupOptions: {
+      output: {
+        // Libraries in chunks of their own: they change less often than the
+        // app, so a deploy leaves them cached (the API serves assets/ as
+        // immutable), and no chunk passes Vite's 500 kB warning.
+        manualChunks: (id: string) => {
+          if (!id.includes("/node_modules/")) return undefined;
+          if (id.includes("/@mantine/")) return "mantine";
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     port,

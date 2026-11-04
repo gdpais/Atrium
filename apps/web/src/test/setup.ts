@@ -23,3 +23,9 @@ window.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 };
+// Textarea's autosize listens for web fonts loading.
+if (!("fonts" in document)) {
+  Object.defineProperty(document, "fonts", {
+    value: { addEventListener: () => {}, removeEventListener: () => {}, ready: Promise.resolve() },
+  });
+}

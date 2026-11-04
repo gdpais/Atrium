@@ -6,17 +6,23 @@ export interface Account {
 }
 
 export interface Options {
-  // A user with the viewer role only, made by scripts/kind-e2e.sh.
+  // Users made by scripts/kind-e2e.sh, with the viewer role only and with
+  // the operator role only.
   viewer: Account;
+  operator: Account;
 }
 
 export const test = base.extend<Options>({
   viewer: [{ email: "", password: "" }, { option: true }],
+  operator: [{ email: "", password: "" }, { option: true }],
 });
 
-test.beforeEach(({ viewer }) => {
-  if (!viewer.email || !viewer.password) {
-    throw new Error("set HEARTBEAT_E2E_VIEWER_EMAIL and HEARTBEAT_E2E_VIEWER_PASSWORD_FILE");
+test.beforeEach(({ viewer, operator }) => {
+  for (const [role, account] of Object.entries({ viewer, operator })) {
+    if (!account.email || !account.password) {
+      const name = role.toUpperCase();
+      throw new Error(`set HEARTBEAT_E2E_${name}_EMAIL and HEARTBEAT_E2E_${name}_PASSWORD_FILE`);
+    }
   }
 });
 
