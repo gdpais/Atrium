@@ -1259,10 +1259,15 @@ queued_after=$(otel_queue_size)
 printf '      Collector queue: %s before the restart, %s after\n' "$queued_before" "${queued_after:-?}"
 k -n "$NAMESPACE" scale statefulset/loki --replicas=1 >/dev/null
 k -n "$NAMESPACE" rollout status statefulset/loki --timeout 5m >/dev/null
-# Distinct rows by their Request_Key, and lines in total: a batch the
-# Collector sent again after the restart (delivery is at least once) would
-# count twice in the total if Loki kept both copies. The total keeps only
-# service_name, so it is one series rather than one per row, cheap to poll.
+# Distinct rows by their Request_Key, and lines in total. Delivery is at
+# least once (ADR 0008), so a row can be in Loki twice: a request the
+# stopped Collector kept on its disk queue though the db-collector never
+# saw it accepted is sent by the replacement and again by the db-collector's
+# retry. Loki drops many of those copies but not all (run 41847786348:
+# a request of 1,266 rows sent twice, 73 of its lines kept twice). The check
+# is no row lost, and no line twice beyond what the Collector sent twice.
+# The total keeps only service_name, so it is one series rather than one per
+# row, cheap to poll.
 distinct_query() { echo "count(sum by (Request_Key) (count_over_time({service_name=\"E2eBacklog$1\"}[$(($2 / 60 + 30))m])))"; }
 total_query() { echo "sum(count_over_time({service_name=\"E2eBacklog$1\"} | keep service_name [$(($2 / 60 + 30))m]))"; }
 # The delivery as key=value words: per backlog the rows the Collector
@@ -1325,21 +1330,35 @@ while :; do
 done
 printf '      delivery ended after %ss (%s): %s\n' $(($(date +%s) - start)) "$ended" "$state"
 printf '      Loki discarded, by reason: %s\n' "$(loki_discarded)"
-failed= missing=
+failed= missing= twice=0 rows_all=0
 for backlog in $backlogs; do
 	name=${backlog%%:*} span_s=${backlog#*:}
 	read_rows=$(backlog_read "$name")
 	distinct=$(loki_value "$(distinct_query "$name" "$span_s")")
 	total=$(loki_value "$(total_query "$name" "$span_s")")
 	printf '      %s backlog: db-collector read %s rows; Loki holds %s distinct rows in %s lines\n' "$name" "$read_rows" "$distinct" "$total"
+	rows_all=$((rows_all + backlog_rows))
 	if [ "$read_rows" != "$backlog_rows" ]; then
 		failed="$failed; the db-collector read $read_rows of the $backlog_rows rows of the $name backlog"
 	elif [ "$distinct" != "$read_rows" ]; then
 		failed="$failed; Loki holds $distinct of the $read_rows rows of the $name backlog" missing=true
-	elif [ "$total" != "$read_rows" ]; then
-		failed="$failed; Loki holds $total lines for the $read_rows rows of the $name backlog: a row was stored twice"
+	elif ! gt "$total" "$((distinct - 1))"; then
+		failed="$failed; Loki counted '$total' lines for the $distinct rows of the $name backlog"
+	else
+		twice=$((twice + total - distinct))
 	fi
 done
+# Every line held twice was sent twice: the Collector's logs exporter sent
+# at least as many records beyond the rows of the backlogs (audit records
+# share the exporter, so this only errs towards passing). More lines twice
+# would be rows the db-collector read twice, which its row count above
+# catches, or a copy made after the Collector.
+sent=$(state_value "$state" sent)
+sent_twice=$((${sent:-0} - rows_all))
+printf '      lines held twice: %s; records the Collector sent beyond the rows: %s\n' "$twice" "$sent_twice"
+if [ -z "$failed" ] && [ "$twice" -gt 0 ] && [ "$twice" -gt "$sent_twice" ]; then
+	failed="Loki holds $twice lines twice, but the Collector sent only $sent_twice records more than the rows of the backlogs"
+fi
 if [ -n "$failed" ]; then
 	echo "      the delivery at each change:"
 	cat "$WORK/backlog-delivery.txt"
@@ -1350,6 +1369,6 @@ if [ -n "$failed" ]; then
 		fail "rows lost: nothing is left to deliver in the db-collector or the Collector, yet ${failed#; }"
 	fail "${failed#; }"
 fi
-pass "the Collector restarted during two backlogs (45 minutes and three hours); Loki holds all $backlog_rows rows of each, once"
+pass "the Collector restarted during two backlogs (45 minutes and three hours); Loki holds all $backlog_rows rows of each (lines held twice, each sent twice by the Collector: $twice)"
 
 printf '\nAll kind e2e checks passed on %s.\n' "$CLUSTER"
