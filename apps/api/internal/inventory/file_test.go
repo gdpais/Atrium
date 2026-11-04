@@ -6,8 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
+
+	"heartbeat/internal/config"
+	configschema "heartbeat/packages/config-schema"
 )
 
 // exampleFile is config/inventory.example.yaml, which the reference docs
@@ -152,6 +156,26 @@ database_targets:
 			"database_targets[0].probes[4].timeout_ms:",
 			"database_targets[0].probes[5].interval_seconds: 60s, and database_targets[0].probes[0] runs every 30s",
 		}},
+		{"problems under an application or a target that has its own", `
+version: 1
+environment: {slug: dev, name: Dev, type: test}
+applications:
+  - name: "  "
+    platform: outsystems
+    components: [{name: Web, type: web}, {name: Web, type: web}]
+    telemetry_sources: [{type: outsystems, ingest_mode: agentless, config: {}}]
+database_targets:
+  - name: a
+    host: "db.internal:1433"
+    credential_ref: env/a
+    probes: [{name: nothing}]
+`, []string{
+			"applications[0].name: required",
+			"applications[0].components[1]: web component \"Web\"",
+			"applications[0].telemetry_sources[0].config:",
+			"database_targets[0].host:",
+			"database_targets[0].probes[0].name: \"nothing\" is no built-in sqlserver probe",
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := ParseFile([]byte(tc.yaml))
@@ -222,7 +246,49 @@ func TestTheInventorySchemaStatesTheAPIsPatterns(t *testing.T) {
 	}
 	probe := schema.Defs["probe"].Properties
 	if probe["interval_seconds"].Minimum != MinIntervalSeconds || probe["interval_seconds"].Maximum != MaxIntervalSeconds ||
-		probe["timeout_ms"].Maximum != MaxTimeoutMS {
+		probe["timeout_ms"].Maximum != MaxTimeoutMS || probe["max_rows"].Maximum != config.MaxProbeMaxRows {
 		t.Errorf("schema's probe limits %+v differ from the API's", probe)
+	}
+}
+
+// The schema's enums are the values the API allows: a source type added to
+// packages/config-schema/src/telemetry-sources, say, must be one the file
+// may name too.
+func TestTheInventorySchemaStatesTheAPIsValues(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(exampleFile(t)), "..", "packages", "config-schema", "src", "inventory.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type values struct {
+		Enum []string `json:"enum"`
+	}
+	var schema struct {
+		Defs map[string]struct {
+			Enum       []string          `json:"enum"`
+			Properties map[string]values `json:"properties"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	var modes []string
+	for _, m := range ingestModes {
+		modes = append(modes, m...)
+	}
+	for _, c := range []struct {
+		what      string
+		got, want []string
+	}{
+		{"status", schema.Defs["status"].Enum, statuses},
+		{"environment type", schema.Defs["environment"].Properties["type"].Enum, environmentTypes},
+		{"criticality", schema.Defs["application"].Properties["criticality"].Enum, criticalities},
+		{"source type", schema.Defs["telemetry_source"].Properties["type"].Enum, configschema.SourceTypes()},
+		{"ingest mode", schema.Defs["telemetry_source"].Properties["ingest_mode"].Enum, modes},
+		{"engine", schema.Defs["database_target"].Properties["engine"].Enum, Engines},
+	} {
+		got, want := slices.Sorted(slices.Values(c.got)), slices.Compact(slices.Sorted(slices.Values(c.want)))
+		if !slices.Equal(got, want) {
+			t.Errorf("schema's %s values %q, the API's %q", c.what, got, want)
+		}
 	}
 }

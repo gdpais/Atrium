@@ -18,6 +18,7 @@ import (
 
 	"heartbeat/apps/api/internal/probedefs"
 	"heartbeat/apps/api/internal/store"
+	"heartbeat/internal/config"
 	configschema "heartbeat/packages/config-schema"
 	"heartbeat/services/db-collector/probecatalog"
 )
@@ -325,13 +326,14 @@ func (c *fileChecker) check(f *File) {
 	for i := range f.Applications {
 		at := fmt.Sprintf("applications[%d]", i)
 		a := &f.Applications[i]
-		if !c.application(at, a) {
-			continue
-		}
-		if j, ok := names[a.Name]; ok {
-			c.add(at+".name", "%q is applications[%d]'s too: an application's name is unique in its environment", a.Name, j)
-		} else {
-			names[a.Name] = i
+		// An application's own problems do not hide its components' and
+		// sources': the file reports every problem at once.
+		if c.application(at, a) {
+			if j, ok := names[a.Name]; ok {
+				c.add(at+".name", "%q is applications[%d]'s too: an application's name is unique in its environment", a.Name, j)
+			} else {
+				names[a.Name] = i
+			}
 		}
 		c.components(at, a.Components)
 		c.sources(at, i, a.TelemetrySources, applicationNames)
@@ -412,6 +414,12 @@ func (c *fileChecker) targets(targets []FileDatabaseTarget) {
 		norm, err := newDatabaseTarget(NewDatabaseTarget{EnvironmentID: placeholderID, Engine: t.Engine, Name: t.Name, Host: t.Host, Port: t.Port, DatabaseName: t.DatabaseName, CredentialRef: t.CredentialRef, Status: t.Status, Labels: t.Labels})
 		if err != nil {
 			c.fail(at, err, nil)
+			// Its probes are checked all the same, against the engine the
+			// schema let through: the file reports every problem at once.
+			if t.Engine == "" {
+				t.Engine = config.KindSQLServer
+			}
+			c.probes(at, t)
 			continue
 		}
 		t.Engine, t.Host, t.Port, t.DatabaseName, t.Status = norm.Engine, norm.Host, norm.Port, norm.DatabaseName, norm.Status
