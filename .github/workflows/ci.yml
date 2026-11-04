@@ -274,6 +274,21 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      # The Web UI's browser tests (apps/web/e2e) run in Chromium against the
+      # API on kind. Before tools-check, which checks Node against .nvmrc.
+      # --ignore-scripts as in the web job; the fence keeps Go out of
+      # node_modules, since this job's go commands walk the repository.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install Playwright and Chromium
+        working-directory: apps/web
+        run: |
+          npm ci --ignore-scripts --no-fund --no-audit
+          node scripts/fence-node-modules.mjs
+          npx playwright install --with-deps --only-shell chromium
       - name: Install pinned kind, kubectl and Helm
         run: |
           make install-tools

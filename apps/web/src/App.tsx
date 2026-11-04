@@ -1,23 +1,46 @@
 import { MantineProvider } from "@mantine/core";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { createBrowserRouter, RouterProvider, type RouteObject } from "react-router";
+import { createQueryClient } from "./api/queryClient";
+import { RequireRole, RequireSession } from "./components/Guards";
+import { Layout } from "./components/Layout";
+import { sections } from "./nav";
 import { Home } from "./pages/Home";
+import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
+import { RouteError } from "./pages/RouteError";
+import { Section } from "./pages/Section";
 import { theme } from "./theme";
 
+// Every page but the login page needs a session; a section's page needs the
+// role its navigation entry names, so a link typed by hand is gated too.
 export const routes: RouteObject[] = [
-  { path: "/", element: <Home /> },
-  { path: "*", element: <NotFound /> },
+  { path: "/login", element: <Login />, errorElement: <RouteError /> },
+  {
+    element: <RequireSession />,
+    errorElement: <RouteError />,
+    children: [
+      {
+        element: <Layout />,
+        children: [
+          { index: true, element: <Home /> },
+          ...sections.map((section) => ({
+            element: <RequireRole role={section.role} />,
+            children: [{ path: section.path, element: <Section title={section.label} /> }],
+          })),
+          { path: "*", element: <NotFound /> },
+        ],
+      },
+    ],
+  },
 ];
 
-export function Providers({ children }: { children: React.ReactNode }) {
-  const [client] = useState(
-    () => new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } }),
-  );
+export function Providers({ children, client }: { children: React.ReactNode; client?: QueryClient }) {
+  const [queryClient] = useState(() => client ?? createQueryClient());
   return (
     <MantineProvider theme={theme}>
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </MantineProvider>
   );
 }
