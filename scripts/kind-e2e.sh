@@ -261,9 +261,10 @@ outbox_empty() { [ "$(psql_ 'SELECT count(*) FROM audit_outbox')" = 0 ]; }
 # The newest migration in db/migrations, as golang-migrate numbers it.
 newest_migration() { ls db/migrations | sed -n 's/^0*\([0-9][0-9]*\)_.*\.up\.sql$/\1/p' | sort -n | tail -n 1; }
 # A trace of the API's in Tempo, from the last ten minutes, rooted at the
-# span of an unrouted request: nothing else asks the API for one.
+# span of a request for an unknown API path, which the Web UI's route, GET /,
+# answers 404: nothing else asks the API for one.
 api_trace() {
-	query='{resource.service.name="api" && name="GET unmatched"}'
+	query='{resource.service.name="api" && name="GET /"}'
 	svc_get tempo:3200 "/api/search?limit=1&start=$(($(date +%s) - 600))&end=$(($(date +%s) + 60))&q=$(printf '%s' "$query" | jq -sRr @uri)" |
 		jq -er '.traces[0].traceID'
 }
@@ -561,9 +562,23 @@ wait_for 60 "Prometheus scrapes the API" value_is 'up{job="api"}' 1
 	fail "no heartbeat_service_info for the API"
 [ -n "$(prom_value 'sum(heartbeat_api_http_requests_total{route="/readyz"})')" ] ||
 	fail "no heartbeat_api_http_requests_total for the API's readiness probes"
-# Health and readiness requests are not traced, and the API has no other
-# route yet [4.2], so an unrouted request makes the trace. From Prometheus,
-# the one pod the API's NetworkPolicy admits; the 404 is expected.
+# The Web UI (ADR 0020), from the image's own build: index.html for a client
+# route a browser reloads, under the CSP, and its hashed script cached as
+# immutable. From Prometheus, the one pod the API's NetworkPolicy admits.
+api_wget() { k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- wget -q -T 5 -S "$@" 2>&1; }
+ui=$(api_wget -O - --header 'Accept: text/html' http://api:8081/environments) ||
+	fail "the API did not serve the Web UI: $ui"
+printf '%s' "$ui" | grep -q '<div id="root">' || fail "the API serves no Web UI build at /environments: $ui"
+printf '%s' "$ui" | grep -qi "Content-Security-Policy: default-src 'self'; script-src 'self';" ||
+	fail "the Web UI has no Content-Security-Policy: $ui"
+asset=$(printf '%s' "$ui" | grep -o '/assets/[^"]*\.js' | head -n 1)
+[ -n "$asset" ] || fail "the Web UI's index.html names no script under /assets/: $ui"
+headers=$(api_wget -O /dev/null "http://api:8081$asset") || fail "the API did not serve $asset: $headers"
+printf '%s' "$headers" | grep -qi 'Cache-Control: public, max-age=31536000, immutable' ||
+	fail "$asset is not cached as immutable: $headers"
+pass "the API serves the Web UI: index.html for /environments under its CSP, $asset immutable"
+# Health and readiness requests are not traced, so a request for an unknown
+# API path makes the trace; the 404 is expected.
 k -n "$NAMESPACE" exec deployment/prometheus -c prometheus-server -- \
 	wget -q -T 5 -O /dev/null "http://api:8081/api/v1/kind-e2e-$run_id" >/dev/null 2>&1 || true
 wait_for 120 "the API's request trace in Tempo" api_trace

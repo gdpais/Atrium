@@ -340,6 +340,34 @@ are in the [endpoints reference](../reference/metrics-and-endpoints.md#api-8081)
 Remove the containers with
 `docker rm -fv heartbeat-api-dev-postgres heartbeat-api-dev-valkey`.
 
+## Work on the Web UI
+
+The Web UI is a Vite + React + TypeScript app in [`apps/web`](../../apps/web)
+that the API embeds and serves at `/`
+([ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)). On kind
+it is at `http://localhost:8081` through the API's port-forward above: the API
+image builds it, so the cluster loop needs no Node.
+
+To change it, install Node at the version in `apps/web/.nvmrc` (`make
+tools-check` reports it), keep the port-forward running and start Vite's dev
+server, which reloads on every save and proxies `/api`, `/healthz` and
+`/readyz` to the API:
+
+```bash
+npm --prefix apps/web ci
+npm --prefix apps/web run dev     # http://localhost:5173
+make web-check                    # lint, typecheck, tests and build, as CI runs them
+```
+
+The proxy sends the API's own origin, `http://localhost:8081`, so logging in
+works from Vite's port as well; set `HEARTBEAT_API_URL` to proxy to another
+API. `npm ci` also writes `apps/web/node_modules/go.mod`, so that Go's `./...`
+skips what npm installed.
+
+A Go build embeds whatever `apps/web/dist/app` holds: the last
+`npm run build`, or nothing, in which case `/` serves a page saying the UI was
+not built and the API logs a warning. `go test` and `make test` need no Node.
+
 ## Change the API contract
 
 The API's contract is [`apps/api/openapi.yaml`](../../apps/api/openapi.yaml), written by hand
@@ -347,11 +375,13 @@ The API's contract is [`apps/api/openapi.yaml`](../../apps/api/openapi.yaml), wr
 After editing it, regenerate the server types and commit them with the spec:
 
 ```bash
-make generate   # writes apps/api/internal/openapi/openapi.gen.go
+make generate   # writes apps/api/internal/openapi/openapi.gen.go and apps/web/src/api/schema.gen.ts
 ```
 
 `make test` and CI, through `make generate-check`, fail when the committed
-code differs from what the spec generates. The generator, oapi-codegen, is pinned in the Makefile
+server code differs from what the spec generates; CI's Web UI job does the
+same for the UI's client, which `make generate` writes only when `npm` is
+installed. The generator, oapi-codegen, is pinned in the Makefile
 (`OAPI_CODEGEN_VERSION`) and fetched by `go run`, so there is nothing to
 install. The handlers in `apps/api/internal/httpapi` implement the generated
 `StrictServerInterface`: a new operation does not compile until it has one,

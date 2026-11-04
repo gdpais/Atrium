@@ -1,0 +1,4 @@
+node_modules/
+# Vite's output; the API embeds it (apps/web/web.go). dist/.keep stays so the
+# embed compiles without a build.
+dist/app/

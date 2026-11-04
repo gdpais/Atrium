@@ -652,7 +652,7 @@ tests:
               summary: "The busy collector's cycles often run late"
               description: "5% of its cycles over the last 6 hours used their whole interval or panicked, more than 6 times the 0.5% budget."
 
-  - name: API errors page; the health endpoints and low traffic do not
+  - name: API errors page; the health endpoints, the Web UI and low traffic do not
     interval: 1m
     input_series:
       # 60 requests a minute, 5% failing.
@@ -660,6 +660,10 @@ tests:
         values: '0+57x400'
       - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="500"}'
         values: '0+3x400'
+      # The Web UI's files (ADR 0020): many, and never failing, they must not
+      # dilute the API's failures.
+      - series: 'heartbeat_api_http_requests_total{route="/",method="GET",code="200"}'
+        values: '0+600x400'
       # /readyz fails on purpose while a dependency is down.
       - series: 'heartbeat_api_http_requests_total{route="/readyz",method="GET",code="503"}'
         values: '0+600x90'
@@ -700,13 +704,18 @@ tests:
         alertname: HeartbeatAPIErrorBudgetBurnFast
         exp_alerts: []
 
-  - name: The API's slow requests count against 250 ms, without the health endpoints
+  - name: The API's slow requests count against 250 ms, without the health endpoints and the Web UI
     interval: 1m
     input_series:
       - series: 'heartbeat_api_http_request_duration_seconds_bucket{route="/api/v1/applications",method="GET",le="0.25"}'
         values: '0+10x90'
       - series: 'heartbeat_api_http_request_duration_seconds_count{route="/api/v1/applications",method="GET"}'
         values: '0+100x90'
+      # The Web UI's files, all fast: they must not hide the API's slow requests.
+      - series: 'heartbeat_api_http_request_duration_seconds_bucket{route="/",method="GET",le="0.25"}'
+        values: '0+1000x90'
+      - series: 'heartbeat_api_http_request_duration_seconds_count{route="/",method="GET"}'
+        values: '0+1000x90'
       - series: 'heartbeat_api_http_requests_total{route="/api/v1/applications",method="GET",code="200"}'
         values: '0+100x90'
     promql_expr_test:

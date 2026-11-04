@@ -28,6 +28,16 @@
       "groupName": "go toolchain"
     },
     {
+      "description": "Keep the Web UI's Node (apps/web/.nvmrc) and the API image's Node build stage on the same release (ADR 0020).",
+      "matchPackageNames": ["node"],
+      "groupName": "node toolchain"
+    },
+    {
+      "description": "TypeScript stays on 5.x while typescript-eslint (<6.1) and openapi-typescript (^5) do not support a newer major; lift this when both do.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6"
+    },
+    {
       "description": "kubectl stays on the kind node's Kubernetes minor (ADR 0005): patch updates only.",
       "matchDepNames": ["kubernetes/kubernetes"],
       "matchUpdateTypes": ["major", "minor"],
