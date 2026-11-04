@@ -377,8 +377,20 @@ make web-check                    # lint, typecheck, tests and build, as CI runs
 
 The proxy sends the API's own origin, `http://localhost:8081`, so logging in
 works from Vite's port as well; set `HEARTBEAT_API_URL` to proxy to another
-API. `npm ci` also writes `apps/web/node_modules/go.mod`, so that Go's `./...`
-skips what npm installed.
+API, and `HEARTBEAT_SITE_ORIGIN` when that API is forwarded to a port other
+than its `api.siteOrigin`. `npm ci` also writes
+`apps/web/node_modules/go.mod`, so that Go's `./...` skips what npm installed.
+
+Every page but `/login` needs a session; the navigation shows only the
+sections the user's roles allow, and a 401 from any request sends the user
+back to the login page. The browser tests in `apps/web/e2e` run in Chromium
+against the API on kind: `make kind-e2e` runs them when Playwright is
+installed and port 8081 is free (stop the port-forward above first), and
+skips them with the reason otherwise. CI always runs them.
+
+```bash
+npx --prefix apps/web playwright install chromium   # once
+```
 
 A Go build embeds whatever `apps/web/dist/app` holds: the last
 `npm run build`, or nothing, in which case `/` serves a page saying the UI was
