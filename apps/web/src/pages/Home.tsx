@@ -1,23 +1,29 @@
-import { Alert, Container, Loader, Text, Title } from "@mantine/core";
-import { useSession } from "../api/session";
+import { Anchor, List, Text, Title } from "@mantine/core";
+import { Link } from "react-router";
+import { hasRole, useSession } from "../api/session";
+import { sections } from "../nav";
 
 export function Home() {
-  const session = useSession();
+  const { data: session } = useSession();
+  if (!session) return null;
   return (
-    <Container size="sm" py="xl">
+    <>
       <Title order={1}>Heartbeat</Title>
-      {session.isPending && <Loader size="sm" mt="md" aria-label="Loading" />}
-      {session.isError && (
-        <Alert color="red" mt="md" title="The API could not be reached">
-          {session.error.message}
-        </Alert>
-      )}
-      {session.data === null && <Text mt="md">You are not signed in.</Text>}
-      {session.data && (
-        <Text mt="md">
-          Signed in as {session.data.user.display_name} ({session.data.user.email}).
-        </Text>
-      )}
-    </Container>
+      <Text mt="md">
+        Signed in as {session.user.display_name || session.user.email} ({session.user.email}), with the{" "}
+        {session.user.roles.join(", ")} {session.user.roles.length === 1 ? "role" : "roles"}.
+      </Text>
+      <List mt="md">
+        {sections
+          .filter((section) => hasRole(session, section.role))
+          .map((section) => (
+            <List.Item key={section.path}>
+              <Anchor component={Link} to={section.path}>
+                {section.label}
+              </Anchor>
+            </List.Item>
+          ))}
+      </List>
+    </>
   );
 }

@@ -666,6 +666,61 @@ wait_for 120 "the session's login and logout records in Loki" session_audited
 pass "login from $site set the __Host- cookie; session $session_id is the admin's; logout ended it (401 after); both audited in Loki"
 
 # ----------------------------------------------------------------------------
+step "a viewer logs in to the Web UI in Chromium, sees what the role allows and logs out"
+# Playwright (apps/web/e2e) drives the UI the API serves, at the site's
+# origin: the port-forward listens on localhost:8081, which is kind's
+# api.siteOrigin, so the browser's Origin passes the API's check as a user's
+# would and the __Host- cookie is set (localhost is a secure context). The
+# admin creates the viewer through the API; its password stays in a file. CI
+# installs Playwright and Chromium (ci.yml); a local run without them, or
+# with 8081 taken by a dev port-forward, skips this step and says why.
+playwright=apps/web/node_modules/.bin/playwright
+ui_skip() {
+	[ -z "${CI:-}" ] || fail "$1"
+	printf 'SKIP  %s\n' "$1"
+}
+if [ "$site" != http://localhost:8081 ]; then
+	ui_skip "the API's site origin is $site, not http://localhost:8081, where the browser can reach it"
+elif [ ! -x "$playwright" ]; then
+	ui_skip "Playwright is not installed: npm --prefix apps/web ci && npx --prefix apps/web playwright install chromium"
+else
+	kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" 8081:8081 >"$WORK/api-forward-ui.log" 2>&1 &
+	port_forward_pid=$!
+	start=$(date +%s)
+	until grep -q '^Forwarding from 127.0.0.1:8081' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
+		[ $(($(date +%s) - start)) -lt 30 ] || fail "timed out after 30s waiting for the port-forward to localhost:8081"
+		sleep 1
+	done
+	if ! kill -0 "$port_forward_pid" 2>/dev/null; then
+		port_forward_pid=
+		ui_skip "could not port-forward localhost:8081 (a dev port-forward?): $(tr '\n' ' ' <"$WORK/api-forward-ui.log")"
+	else
+		api_port=8081
+		code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
+		[ "$code" = 201 ] || fail "the admin's login for the UI step returned $code: $(cat "$WORK/api-body")"
+		(
+			umask 077
+			sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+			openssl rand -hex 16 >"$WORK/viewer-password"
+			jq -n --rawfile password "$WORK/viewer-password" \
+				'{email: "kind-e2e-viewer@example.com", display_name: "E2E Viewer", password: ($password | rtrimstr("\n")), roles: ["viewer"]}' >"$WORK/viewer.json"
+		)
+		code=$(api_call POST /api/v1/users -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/viewer.json")
+		[ "$code" = 201 ] || fail "creating the viewer returned $code: $(cat "$WORK/api-body")"
+		code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
+		[ "$code" = 204 ] || fail "the admin's logout returned $code: $(cat "$WORK/api-body")"
+		ui_start=$(date +%s)
+		HEARTBEAT_UI_URL=http://localhost:8081 HEARTBEAT_E2E_OUTPUT="$WORK/playwright" \
+			HEARTBEAT_E2E_VIEWER_EMAIL=kind-e2e-viewer@example.com HEARTBEAT_E2E_VIEWER_PASSWORD_FILE="$WORK/viewer-password" \
+			"$playwright" test --config apps/web/playwright.config.ts ||
+			fail "the Web UI's browser tests failed (apps/web/e2e)"
+		kill "$port_forward_pid" 2>/dev/null || true
+		port_forward_pid=
+		pass "in Chromium a wrong password is refused; the viewer logs in from $site, sees every section but users, is refused /users (403 at the API), and logs out (401 after), in $(($(date +%s) - ui_start))s"
+	fi
+fi
+
+# ----------------------------------------------------------------------------
 step "a telemetry source registered through the API is observed by the collector"
 # ADR 0017 §4: the API reads the collector's redacted GET /admin/config with
 # the collector's admin token, through the db-collector Service its
