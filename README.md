@@ -27,7 +27,6 @@ Early MVP construction. See the [roadmap](docs/product/roadmap.md) and
 | Metadata schema | `db/migrations` | Migrated and tested; no service uses it yet |
 | Shared contracts | `packages/` | JSON schemas for config and telemetry payloads |
 | API | `apps/api` | Bootstrap: health, readiness on PostgreSQL and Redis (Valkey), metrics, the OpenAPI spec and `api migrate up`; deployed by the chart with its PostgreSQL and Valkey, migrating in an init container |
-| Web UI | `apps/web` | Not started |
 | Session analyzer, reporting | `services/session-analyzer`, `services/reporting` | Not started |
 
 ## Quick start
@@ -63,8 +62,8 @@ database, see [onboarding SQL Server targets](docs/guides/database-targets.md).
 
 Heartbeat has four planes: **telemetry** (collectors, Prometheus, Loki,
 Alertmanager), **analysis jobs** (session analyzer, reporting), the **control
-plane** (Go API, PostgreSQL, Redis, YAML config) and **presentation** (Grafana,
-web UI). The [core systems](docs/architecture/overview.md#core-systems) table
+plane** (Go API, PostgreSQL, Redis, YAML config, the inventory as code) and
+**presentation** (Grafana). The [core systems](docs/architecture/overview.md#core-systems) table
 shows each plane's components and status.
 
 Key boundaries: PostgreSQL stores product metadata only
@@ -83,7 +82,6 @@ and the [changelog](CHANGELOG.md).
 ```text
 apps/
   api/                 control-plane API: OpenAPI spec, HTTP service, sqlc queries
-  web/                 operator UI (scaffold)
 services/
   db-collector/        SQL Server collector
   session-analyzer/    investigation and baseline worker (scaffold)

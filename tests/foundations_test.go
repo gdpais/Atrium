@@ -97,7 +97,6 @@ func TestMonorepoScaffoldingExists(t *testing.T) {
 	required := []string{
 		"apps/api/cmd/api",
 		"apps/api/internal",
-		"apps/web",
 		"services/db-collector/cmd/db-collector",
 		"services/db-collector/internal",
 		"services/session-analyzer/cmd/session-analyzer",

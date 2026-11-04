@@ -197,8 +197,8 @@ api:
   # Ingress NetworkPolicy for the API's port 8081. The bundled Prometheus
   # (its scrape) and the peers below may connect; other pods are dropped.
   # Kubelet probes and `kubectl port-forward` are not subject to
-  # NetworkPolicy. Clients of the API (the Web UI [5], an ingress
-  # controller) are added as peers when they exist.
+  # NetworkPolicy. Clients of the API (an ingress controller, an automation
+  # client) are added as peers when they exist.
   networkPolicy:
     enabled: true
     peers: []

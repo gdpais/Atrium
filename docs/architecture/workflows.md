@@ -1,13 +1,15 @@
 # Operator Workflows
 
 How the planned services turn telemetry into operator workflows: application
-telemetry ingestion, session investigation, alerting and reporting, all driven
-through the control-plane API and web UI.
+telemetry ingestion, session investigation, alerting and reporting, driven
+through the control-plane API and the inventory as code
+([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)); people read
+the results in Grafana.
 
 > **Status:** mostly planned. Implemented today: the stock OpenTelemetry
 > Collector pipeline, OutSystems 11 log extraction by the DB collector,
-> Prometheus rules, Alertmanager routing, and the PostgreSQL schema. The API, web UI, session analyzer and reporting service
-> are empty scaffolds. See the [current runtime](overview.md#current-runtime)
+> Prometheus rules, Alertmanager routing, the PostgreSQL schema and the API's
+> inventory. The session analyzer and reporting service are empty scaffolds. See the [current runtime](overview.md#current-runtime)
 > and the [roadmap](../product/roadmap.md).
 
 All four workflows follow the same pattern:
@@ -25,7 +27,7 @@ All four workflows follow the same pattern:
 | Service | Owns | Status |
 | --- | --- | --- |
 | API / control plane (`apps/api`) | Inventory CRUD, telemetry source and database target onboarding, alert policy and report schedule CRUD, users/roles, investigation APIs, Grafana deep links from YAML templates, audit records. Uses PostgreSQL for durable data and Redis for queues, idempotency keys and cached summaries. | Bootstrap built: health, readiness, metrics and the OpenAPI spec; audit records through the outbox, and `api users create-admin`; login, logout and cookie sessions with roles, and users and their roles managed by admins [4.2]; environments, applications and components [4.3]; telemetry sources and their observation [4.4] |
-| Web UI (`apps/web`) | Operator screens: environments/applications, telemetry sources, DB target onboarding, investigations, alert policies, reports, integrations. Investigation is app-first; drill-downs open Grafana/Loki. | Planned |
+| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | Planned [5] |
 | Session analyzer (`services/session-analyzer`) | Investigation jobs: correlation across Prometheus, Loki, collector evidence and metadata; anomaly windows; adaptive baseline computation. | Planned |
 | Reporting (`services/reporting`) | Scheduled and on-demand report jobs, rendering, delivery, run metadata. | Planned |
 
@@ -70,7 +72,8 @@ latency; host/node/runtime metadata; deployment/version context.
 time range. **Output:** timeline, anomaly windows, likely bottlenecks, affected
 components, and evidence links into Grafana/Loki.
 
-1. The operator submits the query in the UI.
+1. The operator submits the query through the API (how people start one, from
+   Grafana or a client, is decided with the analyzer [6, 12]).
 2. The API derives the environment from the application and writes an
    `investigations` row.
 3. The API enqueues a job in Redis and records it in `investigation_jobs`.
@@ -80,7 +83,7 @@ components, and evidence links into Grafana/Loki.
    request/session IDs, component, host and time window, then stores a bounded
    summary in `investigation_results` plus `evidence_links`. Short-lived results
    are cached in Redis.
-6. The UI renders the timeline and links.
+6. The API returns the timeline and links; the evidence opens in Grafana.
 
 **Non-goals in the MVP:** no session table, no session identity mapping table,
 no raw evidence blobs in PostgreSQL. Session correlation is recomputed from
@@ -130,7 +133,7 @@ unsafely.
 4. The output is rendered as HTML, CSV or PDF and delivered by email. The
    artifact is stored only if retention requires it, and PostgreSQL keeps
    `artifact_uri`.
-5. The UI/API exposes run status and downloads.
+5. The API exposes run status and downloads.
 
 **MVP report content:** application/service health summary, top regressions,
 recurring wait/lock hotspots, alert noise summary, SLA/SLO deltas where

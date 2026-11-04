@@ -12,9 +12,3 @@ tests
 db
 !db/migrations
 *.md
-# The Web UI's dependencies and build: the web stage installs and builds them
-# from the sources, and the Go stage takes dist/app from it.
-apps/web/node_modules
-apps/web/dist/app
-apps/web/test-results
-apps/web/playwright-report

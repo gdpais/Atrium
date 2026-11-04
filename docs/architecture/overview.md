@@ -40,7 +40,7 @@ is still pending.
 | Component | Endpoints | Notes |
 | --- | --- | --- |
 | DB collector | `:8082` — `/metrics`, `/healthz`, `/readyz`, `/admin/config`, `POST /admin/config/reload` | Reload also on SIGHUP, and on file change when `HEARTBEAT_CONFIG_WATCH_INTERVAL` is set. Credentials resolved from `HEARTBEAT_CREDENTIAL_*`. |
-| API | `:8081` — `/metrics`, `/healthz`, `/readyz`, `/api/v1/…`, and the Web UI at `/` | The control plane's bootstrap ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)), which also serves the Web UI from its binary ([ADR 0020](decisions/0020-web-ui-served-by-the-api.md)); an init container applies `db/migrations` first, and readiness waits for PostgreSQL at the newest of them and for Redis. Its own logs and spans go to the OTel Collector like the collector's. |
+| API | `:8081` — `/metrics`, `/healthz`, `/readyz`, `/api/v1/…` | The control plane's bootstrap ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)); an init container applies `db/migrations` first, and readiness waits for PostgreSQL at the newest of them and for Redis. Its own logs and spans go to the OTel Collector like the collector's. |
 | PostgreSQL / Valkey | `:5432` / `:6379` | The API's metadata store and Redis, as small one-replica StatefulSets for kind and CI; production uses Amazon RDS and ElastiCache ([ADR 0015](decisions/0015-postgresql-and-redis-delivery.md)). |
 | OTel Collector | OTLP `:4317` gRPC / `:4318` HTTP; Heartbeat's own logs `:4319` HTTP; Prometheus export `:8889`; health `:13133` | Exports logs to Loki's OTLP endpoint. Loki indexes only `service.name`, `service.namespace`, `deployment.environment.name` and `outsystems.log_type` as labels; every other attribute, including user, session and request IDs and client IP, is kept as structured metadata. |
 | Prometheus | `:9090` | 15s scrape. Rule files `heartbeat.rules.yml` and `generated/` (currently empty). Sends alerts to Alertmanager. |
@@ -133,7 +133,7 @@ Heartbeat is organized into four planes, the same four groups as the
 | Telemetry | Collection (DB collector, OpenTelemetry Collector), storage and evaluation (Prometheus, Loki), alert routing (Alertmanager) | Implemented, including OutSystems derived metrics and SLO alerts | [Current runtime](#current-runtime), [database observability](database-observability.md), [metrics and endpoints](../reference/metrics-and-endpoints.md) |
 | Analysis jobs | Session analyzer (correlation, adaptive baselines), reporting, report storage | Planned | [Operator workflows](workflows.md) |
 | Control plane | Go API, PostgreSQL (durable metadata), Redis (queues, locks, retries), YAML/Kubernetes config | Schema and config manager implemented; API bootstrapped (health, metrics, OpenAPI spec), not yet connected to PostgreSQL or deployed | [Data model](data-model.md), [configuration](../reference/configuration.md), [decisions](decisions/README.md) |
-| Presentation | Grafana dashboards, React web UI with Grafana deep links | Grafana implemented; UI planned | [Operator workflows](workflows.md) |
+| Presentation | Grafana dashboards, and the API's deep links into them; no Web UI: the inventory is code ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)) | Grafana and deep links implemented; inventory dashboard planned | [Operator workflows](workflows.md) |
 
 ## Architectural guardrails
 

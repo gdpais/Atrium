@@ -72,7 +72,7 @@ and PostgreSQL's and Valkey's their own `networkPolicy`.
 | --- | --- | --- | --- |
 | `db-collector` | 8082 | Prometheus | Scrape |
 | `db-collector` | 8082 | API | `GET /admin/config` with the collector's admin token, for telemetry source observation |
-| `api` | 8081 | Prometheus, `api.networkPolicy.peers` | Scrape; the API's clients when they exist (the Web UI [5]) |
+| `api` | 8081 | Prometheus, `api.networkPolicy.peers` | Scrape; the API's clients when they exist (an ingress controller, automation) |
 | `postgresql` | 5432 | API | Its database; the workers join when they exist |
 | `valkey` | 6379 | API | Sessions, jobs, locks; the workers join when they exist |
 | `otel-collector` | 4318 | db-collector, API | OTLP/HTTP: logs from `outsystems_logs` collectors, the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)), and both services' spans |

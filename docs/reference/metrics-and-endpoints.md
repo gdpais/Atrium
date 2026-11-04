@@ -897,14 +897,10 @@ included. Prometheus scrapes it as job `api`.
 
 `route` is the pattern that served the request, without the method
 (`/readyz`, `/api/v1/applications/{id}`, never the ID itself), or
-`unmatched` when none did: a 405, or a redirect to a cleaned path. The Web
-UI's pattern, `GET /`, matches every path, so every request for the UI's
-files and pages, and every GET of a path nothing else serves (unknown API
-paths included, which it answers 404), is route `/`
-([ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)).
-`method` is the request's method, or `other` outside GET, HEAD, POST, PUT,
-PATCH, DELETE and OPTIONS. A scan of made-up paths and methods therefore
-lands in the `/`, `unmatched` and `other` series instead of adding new ones.
+`unmatched` when none did: a 404, a 405 or a redirect. `method` is the
+request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
+OPTIONS. A scan of made-up paths and methods therefore lands in the
+`unmatched` and `other` series instead of adding new ones.
 
 ### Logins
 
@@ -1064,7 +1060,7 @@ for Heartbeat's own objectives):
 | `LokiDiscardingLogs` | Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (`loki_discarded_samples_total`); those rows are lost |
 | `HeartbeatCollectorLoginElevated` | Alert (warning): `heartbeat_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
 | `HeartbeatCollectorConfigReloadFailed` | Alert (warning): `heartbeat_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |
-| `heartbeat:collector_cycles_late:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}`, `heartbeat:api_request_errors:ratio_rate{5m,30m,1h,6h}`, `heartbeat:api_request_slow:ratio_rate{5m,1h}` | Recording: Heartbeat's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without `/metrics`, the health endpoints and the Web UI's route `/` |
+| `heartbeat:collector_cycles_late:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}`, `heartbeat:api_request_errors:ratio_rate{5m,30m,1h,6h}`, `heartbeat:api_request_slow:ratio_rate{5m,1h}` | Recording: Heartbeat's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without `/metrics` and the health endpoints |
 | `HeartbeatCollectorCyclesLateFast`, `HeartbeatCollectorCyclesLate` | Alert (warning): 14.4× over 1h and 5m, and 6× over 6h and 30m, burn of the objective of 99.5% of cycles on time, for collectors with at least 30 cycles an hour. A slow monitored database can cause it as well as Heartbeat, so it stays a warning |
 | `HeartbeatExtractionFreshnessBurn`, `HeartbeatExtractionFreshnessBurnSlow` | Alert (warning): the same burn rates against an extraction lag within 5 minutes of its configured lag 99% of the time |
 | `HeartbeatAPIErrorBudgetBurnFast` (critical), `HeartbeatAPIErrorBudgetBurnSlow` (warning), `HeartbeatAPISlow` (warning) | Alert: 99.9% of the API's requests succeed and 95% answer within 250 ms, with at least five (errors) or one (latency) requests a minute |

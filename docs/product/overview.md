@@ -48,7 +48,7 @@ replacing them. The focus is on gaps those tools leave:
 | Session investigation | Query by application + user/IP/session/request + time range; timeline, anomaly windows and evidence links into Grafana/Loki |
 | Alerting | Static rules plus adaptive baselines, rendered to Prometheus and routed by Alertmanager |
 | Reporting | Scheduled (weekly first) and on-demand reports, delivered by email |
-| Operator backoffice | API and web UI to manage inventory, targets, policies and schedules, with audit logging |
+| Operator backoffice | Inventory, targets and probes as code, reviewed in pull requests and applied by the API; the API for policies and schedules; audit logging ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)) |
 
 ### MVP exit criteria
 
@@ -84,7 +84,7 @@ phase-by-phase status and [TODO.md](../../TODO.md) for the task list.
 | OTel Collector pipeline, Prometheus/Loki/Grafana/Alertmanager provisioning | Configured; alerts reach Alertmanager (with a Watchdog), chat receivers only in the production example |
 | OutSystems 11 log extraction (`outsystems_logs` collector kind) | In progress: extraction to Loki, derived metrics and dashboards built; real-database survey done; query review pending |
 | API | Started: service bootstrap with health, readiness, metrics and the OpenAPI spec; no database or deployment yet |
-| Web UI, session analyzer, reporting | Not started |
+| Inventory as code (replaces the Web UI), session analyzer, reporting | Not started |
 
 ## Risks
 
@@ -95,7 +95,6 @@ phase-by-phase status and [TODO.md](../../TODO.md) for the task list.
 - Poorly designed remote SQL polling can load production databases; every
   probe is reviewed and budgeted.
 - Opaque adaptive alerting erodes trust, so baselines must be explainable.
-- Building both a UI and deep integrations can spread the team thin.
 
 ## Open questions
 

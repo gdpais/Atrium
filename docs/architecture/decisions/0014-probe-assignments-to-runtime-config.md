@@ -5,7 +5,11 @@
   a target runs at one interval, so it renders to one collector (§2); the
   `none` output renders in the API's pod for `make kind-assignments`, beside
   the endpoint (§5); approval, changes and the applied check are spelled out
-  (§4).
+  (§4). Narrowed by [ADR 0021](0021-inventory-as-code-and-no-web-ui.md):
+  assignments the inventory file declares render from that file in the
+  configuration repository's own pull request, approved by its review; §3's
+  pull request from the API, and its GitHub App, apply only to assignments
+  the API manages.
 
 ## Context
 

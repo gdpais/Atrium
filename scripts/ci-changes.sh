@@ -6,8 +6,6 @@
 #   chart=true|false          helm lint and the rendered profiles, Helm 4 and 3;
 #                             also lints and renders PatientZero's chart
 #   kind_e2e=true|false       the acceptance checks on a temporary kind cluster
-#   web=true|false            the Web UI's lint, typecheck, tests, generated
-#                             client and build (apps/web, ADR 0020)
 #
 # The Go tests, vet, rules and docs checks are cheap and always run, so they
 # have no flag. A path this script does not know turns every flag on: new
@@ -20,7 +18,6 @@ set -eu
 db_collector=false
 chart=false
 kind_e2e=false
-web=false
 all=${CI_RUN_ALL:-false}
 
 while IFS= read -r path; do
@@ -70,19 +67,7 @@ while IFS= read -r path; do
 	# them, checks the generated code (make generate-check) and runs the
 	# PostgreSQL and Valkey integration tests (make test-integration); the
 	# chart deploys the image, which kind_e2e builds and migrates with.
-	# The API's contract: the UI's client is generated from it as well.
-	apps/api/openapi.yaml)
-		kind_e2e=true
-		web=true
-		;;
 	apps/api/* | db/migrations/*) kind_e2e=true ;;
-	# The Web UI: its own job checks and builds it; the always-run job tests
-	# the Go package that embeds it; the API image builds it, which kind_e2e
-	# deploys.
-	apps/web/*)
-		kind_e2e=true
-		web=true
-		;;
 	# Everything else can affect every job: go.mod, go.sum, internal/, the
 	# config schema, the other tests and scripts, Makefile, .github/,
 	# .dockerignore, config/ and anything new.
@@ -94,7 +79,6 @@ if [ "$all" = true ]; then
 	db_collector=true
 	chart=true
 	kind_e2e=true
-	web=true
 fi
 
-printf 'db_collector=%s\nchart=%s\nkind_e2e=%s\nweb=%s\n' "$db_collector" "$chart" "$kind_e2e" "$web"
+printf 'db_collector=%s\nchart=%s\nkind_e2e=%s\n' "$db_collector" "$chart" "$kind_e2e"

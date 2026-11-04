@@ -56,7 +56,6 @@ jobs:
       db_collector: ${{ steps.detect.outputs.db_collector }}
       chart: ${{ steps.detect.outputs.chart }}
       kind_e2e: ${{ steps.detect.outputs.kind_e2e }}
-      web: ${{ steps.detect.outputs.web }}
       # release-please's pull request, from this repository, not a fork.
       scenarios: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'release-please--branches--master') && github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
@@ -152,46 +151,6 @@ jobs:
             .tmp/gocache
           key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
-  web:
-    name: Web UI
-    needs: changes
-    if: needs.changes.outputs.web == 'true'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: apps/web
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: apps/web/.nvmrc
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      # --ignore-scripts: no dependency runs code at install. The app's own
-      # postinstall only fences node_modules from Go, which this job lacks.
-      - name: Install dependencies from the lockfile
-        run: npm ci --ignore-scripts --no-fund
-      - name: Check the client generated from openapi.yaml is current
-        run: |
-          npm run generate
-          git diff --exit-code -- src/api/schema.gen.ts || {
-            echo "::error::apps/web/src/api/schema.gen.ts is stale: run make generate and commit the result"
-            exit 1
-          }
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests
-        run: npm test
-      - name: Build
-        run: npm run build
-      - name: Check dependencies for known vulnerabilities
-        run: npm audit --audit-level=high
-
   sqlserver:
     name: SQL Server probes
     needs: changes
@@ -274,21 +233,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      # The Web UI's browser tests (apps/web/e2e) run in Chromium against the
-      # API on kind. Before tools-check, which checks Node against .nvmrc.
-      # --ignore-scripts as in the web job; the fence keeps Go out of
-      # node_modules, since this job's go commands walk the repository.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: apps/web/.nvmrc
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - name: Install Playwright and Chromium
-        working-directory: apps/web
-        run: |
-          npm ci --ignore-scripts --no-fund --no-audit
-          node scripts/fence-node-modules.mjs
-          npx playwright install --with-deps --only-shell chromium
       - name: Install pinned kind, kubectl and Helm
         run: |
           make install-tools
@@ -311,7 +255,7 @@ jobs:
 
   ci-ok:
     name: ci-ok
-    needs: [changes, test, web, sqlserver, chart, kind-e2e, scenarios]
+    needs: [changes, test, sqlserver, chart, kind-e2e, scenarios]
     # always(), not !cancelled(): a gate skipped on failure or cancellation
     # would count as passed.
     if: always()
@@ -324,4 +268,4 @@ jobs:
       - name: Every job did what the change detection asked for
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: scripts/ci-gate.sh changes test web:web sqlserver:db_collector chart:chart kind-e2e:kind_e2e scenarios:scenarios
+        run: scripts/ci-gate.sh changes test sqlserver:db_collector chart:chart kind-e2e:kind_e2e scenarios:scenarios

@@ -11,9 +11,3 @@ scripts
 tests
 db
 *.md
-# The Web UI's dependencies and build (apps/web): large, and rebuilt in the
-# API image's own stage.
-apps/web/node_modules
-apps/web/dist/app
-apps/web/test-results
-apps/web/playwright-report
