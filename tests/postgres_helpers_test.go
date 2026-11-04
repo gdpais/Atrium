@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"heartbeat/internal/testreap"
 )
 
 type postgresStack struct {
@@ -32,6 +34,8 @@ func newPostgresStack(t *testing.T, root string) *postgresStack {
 		Root: root, Compose: filepath.Join(root, "infra/docker-compose.test.yml"),
 		Project: "heartbeat-test-" + hex.EncodeToString(id[:]), DBName: "heartbeat_smoke",
 	}
+	// Remove the projects of test processes that died before their cleanup.
+	testreap.ReapOnce(t)
 	// Register before startup so partially created resources are cleaned up too.
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -57,6 +61,8 @@ func (s *postgresStack) command(ctx context.Context, args ...string) *exec.Cmd {
 			cmd.Env = append(cmd.Env, entry)
 		}
 	}
+	// Label the containers as this process's.
+	cmd.Env = append(cmd.Env, testreap.ComposeEnv()...)
 	return cmd
 }
 

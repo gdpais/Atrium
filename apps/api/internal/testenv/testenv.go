@@ -7,6 +7,11 @@
 // password, tmpfs storage and one port published on 127.0.0.1 only, at a
 // random host port; it is removed when the test ends. Nothing here touches a
 // developer database, the kind cluster or another test's containers.
+//
+// A test process that dies before its cleanups run (a panic in a parallel
+// test, a kill, a timeout) leaves its containers behind. Each container is
+// labelled with the process that started it, and the first container a
+// process starts removes the ones whose process is gone (internal/testreap).
 package testenv
 
 import (
@@ -31,6 +36,7 @@ import (
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 	"heartbeat/internal/credentials"
+	"heartbeat/internal/testreap"
 )
 
 // ValkeyImage is the Valkey server the tests run: the newest major Amazon
@@ -150,10 +156,12 @@ func ValkeyClient(t *testing.T) (Container, *goredis.Client) {
 }
 
 // start runs image detached under a random name, publishing port on a
-// random 127.0.0.1 port, and registers its removal. env holds secrets: it
-// reaches docker through the environment, never the command line.
+// random 127.0.0.1 port and labelled as this process's, and registers its
+// removal. env holds secrets: it reaches docker through the environment,
+// never the command line.
 func start(t *testing.T, image, port string, env []string, args ...string) Container {
 	t.Helper()
+	testreap.ReapOnce(t)
 	name := "heartbeat-api-test-" + randomHex(t)[:12]
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -164,7 +172,8 @@ func start(t *testing.T, image, port string, env []string, args ...string) Conta
 			t.Errorf("remove container %s: %v\n%s", name, err, out)
 		}
 	})
-	run := append([]string{"run", "-d", "--name", name, "-p", "127.0.0.1::" + strings.TrimSuffix(port, "/tcp")}, args...)
+	run := []string{"run", "-d", "--name", name, "-p", "127.0.0.1::" + strings.TrimSuffix(port, "/tcp")}
+	run = append(append(run, testreap.RunArgs()...), args...)
 	docker(t, env, append(run, image)...)
 	addr := publishedAddr(t, name, port)
 	t.Logf("container %s (%s) on %s", name, image, addr)
