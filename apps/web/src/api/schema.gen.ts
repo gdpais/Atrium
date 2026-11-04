@@ -604,6 +604,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the platform's dashboards
+         * @description Every dashboard template (`dashboards.dashboard_templates`),
+         *     rendered for the time range: dashboards for no entity in
+         *     particular.
+         */
+        get: operations["listDashboards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/applications/{id}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Links to an application's telemetry
+         * @description The deep-link templates (`dashboards.deep_link_templates`) an
+         *     application has every variable of, rendered once for each distinct
+         *     `application_name` of its telemetry sources when they name
+         *     `${application}` or `${logs_query}`, and once otherwise. Its logs
+         *     and derived metrics carry that name as `service.name` and its
+         *     environment's slug as `deployment.environment.name` (ADR 0017). An
+         *     application without a source gets only the templates that need
+         *     neither.
+         */
+        get: operations["getApplicationLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/database-targets/{id}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Links to a database target's telemetry
+         * @description The deep-link templates a database target has every variable of,
+         *     `${environment}` and `${target}` and the time range: its metrics
+         *     carry its name as `target` and its environment's slug as
+         *     `environment`.
+         */
+        get: operations["getDatabaseTargetLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/account/password": {
         parameters: {
             query?: never;
@@ -1326,6 +1402,26 @@ export interface components {
             current_password: string;
             new_password: components["schemas"]["Password"];
         };
+        /** @description One rendered template. */
+        Link: {
+            /** @description The template's name in `integrations.yaml`, such as `logs-explore`. */
+            name: string;
+            /**
+             * @description `dashboard` from `dashboard_templates`, `deep_link` from `deep_link_templates`.
+             * @enum {string}
+             */
+            kind: "dashboard" | "deep_link";
+            /**
+             * Format: uri
+             * @description The template on `dashboards.base_url`, its variables filled in.
+             */
+            url: string;
+            /** @description For an application's link, the `application_name` it was rendered for, when the template names `${application}` or `${logs_query}`. */
+            application_name?: string;
+        };
+        LinkList: {
+            items: components["schemas"]["Link"][];
+        };
         /** @description An error, as RFC 9457 describes it. */
         Problem: {
             /** @description `about:blank`: the status says what went wrong. */
@@ -1408,6 +1504,19 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description The API has no valid `integrations.yaml` to render links from: the
+         *     file it is configured with could not be read or is invalid. Its
+         *     logs say why; the API reads it again within 30 seconds.
+         */
+        LinksUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description The API could not serve the request, such as when PostgreSQL or Redis does not answer. */
         Error: {
             headers: {
@@ -1426,6 +1535,14 @@ export interface components {
         Limit: number;
         /** @description Where the page starts; the `next_cursor` of the page before. Left out, the first page. */
         Cursor: string;
+        /**
+         * @description Where the links' time range starts; with `to`, or neither. Left
+         *     out, the range is the last hour, relative to when the link is
+         *     opened.
+         */
+        From: string;
+        /** @description Where the links' time range ends, after `from`. */
+        To: string;
         /** @description A version's ID. */
         ProbeDefinitionID: string;
     };
@@ -2728,6 +2845,114 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listDashboards: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Where the links' time range starts; with `to`, or neither. Left
+                 *     out, the range is the last hour, relative to when the link is
+                 *     opened.
+                 */
+                from?: components["parameters"]["From"];
+                /** @description Where the links' time range ends, after `from`. */
+                to?: components["parameters"]["To"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dashboards, by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["LinksUnavailable"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getApplicationLinks: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Where the links' time range starts; with `to`, or neither. Left
+                 *     out, the range is the last hour, relative to when the link is
+                 *     opened.
+                 */
+                from?: components["parameters"]["From"];
+                /** @description Where the links' time range ends, after `from`. */
+                to?: components["parameters"]["To"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The application's links, by name, then application_name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["LinksUnavailable"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getDatabaseTargetLinks: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Where the links' time range starts; with `to`, or neither. Left
+                 *     out, the range is the last hour, relative to when the link is
+                 *     opened.
+                 */
+                from?: components["parameters"]["From"];
+                /** @description Where the links' time range ends, after `from`. */
+                to?: components["parameters"]["To"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["ID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The target's links, by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["LinksUnavailable"];
             default: components["responses"]["Error"];
         };
     };
