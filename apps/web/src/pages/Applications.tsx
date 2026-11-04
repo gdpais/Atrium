@@ -33,6 +33,14 @@ export function Applications() {
   const [editing, setEditing] = useState<Application | "new" | null>(null);
 
   const byId = new Map(environments.data?.map((environment) => [environment.id, environment]));
+  // New applications go only to active environments (ApplicationForm).
+  const noActive = environments.isSuccess && !environments.data.some((environment) => environment.status === "active");
+  // An environment in the address that is not listed (a link to one since
+  // deleted) still shows as the filter, so the select does not read "All".
+  const environmentChoices = (environments.data ?? []).map((e) => ({ value: e.id, label: e.name }));
+  if (environmentId && environments.isSuccess && !byId.has(environmentId)) {
+    environmentChoices.push({ value: environmentId, label: "Unknown environment" });
+  }
   const items = applications.data?.pages.flatMap((page) => page.items) ?? [];
   const filter = (key: string, value: string) =>
     setParams((current) => {
@@ -47,7 +55,7 @@ export function Applications() {
       <Group justify="space-between">
         <Title order={1}>Applications</Title>
         {canChange && (
-          <Button onClick={() => setEditing("new")} disabled={!environments.data?.length}>
+          <Button onClick={() => setEditing("new")} disabled={!environments.isSuccess || noActive}>
             New application
           </Button>
         )}
@@ -57,7 +65,7 @@ export function Applications() {
           label="Environment"
           value={environmentId}
           onChange={(event) => filter("environment", event.currentTarget.value)}
-          data={[{ value: "", label: "All environments" }, ...(environments.data ?? []).map((e) => ({ value: e.id, label: e.name }))]}
+          data={[{ value: "", label: "All environments" }, ...environmentChoices]}
         />
         <NativeSelect
           label="Status"
@@ -67,6 +75,11 @@ export function Applications() {
         />
       </Group>
       {environments.isError && <ErrorAlert error={environments.error} />}
+      {canChange && noActive && (
+        <Text mt="md" c="dimmed">
+          New applications need an active environment.
+        </Text>
+      )}
       {applications.isPending && <Loader mt="md" aria-label="Loading" />}
       {applications.isError && <ErrorAlert error={applications.error} />}
       {applications.isSuccess && items.length === 0 && (
@@ -101,7 +114,14 @@ export function Applications() {
                   </Table.Td>
                   {canChange && (
                     <Table.Td>
-                      <Button variant="subtle" size="xs" onClick={() => setEditing(application)} aria-label={`Edit ${application.name}`}>
+                      <Button
+                        variant="subtle"
+                        size="xs"
+                        // The form needs the environments to name this one.
+                        disabled={!environments.isSuccess}
+                        onClick={() => setEditing(application)}
+                        aria-label={`Edit ${application.name}`}
+                      >
                         Edit
                       </Button>
                     </Table.Td>

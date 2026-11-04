@@ -187,6 +187,41 @@ describe("applications", () => {
     expect(listed.at(-1)?.query.get("environment_id")).toBe(prod.id);
   });
 
+  it("still shows a filter by an environment the list does not hold", async () => {
+    stubAPI({
+      ...signedIn(["viewer"]),
+      "GET /api/v1/environments": { status: 200, body: { items: [dev] } },
+      "GET /api/v1/applications": { status: 200, body: { items: [] } },
+    });
+    const gone = "10000000-0000-0000-0000-000000000009";
+    renderAt(`/applications?environment=${gone}`);
+    expect(await screen.findByText("No applications match.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Environment")).toHaveValue(gone));
+    expect(within(screen.getByLabelText("Environment")).getByRole("option", { selected: true })).toHaveTextContent("Unknown environment");
+  });
+
+  it("offers no new application while every environment is disabled", async () => {
+    stubAPI({
+      ...signedIn(["operator"]),
+      "GET /api/v1/environments": { status: 200, body: { items: [{ ...dev, status: "disabled" }] } },
+      "GET /api/v1/applications": { status: 200, body: { items: [] } },
+    });
+    renderAt("/applications");
+    expect(await screen.findByText("New applications need an active environment.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New application" })).toBeDisabled();
+  });
+
+  it("offers no edit until the environments are known", async () => {
+    stubAPI({
+      ...signedIn(["operator"]),
+      "GET /api/v1/environments": problem(500, "Internal Server Error"),
+      "GET /api/v1/applications": { status: 200, body: { items: [shop] } },
+    });
+    renderAt("/applications");
+    expect(await screen.findByRole("button", { name: "Edit Shop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New application" })).toBeDisabled();
+  });
+
   it("lets an operator create one in an environment, and shows the API's refusal", async () => {
     let refuse = true;
     const calls = stubAPI({
