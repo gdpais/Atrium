@@ -183,7 +183,7 @@ Heartbeat measured itself before the API and Web work continued ([ADR 0018](docs
 ## 2. Core system: DB collector (`services/db-collector`)
 
 Delivery stage 1. Runtime collection can proceed using YAML configuration without
-API/UI. Requires shared config/schema [0.3, 8.1–8.2] and Prometheus wiring [9.1].
+the API. Requires shared config/schema [0.3, 8.1–8.2] and Prometheus wiring [9.1].
 Probe assignments from API/PostgreSQL [2.5] are a stage-3 integration task, not a
 collector-stage completion prerequisite. Query safety [2.2] and endpoint
 security [2.7] must pass before live validation against a shared target; do not

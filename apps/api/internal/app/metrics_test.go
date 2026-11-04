@@ -31,7 +31,8 @@ func TestRequestMetricsLabelRequestsByRoute(t *testing.T) {
 		{http.MethodGet, "/readyz"},
 		{http.MethodPost, "/readyz"},
 		{http.MethodGet, "/metrics"},
-		// A scan of made-up paths and methods lands in two series.
+		// A scan of made-up paths and methods lands in route unmatched, with
+		// method GET or other, instead of adding series.
 		{http.MethodGet, "/wp-login.php"},
 		{http.MethodGet, "/api/v1/../../etc/passwd"},
 		{"PROPFIND", "/healthz"},
