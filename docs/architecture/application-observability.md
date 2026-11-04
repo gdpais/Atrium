@@ -75,7 +75,8 @@ Data path for self-managed OutSystems 11:
    copies (the same timestamp and line in one stream) but not all of them:
    in one kind run a request of 1,266 rows was sent twice and 73 lines were
    kept twice. Counts from Loki (`count_over_time`) can then be slightly
-   high; distinct counts (`count(sum by (Request_Key) ...)`) and the
+   high; counts of distinct requests (`count(sum by (Request_Key) ...)`;
+   a request's rows share one `Request_Key`) and the
    [derived metrics](#derived-metrics), which the db-collector computes
    from the rows it reads, are not affected. The kind test checks that no
    row is lost and that Loki holds no more lines twice than the Collector

@@ -1369,6 +1369,6 @@ if [ -n "$failed" ]; then
 		fail "rows lost: nothing is left to deliver in the db-collector or the Collector, yet ${failed#; }"
 	fail "${failed#; }"
 fi
-pass "the Collector restarted during two backlogs (45 minutes and three hours); Loki holds all $backlog_rows rows of each (lines held twice, each sent twice by the Collector: $twice)"
+pass "the Collector restarted during two backlogs (45 minutes and three hours); Loki holds all $backlog_rows rows of each ($twice lines held twice, within the $sent_twice records the Collector sent beyond the rows)"
 
 printf '\nAll kind e2e checks passed on %s.\n' "$CLUSTER"
