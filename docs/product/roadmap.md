@@ -218,7 +218,10 @@ In order, one pull request each:
   applied on kind by `make kind-assignments`; the collector reads credentials
   from mounted Secret files, so a new target needs no restart [4.3–4.5, 2.5]
   (done)
-- Grafana deep links from the integrations templates [4.9]
+- Grafana deep links from the integrations templates [4.9] (done): the API
+  reads the collector's `heartbeat-integrations` ConfigMap and renders
+  dashboard and deep-link templates for applications and database targets;
+  no log-search endpoint until investigations need the query adapters
 
 The pull requests to `heartbeat-deploy` (ADR 0014) wait for that repository
 in phase 5. Investigation, alerting and reporting APIs and their job

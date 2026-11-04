@@ -136,6 +136,24 @@ func (e IngestMode) Valid() bool {
 	}
 }
 
+// Defines values for LinkKind.
+const (
+	Dashboard LinkKind = "dashboard"
+	DeepLink  LinkKind = "deep_link"
+)
+
+// Valid indicates whether the value is a known member of the LinkKind enum.
+func (e LinkKind) Valid() bool {
+	switch e {
+	case Dashboard:
+		return true
+	case DeepLink:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ObservationStatus.
 const (
 	NotApplicable ObservationStatus = "not_applicable"
@@ -564,6 +582,29 @@ type IngestMode string
 
 // Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
 type Labels map[string]string
+
+// Link One rendered template.
+type Link struct {
+	// ApplicationName For an application's link, the `application_name` it was rendered for, when the template names `${application}` or `${logs_query}`.
+	ApplicationName *string `json:"application_name,omitempty"`
+
+	// Kind `dashboard` from `dashboard_templates`, `deep_link` from `deep_link_templates`.
+	Kind LinkKind `json:"kind"`
+
+	// Name The template's name in `integrations.yaml`, such as `logs-explore`.
+	Name string `json:"name"`
+
+	// Url The template on `dashboards.base_url`, its variables filled in.
+	Url string `json:"url"`
+}
+
+// LinkKind `dashboard` from `dashboard_templates`, `deep_link` from `deep_link_templates`.
+type LinkKind string
+
+// LinkList defines model for LinkList.
+type LinkList struct {
+	Items []Link `json:"items"`
+}
 
 // Name Leading and trailing spaces are dropped; then 1 to 200 characters, without control characters.
 type Name = string
@@ -1146,6 +1187,9 @@ type UserUpdate struct {
 // Cursor defines model for Cursor.
 type Cursor = string
 
+// From defines model for From.
+type From = time.Time
+
 // ID defines model for ID.
 type ID = openapi_types.UUID
 
@@ -1158,6 +1202,9 @@ type ProbeDefinitionID = openapi_types.UUID
 // StatusFilter `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.
 type StatusFilter = Status
 
+// To defines model for To.
+type To = time.Time
+
 // BadRequest An error, as RFC 9457 describes it.
 type BadRequest = Problem
 
@@ -1169,6 +1216,9 @@ type Error = Problem
 
 // Forbidden An error, as RFC 9457 describes it.
 type Forbidden = Problem
+
+// LinksUnavailable An error, as RFC 9457 describes it.
+type LinksUnavailable = Problem
 
 // NoOwner An error, as RFC 9457 describes it.
 type NoOwner = Problem
@@ -1197,6 +1247,17 @@ type ListApplicationsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GetApplicationLinksParams defines parameters for GetApplicationLinks.
+type GetApplicationLinksParams struct {
+	// From Where the links' time range starts; with `to`, or neither. Left
+	// out, the range is the last hour, relative to when the link is
+	// opened.
+	From *From `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Where the links' time range ends, after `from`.
+	To *To `form:"to,omitempty" json:"to,omitempty"`
+}
+
 // ListComponentsParams defines parameters for ListComponents.
 type ListComponentsParams struct {
 	// ApplicationId Only the components of this application.
@@ -1207,6 +1268,17 @@ type ListComponentsParams struct {
 
 	// Cursor Where the page starts; the `next_cursor` of the page before. Left out, the first page.
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListDashboardsParams defines parameters for ListDashboards.
+type ListDashboardsParams struct {
+	// From Where the links' time range starts; with `to`, or neither. Left
+	// out, the range is the last hour, relative to when the link is
+	// opened.
+	From *From `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Where the links' time range ends, after `from`.
+	To *To `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // ListDatabaseTargetsParams defines parameters for ListDatabaseTargets.
@@ -1222,6 +1294,17 @@ type ListDatabaseTargetsParams struct {
 
 	// Cursor Where the page starts; the `next_cursor` of the page before. Left out, the first page.
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetDatabaseTargetLinksParams defines parameters for GetDatabaseTargetLinks.
+type GetDatabaseTargetLinksParams struct {
+	// From Where the links' time range starts; with `to`, or neither. Left
+	// out, the range is the last hour, relative to when the link is
+	// opened.
+	From *From `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Where the links' time range ends, after `from`.
+	To *To `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // ListEnvironmentsParams defines parameters for ListEnvironments.
@@ -1353,6 +1436,9 @@ type ServerInterface interface {
 	// UpdateApplication Change an application
 	// (PATCH /api/v1/applications/{id})
 	UpdateApplication(w http.ResponseWriter, r *http.Request, id ID)
+	// GetApplicationLinks Links to an application's telemetry
+	// (GET /api/v1/applications/{id}/links)
+	GetApplicationLinks(w http.ResponseWriter, r *http.Request, id ID, params GetApplicationLinksParams)
 	// ListComponents List application components
 	// (GET /api/v1/components)
 	ListComponents(w http.ResponseWriter, r *http.Request, params ListComponentsParams)
@@ -1368,6 +1454,9 @@ type ServerInterface interface {
 	// UpdateComponent Change an application component
 	// (PATCH /api/v1/components/{id})
 	UpdateComponent(w http.ResponseWriter, r *http.Request, id ID)
+	// ListDashboards List the platform's dashboards
+	// (GET /api/v1/dashboards)
+	ListDashboards(w http.ResponseWriter, r *http.Request, params ListDashboardsParams)
 	// ListDatabaseTargets List database targets
 	// (GET /api/v1/database-targets)
 	ListDatabaseTargets(w http.ResponseWriter, r *http.Request, params ListDatabaseTargetsParams)
@@ -1383,6 +1472,9 @@ type ServerInterface interface {
 	// UpdateDatabaseTarget Change a database target
 	// (PATCH /api/v1/database-targets/{id})
 	UpdateDatabaseTarget(w http.ResponseWriter, r *http.Request, id ID)
+	// GetDatabaseTargetLinks Links to a database target's telemetry
+	// (GET /api/v1/database-targets/{id}/links)
+	GetDatabaseTargetLinks(w http.ResponseWriter, r *http.Request, id ID, params GetDatabaseTargetLinksParams)
 	// ListEnvironments List environments
 	// (GET /api/v1/environments)
 	ListEnvironments(w http.ResponseWriter, r *http.Request, params ListEnvironmentsParams)
@@ -1680,6 +1772,61 @@ func (siw *ServerInterfaceWrapper) UpdateApplication(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetApplicationLinks operation middleware
+func (siw *ServerInterfaceWrapper) GetApplicationLinks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetApplicationLinksParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetApplicationLinks(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListComponents operation middleware
 func (siw *ServerInterfaceWrapper) ListComponents(w http.ResponseWriter, r *http.Request) {
 
@@ -1822,6 +1969,52 @@ func (siw *ServerInterfaceWrapper) UpdateComponent(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateComponent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDashboards operation middleware
+func (siw *ServerInterfaceWrapper) ListDashboards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDashboardsParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDashboards(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1986,6 +2179,61 @@ func (siw *ServerInterfaceWrapper) UpdateDatabaseTarget(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateDatabaseTarget(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDatabaseTargetLinks operation middleware
+func (siw *ServerInterfaceWrapper) GetDatabaseTargetLinks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDatabaseTargetLinksParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDatabaseTargetLinks(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3101,6 +3349,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/probe-definitions/{id}", wrapper.UpdateProbeDefinition)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/probe-definitions/{id}/versions", wrapper.ListProbeDefinitionVersions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/probe-definitions/{id}/versions", wrapper.CreateProbeDefinitionVersion)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/dashboards", wrapper.ListDashboards)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/applications/{id}/links", wrapper.GetApplicationLinks)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/database-targets/{id}/links", wrapper.GetDatabaseTargetLinks)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/account/password", wrapper.ChangeOwnPassword)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/users", wrapper.ListUsers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/users", wrapper.CreateUser)
@@ -3120,6 +3371,8 @@ type ConflictApplicationProblemPlusJSONResponse Problem
 type ErrorApplicationProblemPlusJSONResponse Problem
 
 type ForbiddenApplicationProblemPlusJSONResponse Problem
+
+type LinksUnavailableApplicationProblemPlusJSONResponse Problem
 
 type NoOwnerApplicationProblemPlusJSONResponse Problem
 
@@ -3788,6 +4041,126 @@ func (response UpdateApplicationdefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetApplicationLinksRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetApplicationLinksParams
+}
+
+type GetApplicationLinksResponseObject interface {
+	VisitGetApplicationLinksResponse(w http.ResponseWriter) error
+}
+
+type GetApplicationLinks200JSONResponse LinkList
+
+func (response GetApplicationLinks200JSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinks400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetApplicationLinks400ApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinks401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetApplicationLinks401ApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinks403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetApplicationLinks403ApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinks404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetApplicationLinks404ApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinks503ApplicationProblemPlusJSONResponse struct {
+	LinksUnavailableApplicationProblemPlusJSONResponse
+}
+
+func (response GetApplicationLinks503ApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApplicationLinksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetApplicationLinksdefaultApplicationProblemPlusJSONResponse) VisitGetApplicationLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListComponentsRequestObject struct {
 	Params ListComponentsParams
 }
@@ -4338,6 +4711,109 @@ func (response UpdateComponentdefaultApplicationProblemPlusJSONResponse) VisitUp
 	return err
 }
 
+type ListDashboardsRequestObject struct {
+	Params ListDashboardsParams
+}
+
+type ListDashboardsResponseObject interface {
+	VisitListDashboardsResponse(w http.ResponseWriter) error
+}
+
+type ListDashboards200JSONResponse LinkList
+
+func (response ListDashboards200JSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDashboards400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response ListDashboards400ApplicationProblemPlusJSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDashboards401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response ListDashboards401ApplicationProblemPlusJSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDashboards403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response ListDashboards403ApplicationProblemPlusJSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDashboards503ApplicationProblemPlusJSONResponse struct {
+	LinksUnavailableApplicationProblemPlusJSONResponse
+}
+
+func (response ListDashboards503ApplicationProblemPlusJSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDashboardsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListDashboardsdefaultApplicationProblemPlusJSONResponse) VisitListDashboardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListDatabaseTargetsRequestObject struct {
 	Params ListDatabaseTargetsParams
 }
@@ -4877,6 +5353,126 @@ type UpdateDatabaseTargetdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response UpdateDatabaseTargetdefaultApplicationProblemPlusJSONResponse) VisitUpdateDatabaseTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinksRequestObject struct {
+	Id     ID `json:"id"`
+	Params GetDatabaseTargetLinksParams
+}
+
+type GetDatabaseTargetLinksResponseObject interface {
+	VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error
+}
+
+type GetDatabaseTargetLinks200JSONResponse LinkList
+
+func (response GetDatabaseTargetLinks200JSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinks400ApplicationProblemPlusJSONResponse struct {
+	BadRequestApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTargetLinks400ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinks401ApplicationProblemPlusJSONResponse struct {
+	UnauthorizedApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTargetLinks401ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinks403ApplicationProblemPlusJSONResponse struct {
+	ForbiddenApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTargetLinks403ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinks404ApplicationProblemPlusJSONResponse struct {
+	NotFoundApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTargetLinks404ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinks503ApplicationProblemPlusJSONResponse struct {
+	LinksUnavailableApplicationProblemPlusJSONResponse
+}
+
+func (response GetDatabaseTargetLinks503ApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDatabaseTargetLinksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetDatabaseTargetLinksdefaultApplicationProblemPlusJSONResponse) VisitGetDatabaseTargetLinksResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8543,6 +9139,9 @@ type StrictServerInterface interface {
 	// UpdateApplication Change an application
 	// (PATCH /api/v1/applications/{id})
 	UpdateApplication(ctx context.Context, request UpdateApplicationRequestObject) (UpdateApplicationResponseObject, error)
+	// GetApplicationLinks Links to an application's telemetry
+	// (GET /api/v1/applications/{id}/links)
+	GetApplicationLinks(ctx context.Context, request GetApplicationLinksRequestObject) (GetApplicationLinksResponseObject, error)
 	// ListComponents List application components
 	// (GET /api/v1/components)
 	ListComponents(ctx context.Context, request ListComponentsRequestObject) (ListComponentsResponseObject, error)
@@ -8558,6 +9157,9 @@ type StrictServerInterface interface {
 	// UpdateComponent Change an application component
 	// (PATCH /api/v1/components/{id})
 	UpdateComponent(ctx context.Context, request UpdateComponentRequestObject) (UpdateComponentResponseObject, error)
+	// ListDashboards List the platform's dashboards
+	// (GET /api/v1/dashboards)
+	ListDashboards(ctx context.Context, request ListDashboardsRequestObject) (ListDashboardsResponseObject, error)
 	// ListDatabaseTargets List database targets
 	// (GET /api/v1/database-targets)
 	ListDatabaseTargets(ctx context.Context, request ListDatabaseTargetsRequestObject) (ListDatabaseTargetsResponseObject, error)
@@ -8573,6 +9175,9 @@ type StrictServerInterface interface {
 	// UpdateDatabaseTarget Change a database target
 	// (PATCH /api/v1/database-targets/{id})
 	UpdateDatabaseTarget(ctx context.Context, request UpdateDatabaseTargetRequestObject) (UpdateDatabaseTargetResponseObject, error)
+	// GetDatabaseTargetLinks Links to a database target's telemetry
+	// (GET /api/v1/database-targets/{id}/links)
+	GetDatabaseTargetLinks(ctx context.Context, request GetDatabaseTargetLinksRequestObject) (GetDatabaseTargetLinksResponseObject, error)
 	// ListEnvironments List environments
 	// (GET /api/v1/environments)
 	ListEnvironments(ctx context.Context, request ListEnvironmentsRequestObject) (ListEnvironmentsResponseObject, error)
@@ -8895,6 +9500,33 @@ func (sh *strictHandler) UpdateApplication(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// GetApplicationLinks operation middleware
+func (sh *strictHandler) GetApplicationLinks(w http.ResponseWriter, r *http.Request, id ID, params GetApplicationLinksParams) {
+	var request GetApplicationLinksRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetApplicationLinks(ctx, request.(GetApplicationLinksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetApplicationLinks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetApplicationLinksResponseObject); ok {
+		if err := validResponse.VisitGetApplicationLinksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListComponents operation middleware
 func (sh *strictHandler) ListComponents(w http.ResponseWriter, r *http.Request, params ListComponentsParams) {
 	var request ListComponentsRequestObject
@@ -9037,6 +9669,32 @@ func (sh *strictHandler) UpdateComponent(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ListDashboards operation middleware
+func (sh *strictHandler) ListDashboards(w http.ResponseWriter, r *http.Request, params ListDashboardsParams) {
+	var request ListDashboardsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDashboards(ctx, request.(ListDashboardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDashboards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDashboardsResponseObject); ok {
+		if err := validResponse.VisitListDashboardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListDatabaseTargets operation middleware
 func (sh *strictHandler) ListDatabaseTargets(w http.ResponseWriter, r *http.Request, params ListDatabaseTargetsParams) {
 	var request ListDatabaseTargetsRequestObject
@@ -9172,6 +9830,33 @@ func (sh *strictHandler) UpdateDatabaseTarget(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateDatabaseTargetResponseObject); ok {
 		if err := validResponse.VisitUpdateDatabaseTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDatabaseTargetLinks operation middleware
+func (sh *strictHandler) GetDatabaseTargetLinks(w http.ResponseWriter, r *http.Request, id ID, params GetDatabaseTargetLinksParams) {
+	var request GetDatabaseTargetLinksRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDatabaseTargetLinks(ctx, request.(GetDatabaseTargetLinksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDatabaseTargetLinks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDatabaseTargetLinksResponseObject); ok {
+		if err := validResponse.VisitGetDatabaseTargetLinksResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -191,6 +191,18 @@ loki_count() {
 	svc_get loki:3100 "/loki/api/v1/query_range?limit=1000&query=$(printf '%s' "$1" | jq -sRr @uri)" |
 		jq '[.data.result[].values[]] | length'
 }
+# urldecode: standard input with each %XX decoded, one byte each.
+urldecode() {
+	LC_ALL=C awk '{
+		out = ""
+		while (match($0, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+			hex = toupper(substr($0, RSTART + 1, 2))
+			out = out substr($0, 1, RSTART - 1) sprintf("%c", (index("0123456789ABCDEF", substr(hex, 1, 1)) - 1) * 16 + index("0123456789ABCDEF", substr(hex, 2, 1)) - 1)
+			$0 = substr($0, RSTART + 3)
+		}
+		print out $0
+	}'
+}
 loki_count_is() { [ "$(loki_count "$1")" = "$2" ]; }
 value_is() { [ "$(prom_value "$1")" = "$2" ]; }
 target_fresh() {
@@ -703,6 +715,46 @@ observation_is() {
 wait_for 60 "the local-dev source observed by oslogs-e2e" observation_is "$observed_source" observed '["oslogs-e2e"]'
 observation_is "$unwatched_source" not_observed '[]' ||
 	fail "the e2e-unwatched source is not reported unobserved: $(cat "$WORK/api-body")"
+
+# Deep links [4.9]: the API renders the templates of the integrations.yaml
+# the collector runs from, mounted from the same ConfigMap. E2eShop's
+# logs-explore link opens Explore on the Loki selector that finds the 3
+# fixture rows extracted above; its dashboards and a target's exist in
+# Grafana. The links' base URL is the ConfigMap's dashboards.base_url.
+base_url=$(k -n "$NAMESPACE" get configmap heartbeat-integrations -o jsonpath='{.data.integrations\.yaml}' |
+	awk '/^dashboards:/ { d = 1; next } d && /^  base_url:/ { print $2; exit }')
+[ -n "$base_url" ] || fail "the integrations ConfigMap has no dashboards.base_url"
+[ "$(api_call GET "/api/v1/telemetry-sources/$observed_source" -H "@$WORK/session-header")" = 200 ] ||
+	fail "reading the E2eShop source returned $(cat "$WORK/api-body")"
+shop_app=$(jq -r .application_id "$WORK/api-body")
+local_dev=$(jq -r .environment_id "$WORK/api-body")
+code=$(api_call GET "/api/v1/applications/$shop_app/links" -H "@$WORK/session-header")
+[ "$code" = 200 ] || fail "GET /api/v1/applications/{id}/links returned $code: $(cat "$WORK/api-body")"
+cp "$WORK/api-body" "$WORK/app-links.json"
+explore=$(jq -r '.items[] | select(.name == "logs-explore" and .application_name == "E2eShop") | .url' "$WORK/app-links.json")
+case "$explore" in
+"$base_url/explore?"*) ;;
+*) fail "E2eShop has no logs-explore link on $base_url: $(cat "$WORK/app-links.json")" ;;
+esac
+explore_expr=$(printf '%s\n' "${explore#*left=}" | sed 's/&.*//' | urldecode | jq -r '.queries[0].expr')
+[ "$explore_expr" = '{service_name="E2eShop", deployment_environment_name="local-dev"}' ] ||
+	fail "the logs-explore link searches $explore_expr"
+loki_count_is "$explore_expr" 3 || fail "the logs-explore query finds $(loki_count "$explore_expr") lines in Loki, want the 3 fixture rows"
+code=$(api_post /api/v1/database-targets "$(jq -nc --arg env "$local_dev" '{environment_id: $env, name: "e2e-links", host: "e2e-links.db.internal", credential_ref: "env/e2e-links"}')")
+[ "$code" = 201 ] || fail "creating the e2e-links target returned $code: $(cat "$WORK/api-body")"
+code=$(api_call GET "/api/v1/database-targets/$(jq -r .id "$WORK/api-body")/links" -H "@$WORK/session-header")
+[ "$code" = 200 ] || fail "GET /api/v1/database-targets/{id}/links returned $code: $(cat "$WORK/api-body")"
+cp "$WORK/api-body" "$WORK/target-links.json"
+jq -e --arg url "$base_url/d/sqlserver-overview?orgId=1&var-environment=local-dev&var-target=e2e-links&from=now-1h&to=now" \
+	'[.items[] | select(.name == "sqlserver-target") | .url] == [$url]' "$WORK/target-links.json" >/dev/null ||
+	fail "the e2e-links target's links: $(cat "$WORK/target-links.json")"
+[ "$(api_call GET /api/v1/dashboards -H "@$WORK/session-header")" = 200 ] || fail "GET /api/v1/dashboards returned $(cat "$WORK/api-body")"
+for uid in $(jq -r '.items[].url' "$WORK/app-links.json" "$WORK/target-links.json" "$WORK/api-body" | sed -n 's|.*/d/\([^?/]*\).*|\1|p' | sort -u); do
+	svc_get grafana:3000 "/api/dashboards/uid/$uid" | jq -e --arg uid "$uid" '.dashboard.uid == $uid' >/dev/null ||
+		fail "a link opens dashboard $uid, which Grafana does not have"
+done
+pass "the API renders deep links from the integrations ConfigMap: E2eShop's logs-explore finds its 3 rows in Loki; its, the e2e-links target's and the listed dashboards exist in Grafana"
+
 code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
 [ "$code" = 204 ] || fail "the logout returned $code"
 kill "$port_forward_pid" 2>/dev/null || true

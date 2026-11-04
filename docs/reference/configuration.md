@@ -81,11 +81,32 @@ later, the API's queries.
 | --- | --- | --- |
 | `platform` | no | `grafana` (default: Grafana, Prometheus, Loki, Alertmanager) or `generic` (any other platform; `dashboards`, `logs` and `alerting` must then be empty). Anything else is rejected |
 | `dashboards.base_url` | no | The platform's UI (Grafana), as seen from the operator's browser |
-| `dashboards.dashboard_templates` | no | Map of name → dashboard path, e.g. `sqlserver-overview: /d/sqlserver-overview` |
-| `dashboards.deep_link_templates` | no | Map of name → path with `${variables}`, e.g. `/d/sqlserver-overview?var-target=${target}` |
+| `dashboards.dashboard_templates` | no | Map of name → dashboard path on `base_url`, e.g. `sqlserver-overview: /d/sqlserver-overview`; may name `${from}` and `${to}` only. The API lists them at `GET /api/v1/dashboards` |
+| `dashboards.deep_link_templates` | no | Map of name → path on `base_url` with `${variables}`, e.g. `/d/sqlserver-overview?var-environment=${environment}&var-target=${target}`. The API renders each for the applications and database targets that have all its variables ([deep links](metrics-and-endpoints.md#links-into-the-platforms-ui)) |
 | `logs.base_url` | no | The platform's log query API (Loki) |
 | `alerting.base_url` | no | The platform's alert API (Alertmanager) |
 | `opentelemetry.endpoint` | for `outsystems_logs` | Absolute base URL of the OTel Collector's OTLP/HTTP receiver, e.g. `http://otel-collector:4318`; logs go to `<endpoint>/v1/logs`. The chart's NetworkPolicy admits the collector to the bundled Collector's port 4318 only ([network access](../guides/kubernetes-local.md#network-access)) |
+
+**Link templates.** Each dashboard and deep-link template is a path on
+`dashboards.base_url`: it starts with a single `/`, and templates without a
+`base_url` are rejected. A template names its variables as `${name}`:
+
+| Variable | Value | For |
+| --- | --- | --- |
+| `${environment}` | The environment's slug: the `deployment.environment.name` of its logs, the `environment` label of its metrics | Applications and database targets |
+| `${application}` | A telemetry source's `application_name`: the `service.name` of its logs, the `application` label of its derived metrics ([ADR 0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md)) | Applications with a source |
+| `${target}` | A database target's name, the `target` label | Database targets |
+| `${logs_query}` | A log search for the application's logs, written by the platform's adapter: with `grafana`, the Explore state of the Loki selector `{service_name="…", deployment_environment_name="…"}` on the datasource with uid `loki`, for Explore's `left` parameter | Applications with a source |
+| `${from}`, `${to}` | The time range, `now-1h` and `now` unless the request names one, then Unix milliseconds | Every link |
+
+A variable outside this list, a dashboard template naming anything but
+`${from}` and `${to}`, an unclosed `${`, an absolute URL, or a `base_url`
+that is not http or https or has a query or fragment makes the API refuse
+the file for links, naming the template: it keeps the last valid file's links, or answers 503 if it
+has none. The collector reads no template, so a typo there never stops
+collection; the chart's tests check the shipped profiles. Values are
+percent-encoded when the API fills them in, so a value cannot add a
+parameter, a path or a fragment.
 
 No URL may embed credentials (`https://user:password@host`): the loader rejects
 userinfo in every `base_url`, `endpoint`, dashboard and deep-link template, and

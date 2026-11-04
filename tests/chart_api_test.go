@@ -111,6 +111,9 @@ type podSpec struct {
 				Secret *struct {
 					SecretName string `yaml:"secretName"`
 				} `yaml:"secret"`
+				ConfigMap *struct {
+					Name string `yaml:"name"`
+				} `yaml:"configMap"`
 				EmptyDir              any `yaml:"emptyDir"`
 				PersistentVolumeClaim *struct {
 					ClaimName string `yaml:"claimName"`
@@ -232,6 +235,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 		t.Errorf("HEARTBEAT_API_AUDIT_ENDPOINT = %q, want %q: the Collector's OTLP/HTTP logs receiver while it is on", got, wantAudit)
 	}
 	checkAPICollectorAccess(t, objects, api)
+	checkAPIIntegrations(t, objects, spec, migrate, api)
 	got := apiDependencies{
 		postgresHost: apiEnv["HEARTBEAT_API_POSTGRES_HOST"], postgresPort: apiEnv["HEARTBEAT_API_POSTGRES_PORT"],
 		postgresDatabase: apiEnv["HEARTBEAT_API_POSTGRES_DATABASE"], sslMode: apiEnv["HEARTBEAT_API_POSTGRES_SSLMODE"],
@@ -600,6 +604,34 @@ func checkAPIMissingAlert(t *testing.T, objects map[string]object) {
 	}
 	if got && !strings.Contains(content, `absent(up{job="api"})`) {
 		t.Errorf("%s does not alert on absent(up{job=\"api\"}):\n%s", file, content)
+	}
+}
+
+// checkAPIIntegrations checks that the API renders its links into the
+// platform's UI from the integrations.yaml the collector reads (TODO 4.9):
+// the heartbeat-integrations ConfigMap, rendered whenever the API is,
+// mounted as a whole directory so its updates reach the pod. migrate reads
+// no such file.
+func checkAPIIntegrations(t *testing.T, objects map[string]object, spec podSpec, migrate, api container) {
+	t.Helper()
+	if _, ok := objects["ConfigMap/heartbeat-integrations"]; !ok {
+		t.Error("the API is rendered without ConfigMap/heartbeat-integrations")
+	}
+	const dir = "/app/config"
+	if got := api.env()["HEARTBEAT_API_INTEGRATIONS_PATH"]; got != dir+"/integrations.yaml" {
+		t.Errorf("HEARTBEAT_API_INTEGRATIONS_PATH = %q, want %s/integrations.yaml", got, dir)
+	}
+	volume, whole := api.mountedAt(dir)
+	if !whole {
+		t.Fatalf("the API mounts %q at %s, want a whole read-only directory", volume, dir)
+	}
+	for _, v := range spec.Template.Spec.Volumes {
+		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "heartbeat-integrations") {
+			t.Errorf("volume %s at %s is not ConfigMap heartbeat-integrations", volume, dir)
+		}
+	}
+	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["HEARTBEAT_API_INTEGRATIONS_PATH"] != "" {
+		t.Error("migrate mounts or names the integrations config; `api migrate up` reads only PostgreSQL's settings")
 	}
 }
 
