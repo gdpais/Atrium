@@ -1447,8 +1447,14 @@ func checkIntegrations(t *testing.T, objects map[string]object) {
 	if err := os.WriteFile(path, []byte(cm.Data["integrations.yaml"]), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.LoadRuntimeConfig(path); err != nil {
+	cfg, err := config.LoadRuntimeConfig(path)
+	if err != nil {
 		t.Errorf("rendered integrations.yaml does not load: %v", err)
+		return
+	}
+	// The API renders links from it (TODO 4.9): a template typo fails here.
+	if err := config.ValidateLinkTemplates(cfg.Dashboards); err != nil {
+		t.Errorf("rendered integrations.yaml has a bad link template: %v", err)
 	}
 }
 

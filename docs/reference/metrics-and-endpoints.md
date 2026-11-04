@@ -94,6 +94,8 @@ served beside it.
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/telemetry-sources` | session, `operator`; `Origin` | Register, change and delete telemetry sources, each audited ([below](#telemetry-sources)) |
 | `GET /api/v1/database-targets` and `GET /api/v1/database-targets/{id}` | session, `viewer` | Monitored databases ([below](#database-targets)) |
 | `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/database-targets` | session, `operator`; `Origin` | Create, change and delete them |
+| `GET /api/v1/dashboards` | session, `viewer` | 200 with the platform's dashboards, from `dashboards.dashboard_templates` ([below](#links-into-the-platforms-ui)) |
+| `GET /api/v1/applications/{id}/links`, `GET /api/v1/database-targets/{id}/links` | session, `viewer` | 200 with the entity's deep links into the platform's UI: dashboards and a log search for its telemetry |
 | `GET /api/v1/probe-definitions` | session, `viewer` | 200 with the latest version of every probe definition ([below](#probe-definitions)) |
 | `POST /api/v1/probe-definitions` | session, `admin`; `Origin` | Create a custom definition: 201 with version 1 |
 | `GET /api/v1/probe-definitions/{id}` | session, `viewer` | 200 with that version, the latest or an older one |
@@ -351,6 +353,54 @@ curl -sS -b cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: applica
   --data '{"environment_id": "<id>", "name": "finance-prod", "host": "sql01.finance.internal", "credential_ref": "env/finance-prod"}' \
   localhost:8081/api/v1/database-targets
 ```
+
+### Links into the platform's UI
+
+Links to Grafana [4.9], rendered from the templates of `dashboards` in
+`integrations.yaml` ([link templates](configuration.md#endpoints)), never
+stored. Anyone logged in reads them:
+
+| Operation | Renders |
+| --- | --- |
+| `GET /api/v1/dashboards` | Every `dashboard_templates` entry |
+| `GET /api/v1/applications/{id}/links` | The `deep_link_templates` the application has every variable of: its environment's slug and, once for each distinct `application_name` of its telemetry sources (active or disabled), `${application}` and `${logs_query}`. An application without a source gets only the templates that need neither |
+| `GET /api/v1/database-targets/{id}/links` | The `deep_link_templates` that need only `${environment}`, `${target}` and the time range |
+
+Each takes `?from=` and `?to=` (RFC 3339, both or neither, `to` after
+`from`; 400 otherwise); without them the range is the last hour, relative
+to when the link is opened. The answer is `{"items": [...]}`, by template
+name, then application name; each item has the template's `name`, its
+`kind` (`dashboard` or `deep_link`), the `url`, and, for an application's
+per-name link, the `application_name` it was rendered for. With
+`platform: generic`, or no templates, the list is empty.
+
+**Where the templates come from.** The chart mounts the
+`heartbeat-integrations` ConfigMap, the file the DB collector runs from,
+into the API at `/app/config` (`HEARTBEAT_API_INTEGRATIONS_PATH`); it is
+rendered whenever the API or the collector is. The API reads the file at
+startup and again at most every 30 seconds when links are asked for, so a
+ConfigMap change reaches it without a restart, within the kubelet's sync
+(about a minute) and 30 seconds. A file the loader rejects never replaces
+a valid one: the API keeps serving the last valid file's links and logs the
+error once. If it has never read a valid file, link requests answer 503.
+Without the variable (outside the chart), every list is empty.
+
+The shipped templates, with the bundled Grafana on `http://localhost:3001`
+on kind:
+
+| Name | Opens |
+| --- | --- |
+| `logs-explore` | Grafana Explore on Loki with the application's stream selector. Explore needs a Grafana user allowed to use it (Editor or above): kind's anonymous Viewer is sent to the home page, so sign in first (`admin`, from the `grafana-admin` Secret). Grafana 13 turns the `left` parameter into its current `panes` state |
+| `outsystems-application` | The OutSystems overview with the environment and application selected |
+| `sqlserver-target` | The SQL Server overview with the environment and target selected |
+
+```bash
+curl -sS -b cookies 'localhost:8081/api/v1/applications/<id>/links?from=2026-11-04T09:00:00Z&to=2026-11-04T10:00:00Z'
+```
+
+The API does not query the platform: a log search runs in Grafana, from
+the link. Searching logs from the API (to check that an `application_name`
+has logs, or for investigations) waits for the query adapters [6].
 
 ### Probe definitions
 

@@ -27,6 +27,7 @@ import (
 	"heartbeat/apps/api/internal/collectors"
 	"heartbeat/apps/api/internal/httpapi"
 	"heartbeat/apps/api/internal/inventory"
+	"heartbeat/apps/api/internal/links"
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/probedefs"
 	"heartbeat/apps/api/internal/redis"
@@ -69,6 +70,10 @@ type Config struct {
 	// CollectorAdminToken is the collector's admin token, sent as a bearer
 	// token. It is never logged.
 	CollectorAdminToken string
+	// IntegrationsPath is the integrations.yaml links into the platform's
+	// UI are rendered from (TODO 4.9): the file the DB collector reads, the
+	// heartbeat-integrations ConfigMap. Empty renders no links.
+	IntegrationsPath string
 	// ShutdownDelay is how long the API keeps serving once shutdown begins,
 	// with GET /readyz answering 503, before it stops accepting
 	// connections: time for its Service to stop sending it requests.
@@ -153,6 +158,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		inventory:        deps.inventory,
 		probeDefinitions: deps.probeDefinitions,
 		users:            deps.users,
+		links:            links.NewSource(cfg.IntegrationsPath, logger),
 		drain:            deps.drain,
 		checkApplied:     deps.checkApplied,
 		closeDeps:        deps.close,
@@ -298,6 +304,9 @@ type runDeps struct {
 	users *users.Service
 	// probeDefinitions, when set, serves the probe definition operations.
 	probeDefinitions *probedefs.Service
+	// links is the integrations config links are rendered from; nil
+	// renders none.
+	links *links.Source
 	// drain, when set, runs beside the HTTP server until shutdown: the
 	// audit drainer in production.
 	drain func(context.Context)
@@ -360,6 +369,7 @@ func run(ctx context.Context, deps runDeps) error {
 	if deps.inventory != nil {
 		opts.Inventory = deps.inventory
 		opts.DatabaseTargets = deps.inventory
+		opts.Telemetry = deps.inventory
 		opts.ProbeAssignments = deps.inventory
 	}
 	if deps.users != nil {
@@ -367,6 +377,11 @@ func run(ctx context.Context, deps runDeps) error {
 	}
 	if deps.probeDefinitions != nil {
 		opts.ProbeDefinitions = deps.probeDefinitions
+	}
+	if deps.links != nil {
+		opts.Links = deps.links
+	} else {
+		logger.Warn("no integrations config is set, so every list of links is empty")
 	}
 	api, err := httpapi.NewServer(opts)
 	if err != nil {

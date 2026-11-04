@@ -41,6 +41,11 @@ type Server struct {
 	probeDefinitions ProbeDefinitions
 	// databaseTargets serves /api/v1/database-targets.
 	databaseTargets DatabaseTargets
+	// links is the config links are rendered from; nil renders none.
+	links LinkConfig
+	// telemetry says what an entity's telemetry is labelled with, for
+	// its links.
+	telemetry Telemetry
 	// probeAssignments serves /api/v1/probe-assignments.
 	probeAssignments ProbeAssignments
 }
@@ -93,6 +98,12 @@ type Options struct {
 	// DatabaseTargets serves the database target operations; without it
 	// they fail.
 	DatabaseTargets DatabaseTargets
+	// Links is the integrations config links are rendered from. Without
+	// it, every list of links is empty.
+	Links LinkConfig
+	// Telemetry says what an application's or a database target's
+	// telemetry is labelled with; without it their links fail.
+	Telemetry Telemetry
 	// ProbeAssignments serves the probe assignment operations; without it
 	// they fail.
 	ProbeAssignments ProbeAssignments
@@ -118,6 +129,8 @@ func NewServer(opts Options) (*Server, error) {
 		probeDefinitions: opts.ProbeDefinitions,
 		users:            opts.Users,
 		databaseTargets:  opts.DatabaseTargets,
+		links:            opts.Links,
+		telemetry:        opts.Telemetry,
 		probeAssignments: opts.ProbeAssignments,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,
