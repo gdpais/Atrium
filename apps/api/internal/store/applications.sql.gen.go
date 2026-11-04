@@ -15,7 +15,7 @@ const createApplication = `-- name: CreateApplication :one
 
 insert into applications (environment_id, name, platform, owner_team, criticality, status)
 values ($1, $2, $3, $4, $5, $6)
-returning id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at
+returning id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by
 `
 
 type CreateApplicationParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -68,7 +69,7 @@ func (q *Queries) DeleteApplication(ctx context.Context, id pgtype.UUID) (int64,
 }
 
 const getApplication = `-- name: GetApplication :one
-select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at from applications where id = $1
+select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by from applications where id = $1
 `
 
 func (q *Queries) GetApplication(ctx context.Context, id pgtype.UUID) (Application, error) {
@@ -84,12 +85,13 @@ func (q *Queries) GetApplication(ctx context.Context, id pgtype.UUID) (Applicati
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listApplications = `-- name: ListApplications :many
-select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at from applications
+select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by from applications
 where ($1::uuid is null or environment_id = $1)
   and ($2::text is null or status = $2)
   and ($3::text is null
@@ -133,6 +135,7 @@ func (q *Queries) ListApplications(ctx context.Context, arg ListApplicationsPara
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -145,7 +148,7 @@ func (q *Queries) ListApplications(ctx context.Context, arg ListApplicationsPara
 }
 
 const lockApplication = `-- name: LockApplication :one
-select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at from applications where id = $1 for update
+select id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by from applications where id = $1 for update
 `
 
 // The application, locked until the transaction ends, for a change.
@@ -162,6 +165,7 @@ func (q *Queries) LockApplication(ctx context.Context, id pgtype.UUID) (Applicat
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -171,7 +175,7 @@ update applications
 set name = $1, platform = $2, owner_team = $3,
   criticality = $4, status = $5, updated_at = now()
 where id = $6
-returning id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at
+returning id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by
 `
 
 type UpdateApplicationParams struct {
@@ -205,6 +209,7 @@ func (q *Queries) UpdateApplication(ctx context.Context, arg UpdateApplicationPa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }

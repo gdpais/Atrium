@@ -10,7 +10,8 @@ returning *;
 
 -- name: GetSource :one
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id
@@ -19,7 +20,8 @@ where s.id = @id;
 -- name: LockSource :one
 -- The source, locked until the transaction ends, for a change.
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id
@@ -30,7 +32,8 @@ for update of s;
 -- A page of sources by application_name, then ID: those after the cursor's
 -- (name, id) when one is given.
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id

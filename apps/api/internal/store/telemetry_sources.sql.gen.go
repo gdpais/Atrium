@@ -15,7 +15,7 @@ const createSource = `-- name: CreateSource :one
 
 insert into telemetry_sources (application_id, source_type, ingest_mode, status, config)
 values ($1, $2, $3, $4, $5)
-returning id, application_id, source_type, ingest_mode, status, config, created_at, updated_at
+returning id, application_id, source_type, ingest_mode, status, config, created_at, updated_at, managed_by
 `
 
 type CreateSourceParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Tel
 		&i.Config,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -66,7 +67,8 @@ func (q *Queries) DeleteSource(ctx context.Context, id pgtype.UUID) (int64, erro
 
 const getSource = `-- name: GetSource :one
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id
@@ -84,6 +86,7 @@ type GetSourceRow struct {
 	Config          []byte
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
+	ManagedBy       string
 }
 
 func (q *Queries) GetSource(ctx context.Context, id pgtype.UUID) (GetSourceRow, error) {
@@ -100,13 +103,15 @@ func (q *Queries) GetSource(ctx context.Context, id pgtype.UUID) (GetSourceRow, 
 		&i.Config,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listSources = `-- name: ListSources :many
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id
@@ -141,6 +146,7 @@ type ListSourcesRow struct {
 	Config          []byte
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
+	ManagedBy       string
 }
 
 // A page of sources by application_name, then ID: those after the cursor's
@@ -173,6 +179,7 @@ func (q *Queries) ListSources(ctx context.Context, arg ListSourcesParams) ([]Lis
 			&i.Config,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +193,8 @@ func (q *Queries) ListSources(ctx context.Context, arg ListSourcesParams) ([]Lis
 
 const lockSource = `-- name: LockSource :one
 select s.id, s.application_id, a.environment_id, e.slug as environment_slug,
-  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at
+  s.source_type, s.ingest_mode, s.status, s.config, s.created_at, s.updated_at,
+  s.managed_by
 from telemetry_sources s
 join applications a on a.id = s.application_id
 join environments e on e.id = a.environment_id
@@ -205,6 +213,7 @@ type LockSourceRow struct {
 	Config          []byte
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
+	ManagedBy       string
 }
 
 // The source, locked until the transaction ends, for a change.
@@ -222,6 +231,7 @@ func (q *Queries) LockSource(ctx context.Context, id pgtype.UUID) (LockSourceRow
 		&i.Config,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -290,7 +300,7 @@ const updateSource = `-- name: UpdateSource :one
 update telemetry_sources
 set ingest_mode = $1, status = $2, config = $3, updated_at = now()
 where id = $4
-returning id, application_id, source_type, ingest_mode, status, config, created_at, updated_at
+returning id, application_id, source_type, ingest_mode, status, config, created_at, updated_at, managed_by
 `
 
 type UpdateSourceParams struct {
@@ -318,6 +328,7 @@ func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Tel
 		&i.Config,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }

@@ -28,7 +28,7 @@ const createDatabaseTarget = `-- name: CreateDatabaseTarget :one
 
 insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels)
 values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at
+returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by
 `
 
 type CreateDatabaseTargetParams struct {
@@ -75,6 +75,7 @@ func (q *Queries) CreateDatabaseTarget(ctx context.Context, arg CreateDatabaseTa
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -92,7 +93,7 @@ func (q *Queries) DeleteDatabaseTarget(ctx context.Context, id pgtype.UUID) (int
 }
 
 const getDatabaseTarget = `-- name: GetDatabaseTarget :one
-select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at from database_targets where id = $1
+select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by from database_targets where id = $1
 `
 
 func (q *Queries) GetDatabaseTarget(ctx context.Context, id pgtype.UUID) (DatabaseTarget, error) {
@@ -111,12 +112,13 @@ func (q *Queries) GetDatabaseTarget(ctx context.Context, id pgtype.UUID) (Databa
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listDatabaseTargets = `-- name: ListDatabaseTargets :many
-select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at from database_targets
+select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by from database_targets
 where ($1::uuid is null or environment_id = $1)
   and ($2::text is null or status = $2)
   and ($3::text is null
@@ -163,6 +165,7 @@ func (q *Queries) ListDatabaseTargets(ctx context.Context, arg ListDatabaseTarge
 			&i.Labels,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -175,7 +178,7 @@ func (q *Queries) ListDatabaseTargets(ctx context.Context, arg ListDatabaseTarge
 }
 
 const lockDatabaseTarget = `-- name: LockDatabaseTarget :one
-select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at from database_targets where id = $1 for update
+select id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by from database_targets where id = $1 for update
 `
 
 // The target, locked until the transaction ends, for a change.
@@ -195,6 +198,7 @@ func (q *Queries) LockDatabaseTarget(ctx context.Context, id pgtype.UUID) (Datab
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -204,7 +208,7 @@ update database_targets
 set host = $1, port = $2, database_name = $3, status = $4,
   credential_ref = $5, labels = $6, updated_at = now()
 where id = $7
-returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at
+returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by
 `
 
 type UpdateDatabaseTargetParams struct {
@@ -242,6 +246,7 @@ func (q *Queries) UpdateDatabaseTarget(ctx context.Context, arg UpdateDatabaseTa
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }

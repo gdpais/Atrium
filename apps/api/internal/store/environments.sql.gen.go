@@ -15,7 +15,7 @@ const createEnvironment = `-- name: CreateEnvironment :one
 
 insert into environments (name, slug, type, description, status, labels)
 values ($1, $2, $3, $4, $5, $6)
-returning id, name, slug, type, description, status, labels, created_at, updated_at
+returning id, name, slug, type, description, status, labels, created_at, updated_at, managed_by
 `
 
 type CreateEnvironmentParams struct {
@@ -49,6 +49,7 @@ func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentPa
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -67,7 +68,7 @@ func (q *Queries) DeleteEnvironment(ctx context.Context, id pgtype.UUID) (int64,
 }
 
 const getEnvironment = `-- name: GetEnvironment :one
-select id, name, slug, type, description, status, labels, created_at, updated_at from environments where id = $1
+select id, name, slug, type, description, status, labels, created_at, updated_at, managed_by from environments where id = $1
 `
 
 func (q *Queries) GetEnvironment(ctx context.Context, id pgtype.UUID) (Environment, error) {
@@ -83,12 +84,13 @@ func (q *Queries) GetEnvironment(ctx context.Context, id pgtype.UUID) (Environme
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
 
 const listEnvironments = `-- name: ListEnvironments :many
-select id, name, slug, type, description, status, labels, created_at, updated_at from environments
+select id, name, slug, type, description, status, labels, created_at, updated_at, managed_by from environments
 where $1::text is null or status = $1
 order by name, id
 `
@@ -112,6 +114,7 @@ func (q *Queries) ListEnvironments(ctx context.Context, status pgtype.Text) ([]E
 			&i.Labels,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ManagedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -124,7 +127,7 @@ func (q *Queries) ListEnvironments(ctx context.Context, status pgtype.Text) ([]E
 }
 
 const lockEnvironment = `-- name: LockEnvironment :one
-select id, name, slug, type, description, status, labels, created_at, updated_at from environments where id = $1 for update
+select id, name, slug, type, description, status, labels, created_at, updated_at, managed_by from environments where id = $1 for update
 `
 
 // The environment, locked until the transaction ends, for a change.
@@ -141,6 +144,7 @@ func (q *Queries) LockEnvironment(ctx context.Context, id pgtype.UUID) (Environm
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }
@@ -150,7 +154,7 @@ update environments
 set name = $1, type = $2, description = $3, status = $4,
   labels = $5, updated_at = now()
 where id = $6
-returning id, name, slug, type, description, status, labels, created_at, updated_at
+returning id, name, slug, type, description, status, labels, created_at, updated_at, managed_by
 `
 
 type UpdateEnvironmentParams struct {
@@ -183,6 +187,7 @@ func (q *Queries) UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentPa
 		&i.Labels,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ManagedBy,
 	)
 	return i, err
 }

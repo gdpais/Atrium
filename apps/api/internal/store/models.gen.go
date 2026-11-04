@@ -18,6 +18,7 @@ type Application struct {
 	Status        string
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 type ApplicationComponent struct {
@@ -29,6 +30,7 @@ type ApplicationComponent struct {
 	Labels        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 type DatabaseTarget struct {
@@ -44,6 +46,7 @@ type DatabaseTarget struct {
 	Labels        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }
 
 type Environment struct {
@@ -56,6 +59,7 @@ type Environment struct {
 	Labels      []byte
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+	ManagedBy   string
 }
 
 type ProbeAssignment struct {
@@ -75,6 +79,7 @@ type ProbeAssignment struct {
 	CreatedBy         pgtype.UUID
 	TimeoutMs         pgtype.Int4
 	MaxRows           pgtype.Int4
+	ManagedBy         string
 }
 
 type ProbeDefinition struct {
@@ -108,4 +113,5 @@ type TelemetrySource struct {
 	Config        []byte
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+	ManagedBy     string
 }

@@ -58,6 +58,11 @@ Tables deliberately **not** created in the MVP:
   `ON DELETE RESTRICT`.
 - There is one ownership path per record. Application-owned rows derive their
   environment through `applications.environment_id` and do not duplicate it.
+- Each inventory row has one writer, `managed_by`: `api` (its endpoints, the
+  default) or `config` (the environment's inventory file, applied by the API;
+  [ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). It is on
+  `environments`, `applications`, `application_components`,
+  `telemetry_sources`, `database_targets` and `probe_assignments`.
 
 ## Entity-relationship diagram
 

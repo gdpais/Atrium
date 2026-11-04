@@ -151,6 +151,9 @@ func (s *Service) UpdateEnvironment(ctx context.Context, caller Caller, id uuid.
 		if err != nil {
 			return notFound(err)
 		}
+		if err := managedByFile(row.ManagedBy, "environment"); err != nil {
+			return err
+		}
 		before, err := environment(row)
 		if err != nil {
 			return err
@@ -228,6 +231,9 @@ func (s *Service) DeleteEnvironment(ctx context.Context, caller Caller, id uuid.
 		row, err := q.LockEnvironment(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(row.ManagedBy, "environment"); err != nil {
+			return err
 		}
 		before, err := environment(row)
 		if err != nil {

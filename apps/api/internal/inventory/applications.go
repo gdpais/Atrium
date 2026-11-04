@@ -176,6 +176,9 @@ func (s *Service) UpdateApplication(ctx context.Context, caller Caller, id uuid.
 		if err != nil {
 			return notFound(err)
 		}
+		if err := managedByFile(row.ManagedBy, "application"); err != nil {
+			return err
+		}
 		before := application(row)
 		next, err := applyApplicationChange(before, change)
 		if err != nil {
@@ -242,6 +245,9 @@ func (s *Service) DeleteApplication(ctx context.Context, caller Caller, id uuid.
 		row, err := q.LockApplication(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(row.ManagedBy, "application"); err != nil {
+			return err
 		}
 		before := application(row)
 		if _, err := q.DeleteApplication(ctx, row.ID); err != nil {

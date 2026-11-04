@@ -204,6 +204,16 @@ Environments, their applications, and the applications' components
 under `/api/v1`. Viewers read; operators create, change and delete. The
 fields and their limits are in [`openapi.yaml`](../../apps/api/openapi.yaml).
 
+**One writer per row** ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) §4).
+A row the environment's [inventory file](configuration.md#inventory-file)
+manages cannot be changed or deleted here: `PATCH` and `DELETE` of such an
+environment, application, component, telemetry source, database target or
+probe assignment, an assignment's approval or rejection, and a new
+assignment on such a target, are 409, change nothing and audit nothing.
+Change the file instead, by pull request. Rows created here are the API's,
+and the file never touches them. Until the API applies the file [TODO 5.2],
+every row is the API's.
+
 | Path | Operations | Notes |
 | --- | --- | --- |
 | `/api/v1/environments` | `GET` (`?status=`), `POST` | Listed whole, by name: an organisation has few |

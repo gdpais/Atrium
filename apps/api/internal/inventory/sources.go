@@ -320,6 +320,9 @@ func (s *Service) UpdateSource(ctx context.Context, caller Caller, id uuid.UUID,
 		if err != nil {
 			return notFound(err)
 		}
+		if err := managedByFile(locked.ManagedBy, "telemetry source"); err != nil {
+			return err
+		}
 		before, err := source(store.GetSourceRow(locked))
 		if err != nil {
 			return err
@@ -382,6 +385,9 @@ func (s *Service) DeleteSource(ctx context.Context, caller Caller, id uuid.UUID)
 		locked, err := q.LockSource(ctx, pgUUID(id))
 		if err != nil {
 			return notFound(err)
+		}
+		if err := managedByFile(locked.ManagedBy, "telemetry source"); err != nil {
+			return err
 		}
 		before, err := source(store.GetSourceRow(locked))
 		if err != nil {
