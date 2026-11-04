@@ -71,10 +71,11 @@ func (s *Service) MarkAppliedProbeAssignments(ctx context.Context, actor audit.A
 			if err != nil {
 				return notFound(err)
 			}
-			// A change since the list moved it out of approved, or to other
-			// settings than the collector was found running.
-			if current.State != StateApproved || current.IntervalSeconds != row.IntervalSeconds ||
-				current.TimeoutMs != row.TimeoutMs || current.MaxRows != row.MaxRows {
+			// A change since the list moved it out of approved, or changed
+			// what it runs and was approved again: the collector was found
+			// running the assignment as listed, not as it is now. Every
+			// change, approval and reset sets updated_at.
+			if current.State != StateApproved || !current.UpdatedAt.Time.Equal(row.UpdatedAt.Time) {
 				return nil
 			}
 			n, err := q.MarkProbeAssignmentApplied(ctx, row.ID)

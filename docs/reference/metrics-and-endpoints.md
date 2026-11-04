@@ -472,7 +472,7 @@ assignments take turns, on the target's row lock.
 | 201 | Created, as a draft |
 | 400 | A field out of bounds or an unknown member, a reason with control characters, or a malformed ID |
 | 404 | No assignment has the ID |
-| 409 | The probe is assigned on the target already; the definition is disabled, for another engine, or (on a change) another definition; an approval of an assignment that is not a draft or rejected, at another interval than the target's approved ones, or whose render the collector would refuse; a rejection of one that is not a draft |
+| 409 | The probe is assigned on the target already; the definition is disabled, for another engine, or (on a change) another definition; an approval of an assignment that is not a draft or rejected, whose definition was disabled since, at another interval than the target's approved ones, or whose render the collector would refuse; a rejection of one that is not a draft |
 | 422 | The target or the definition version does not exist |
 
 **Audit.** Every change writes an audit record of entity type

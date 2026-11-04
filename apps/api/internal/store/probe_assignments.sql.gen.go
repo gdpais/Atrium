@@ -218,7 +218,7 @@ func (q *Queries) ListProbeAssignments(ctx context.Context, arg ListProbeAssignm
 }
 
 const listRenderedProbeAssignments = `-- name: ListRenderedProbeAssignments :many
-select a.id, a.interval_seconds, a.timeout_ms, a.max_rows, a.state,
+select a.id, a.interval_seconds, a.timeout_ms, a.max_rows, a.state, a.updated_at,
   t.id as target_id, t.name as target_name, t.host, t.port, t.database_name, t.credential_ref,
   e.slug as environment_slug,
   d.name as definition_name, d.builtin, coalesce(d.overrides, d.name)::text as probe_name,
@@ -238,6 +238,7 @@ type ListRenderedProbeAssignmentsRow struct {
 	TimeoutMs           pgtype.Int4
 	MaxRows             pgtype.Int4
 	State               string
+	UpdatedAt           pgtype.Timestamptz
 	TargetID            pgtype.UUID
 	TargetName          string
 	Host                string
@@ -254,7 +255,8 @@ type ListRenderedProbeAssignmentsRow struct {
 
 // What a render holds (ADR 0014 §2): the enabled assignments in an approved
 // state, of active targets and enabled definitions, with their target, its
-// environment and the definition version each pins.
+// environment and the definition version each pins. updated_at lets the
+// applied check see that an assignment changed after it was listed.
 func (q *Queries) ListRenderedProbeAssignments(ctx context.Context) ([]ListRenderedProbeAssignmentsRow, error) {
 	rows, err := q.db.Query(ctx, listRenderedProbeAssignments)
 	if err != nil {
@@ -270,6 +272,7 @@ func (q *Queries) ListRenderedProbeAssignments(ctx context.Context) ([]ListRende
 			&i.TimeoutMs,
 			&i.MaxRows,
 			&i.State,
+			&i.UpdatedAt,
 			&i.TargetID,
 			&i.TargetName,
 			&i.Host,

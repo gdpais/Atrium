@@ -207,6 +207,18 @@ func TestProbeAssignments(t *testing.T) {
 		}
 		_, err = f.svc.CreateProbeAssignment(ctx, operator, inventory.NewProbeAssignment{DatabaseTargetID: tg.ID, ProbeDefinitionID: off.ID})
 		wantConflict(t, err, "is disabled")
+		// A definition disabled after the draft was made is not approved:
+		// enabling it again would run it on an approval given while it was off.
+		later := f.custom(t, "custom_waits_later", 0)
+		draft := f.assign(t, tg.ID, later.ID, 30)
+		if _, err := probedefs.NewService(f.pool).SetEnabled(ctx, later.ID, false, admin.Actor, "req-later"); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.svc.ApproveProbeAssignment(ctx, admin, draft.ID)
+		wantConflict(t, err, "is disabled")
+		if got, _ := f.svc.GetProbeAssignment(ctx, draft.ID); got.State != inventory.StateDraft {
+			t.Fatalf("after a refused approval: %+v", got)
+		}
 	})
 
 	t.Run("a change goes back to draft", func(t *testing.T) {
@@ -413,6 +425,18 @@ func (r running) SQLServer(context.Context) (collectors.SQLServerCollectors, err
 	return r.collectors, r.err
 }
 
+// runningThen runs then when the collector is asked, after the applied
+// check listed the approved assignments: a change that races the check.
+type runningThen struct {
+	running
+	then func()
+}
+
+func (r runningThen) SQLServer(ctx context.Context) (collectors.SQLServerCollectors, error) {
+	r.then()
+	return r.running.SQLServer(ctx)
+}
+
 func TestMarkAppliedProbeAssignments(t *testing.T) {
 	t.Parallel()
 	_, _, pool := testenv.MigratedPostgres(t)
@@ -475,5 +499,43 @@ func TestMarkAppliedProbeAssignments(t *testing.T) {
 	}
 	if file, err := plain.svc.RenderProbeAssignments(ctx); err != nil || !strings.Contains(string(file), a.CollectorID) {
 		t.Fatalf("render after applied: %v\n%s", err, file)
+	}
+
+	// An assignment changed to another version and approved again while the
+	// check asked the collector is not marked: the collector was found
+	// running the version listed, not the one approved now.
+	re := plain.environment(t, "raced")
+	rt := plain.target(t, re.ID, "raced")
+	v1 := plain.custom(t, "custom_waits_raced", 0)
+	raced := plain.assign(t, rt.ID, v1.ID, 30)
+	if _, err := plain.svc.ApproveProbeAssignment(ctx, admin, raced.ID); err != nil {
+		t.Fatal(err)
+	}
+	racer := runningThen{
+		running: running{collectors: collectors.SQLServerCollectors{CheckedAt: time.Now(), ByID: map[string]collectors.SQLServerCollector{raced.CollectorID: {
+			Enabled: true, ScrapeInterval: 30 * time.Second, Targets: []collectors.Target{{
+				Name: "raced", EnvironmentSlug: "raced", Host: "raced.db.internal", Port: 1433,
+				Probes: []collectors.Probe{{Name: "waits", QueryTemplate: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats"}},
+			}},
+		}}}},
+		then: func() {
+			v2, _, err := probedefs.NewService(pool).AddVersion(ctx, v1.ID, probedefs.Content{QueryTemplate: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms > 0"}, admin.Actor, "req-raced")
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if _, err := plain.svc.UpdateProbeAssignment(ctx, operator, raced.ID, inventory.ProbeAssignmentChange{ProbeDefinitionID: &v2.ID}); err != nil {
+				t.Error(err)
+			}
+			if _, err := plain.svc.ApproveProbeAssignment(ctx, admin, raced.ID); err != nil {
+				t.Error(err)
+			}
+		},
+	}
+	if n, err := inventory.New(pool, inventory.WithRunner(racer)).MarkAppliedProbeAssignments(ctx, system); n != 0 || err != nil {
+		t.Fatalf("a check raced by a change and a new approval = %d, %v; want 0", n, err)
+	}
+	if got, _ := plain.svc.GetProbeAssignment(ctx, raced.ID); got.State != inventory.StateApproved {
+		t.Fatalf("after the raced check: %+v", got)
 	}
 }

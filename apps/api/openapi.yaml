@@ -1229,7 +1229,8 @@ paths:
         collector will check it, and an approval that would make it invalid
         is refused. A target runs at one interval, its collector's
         `scrape_interval`, so an assignment whose interval differs from the
-        target's other approved ones is refused too.
+        target's other approved ones is refused too, as is one whose
+        definition was disabled since it was created.
       responses:
         "200":
           description: The assignment, approved.

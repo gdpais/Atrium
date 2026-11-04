@@ -510,7 +510,9 @@ var auditedChanges = []auditedChange{
 }
 
 // applied is an inventory.Runner that reports what it holds.
-type applied struct{ running collectors.SQLServerCollectors }
+type applied struct {
+	running collectors.SQLServerCollectors
+}
 
 func (a applied) SQLServer(context.Context) (collectors.SQLServerCollectors, error) {
 	return a.running, nil

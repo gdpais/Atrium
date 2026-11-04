@@ -343,19 +343,25 @@ func (s *Service) UpdateProbeAssignment(ctx context.Context, caller Caller, id u
 // made and checked in the same transaction, so an approval that would make
 // a file the collector refuses is refused instead. It fails with
 // ErrNotFound for an unknown id, and with a ConflictError when the
-// assignment is approved already, or the target's other approved
-// assignments run at another interval: a target runs at one, its
-// collector's scrape_interval.
+// assignment is approved already, its definition was disabled since it was
+// created, or the target's other approved assignments run at another
+// interval: a target runs at one, its collector's scrape_interval.
 func (s *Service) ApproveProbeAssignment(ctx context.Context, caller Caller, id uuid.UUID) (ProbeAssignment, error) {
 	approver := userOf(caller)
 	if !approver.Valid {
 		return ProbeAssignment{}, errors.New("approve a probe assignment: the caller is not a user")
 	}
 	var after ProbeAssignment
-	err := s.changeAssignment(ctx, caller, id, func(q *store.Queries, _ store.DatabaseTarget, row store.ProbeAssignment, record func(string, string, any, any) error) error {
+	err := s.changeAssignment(ctx, caller, id, func(q *store.Queries, target store.DatabaseTarget, row store.ProbeAssignment, record func(string, string, any, any) error) error {
 		before := probeAssignment(row)
 		if before.State != StateDraft && before.State != StateRejected {
 			return &ConflictError{Detail: fmt.Sprintf("the probe assignment is %s, not a draft or rejected: change it to approve it again", before.State)}
+		}
+		// A definition disabled since the draft was made is not approved:
+		// the render would leave it out, and enabling the definition again
+		// would run it on an approval given while it was off.
+		if _, err := assignableDefinition(ctx, q, before.ProbeDefinitionID, target.Engine); err != nil {
+			return err
 		}
 		siblings, err := q.ListTargetAssignmentProbes(ctx, store.ListTargetAssignmentProbesParams{DatabaseTargetID: row.DatabaseTargetID, ExceptID: row.ID})
 		if err != nil {
