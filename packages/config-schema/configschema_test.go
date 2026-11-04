@@ -163,3 +163,27 @@ func TestCollectorSchema(t *testing.T) {
 		t.Fatal("a collector with an unknown key passed")
 	}
 }
+
+// The inventory schema compiles and is closed: an unknown field anywhere is
+// refused, so a typo never applies silently.
+func TestInventorySchema(t *testing.T) {
+	schema, err := InventorySchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, doc := range map[string]string{
+		"valid":            `{"version": 1, "environment": {"slug": "dev", "name": "Dev", "type": "test"}}`,
+		"an unknown field": `{"version": 1, "environment": {"slug": "dev", "name": "Dev", "type": "test", "owner": "me"}}`,
+		"a later version":  `{"version": 2, "environment": {"slug": "dev", "name": "Dev", "type": "test"}}`,
+		"a probe typo":     `{"version": 1, "environment": {"slug": "dev", "name": "Dev", "type": "test"}, "database_targets": [{"name": "a", "host": "db", "credential_ref": "env/a", "probes": [{"name": "cpu", "interval": 30}]}]}`,
+	} {
+		instance, err := jsonschema.UnmarshalJSON(strings.NewReader(doc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = schema.Validate(instance)
+		if (err == nil) != (name == "valid") {
+			t.Errorf("%s: Validate = %v", name, err)
+		}
+	}
+}

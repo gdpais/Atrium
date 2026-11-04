@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbeat.local/schemas/inventory.schema.json",
+  "title": "Heartbeat inventory",
+  "description": "One environment's inventory, as code (ADR 0021): the environment, its applications with their components and telemetry sources, and its database targets with the probes each runs. Reviewed as a pull request in the configuration repository and applied by the API. `api inventory check -f FILE` checks a file against this schema and against the API's own rules, which this schema cannot express: uniqueness, a source type's config, hosts and probe policies.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "environment"],
+  "properties": {
+    "version": {
+      "description": "The format of this file. 1 is the only one so far.",
+      "const": 1
+    },
+    "environment": { "$ref": "#/$defs/environment" },
+    "applications": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/application" }
+    },
+    "database_targets": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/database_target" }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "status": {
+      "description": "active, the default, or disabled.",
+      "enum": ["active", "disabled"]
+    },
+    "labels": {
+      "description": "At most 64 labels; keys of 1 to 63 characters, values of at most 256. Values are strings: quote a number.",
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": { "minLength": 1, "maxLength": 63 },
+      "additionalProperties": { "type": "string", "maxLength": 256 }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slug", "name", "type"],
+      "properties": {
+        "slug": {
+          "$ref": "#/$defs/slug",
+          "description": "The environment as the collectors and the telemetry name it (ADR 0017 §2). Fixed once applied.",
+          "examples": ["prod"]
+        },
+        "name": { "$ref": "#/$defs/name" },
+        "type": { "enum": ["production", "staging", "development", "test"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "status": { "$ref": "#/$defs/status" },
+        "labels": { "$ref": "#/$defs/labels" }
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "platform"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/name",
+          "description": "Unique in the environment; it identifies the application across applies."
+        },
+        "platform": {
+          "$ref": "#/$defs/identifier",
+          "examples": ["outsystems"]
+        },
+        "owner_team": { "type": "string", "maxLength": 200 },
+        "criticality": {
+          "description": "medium by default.",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "components": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/component" }
+        },
+        "telemetry_sources": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/telemetry_source" }
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "type": {
+          "$ref": "#/$defs/identifier",
+          "description": "The component's type. Name and type are unique in the application."
+        },
+        "runtime_name": { "type": "string", "maxLength": 200 },
+        "labels": { "$ref": "#/$defs/labels" }
+      }
+    },
+    "telemetry_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "ingest_mode", "config"],
+      "properties": {
+        "type": {
+          "description": "The source type; its config must match packages/config-schema/src/telemetry-sources/<type>.schema.json.",
+          "enum": ["outsystems"]
+        },
+        "ingest_mode": { "enum": ["agentless", "otlp"] },
+        "status": { "$ref": "#/$defs/status" },
+        "config": {
+          "description": "The source type's config. Within the environment, an application_name belongs to one application.",
+          "type": "object"
+        }
+      }
+    },
+    "database_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "host", "credential_ref"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/slug",
+          "description": "The target label of its metrics; unique in the environment.",
+          "examples": ["finance-prod"]
+        },
+        "engine": {
+          "description": "sqlserver by default.",
+          "enum": ["sqlserver"]
+        },
+        "host": {
+          "description": "A host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "port": {
+          "description": "The engine's default port when left out (1433 for sqlserver).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "database_name": { "type": "string", "maxLength": 128 },
+        "credential_ref": {
+          "description": "A reference to the collector's credentials Secret, never a username or password.",
+          "type": "string",
+          "pattern": "^(kv|secret|env)/[a-z0-9][a-z0-9-]{0,199}$",
+          "examples": ["env/finance-prod"]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "labels": { "$ref": "#/$defs/labels" },
+        "probes": {
+          "description": "The probes the collector runs against the target. Its enabled probes share one interval.",
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/probe" }
+        }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "A built-in probe of the collector's catalog (services/db-collector/probecatalog). Each runs once per target.",
+          "$ref": "#/$defs/identifier",
+          "examples": ["blocking"]
+        },
+        "interval_seconds": {
+          "description": "The probe's default interval (30 s for the built-ins) when left out.",
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 3600
+        },
+        "timeout_ms": {
+          "description": "At most the interval and 25 s; left out, the collector's: half the interval, at most 10 s.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25000
+        },
+        "max_rows": {
+          "description": "Left out, the collector's limit, 10000.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "enabled": {
+          "description": "true by default.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

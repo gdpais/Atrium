@@ -9,6 +9,8 @@
 //	api users create-admin --email A [--name N]  create an admin with the password on standard input
 //	api probe-assignments render                 print the managedCollectors values file rendered from
 //	                                             the approved probe assignments
+//	api inventory check -f FILE                  check an environment's inventory file (ADR 0021),
+//	                                             with no database or setting; exit 1 when it is not valid
 //
 // `api migrate up` is what the API's init container runs before the API
 // starts. The migrate, users and probe-assignments commands need only the
@@ -104,7 +106,7 @@ const (
 const maxShutdownDelay = time.Minute
 
 // errUsage marks a command line that names no command.
-var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password | api probe-assignments render`)
+var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password | api probe-assignments render | api inventory check -f FILE`)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -116,6 +118,8 @@ func main() {
 	case errors.Is(err, errUsage):
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
+	case errors.Is(err, errInvalidInventory):
+		os.Exit(1)
 	case err != nil:
 		logger.Error("api exited with error", "error", err)
 		os.Exit(1)
@@ -175,6 +179,8 @@ func execute(ctx context.Context, args []string, logger *slog.Logger, stdin io.R
 		return createAdmin(ctx, args[2:], logger, stdin)
 	case slices.Equal(args, []string{"probe-assignments", "render"}):
 		return renderAssignments(ctx, stdout)
+	case len(args) >= 2 && args[0] == "inventory" && args[1] == "check":
+		return checkInventory(args[2:], stdout)
 	}
 	return errUsage
 }

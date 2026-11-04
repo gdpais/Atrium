@@ -480,8 +480,8 @@ pull request, validated in CI and applied by the API; Grafana shows it. It
 requires the API's inventory, sources, targets and assignments [4.3–4.5] and
 links [4.9]. Investigations, alerts and reports decide how people start and
 read them with their APIs and workers [6, 12–14], not here. Remaining work,
-in order, one pull request each: file schema and offline validation →
-one writer per row → the API applies the file → the chart mounts it and kind
+in order, one pull request each: file schema and offline validation (done)
+→ one writer per row → the API applies the file → the chart mounts it and kind
 onboards PatientZero from it → offline render of assignments → the inventory
 in Grafana → a guide → this stage's validation.
 
@@ -490,8 +490,9 @@ in Grafana → a guide → this stage's validation.
 - [ ] Validate this stage: PatientZero's environment, application, OutSystems source, database target and probe assignments applied from the inventory file on kind, audited as `config`, refused by the API's writes, rendered into `managedCollectors` and run by the collector; the inventory listed in Grafana [16.3]
 
 ### 5.1 Inventory file
-- [ ] JSON Schema for the inventory file in `packages/config-schema` (environments, applications, components, telemetry sources, database targets, custom probe definitions, probe assignments), closed objects, credentials only as `credential-ref`; a Go loader that also runs the API's own checks offline (ownership, names, probe limits, the collector's validators)
-- [ ] `api inventory check -f <file>`: validate without a database, for the configuration repository's CI and for authors
+- [x] JSON Schema for the inventory file in `packages/config-schema` (one environment, its applications with components and telemetry sources, its database targets with built-in probes), closed objects, credentials only as references; a Go loader (`inventory.ParseFile`) that also runs the API's own checks offline: fields, uniqueness, source configs, probe policies against the collector's catalog, one interval per target; every problem reported with its place, never quoting a credential reference ([inventory file](docs/reference/configuration.md#inventory-file))
+- [x] `api inventory check -f <file>`: validate without a database, for the configuration repository's CI and for authors; [`config/inventory.example.yaml`](config/inventory.example.yaml) is tested to stay valid
+- [ ] Custom probe definitions in the inventory file, with their query checked by the collector's validator, so a file can assign one
 
 ### 5.2 Applying the inventory
 - [ ] One writer per row: `managed_by` (`config` or `api`) on inventory rows (expand migration); the API's create, update and delete refuse a config-managed row (409 naming the file)

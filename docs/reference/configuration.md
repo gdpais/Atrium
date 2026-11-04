@@ -371,6 +371,46 @@ Rules:
   every notification channel `config` value are masked, and userinfo is
   stripped from URLs.
 
+## Inventory file
+
+An environment's inventory as code
+([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)):
+the environment, its applications with their components and telemetry
+sources, and its database targets with the probes each runs. One YAML file
+per environment, kept in the configuration repository and changed by pull
+request. [`config/inventory.example.yaml`](../../config/inventory.example.yaml)
+shows every field; the schema is
+[`packages/config-schema/src/inventory.schema.json`](../../packages/config-schema/src/inventory.schema.json).
+The API does not apply the file yet [TODO 5.2]; until then the inventory
+changes through the API's endpoints.
+
+Check a file before opening the pull request; the configuration repository's
+CI runs the same command:
+
+```bash
+go run ./apps/api/cmd/api inventory check -f config/inventory.example.yaml
+```
+
+It needs no database or setting, prints a one-line summary and exits 0, or
+prints every problem with its place in the file (such as
+`applications[0].components[1].type`) and exits 1. It applies the schema and
+then the API's own rules, the ones its endpoints apply:
+
+| Rule | Where |
+| --- | --- |
+| Each field as the API checks it: names, slugs, hosts (no port, credentials or path), ports, labels | everywhere |
+| An application's name is unique in the environment; a component's name and type in its application | `applications` |
+| A source's `config` matches its type's schema; an `application_name` belongs to one application in the environment | `telemetry_sources` |
+| A target's name is unique, and so are its engine, host, port and database | `database_targets` |
+| `credential_ref` is a reference, never a credential; an error never quotes it | `database_targets` |
+| A probe is a built-in of the collector's catalog, runs once per target, with an interval of 5 to 3,600 s (30 by default), a timeout of at most the interval and 25 s, and at most 100,000 rows | `probes` |
+| A target's enabled probes share one interval: one collector scrapes it | `probes` |
+
+Defaults the file may leave out: `status` active, `criticality` medium,
+`engine` sqlserver, `port` 1433, a probe's `interval_seconds` 30 and
+`enabled` true. Label values are strings: quote a number or a date. Custom
+probe definitions are not in the file yet; assign one through the API.
+
 ## Credential resolution
 
 The DB collector looks up a `credential_ref`, and the API its PostgreSQL and
