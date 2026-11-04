@@ -13,6 +13,12 @@ services:
     # refuses to start with a mount at /var/lib/postgresql/data.
     tmpfs:
       - /var/lib/postgresql
+    # The test process that started the project, set by the tests: a later
+    # test process removes the project once that one is gone, if it died
+    # before its cleanup (internal/testreap).
+    labels:
+      heartbeat.test.host: ${HEARTBEAT_TEST_HOST:-}
+      heartbeat.test.pid: ${HEARTBEAT_TEST_PID:-}
     volumes:
       - ../db/migrations:/migrations:ro
     # Over TCP: while initdb runs, the entrypoint starts a temporary server

@@ -222,11 +222,27 @@ Integration tests never touch your developer stack:
   or containers. Tests run concurrently, and separate test processes are
   isolated too.
 
-If a test process is killed, find the leftover project with
-`docker compose ls` and remove only that `heartbeat-test-<id>` project using the
-test Compose file; find leftover API test containers with
-`docker ps -a --filter name=heartbeat-api-test-` and remove them with
-`docker rm -fv`.
+A test process that dies before its cleanup runs leaves its containers
+behind. This happens when a parallel test panics, the process is killed, or
+it times out. The next integration test run removes them by itself:
+
+- Every test container and Compose project is labelled with the host name
+  and process ID of the test process that started it (`heartbeat.test.host`,
+  `heartbeat.test.pid`).
+- The first container each test process starts removes the labelled
+  containers of this host whose process is gone, with their Compose networks
+  (`internal/testreap`). Paused containers are included.
+- It never touches a container whose process still runs, or one started by
+  another host, or another PID namespace such as a container, sharing the
+  Docker daemon.
+
+To clean up without running the tests, wait until no test is running (the
+list includes the containers of running tests), list what is left with
+`docker ps -a --filter label=heartbeat.test.pid` and remove a container with
+`docker rm -fv`. Containers from before these labels, or from a host that
+cannot report its name, have no label to go by: find them with
+`docker ps -a --filter name=heartbeat-api-test-` and `docker compose ls`, and
+remove only the `heartbeat-test-<id>` project using the test Compose file.
 
 ## Build images
 
