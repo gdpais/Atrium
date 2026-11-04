@@ -51,10 +51,13 @@ const (
 	// EntityProbeDefinition is one version of a probe definition, by the
 	// version's ID.
 	EntityProbeDefinition = "probe_definition"
+	// EntityProbeAssignment is a probe assignment (ADR 0014); before and
+	// after are the assignment as the API shows it.
+	EntityProbeAssignment = "probe_assignment"
 )
 
 // EntityTypes lists every entity type Write accepts.
-var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityTelemetrySource, EntityProbeDefinition, EntityDatabaseTarget}
+var EntityTypes = []string{EntityUser, EntitySession, EntityEnvironment, EntityApplication, EntityComponent, EntityTelemetrySource, EntityProbeDefinition, EntityDatabaseTarget, EntityProbeAssignment}
 
 // Actions.
 const (
@@ -77,6 +80,11 @@ const (
 	// identifies the attempt, since no session exists, and its after says
 	// which email was tried and why it was refused, never the password.
 	ActionLoginFailed = "login_failed"
+	// ActionApprove and ActionReject decide a probe assignment (ADR 0014
+	// §3); ActionApply records that the collector runs it as rendered.
+	ActionApprove = "approve"
+	ActionReject  = "reject"
+	ActionApply   = "apply"
 )
 
 // Actor types.
@@ -90,6 +98,10 @@ const (
 	// ActorClient is a client that is not logged in, by its address, such
 	// as one whose login failed.
 	ActorClient = "client"
+	// ActorSystem is the API itself, acting on its own, such as the check
+	// that marks a probe assignment applied: by what it ran and the host
+	// (the pod) it ran on.
+	ActorSystem = "system"
 )
 
 // Actor is who made a change.
@@ -112,6 +124,11 @@ func CLIActor(command, host string) Actor {
 	return Actor{Type: ActorCLI, Command: command, Host: host}
 }
 
+// SystemActor is the API itself, running task on host.
+func SystemActor(task, host string) Actor {
+	return Actor{Type: ActorSystem, Command: task, Host: host}
+}
+
 // ClientActor is a client that is not logged in, at address.
 func ClientActor(address string) Actor {
 	return Actor{Type: ActorClient, Address: address}
@@ -120,10 +137,10 @@ func ClientActor(address string) Actor {
 func (a Actor) validate() error {
 	switch {
 	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "" && a.Address == "":
-	case a.Type == ActorCLI && a.Command != "" && a.UserID == "" && a.Email == "" && a.Address == "":
+	case (a.Type == ActorCLI || a.Type == ActorSystem) && a.Command != "" && a.UserID == "" && a.Email == "" && a.Address == "":
 	case a.Type == ActorClient && a.Address != "" && a.UserID == "" && a.Email == "" && a.Command == "" && a.Host == "":
 	default:
-		return fmt.Errorf("actor %+v: want a user with a UUID and an email, a command, or a client address", a)
+		return fmt.Errorf("actor %+v: want a user with a UUID and an email, a command or a system task, or a client address", a)
 	}
 	return nil
 }

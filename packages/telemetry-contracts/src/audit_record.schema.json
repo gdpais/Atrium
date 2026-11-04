@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "actor": {
-      "description": "Who made the change: a logged-in user, an administrative command run in an API container, or a client that is not logged in, such as one whose login failed.",
+      "description": "Who made the change: a logged-in user, an administrative command run in an API container, the API itself running a task of its own, or a client that is not logged in, such as one whose login failed.",
       "oneOf": [
         {
           "type": "object",
@@ -43,6 +43,16 @@
             "type": {"const": "cli"},
             "command": {"type": "string", "minLength": 1},
             "host": {"description": "The host the command ran on: the pod's name.", "type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "command"],
+          "properties": {
+            "type": {"const": "system"},
+            "command": {"description": "The task the API ran, such as the probe assignment applied check.", "type": "string", "minLength": 1},
+            "host": {"description": "The host the API ran on: the pod's name.", "type": "string"}
           }
         },
         {

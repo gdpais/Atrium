@@ -41,6 +41,8 @@ type Server struct {
 	probeDefinitions ProbeDefinitions
 	// databaseTargets serves /api/v1/database-targets.
 	databaseTargets DatabaseTargets
+	// probeAssignments serves /api/v1/probe-assignments.
+	probeAssignments ProbeAssignments
 }
 
 // The generated interface lists every operation of the spec, so an
@@ -91,6 +93,9 @@ type Options struct {
 	// DatabaseTargets serves the database target operations; without it
 	// they fail.
 	DatabaseTargets DatabaseTargets
+	// ProbeAssignments serves the probe assignment operations; without it
+	// they fail.
+	ProbeAssignments ProbeAssignments
 }
 
 // NewServer returns a Server. It fails when an operation of the spec does
@@ -113,6 +118,7 @@ func NewServer(opts Options) (*Server, error) {
 		probeDefinitions: opts.ProbeDefinitions,
 		users:            opts.Users,
 		databaseTargets:  opts.DatabaseTargets,
+		probeAssignments: opts.ProbeAssignments,
 		site:             opts.Site,
 		trustedProxies:   opts.TrustedProxies,
 	}, nil

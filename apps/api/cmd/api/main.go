@@ -7,9 +7,12 @@
 //	api migrate up                               apply the migrations in db/migrations, then exit
 //	api migrate version                          print the database's schema version, then exit
 //	api users create-admin --email A [--name N]  create an admin with the password on standard input
+//	api probe-assignments render                 print the managedCollectors values file rendered from
+//	                                             the approved probe assignments
 //
 // `api migrate up` is what the API's init container runs before the API
-// starts. The migrate and users commands need only the PostgreSQL settings.
+// starts. The migrate, users and probe-assignments commands need only the
+// PostgreSQL settings.
 //
 // Environment variables:
 //
@@ -98,7 +101,7 @@ const (
 const maxShutdownDelay = time.Minute
 
 // errUsage marks a command line that names no command.
-var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password`)
+var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password | api probe-assignments render`)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -167,6 +170,8 @@ func execute(ctx context.Context, args []string, logger *slog.Logger, stdin io.R
 		return err
 	case len(args) >= 2 && args[0] == "users" && args[1] == "create-admin":
 		return createAdmin(ctx, args[2:], logger, stdin)
+	case slices.Equal(args, []string{"probe-assignments", "render"}):
+		return renderAssignments(ctx, stdout)
 	}
 	return errUsage
 }

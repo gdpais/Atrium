@@ -249,8 +249,11 @@ Released images are built by CI, not by hand: see
 
 ## Change collector config without restarting
 
-Edit the `integrations` values and run `make kind-deploy`. The collector is not
-restarted: the ConfigMap reaches the pod within about a minute and the
+Edit the `integrations` values and run `make kind-deploy`; for probe
+assignments approved through the API, run `make kind-assignments`, which
+renders them in the API's pod into `.tmp/kind/heartbeat/managed-collectors.yaml`
+and deploys with it (later `make kind-deploy` runs keep it; delete the file
+to drop them). The collector is not restarted: the ConfigMap reaches the pod within about a minute and the
 collector polls the file every 5s. To apply it sooner:
 
 ```bash

@@ -204,7 +204,10 @@ func (s *Service) CreateDatabaseTarget(ctx context.Context, caller Caller, in Ne
 }
 
 // UpdateDatabaseTarget changes the fields change holds and audits it, and
-// returns the target as it is then. A change that changes nothing writes
+// returns the target as it is then. A change to its host, port, database or
+// credential reference sends its approved probe assignments back to draft,
+// each audited, so that the collector never runs against a server, or with
+// a credential, that nobody approved. A change that changes nothing writes
 // and audits nothing. It fails with ErrNotFound for an unknown id, and with
 // a ConflictError when another target of the environment is for the same
 // database.
@@ -241,7 +244,13 @@ func (s *Service) UpdateDatabaseTarget(ctx context.Context, caller Caller, id uu
 		if after, err = databaseTarget(row); err != nil {
 			return err
 		}
-		return record(audit.ActionUpdate, after.ID.String(), before, after)
+		if err := record(audit.ActionUpdate, after.ID.String(), before, after); err != nil {
+			return err
+		}
+		if !sameConnection(before, after) {
+			return resetApprovals(ctx, q, caller, after.ID)
+		}
+		return nil
 	})
 	if err != nil {
 		return DatabaseTarget{}, err
@@ -363,6 +372,37 @@ func applyDatabaseTargetChange(t DatabaseTarget, c DatabaseTargetChange) (Databa
 		}
 	}
 	return t, nil
+}
+
+// sameConnection reports whether a change leaves where a target is, and
+// how the collector logs in to it, as they are.
+func sameConnection(a, b DatabaseTarget) bool {
+	return a.Host == b.Host && a.Port == b.Port && a.DatabaseName == b.DatabaseName && a.CredentialRef == b.CredentialRef
+}
+
+// resetApprovals sends a target's approved assignments back to draft, and
+// audits each, after its host, port, database or credential reference
+// changed: an approval covers the target as it was, and the collector must
+// not connect, with a credential, to a server nobody approved (ADR 0014 §4).
+func resetApprovals(ctx context.Context, q *store.Queries, caller Caller, target uuid.UUID) error {
+	rows, err := q.ListApprovedTargetAssignments(ctx, pgUUID(target))
+	if err != nil {
+		return fmt.Errorf("list the target's approved assignments: %w", err)
+	}
+	for _, row := range rows {
+		reset, err := q.ResetProbeAssignment(ctx, row.ID)
+		if err != nil {
+			return fmt.Errorf("reset probe assignment %s: %w", goUUID(row.ID), err)
+		}
+		before, after := probeAssignment(row), probeAssignment(reset)
+		if _, err := audit.Write(ctx, q, audit.Change{
+			RequestID: caller.RequestID, Actor: caller.Actor, Action: audit.ActionUpdate,
+			EntityType: audit.EntityProbeAssignment, EntityID: after.ID.String(), Before: before, After: after,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // sameDatabaseTarget reports whether a change leaves the fields it can

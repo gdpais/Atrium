@@ -11,6 +11,7 @@ import (
 	"errors"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,6 +20,7 @@ import (
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/audit/audittest"
 	"heartbeat/apps/api/internal/auth"
+	"heartbeat/apps/api/internal/collectors"
 	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/password"
 	"heartbeat/apps/api/internal/probedefs"
@@ -448,7 +450,75 @@ var auditedChanges = []auditedChange{
 			return nil
 		},
 	},
+	{
+		name:   "probe assignment created, changed, approved, applied, rejected and deleted",
+		entity: audit.EntityProbeAssignment,
+		change: func(t *testing.T, ctx context.Context, h harness, begin func()) []string {
+			caller, secrets := h.operator(t, ctx, "assignment-operator@example.com")
+			svc := inventory.New(h.pool)
+			e, err := svc.CreateEnvironment(ctx, caller, inventory.NewEnvironment{Name: "Orders", Slug: "orders", Type: "production"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tg, err := svc.CreateDatabaseTarget(ctx, caller, inventory.NewDatabaseTarget{EnvironmentID: e.ID, Name: "orders-prod", Host: "sql01.orders.internal", CredentialRef: "env/orders-prod"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var waits, cpu uuid.UUID
+			if err := h.pool.QueryRow(ctx, "select id from probe_definitions where builtin and name = 'waits'").Scan(&waits); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.pool.QueryRow(ctx, "select id from probe_definitions where builtin and name = 'cpu'").Scan(&cpu); err != nil {
+				t.Fatal(err)
+			}
+			begin()
+			a, err := svc.CreateProbeAssignment(ctx, caller, inventory.NewProbeAssignment{DatabaseTargetID: tg.ID, ProbeDefinitionID: waits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateProbeAssignment(ctx, caller, a.ID, inventory.ProbeAssignmentChange{MaxRows: ptr(500)}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ApproveProbeAssignment(ctx, caller, a.ID); err != nil {
+				t.Fatal(err)
+			}
+			// The applied check, as the API runs it: by the API itself.
+			running := applied{collectors.SQLServerCollectors{ByID: map[string]collectors.SQLServerCollector{a.CollectorID: {
+				Enabled: true, ScrapeInterval: 30 * time.Second, Targets: []collectors.Target{{
+					Name: "orders-prod", EnvironmentSlug: "orders", Host: "sql01.orders.internal", Port: 1433,
+					Probes: []collectors.Probe{{Name: "waits", MaxRows: 500}},
+				}},
+			}}}}
+			if n, err := inventory.New(h.pool, inventory.WithRunner(running)).MarkAppliedProbeAssignments(ctx, audit.SystemActor(inventory.AppliedCheckTask, "api-0")); n != 1 || err != nil {
+				t.Fatalf("MarkAppliedProbeAssignments() = %d, %v", n, err)
+			}
+			b, err := svc.CreateProbeAssignment(ctx, caller, inventory.NewProbeAssignment{DatabaseTargetID: tg.ID, ProbeDefinitionID: cpu})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RejectProbeAssignment(ctx, caller, b.ID, "not on this server"); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range []uuid.UUID{a.ID, b.ID} {
+				if err := svc.DeleteProbeAssignment(ctx, caller, id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return secrets
+		},
+	},
 }
+
+// applied is an inventory.Runner that reports what it holds.
+type applied struct {
+	running collectors.SQLServerCollectors
+}
+
+func (a applied) SQLServer(context.Context) (collectors.SQLServerCollectors, error) {
+	return a.running, nil
+}
+
+func ptr[T any](v T) *T { return &v }
 
 // Secrets never enter audit records: each audited change runs against
 // PostgreSQL, and every record it writes must be valid against the schema,

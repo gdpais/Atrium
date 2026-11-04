@@ -1,0 +1,11 @@
+drop index if exists probe_assignments_state_idx;
+alter table probe_assignments drop constraint if exists probe_assignments_interval_ck;
+alter table probe_assignments drop column if exists max_rows;
+alter table probe_assignments drop column if exists timeout_ms;
+alter table probe_assignments drop constraint if exists probe_assignments_approval_ck;
+alter table probe_assignments drop column if exists created_by;
+alter table probe_assignments drop column if exists approved_at;
+alter table probe_assignments drop column if exists approved_by;
+alter table probe_assignments drop column if exists pull_request_url;
+alter table probe_assignments drop column if exists state_detail;
+alter table probe_assignments drop column if exists state;

@@ -91,6 +91,12 @@ func (f fixture) recordsSince(t *testing.T, mark int64) []record {
 // with action, by the operator, and returns it.
 func (f fixture) one(t *testing.T, mark int64, action, entityType string, id uuid.UUID) record {
 	t.Helper()
+	return f.oneBy(t, mark, operator.Actor, operator.RequestID, action, entityType, id)
+}
+
+// oneBy is one, by actor in requestID; "" accepts any request.
+func (f fixture) oneBy(t *testing.T, mark int64, actor audit.Actor, requestID, action, entityType string, id uuid.UUID) record {
+	t.Helper()
 	records := f.recordsSince(t, mark)
 	if len(records) != 1 {
 		t.Fatalf("%d audit records, want 1: %+v", len(records), records)
@@ -99,8 +105,8 @@ func (f fixture) one(t *testing.T, mark int64, action, entityType string, id uui
 	if r.Action != action || r.EntityType != entityType || r.EntityID != id.String() {
 		t.Fatalf("record %s %s %s, want %s %s %s", r.Action, r.EntityType, r.EntityID, action, entityType, id)
 	}
-	if r.Actor != operator.Actor || r.RequestID != operator.RequestID {
-		t.Fatalf("record by %+v in %q, want %+v in %q", r.Actor, r.RequestID, operator.Actor, operator.RequestID)
+	if r.Actor != actor || (requestID != "" && r.RequestID != requestID) {
+		t.Fatalf("record by %+v in %q, want %+v in %q", r.Actor, r.RequestID, actor, requestID)
 	}
 	return r
 }

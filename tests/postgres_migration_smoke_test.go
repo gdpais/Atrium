@@ -225,3 +225,44 @@ values ('11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders-a
 		}
 	}
 }
+
+// 0006 adds probe assignments' approval state and probe policy; its down
+// migration drops them again, so the up migration applies twice. An
+// approved assignment must name its approver, a draft must not.
+func TestProbeAssignmentsMigrationUpAndDown(t *testing.T) {
+	t.Parallel()
+	root := repoRoot(t)
+	stack := newPostgresStack(t, root)
+	stack.ResetDatabase(t)
+	for _, m := range []string{"0001_foundations", "0002_audit_outbox", "0003_login_roles", "0004_probe_definitions", "0005_database_targets"} {
+		stack.ApplyMigration(t, "/migrations/"+m+".up.sql")
+	}
+	stack.PSQL(t, stack.DBName, `insert into environments (id, name, slug, type) values ('11111111-1111-4111-8111-111111111111', 'Prod', 'prod', 'production');
+insert into database_targets (id, environment_id, engine, name, host, port, credential_ref)
+values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'sqlserver', 'orders', 'orders', 1433, 'env/orders');`)
+	column := `select count(*) from information_schema.columns where table_name = 'probe_assignments' and column_name = 'state';`
+	unapproved := `insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, state)
+select '22222222-2222-4222-8222-222222222222', id, 30, 'approved' from probe_definitions where name = 'cpu';`
+	tooLong := `insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms)
+select '22222222-2222-4222-8222-222222222222', id, 30, 25001 from probe_definitions where name = 'cpu';`
+	for round := 1; round <= 2; round++ {
+		// A row from before the migration becomes a draft.
+		stack.PSQL(t, stack.DBName, `delete from probe_assignments;
+insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds)
+select '22222222-2222-4222-8222-222222222222', id, 30 from probe_definitions where name = 'waits';`)
+		stack.ApplyMigration(t, "/migrations/0006_probe_assignments.up.sql")
+		if stdout := stack.PSQL(t, stack.DBName, `select state from probe_assignments;`); !strings.Contains(stdout, "draft") {
+			t.Fatalf("round %d: an existing assignment after up: %s", round, stdout)
+		}
+		if out, err := stack.PSQLResult(t, stack.DBName, unapproved); err == nil || !strings.Contains(out, "probe_assignments_approval_ck") {
+			t.Fatalf("round %d: an approved assignment without an approver: %v\n%s", round, err, out)
+		}
+		if out, err := stack.PSQLResult(t, stack.DBName, tooLong); err == nil || !strings.Contains(out, "timeout_ms_check") {
+			t.Fatalf("round %d: a timeout over 25 s: %v\n%s", round, err, out)
+		}
+		stack.ApplyMigration(t, "/migrations/0006_probe_assignments.down.sql")
+		if stdout := stack.PSQL(t, stack.DBName, column); !strings.Contains(stdout, "0") {
+			t.Fatalf("round %d, after down: %s", round, stdout)
+		}
+	}
+}
