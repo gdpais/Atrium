@@ -101,8 +101,8 @@ later, the API's queries.
 
 A variable outside this list, a dashboard template naming anything but
 `${from}` and `${to}`, an unclosed `${`, an absolute URL, or a `base_url`
-that is not http or https makes the API refuse the file for links, naming
-the template: it keeps the last valid file's links, or answers 503 if it
+that is not http or https or has a query or fragment makes the API refuse
+the file for links, naming the template: it keeps the last valid file's links, or answers 503 if it
 has none. The collector reads no template, so a typo there never stops
 collection; the chart's tests check the shipped profiles. Values are
 percent-encoded when the API fills them in, so a value cannot add a

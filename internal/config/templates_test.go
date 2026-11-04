@@ -62,6 +62,11 @@ func TestValidateLinkTemplates(t *testing.T) {
 			wantErr: "dashboards.deep_link_templates.x needs dashboards.base_url"},
 		{name: "a base URL a browser does not open as a page", content: "dashboards:\n  base_url: ftp://grafana:3000\n  deep_link_templates:\n    x: /d/x\n",
 			wantErr: "dashboards.base_url must be an http or https URL"},
+		{name: "a base URL with a query", content: "dashboards:\n  base_url: http://grafana:3000/?orgId=1\n  deep_link_templates:\n    x: /d/x\n",
+			wantErr: "dashboards.base_url must have no query or fragment"},
+		{name: "a base URL with a fragment", content: "dashboards:\n  base_url: http://grafana:3000/#top\n  deep_link_templates:\n    x: /d/x\n",
+			wantErr: "dashboards.base_url must have no query or fragment"},
+		{name: "a base URL with a path", content: "dashboards:\n  base_url: https://example.internal/grafana/\n  deep_link_templates:\n    x: /d/x\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "integrations.yaml")

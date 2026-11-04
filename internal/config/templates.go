@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -110,6 +111,11 @@ func ValidateLinkTemplates(dashboards Endpoint) error {
 			}
 			if scheme, _, _ := strings.Cut(dashboards.BaseURL, ":"); !strings.EqualFold(scheme, "http") && !strings.EqualFold(scheme, "https") {
 				return fmt.Errorf("dashboards.base_url must be an http or https URL: links open in a browser")
+			}
+			// A template is appended to base_url, so a query or fragment
+			// there would swallow the template's path.
+			if base, err := url.Parse(dashboards.BaseURL); err != nil || base.RawQuery != "" || base.ForceQuery || base.Fragment != "" || strings.Contains(dashboards.BaseURL, "#") {
+				return fmt.Errorf("dashboards.base_url must have no query or fragment: templates are paths appended to it")
 			}
 			if !strings.HasPrefix(template, "/") || strings.HasPrefix(template, "//") {
 				return fmt.Errorf("%s must be a path on dashboards.base_url, starting with a single /", name)
