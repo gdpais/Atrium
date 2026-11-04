@@ -64,7 +64,23 @@ Data path for self-managed OutSystems 11:
    rows in the kind test. With one request nothing queues behind the request
    being sent, and the disk keeps that request across the restart: the kind
    test restarts the Collector during backlogs of 45 minutes and three
-   hours, with Loki down, and Loki ends with every row of both, once.
+   hours, with Loki down, and Loki ends with every row of both.
+
+   Delivery is at least once, not exactly once: a row is never lost, but it
+   can reach Loki twice. The db-collector sends a request again whenever it
+   did not see it accepted, and the Collector can have kept that request
+   all the same: an attempt that timed out while the receiver waited for
+   room in the queue, or a Collector stopped before it answered, keeps the
+   request on disk and sends it after the restart. Loki drops many such
+   copies (the same timestamp and line in one stream) but not all of them:
+   in one kind run a request of 1,266 rows was sent twice and 73 lines were
+   kept twice. Counts from Loki (`count_over_time`) can then be slightly
+   high; counts of distinct requests (`count(sum by (Request_Key) ...)`;
+   a request's rows share one `Request_Key`) and the
+   [derived metrics](#derived-metrics), which the db-collector computes
+   from the rows it reads, are not affected. The kind test checks that no
+   row is lost and that Loki holds no more lines twice than the Collector
+   sent twice.
 
    So the Collector takes the next batch only once Loki has the one before,
    and while Loki is down it takes none. The collector waits for it without
