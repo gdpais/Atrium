@@ -69,6 +69,20 @@ else
 	fail "go not installed"
 fi
 
+# Node only builds and checks the Web UI (apps/web, ADR 0020); the API image
+# builds the UI in its own Node stage, so the cluster loop works without it.
+want_node=$(cat apps/web/.nvmrc)
+if command -v node >/dev/null 2>&1; then
+	have=$(node --version)
+	if [ "${have#v}" = "$want_node" ] || [ "$(echo "${have#v}" | cut -d. -f1)" = "${want_node%%.*}" ]; then
+		ok "node $have (apps/web/.nvmrc: $want_node)"
+	else
+		fail "node $have: want ${want_node%%.*}.x, ideally $want_node (apps/web/.nvmrc; nvm install, or brew install node@${want_node%%.*})"
+	fi
+else
+	printf 'skip  node not installed: needed only to work on the Web UI (apps/web/.nvmrc: %s)\n' "$want_node"
+fi
+
 if [ "$failures" -gt 0 ]; then
 	printf '%d tool check(s) failed\n' "$failures"
 	exit 1

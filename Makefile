@@ -1,4 +1,4 @@
-.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-assignments kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check test test-integration test-sqlserver test-race vet vulncheck docs-site
+.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-assignments kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check web-check test test-integration test-sqlserver test-race vet vulncheck docs-site
 
 SQLSERVER_DEV_ENV_FILE := .env.sqlserver-dev
 # Health checks fail fast on HTTP errors (keeping the body) and never hang.
@@ -46,6 +46,7 @@ PATIENTZERO_CHART_CHECK_VALUES := --set image.tag=ci --set sql.host=ci
 GOVULNCHECK := GOCACHE=$$(pwd)/.tmp/gocache go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 DOCSITE := GOCACHE=$$(pwd)/.tmp/gocache go -C $(DOCSITE_MODULE) run ./cmd/docsite -root ../.. -repo-url $(DOCS_REPO_URL) -ref $(DOCS_REPO_REF)
 API_SPEC := apps/api/openapi.yaml
+WEB_DIR := apps/web
 API_GENERATED := apps/api/internal/openapi/openapi.gen.go
 OAPI_CODEGEN := GOCACHE=$$(pwd)/.tmp/gocache go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION) -config apps/api/oapi-codegen.yaml
 SQLC := GOCACHE=$$(pwd)/.tmp/gocache CGO_ENABLED=1 go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION) -f apps/api/sqlc.yaml
@@ -80,9 +81,10 @@ help:
 		'  make chart-deps          Fetch the chart dependencies listed in Chart.lock' \
 		'  make chart-check         Lint and render the chart for every values profile (needs chart-deps), and the PatientZero chart' \
 		'  make rules-check         Validate Prometheus rules and run their promtool unit tests (requires Docker)' \
-		'  make generate            Regenerate the committed generated code: the API server types from apps/api/openapi.yaml, its queries from apps/api/internal/store/queries' \
+		'  make generate            Regenerate the committed generated code: the API server types and the Web UI client from apps/api/openapi.yaml, its queries from apps/api/internal/store/queries' \
 		'  make generate-check      Fail when the committed generated code differs from what make generate writes' \
 		'  make test                Check the generated code, then run all Go tests without Docker integration tests' \
+		'  make web-check           Lint, typecheck, test and build the Web UI (apps/web; requires Node)' \
 		'  make test-integration    Run isolated PostgreSQL and Valkey integration tests (requires Docker)' \
 		'  make test-sqlserver      Run every SQL Server probe and OutSystems log query against a disposable SQL Server container (requires Docker)' \
 		'  make test-race           Run all Docker-free tests with the race detector' \
@@ -215,9 +217,16 @@ rules-check:
 	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/heartbeat.rules.yml /rules/heartbeat-config-reload.rules.yml /rules/heartbeat-collector-missing.rules.yml /rules/heartbeat-api-missing.rules.yml /rules/heartbeat-self.rules.yml /rules/generated/heartbeat-rendered.rules.yml
 	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" -w /rules/tests --entrypoint promtool $(PROMETHEUS_IMAGE) test rules heartbeat.rules.test.yml
 
+# The Web UI's client comes from the same spec (ADR 0020). Without Node it is
+# left as it is: CI's Web UI job fails when it is stale.
 generate:
 	$(OAPI_CODEGEN) -o $(API_GENERATED) $(API_SPEC)
 	$(SQLC) generate
+	@if command -v npm >/dev/null 2>&1; then \
+		npm --prefix $(WEB_DIR) run --silent generate; \
+	else \
+		echo "warning: npm not found, so $(WEB_DIR)/src/api/schema.gen.ts was not regenerated (CI checks it)" >&2; \
+	fi
 
 # Regenerates into .tmp and compares, so the working tree is never touched: a
 # spec, query or migration edited, or a generator bumped, without make
@@ -229,6 +238,15 @@ generate-check:
 		echo "error: $(API_GENERATED) is stale: run make generate and commit the result" >&2; exit 1; }
 	@$(SQLC) diff || { \
 		echo "error: the sqlc code in apps/api/internal/store is stale: run make generate and commit the result" >&2; exit 1; }
+
+# What CI's Web UI job runs, for apps/web (ADR 0020). Needs Node, at the
+# version in apps/web/.nvmrc.
+web-check:
+	npm --prefix $(WEB_DIR) ci --no-fund --no-audit
+	npm --prefix $(WEB_DIR) run lint
+	npm --prefix $(WEB_DIR) run typecheck
+	npm --prefix $(WEB_DIR) test
+	npm --prefix $(WEB_DIR) run build
 
 test: generate-check
 	GOCACHE=$$(pwd)/.tmp/gocache go test ./...

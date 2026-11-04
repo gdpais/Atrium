@@ -12,12 +12,13 @@ import (
 // little lets a broken change merge, so unknown paths must run everything.
 func TestCIChangesFlags(t *testing.T) {
 	const (
-		none   = "db_collector=false chart=false kind_e2e=false"
-		all    = "db_collector=true chart=true kind_e2e=true"
-		dbOnly = "db_collector=true chart=false kind_e2e=true"
-		chart  = "db_collector=false chart=true kind_e2e=true"
-		e2e    = "db_collector=false chart=false kind_e2e=true"
-		probes = "db_collector=true chart=false kind_e2e=false"
+		none   = "db_collector=false chart=false kind_e2e=false web=false"
+		all    = "db_collector=true chart=true kind_e2e=true web=true"
+		dbOnly = "db_collector=true chart=false kind_e2e=true web=false"
+		chart  = "db_collector=false chart=true kind_e2e=true web=false"
+		e2e    = "db_collector=false chart=false kind_e2e=true web=false"
+		probes = "db_collector=true chart=false kind_e2e=false web=false"
+		webUI  = "db_collector=false chart=false kind_e2e=true web=true"
 	)
 	cases := []struct {
 		name   string
@@ -39,20 +40,23 @@ func TestCIChangesFlags(t *testing.T) {
 		{"values profile", []string{"infra/helm/values/kind.yaml"}, false, chart},
 		{"kind cluster", []string{"infra/kind/cluster.yaml", "infra/kind/e2e.yaml"}, false, e2e},
 		{"docs and chart", []string{"docs/README.md", "infra/helm/heartbeat/Chart.yaml"}, false, chart},
-		{"chart tests", []string{"tests/chart_render_test.go", "tests/chart_schema_test.go"}, false, "db_collector=false chart=true kind_e2e=false"},
+		{"chart tests", []string{"tests/chart_render_test.go", "tests/chart_schema_test.go"}, false, "db_collector=false chart=true kind_e2e=false web=false"},
 		{"kind scripts", []string{"scripts/kind.sh", "scripts/kind-e2e.sh"}, false, e2e},
 		{"probe test script", []string{"scripts/sqlserver-test.sh"}, false, probes},
 		{"PatientZero", []string{"tools/patientzero/internal/app/server.go", "tools/patientzero/go.mod", "tools/patientzero/Dockerfile"}, false, probes},
-		{"PatientZero script", []string{"tools/patientzero/scripts/patientzero.sh"}, false, "db_collector=true chart=true kind_e2e=false"},
-		{"chart tests, PatientZero's", []string{"tests/chart_patientzero_test.go"}, false, "db_collector=false chart=true kind_e2e=false"},
-		{"PatientZero chart", []string{"tools/patientzero/chart/values.yaml", "tools/patientzero/chart/templates/deployment.yaml"}, false, "db_collector=false chart=true kind_e2e=false"},
-		{"PatientZero and its chart", []string{"tools/patientzero/internal/app/server.go", "tools/patientzero/chart/Chart.yaml"}, false, "db_collector=true chart=true kind_e2e=false"},
+		{"PatientZero script", []string{"tools/patientzero/scripts/patientzero.sh"}, false, "db_collector=true chart=true kind_e2e=false web=false"},
+		{"chart tests, PatientZero's", []string{"tests/chart_patientzero_test.go"}, false, "db_collector=false chart=true kind_e2e=false web=false"},
+		{"PatientZero chart", []string{"tools/patientzero/chart/values.yaml", "tools/patientzero/chart/templates/deployment.yaml"}, false, "db_collector=false chart=true kind_e2e=false web=false"},
+		{"PatientZero and its chart", []string{"tools/patientzero/internal/app/server.go", "tools/patientzero/chart/Chart.yaml"}, false, "db_collector=true chart=true kind_e2e=false web=false"},
 		{"PatientZero docs", []string{"tools/patientzero/README.md"}, false, none},
 		{"PatientZero and docs", []string{"tools/patientzero/cmd/patientzero/main.go", "docs/README.md"}, false, probes},
 		{"collector login script", []string{"scripts/sqlserver-login.sh"}, false, dbOnly},
 		{"tool pins", []string{"scripts/install-tools.sh", "scripts/tools-check.sh", "scripts/chart-deps.sh"}, false, chart},
 		{"telemetry contracts", []string{"packages/telemetry-contracts/src/application_event.schema.json"}, false, none},
-		{"API", []string{"apps/api/cmd/api/main.go", "apps/api/openapi.yaml", "apps/api/internal/openapi/openapi.gen.go"}, false, e2e},
+		{"API", []string{"apps/api/cmd/api/main.go", "apps/api/internal/openapi/openapi.gen.go"}, false, e2e},
+		{"API contract", []string{"apps/api/openapi.yaml"}, false, webUI},
+		{"Web UI", []string{"apps/web/src/main.tsx", "apps/web/package.json", "apps/web/web.go"}, false, webUI},
+		{"Web UI docs", []string{"apps/web/README.md"}, false, none},
 		{"API queries", []string{"apps/api/sqlc.yaml", "apps/api/internal/store/queries/schema.sql", "apps/api/internal/store/schema.sql.gen.go", "apps/api/internal/testenv/testenv.go"}, false, e2e},
 		{"API image", []string{"apps/api/Dockerfile", "apps/api/Dockerfile.dockerignore"}, false, e2e},
 		{"shared credentials package", []string{"internal/credentials/credentials.go"}, false, all},
@@ -68,9 +72,9 @@ func TestCIChangesFlags(t *testing.T) {
 		{"workflows", []string{".github/workflows/ci.yml"}, false, all},
 		{"docker ignore", []string{".dockerignore"}, false, all},
 		{"dev config", []string{"config/integrations.yaml"}, false, all},
-		{"new directory", []string{"apps/web/src/main.tsx"}, false, all},
+		{"new directory", []string{"apps/mobile/src/main.tsx"}, false, all},
 		{"new service", []string{"services/reporting/cmd/reporting/main.go"}, false, all},
-		{"docs then unknown", []string{"docs/README.md", "apps/web/package.json"}, false, all},
+		{"docs then unknown", []string{"docs/README.md", "apps/mobile/package.json"}, false, all},
 		{"run all", nil, true, all},
 		{"run all with docs", []string{"docs/README.md"}, true, all},
 	}

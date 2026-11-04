@@ -847,10 +847,14 @@ included. Prometheus scrapes it as job `api`.
 
 `route` is the pattern that served the request, without the method
 (`/readyz`, `/api/v1/applications/{id}`, never the ID itself), or
-`unmatched` when none did: a 404, a 405 or a redirect. `method` is the
-request's method, or `other` outside GET, HEAD, POST, PUT, PATCH, DELETE and
-OPTIONS. A scan of made-up paths and methods therefore lands in the
-`unmatched` and `other` series instead of adding new ones.
+`unmatched` when none did: a 405, or a redirect to a cleaned path. The Web
+UI's pattern, `GET /`, matches every path, so every request for the UI's
+files and pages, and every GET of a path nothing else serves (unknown API
+paths included, which it answers 404), is route `/`
+([ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)).
+`method` is the request's method, or `other` outside GET, HEAD, POST, PUT,
+PATCH, DELETE and OPTIONS. A scan of made-up paths and methods therefore
+lands in the `/`, `unmatched` and `other` series instead of adding new ones.
 
 ### Logins
 
