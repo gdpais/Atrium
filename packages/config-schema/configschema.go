@@ -5,7 +5,8 @@
 // checks before it stores a source (ADR 0017 §1): one schema per type in
 // src/telemetry-sources, named after the type; and a collector of the
 // integrations file, which the API checks every collector it renders from
-// probe assignments against (ADR 0014 §2).
+// probe assignments against (ADR 0014 §2); and an environment's inventory
+// file (ADR 0021), which `api inventory check` and the API check.
 package configschema
 
 import (
@@ -27,8 +28,14 @@ var sources embed.FS
 //go:embed src/integrations.schema.json
 var integrations []byte
 
+//go:embed src/inventory.schema.json
+var inventory []byte
+
 // integrationsID is the integrations schema's $id.
 const integrationsID = "https://heartbeat.local/schemas/integrations.schema.json"
+
+// inventoryID is the inventory schema's $id.
+const inventoryID = "https://heartbeat.local/schemas/inventory.schema.json"
 
 const sourcesDir = "src/telemetry-sources"
 
@@ -106,6 +113,23 @@ func CollectorSchema() (*jsonschema.Schema, error) {
 	schema, err := compiler.Compile(integrationsID + "#/properties/collectors/items")
 	if err != nil {
 		return nil, fmt.Errorf("integrations schema: %w", err)
+	}
+	return schema, nil
+}
+
+// InventorySchema compiles the schema of an inventory file.
+func InventorySchema() (*jsonschema.Schema, error) {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(inventory))
+	if err != nil {
+		return nil, fmt.Errorf("inventory schema: %w", err)
+	}
+	compiler := newCompiler()
+	if err := compiler.AddResource(inventoryID, doc); err != nil {
+		return nil, fmt.Errorf("inventory schema: %w", err)
+	}
+	schema, err := compiler.Compile(inventoryID)
+	if err != nil {
+		return nil, fmt.Errorf("inventory schema: %w", err)
 	}
 	return schema, nil
 }

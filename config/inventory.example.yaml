@@ -1,0 +1,52 @@
+# An environment's inventory, as code (ADR 0021). One file per environment,
+# kept in the configuration repository beside the environment's values,
+# changed by pull request and applied by the API. Check it with:
+#
+#   go run ./apps/api/cmd/api inventory check -f config/inventory.example.yaml
+#
+# Schema: packages/config-schema/src/inventory.schema.json. Reference:
+# docs/reference/configuration.md#inventory-file.
+version: 1
+
+environment:
+  slug: prod                 # as the collectors and the telemetry name it; fixed once applied
+  name: Production
+  type: production           # production, staging, development or test
+  description: Customer-facing OutSystems applications
+  labels:
+    region: eu-west-1
+
+applications:
+  - name: Claims             # unique in the environment
+    platform: outsystems
+    owner_team: Claims squad
+    criticality: high        # low, medium (default), high or critical
+    components:
+      - name: Claims portal
+        type: reactive_web_app
+        runtime_name: ClaimsPortal
+      - name: Claims API
+        type: rest_api
+    telemetry_sources:
+      - type: outsystems
+        ingest_mode: agentless   # OutSystems 11 logs, read by an outsystems_logs collector
+        config:
+          application_name: Claims
+
+database_targets:
+  - name: claims-prod        # the target label of its metrics
+    host: claims-sql.db.internal
+    port: 1433               # 1433 when left out
+    database_name: Claims
+    credential_ref: env/claims-prod   # the collector's credentials Secret, never a password
+    labels:
+      tier: gold
+    probes:                  # built-in probes; the enabled ones share one interval
+      - name: blocking
+        interval_seconds: 30
+      - name: waits
+        interval_seconds: 30
+        timeout_ms: 5000
+      - name: cpu
+        interval_seconds: 30
+        enabled: false
