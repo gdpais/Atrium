@@ -4,6 +4,7 @@ import type { Session } from "../api/session";
 export interface Call {
   method: string;
   path: string;
+  query: URLSearchParams;
   body: unknown;
 }
 
@@ -19,15 +20,15 @@ export function stubAPI(table: Record<string, Handler>) {
     vi.fn(async (request: Request) => {
       const url = new URL(request.url);
       const text = await request.text();
-      const call: Call = { method: request.method, path: url.pathname, body: text ? JSON.parse(text) : undefined };
+      const call: Call = { method: request.method, path: url.pathname, query: url.searchParams, body: text ? JSON.parse(text) : undefined };
       calls.push(call);
       const handler = table[`${call.method} ${call.path}`];
       if (!handler) throw new Error(`unexpected request ${call.method} ${call.path}`);
       const answer = typeof handler === "function" ? handler(call) : handler;
-      const problem = answer.status >= 400;
+      const failed = answer.status >= 400;
       return new Response(answer.body === undefined ? null : JSON.stringify(answer.body), {
         status: answer.status,
-        headers: { "Content-Type": problem ? "application/problem+json" : "application/json", ...answer.headers },
+        headers: { "Content-Type": failed ? "application/problem+json" : "application/json", ...answer.headers },
       });
     }),
   );
@@ -44,3 +45,7 @@ export function session(roles: Session["user"]["roles"], name = "Ana"): Session 
 }
 
 export const unauthorized: Answer = { status: 401, body: { type: "about:blank", title: "Unauthorized", status: 401 } };
+
+export function problem(status: number, title: string, detail?: string): Answer {
+  return { status, body: { type: "about:blank", title, status, ...(detail ? { detail } : {}) } };
+}

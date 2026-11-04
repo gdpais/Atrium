@@ -6,12 +6,20 @@ import { createQueryClient } from "./api/queryClient";
 import { RequireRole, RequireSession } from "./components/Guards";
 import { Layout } from "./components/Layout";
 import { sections } from "./nav";
+import { Applications } from "./pages/Applications";
+import { Environments } from "./pages/Environments";
 import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
 import { RouteError } from "./pages/RouteError";
 import { Section } from "./pages/Section";
 import { theme } from "./theme";
+
+// The screens built so far; the other sections show a placeholder.
+const screens: Record<string, React.ReactNode> = {
+  "/environments": <Environments />,
+  "/applications": <Applications />,
+};
 
 // Every page but the login page needs a session; a section's page needs the
 // role its navigation entry names, so a link typed by hand is gated too.
@@ -27,7 +35,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <Home /> },
           ...sections.map((section) => ({
             element: <RequireRole role={section.role} />,
-            children: [{ path: section.path, element: <Section title={section.label} /> }],
+            children: [{ path: section.path, element: screens[section.path] ?? <Section title={section.label} /> }],
           })),
           { path: "*", element: <NotFound /> },
         ],

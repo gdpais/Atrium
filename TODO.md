@@ -485,7 +485,7 @@ Grafana/Loki drill-down needs reachable datasources and templates [4.9, 9.3,
 Built and served as [ADR 0020](docs/architecture/decisions/0020-web-ui-served-by-the-api.md)
 decides: a Vite app embedded in the API and served at `/`. Remaining work, in
 order, one pull request each: scaffold and serve [5.1] (done) → app shell, login and
-roles [5.1] (done) → environments and applications → application detail, telemetry
+roles [5.1] (done) → environments and applications (done) → application detail, telemetry
 sources and deep links → database targets and probe assignments →
 integrations and users admin [5.2, 5.3] → this stage's validation.
 
@@ -497,7 +497,7 @@ integrations and users admin [5.2, 5.3] → this stage's validation.
 - [x] Set up routing, auth/session handling (login, logout, role-gated navigation, 401 and 403), shared layout and components; Playwright against the API in `kind-e2e`
 
 ### 5.2 Primary operator screens
-- [ ] Environments/applications screen
+- [x] Environments/applications screen: list, create and edit both, disable by status; viewers read, operators change; the API's 400, 409 and 422 shown in the form; tested in Chromium on kind
 - [ ] Application details/components screen
 - [ ] Telemetry sources screen
 - [ ] Database targets onboarding screen
@@ -508,7 +508,7 @@ integrations and users admin [5.2, 5.3] → this stage's validation.
 
 ### 5.3 MVP UX rules
 - [ ] Make session investigation app-first: filter by application + user/IP + time range
-- [ ] Derive/show environment from application
+- [x] Derive/show environment from application: the applications list names each one's environment, filters by it, and an edit keeps it fixed
 - [ ] Provide drill-down links to Grafana/Loki
 - [ ] Keep assets out of the first UI release unless topology scope is approved
 
