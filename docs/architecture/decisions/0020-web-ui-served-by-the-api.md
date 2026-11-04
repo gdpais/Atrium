@@ -60,7 +60,8 @@ and how it is tested.
    counted by `ci-ok`, runs ESLint, `tsc --noEmit`, Vitest with Testing
    Library, the build and `npm audit`. Playwright (Chromium only) drives the
    UI against the real API in `kind-e2e`: log in, onboard PatientZero, approve
-   a probe assignment, follow a deep link.
+   a probe assignment, follow a deep link. Since the API image embeds the UI,
+   a change under `apps/web` runs `kind-e2e` too (`scripts/ci-changes.sh`).
 7. **Development loop.** On kind the port-forwarded API serves the built UI
    at `http://localhost:8081`, which is already kind's `api.siteOrigin`. For
    hot reload, `npm run dev` serves the app with Vite and proxies `/api` to
@@ -69,9 +70,14 @@ and how it is tested.
    works on both. Chromium and Firefox treat `localhost` as a secure context,
    so the `__Host-` cookie works over plain HTTP there.
 8. **The API image builds the UI.** A Node stage on the build platform runs
-   `npm ci` and `npm run build`; the Go stage embeds `apps/web/dist`. A Go
-   build without a bundle embeds a placeholder page, so `go test` and
-   `go build` never need Node.
+   `npm ci` and `npm run build`; the Go stage embeds `apps/web/dist`. Since
+   `go:embed` cannot reach outside its package's directory, a small Go package
+   in `apps/web` holds the embed, as `heartbeat/db/migrations` does for the
+   migrations, and the API imports it. A Go build without a bundle embeds a
+   committed placeholder page instead (an embed pattern that matches nothing
+   fails the build), so `go test` and `go build` never need Node. The API's
+   `Dockerfile.dockerignore` leaves out `apps/web/node_modules` and any local
+   `dist`, so the image holds only what its Node stage built.
 
 ## Consequences
 
