@@ -691,7 +691,7 @@ else
 	# only one of them is free, so wait for its first "Forwarding from" line
 	# and skip unless 127.0.0.1 is among them: with 127.0.0.1:8081 taken by
 	# another program, the browser could reach that program instead.
-	until grep -q '^Forwarding from ' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
+	until grep -qs '^Forwarding from ' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
 		[ $(($(date +%s) - start)) -lt 30 ] || fail "timed out after 30s waiting for the port-forward to localhost:8081"
 		sleep 1
 	done

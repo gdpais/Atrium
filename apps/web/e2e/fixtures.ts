@@ -22,7 +22,9 @@ test.beforeEach(({ viewer }) => {
 
 export async function logIn(page: Page, account: Account) {
   await page.getByLabel("Email").fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  // A regular expression: Mantine appends a required mark to the label, and
+  // "Toggle password visibility" also names a password.
+  await page.getByLabel(/^Password/).fill(account.password);
   await page.getByRole("button", { name: "Log in" }).click();
 }
 
