@@ -110,6 +110,7 @@ Each one is logged here when its pull request merges, with its cause:
 | 2026-10-18 | OTel gateway service removed ([ADR 0009](../architecture/decisions/0009-remove-the-otel-gateway.md)) | 2026-06-13 | Built ahead of need | ~770 lines; planned as the next stage on 2026-10-04 | Build a component with its first caller |
 | 2026-10-19 | Integrations config renamed to be platform-neutral; push endpoints dropped ([ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) | 2026-06-13 | Late information | A breaking config change | Ask which platforms the organization uses before naming one in a contract |
 | 2026-11-02 | Traces sampled at 10% by default replaced by keeping every trace ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) | 2026-11-02 | Wrong assumption | One default, the ADR and its docs | Set a sampling or retention limit from a measured volume, not a convention |
+| 2026-11-04 | Web UI removed; the inventory becomes code, applied by the API ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md), superseding [ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)) | 2026-11-04 | Late information | ~2,800 hand-written lines in 11 commits, plus Node, npm and Playwright in CI | Before choosing an interface, ask who makes the change and how the request reaches them |
 
 The board scorecard counts reversals per month by cause.
 
