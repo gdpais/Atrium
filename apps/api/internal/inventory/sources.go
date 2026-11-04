@@ -448,7 +448,7 @@ func sourceConfig(sourceType string, config map[string]any) ([]byte, string, err
 		return nil, "", invalid("config", "not JSON: %v", err)
 	}
 	if err := sourceSchemas[sourceType].Validate(doc); err != nil {
-		return nil, "", invalid("config", "not valid for a %s source (packages/config-schema/src/telemetry-sources/%s.schema.json): %s", sourceType, sourceType, schemaProblems(err))
+		return nil, "", invalid("config", "not valid for source_type %s (packages/config-schema/src/telemetry-sources/%s.schema.json): %s", sourceType, sourceType, schemaProblems(err))
 	}
 	name, ok := applicationName(raw)
 	if !ok {
