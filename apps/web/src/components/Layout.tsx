@@ -1,6 +1,6 @@
 import { Anchor, AppShell, Badge, Burger, Button, Group, NavLink, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { NavLink as RouterLink, Outlet, useNavigate } from "react-router";
+import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
 import { hasRole, useLogout, useSession } from "../api/session";
 import { sections } from "../nav";
 import { ErrorAlert } from "./ErrorAlert";
@@ -12,6 +12,7 @@ export function Layout() {
   const { data: session } = useSession();
   const logout = useLogout();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const user = session?.user;
 
   return (
@@ -60,7 +61,16 @@ export function Layout() {
         {sections
           .filter((section) => hasRole(session, section.role))
           .map((section) => (
-            <NavLink key={section.path} component={RouterLink} to={section.path} label={section.label} onClick={close} />
+            <NavLink
+              key={section.path}
+              component={RouterLink}
+              to={section.path}
+              label={section.label}
+              // Mantine marks the current section by its active prop, not by
+              // the class the router's NavLink sets.
+              active={pathname === section.path || pathname.startsWith(`${section.path}/`)}
+              onClick={close}
+            />
           ))}
       </AppShell.Navbar>
 

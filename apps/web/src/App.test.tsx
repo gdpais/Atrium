@@ -98,6 +98,23 @@ describe("navigation", () => {
     expect(navLinks()).toEqual(["Environments", "Applications", "Database targets", "Probe assignments"]);
   });
 
+  it("marks the section the user is in", async () => {
+    stubAPI({ "GET /api/v1/session": { status: 200, body: session(["viewer"]) } });
+    renderAt("/applications");
+    await screen.findByRole("heading", { name: "Applications" });
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    expect(within(nav).getByRole("link", { name: "Applications" })).toHaveAttribute("data-active", "true");
+    expect(within(nav).getByRole("link", { name: "Environments" })).not.toHaveAttribute("data-active");
+  });
+
+  it("names a user without a display name by their email once", async () => {
+    const anonymous = session(["viewer"]);
+    anonymous.user.display_name = "";
+    stubAPI({ "GET /api/v1/session": { status: 200, body: anonymous } });
+    renderAt("/");
+    expect(await screen.findByText("Signed in as ana@example.com, with the viewer role.")).toBeInTheDocument();
+  });
+
   it("shows an admin the users section", async () => {
     stubAPI({ "GET /api/v1/session": { status: 200, body: session(["viewer", "admin"], "Rui") } });
     renderAt("/");

@@ -6,12 +6,13 @@ import { sections } from "../nav";
 export function Home() {
   const { data: session } = useSession();
   if (!session) return null;
+  const { display_name, email, roles } = session.user;
+  const who = display_name ? `${display_name} (${email})` : email;
   return (
     <>
       <Title order={1}>Heartbeat</Title>
       <Text mt="md">
-        Signed in as {session.user.display_name || session.user.email} ({session.user.email}), with the{" "}
-        {session.user.roles.join(", ")} {session.user.roles.length === 1 ? "role" : "roles"}.
+        Signed in as {who}, with the {roles.join(", ")} {roles.length === 1 ? "role" : "roles"}.
       </Text>
       <List mt="md">
         {sections

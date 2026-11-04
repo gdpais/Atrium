@@ -687,11 +687,16 @@ else
 	kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" 8081:8081 >"$WORK/api-forward-ui.log" 2>&1 &
 	port_forward_pid=$!
 	start=$(date +%s)
-	until grep -q '^Forwarding from 127.0.0.1:8081' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
+	# kubectl listens on 127.0.0.1 and then on [::1], and keeps running when
+	# only one of them is free, so wait for its first "Forwarding from" line
+	# and skip unless 127.0.0.1 is among them: with 127.0.0.1:8081 taken by
+	# another program, the browser could reach that program instead.
+	until grep -q '^Forwarding from ' "$WORK/api-forward-ui.log" || ! kill -0 "$port_forward_pid" 2>/dev/null; do
 		[ $(($(date +%s) - start)) -lt 30 ] || fail "timed out after 30s waiting for the port-forward to localhost:8081"
 		sleep 1
 	done
-	if ! kill -0 "$port_forward_pid" 2>/dev/null; then
+	if ! kill -0 "$port_forward_pid" 2>/dev/null || ! grep -q '^Forwarding from 127.0.0.1:8081 ' "$WORK/api-forward-ui.log"; then
+		kill "$port_forward_pid" 2>/dev/null || true
 		port_forward_pid=
 		ui_skip "could not port-forward localhost:8081 (a dev port-forward?): $(tr '\n' ' ' <"$WORK/api-forward-ui.log")"
 	else
