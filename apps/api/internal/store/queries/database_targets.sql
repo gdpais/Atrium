@@ -6,8 +6,9 @@
 -- Fails with a foreign key violation when the environment does not exist,
 -- and with a unique violation when the environment has a target of that
 -- name, or of that engine, host, port and database.
-insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels)
-values (@environment_id, @engine, @name, @host, @port, sqlc.narg(database_name), @status, @credential_ref, @labels)
+-- managed_by is api when null.
+insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels, managed_by)
+values (@environment_id, @engine, @name, @host, @port, sqlc.narg(database_name), @status, @credential_ref, @labels, coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetDatabaseTarget :one

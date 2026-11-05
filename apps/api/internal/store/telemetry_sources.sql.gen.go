@@ -13,8 +13,8 @@ import (
 
 const createSource = `-- name: CreateSource :one
 
-insert into telemetry_sources (application_id, source_type, ingest_mode, status, config)
-values ($1, $2, $3, $4, $5)
+insert into telemetry_sources (application_id, source_type, ingest_mode, status, config, managed_by)
+values ($1, $2, $3, $4, $5, coalesce($6::text, 'api'))
 returning id, application_id, source_type, ingest_mode, status, config, created_at, updated_at, managed_by
 `
 
@@ -24,12 +24,14 @@ type CreateSourceParams struct {
 	IngestMode    string
 	Status        string
 	Config        []byte
+	ManagedBy     pgtype.Text
 }
 
 // Telemetry sources: each belongs to one application,
 // telemetry_sources.application_id, which nothing updates; its environment
 // is its application's, read through the join (ADR 0017 §2).
 // Fails with a foreign key violation when the application does not exist.
+// managed_by is api when null.
 func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (TelemetrySource, error) {
 	row := q.db.QueryRow(ctx, createSource,
 		arg.ApplicationID,
@@ -37,6 +39,7 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Tel
 		arg.IngestMode,
 		arg.Status,
 		arg.Config,
+		arg.ManagedBy,
 	)
 	var i TelemetrySource
 	err := row.Scan(

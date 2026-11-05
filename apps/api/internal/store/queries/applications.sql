@@ -3,8 +3,9 @@
 
 -- name: CreateApplication :one
 -- Fails with a foreign key violation when the environment does not exist.
-insert into applications (environment_id, name, platform, owner_team, criticality, status)
-values (@environment_id, @name, @platform, @owner_team, @criticality, @status)
+-- managed_by is api when null.
+insert into applications (environment_id, name, platform, owner_team, criticality, status, managed_by)
+values (@environment_id, @name, @platform, @owner_team, @criticality, @status, coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetApplication :one

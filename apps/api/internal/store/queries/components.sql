@@ -4,8 +4,9 @@
 
 -- name: CreateComponent :one
 -- Fails with a foreign key violation when the application does not exist.
-insert into application_components (application_id, name, component_type, runtime_name, labels)
-values (@application_id, @name, @component_type, @runtime_name, @labels)
+-- managed_by is api when null.
+insert into application_components (application_id, name, component_type, runtime_name, labels, managed_by)
+values (@application_id, @name, @component_type, @runtime_name, @labels, coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetComponent :one

@@ -2,8 +2,9 @@
 -- validates what these write and audits each change in its transaction.
 
 -- name: CreateEnvironment :one
-insert into environments (name, slug, type, description, status, labels)
-values (@name, @slug, @type, @description, @status, @labels)
+-- managed_by is api when null.
+insert into environments (name, slug, type, description, status, labels, managed_by)
+values (@name, @slug, @type, @description, @status, @labels, coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetEnvironment :one

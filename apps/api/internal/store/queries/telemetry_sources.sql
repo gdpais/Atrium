@@ -4,8 +4,9 @@
 
 -- name: CreateSource :one
 -- Fails with a foreign key violation when the application does not exist.
-insert into telemetry_sources (application_id, source_type, ingest_mode, status, config)
-values (@application_id, @source_type, @ingest_mode, @status, @config)
+-- managed_by is api when null.
+insert into telemetry_sources (application_id, source_type, ingest_mode, status, config, managed_by)
+values (@application_id, @source_type, @ingest_mode, @status, @config, coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetSource :one

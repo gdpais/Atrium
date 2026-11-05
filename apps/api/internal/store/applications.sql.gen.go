@@ -13,8 +13,8 @@ import (
 
 const createApplication = `-- name: CreateApplication :one
 
-insert into applications (environment_id, name, platform, owner_team, criticality, status)
-values ($1, $2, $3, $4, $5, $6)
+insert into applications (environment_id, name, platform, owner_team, criticality, status, managed_by)
+values ($1, $2, $3, $4, $5, $6, coalesce($7::text, 'api'))
 returning id, environment_id, name, platform, owner_team, criticality, status, created_at, updated_at, managed_by
 `
 
@@ -25,11 +25,13 @@ type CreateApplicationParams struct {
 	OwnerTeam     string
 	Criticality   string
 	Status        string
+	ManagedBy     pgtype.Text
 }
 
 // Applications: each belongs to one environment, applications.environment_id,
 // which nothing updates (ADR 0001, ADR 0013 §2).
 // Fails with a foreign key violation when the environment does not exist.
+// managed_by is api when null.
 func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationParams) (Application, error) {
 	row := q.db.QueryRow(ctx, createApplication,
 		arg.EnvironmentID,
@@ -38,6 +40,7 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 		arg.OwnerTeam,
 		arg.Criticality,
 		arg.Status,
+		arg.ManagedBy,
 	)
 	var i Application
 	err := row.Scan(

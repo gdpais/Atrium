@@ -26,8 +26,8 @@ func (q *Queries) CountDatabaseTargetAssignments(ctx context.Context, databaseTa
 
 const createDatabaseTarget = `-- name: CreateDatabaseTarget :one
 
-insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels)
-values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels, managed_by)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text, 'api'))
 returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by
 `
 
@@ -41,6 +41,7 @@ type CreateDatabaseTargetParams struct {
 	Status        string
 	CredentialRef string
 	Labels        []byte
+	ManagedBy     pgtype.Text
 }
 
 // Database targets: each belongs to one environment,
@@ -49,6 +50,7 @@ type CreateDatabaseTargetParams struct {
 // Fails with a foreign key violation when the environment does not exist,
 // and with a unique violation when the environment has a target of that
 // name, or of that engine, host, port and database.
+// managed_by is api when null.
 func (q *Queries) CreateDatabaseTarget(ctx context.Context, arg CreateDatabaseTargetParams) (DatabaseTarget, error) {
 	row := q.db.QueryRow(ctx, createDatabaseTarget,
 		arg.EnvironmentID,
@@ -60,6 +62,7 @@ func (q *Queries) CreateDatabaseTarget(ctx context.Context, arg CreateDatabaseTa
 		arg.Status,
 		arg.CredentialRef,
 		arg.Labels,
+		arg.ManagedBy,
 	)
 	var i DatabaseTarget
 	err := row.Scan(

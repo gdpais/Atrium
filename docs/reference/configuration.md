@@ -381,7 +381,8 @@ per environment, kept in the configuration repository and changed by pull
 request. [`config/inventory.example.yaml`](../../config/inventory.example.yaml)
 shows every field; the schema is
 [`packages/config-schema/src/inventory.schema.json`](../../packages/config-schema/src/inventory.schema.json).
-The API does not apply the file yet [TODO 5.2]; until then the inventory
+The API applies the file set by `HEARTBEAT_API_INVENTORY_PATH` ([API](#api));
+the chart does not mount one yet [TODO 5.2], so until then the inventory
 changes through the API's endpoints.
 
 Check a file before opening the pull request; the configuration repository's
@@ -410,6 +411,51 @@ Defaults the file may leave out: `status` active, `criticality` medium,
 `engine` sqlserver, `port` 1433, a probe's `interval_seconds` 30 and
 `enabled` true. Label values are strings: quote a number or a date. Custom
 probe definitions are not in the file yet; assign one through the API.
+
+### Applying the file
+
+The API reads the file when it starts and again every 30 seconds, and
+applies it when its content has changed: in one PostgreSQL transaction,
+under an advisory lock, so one replica applies it at a time and the others
+then find nothing to change. It matches rows by the names they are unique
+by, and changes only the rows the file manages (`managed_by` `config`):
+
+| The file | PostgreSQL |
+| --- | --- |
+| Lists a row that does not exist | Created, managed by the file |
+| Lists a row the file manages | Updated to match; nothing when it matches already |
+| Lists a row the API manages (made through its endpoints) | Refused: nothing in the file is applied |
+| No longer lists an application, a telemetry source or a target it manages | `status` disabled, never deleted; listing it again enables it |
+| No longer lists a probe, or its target | The assignment is disabled (`enabled` false) |
+| No longer lists a component | Left as it is: a component has no status |
+
+Rows are matched by: the environment's `slug`; an application's `name`; a
+component's `name` and `type` in its application; a source's `type`,
+`ingest_mode` and `config.application_name` in its application; a target's
+`name`; a probe's `name` on its target. Renaming one creates a new row and
+disables the old. A disabled source no longer holds its `application_name`
+for the file, so a renamed application can take its source's name; a
+disabled target still holds its server, port and database, so a target is
+not renamed in place. A target keeps its `engine`.
+
+The file's probe assignments are approved by the merge of its pull request:
+they are `approved`, with `approved_at` set and no `approved_by`, and the
+applied check marks them `applied` once the collector runs them
+([probe assignments](metrics-and-endpoints.md#probe-assignments)). A target
+moved to another host, port or database, or given another `credential_ref`,
+sends its applied assignments back to `approved`, for the check to confirm
+again. As an approval through the API does, an apply that would render a
+`managedCollectors` file the collector refuses is refused.
+
+Each change is audited, actor type `config` with the file's path and the
+pod as `host`, and `config_version` the file's revision, the `sha256:` of
+its content. A file that fails validation, or that PostgreSQL's rows refuse,
+changes nothing: the last applied inventory stays, the problems are logged
+once, `heartbeat_api_inventory_applies_total{result="invalid"}` counts it
+([metrics](metrics-and-endpoints.md#inventory-file)), and readiness is
+unaffected. A file refused by the rows is tried again at each read, as those
+rows may change; an invalid one when it changes. Rows of other environments
+are never read or changed.
 
 ## Credential resolution
 
@@ -513,6 +559,7 @@ falling back to the default.
 | `HEARTBEAT_API_TRUSTED_PROXIES` | unset (none) | Comma-separated addresses or CIDRs, such as `10.0.0.0/8`, of proxies (an ingress controller) whose `X-Forwarded-For` names the client. The API reads the header from its end, only as far as these proxies wrote it, so a client cannot choose its own address. The client address is what failed logins are counted by and what audit records show; unset, it is the TCP peer's |
 | `HEARTBEAT_API_COLLECTOR_URL` | unset (observations unknown) | The DB collector's base URL, such as `http://db-collector:8082`, without a path. The API reads its redacted `GET /admin/config`, at most every 15s, to say whether a telemetry source is observed ([telemetry sources](metrics-and-endpoints.md#telemetry-sources)). The chart sets it to the `db-collector` Service while `dbCollector.enabled` is on, and the collector's NetworkPolicy admits the API |
 | `HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN` | unset | The collector's admin token (its `HEARTBEAT_ADMIN_TOKEN`), sent as a bearer token. The chart takes it from the collector's Secret, `dbCollector.adminToken`; it is never logged. Without it the collector answers 401, and observations are unknown. Both services read the token at startup, so rotating it means restarting the collector and the API; until both run with the new one, observations are unknown (`refused the API's admin token`) |
+| `HEARTBEAT_API_INVENTORY_PATH` | unset (no inventory file) | The environment's [inventory file](#inventory-file), applied to PostgreSQL when the API starts and when the file changes, read every 30 seconds ([applying the file](#applying-the-file)). A file that cannot be read or applied is logged and counted; the API starts and stays ready all the same |
 | `HEARTBEAT_API_SHUTDOWN_DELAY` | `5s` | How long the API keeps serving after `SIGTERM`, with `GET /readyz` answering 503, before it stops accepting connections: time for its Service to stop sending it requests. `0s` to `1m`. The chart's `api.terminationGracePeriodSeconds` (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay |
 | `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
 | `GOMEMLIMIT` | unset | As for the DB collector, from `api.resources.limits.memory` and `api.goMemLimit` |

@@ -13,8 +13,8 @@ import (
 
 const createProbeAssignment = `-- name: CreateProbeAssignment :one
 
-insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, created_by)
-values ($1, $2, $3, $4, $5, $6, $7)
+insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, created_by, managed_by)
+values ($1, $2, $3, $4, $5, $6, $7, coalesce($8::text, 'api'))
 returning id, database_target_id, probe_definition_id, interval_seconds, enabled, config, created_at, updated_at, state, state_detail, pull_request_url, approved_by, approved_at, created_by, timeout_ms, max_rows, managed_by
 `
 
@@ -26,6 +26,7 @@ type CreateProbeAssignmentParams struct {
 	MaxRows           pgtype.Int4
 	Enabled           bool
 	CreatedBy         pgtype.UUID
+	ManagedBy         pgtype.Text
 }
 
 // Probe assignments (TODO 4.5, ADR 0014): a probe definition version, pinned,
@@ -35,6 +36,7 @@ type CreateProbeAssignmentParams struct {
 // Fails with a foreign key violation when the target or the definition
 // version does not exist, and with a unique violation when the target has
 // this version already.
+// managed_by is api when null.
 func (q *Queries) CreateProbeAssignment(ctx context.Context, arg CreateProbeAssignmentParams) (ProbeAssignment, error) {
 	row := q.db.QueryRow(ctx, createProbeAssignment,
 		arg.DatabaseTargetID,
@@ -44,6 +46,7 @@ func (q *Queries) CreateProbeAssignment(ctx context.Context, arg CreateProbeAssi
 		arg.MaxRows,
 		arg.Enabled,
 		arg.CreatedBy,
+		arg.ManagedBy,
 	)
 	var i ProbeAssignment
 	err := row.Scan(

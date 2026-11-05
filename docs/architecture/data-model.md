@@ -62,7 +62,10 @@ Tables deliberately **not** created in the MVP:
   default) or `config` (the environment's inventory file, applied by the API;
   [ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). It is on
   `environments`, `applications`, `application_components`,
-  `telemetry_sources`, `database_targets` and `probe_assignments`.
+  `telemetry_sources`, `database_targets` and `probe_assignments`. A probe
+  assignment the file manages is approved by the merge of its pull request:
+  in an approved state it has `approved_at` and no `approved_by` (migration
+  0008); one the API manages has both, the approving user's.
 
 ## Entity-relationship diagram
 

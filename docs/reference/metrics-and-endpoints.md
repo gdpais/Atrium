@@ -211,8 +211,8 @@ environment, application, component, telemetry source, database target or
 probe assignment, an assignment's approval or rejection, and a new
 assignment on such a target, are 409, change nothing and audit nothing.
 Change the file instead, by pull request. Rows created here are the API's,
-and the file never touches them. Until the API applies the file [TODO 5.2],
-every row is the API's.
+and the file never touches them: a file that lists one is refused whole
+([applying the file](configuration.md#applying-the-file)).
 
 | Path | Operations | Notes |
 | --- | --- | --- |
@@ -963,13 +963,26 @@ id, and the resource `service.name` = `heartbeat-api` with the replica's
 There is no `service.namespace`, so audit records stay out of Heartbeat's own
 logs (`service_namespace="heartbeat"`). The record's fields are `id`, `time`,
 `request_id`, `actor` (a user's `user_id` and `email`, a `cli` command and
-the `host` it ran on, or the `address` of a `client` that is not logged in),
-`action`, `entity_type`, `entity_id`, `before`, `after`
-and, for runtime config, `config_version`. In Grafana's Explore, on Loki:
+the `host` it ran on, a `system` task of the API, the inventory `file` a
+`config` actor applied, or the `address` of a `client` that is not logged
+in), `action`, `entity_type`, `entity_id`, `before`, `after`
+and, for runtime config and the inventory file, `config_version`. In Grafana's Explore, on Loki:
 
 ```logql
 {service_name="heartbeat-api"} | event_name="heartbeat.audit" | json | entity_type="user"
 ```
+
+### Inventory file
+
+The API applying the environment's
+[inventory file](configuration.md#applying-the-file), when
+`HEARTBEAT_API_INVENTORY_PATH` is set. Each replica reads the file and counts
+its own reads.
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `heartbeat_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or found not valid, is not counted |
+| `heartbeat_api_inventory_applied_timestamp_seconds` | gauge | none | When the replica last applied the file or found PostgreSQL matching it, as a Unix time; absent before the first time |
 
 ### Heartbeat's own telemetry
 
