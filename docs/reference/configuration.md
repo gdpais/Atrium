@@ -381,9 +381,15 @@ per environment, kept in the configuration repository and changed by pull
 request. [`config/inventory.example.yaml`](../../config/inventory.example.yaml)
 shows every field; the schema is
 [`packages/config-schema/src/inventory.schema.json`](../../packages/config-schema/src/inventory.schema.json).
-The API applies the file set by `HEARTBEAT_API_INVENTORY_PATH` ([API](#api));
-the chart does not mount one yet [TODO 5.2], so until then the inventory
-changes through the API's endpoints.
+The API applies the file set by `HEARTBEAT_API_INVENTORY_PATH` ([API](#api)).
+The chart takes it as text in `api.inventory`, renders it into the
+`heartbeat-inventory` ConfigMap and mounts it in the API; keep it as a file of
+its own beside the environment's values and pass it with
+`--set-file api.inventory=inventory.yaml` (Argo CD: `fileParameters`), so the
+same file is the one `api inventory check` checks. Without it, the inventory
+changes through the API's endpoints only. On kind,
+[`infra/helm/values/kind.yaml`](../../infra/helm/values/kind.yaml) declares
+`local-dev` with PatientZero and its OutSystems source this way.
 
 Check a file before opening the pull request; the configuration repository's
 CI runs the same command:
@@ -535,8 +541,9 @@ The chart sets these from the `api` values: `api.postgres` and `api.redis`,
 or, when those are empty, the bundled `postgresql` and `valkey` without TLS
 (`disable` and `false`); any other server gets `verify-full` and TLS unless
 the values turn them off. `HEARTBEAT_API_SITE_ORIGIN` comes from
-`api.siteOrigin`; the other session settings take their defaults, or
-`api.extraEnv`. The telemetry variables are set as the collector's. A value
+`api.siteOrigin`, and `HEARTBEAT_API_INVENTORY_PATH` from `api.inventory`
+(the [inventory file](#inventory-file), mounted from its ConfigMap); the
+other session settings take their defaults, or `api.extraEnv`. The telemetry variables are set as the collector's. A value
 that cannot work stops startup with an error naming the variable, instead of
 falling back to the default.
 

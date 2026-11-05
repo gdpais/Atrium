@@ -482,7 +482,7 @@ links [4.9]. Investigations, alerts and reports decide how people start and
 read them with their APIs and workers [6, 12–14], not here. Remaining work,
 in order, one pull request each: file schema and offline validation (done)
 → one writer per row (done) → the API applies the file (done) → the chart mounts it and kind
-onboards PatientZero from it → offline render of assignments → the inventory
+onboards PatientZero from it (done) → offline render of assignments → the inventory
 in Grafana → a guide → this stage's validation.
 
 - [x] Decide how the inventory is managed: as code, with no Web UI ([ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md))
@@ -497,7 +497,7 @@ in Grafana → a guide → this stage's validation.
 ### 5.2 Applying the inventory
 - [x] One writer per row: `managed_by` (`api` by default, or `config`) on environments, applications, components, telemetry sources, database targets and probe assignments (migration 0007, expand only); the API's update and delete, an assignment's approval and rejection, and a new assignment on a config-managed target are 409 and audit nothing ([one writer per row](docs/reference/metrics-and-endpoints.md#inventory))
 - [x] The API reads the mounted file at start and when it changes, and reconciles PostgreSQL under an advisory lock: match by unique names, create or update, disable rows the file drops, never delete; audit each change as `config` with the file's revision; an invalid file changes nothing, is logged and counted, and leaves readiness alone (`HEARTBEAT_API_INVENTORY_PATH`; migration 0008 lets the file approve its probes with no user; [applying the file](docs/reference/configuration.md#applying-the-file))
-- [ ] Chart: `api.inventory` rendered into a ConfigMap mounted in the API; kind's values declare PatientZero; `kind-e2e` checks it is applied and that an API write to it is refused
+- [x] Chart: `api.inventory` rendered into a ConfigMap mounted in the API; kind's values declare PatientZero; `kind-e2e` checks it is applied and that an API write to it is refused (`api.inventory` is the file's text, for `--set-file`; kind declares `local-dev`, PatientZero and its source, without a database target until the render [5.2])
 - [ ] `api inventory render -f <file>`: probe assignments to `managedCollectors` without a database, as ADR 0014 renders them; `make kind-assignments` uses it for config-managed assignments
 
 ### 5.3 Reading the inventory

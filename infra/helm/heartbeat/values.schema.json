@@ -394,6 +394,10 @@
             }
           }
         },
+        "inventory": {
+          "type": "string",
+          "description": "The environment's inventory file (ADR 0021) as text, such as --set-file api.inventory=inventory.yaml; the API applies it to PostgreSQL and checks it as `api inventory check` does. Empty: none."
+        },
         "siteOrigin": {
           "type": "string",
           "description": "The origin browsers reach the API at, scheme and host without a path, such as https://heartbeat.example.com; unsafe methods need an Origin header equal to it. Empty refuses them all.",

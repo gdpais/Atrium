@@ -672,12 +672,22 @@ code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site"
 )
 # api_post <path> <json>: the status; the created entity is in $WORK/api-body.
 api_post() { api_call POST "$1" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "$2"; }
-# register <slug> <application_name>: an environment, an application and its
-# agentless OutSystems source; prints the source's ID.
+# environment_id <slug>: the environment's ID, or nothing.
+environment_id() {
+	code=$(api_call GET /api/v1/environments -H "@$WORK/session-header")
+	[ "$code" = 200 ] || fail "listing environments returned $code: $(cat "$WORK/api-body")"
+	jq -r --arg slug "$1" '.items[] | select(.slug == $slug) | .id' "$WORK/api-body"
+}
+# register <slug> <application_name>: an application and its agentless
+# OutSystems source, in the environment, created first unless it exists
+# (local-dev is kind's inventory file's); prints the source's ID.
 register() {
-	code=$(api_post /api/v1/environments "$(jq -nc --arg slug "$1" '{name: ("E2E " + $slug), slug: $slug, type: "development"}')")
-	[ "$code" = 201 ] || fail "creating environment $1 returned $code: $(cat "$WORK/api-body")"
-	env_id=$(jq -r .id "$WORK/api-body")
+	env_id=$(environment_id "$1")
+	if [ -z "$env_id" ]; then
+		code=$(api_post /api/v1/environments "$(jq -nc --arg slug "$1" '{name: ("E2E " + $slug), slug: $slug, type: "development"}')")
+		[ "$code" = 201 ] || fail "creating environment $1 returned $code: $(cat "$WORK/api-body")"
+		env_id=$(jq -r .id "$WORK/api-body")
+	fi
 	code=$(api_post /api/v1/applications "$(jq -nc --arg env "$env_id" --arg name "$2" '{environment_id: $env, name: $name, platform: "outsystems_traditional"}')")
 	[ "$code" = 201 ] || fail "creating application $2 returned $code: $(cat "$WORK/api-body")"
 	app_id=$(jq -r .id "$WORK/api-body")
@@ -687,6 +697,33 @@ register() {
 		fail "the $2 source is not in its application's environment: $(cat "$WORK/api-body")"
 	jq -r .id "$WORK/api-body"
 }
+# ADR 0021: kind's values declare local-dev, PatientZero and its source as
+# the inventory file (api.inventory), which the API applied at start: the
+# rows are the file's, and the API refuses to change them. Rows the API
+# makes in that environment, as register's below, stay the API's.
+inventory_applied() {
+	[ "$(psql_ "SELECT string_agg(managed_by, ',' ORDER BY managed_by) FROM (
+		SELECT managed_by FROM environments WHERE slug = 'local-dev'
+		UNION ALL SELECT a.managed_by FROM applications a JOIN environments e ON e.id = a.environment_id
+			WHERE e.slug = 'local-dev' AND a.name = 'PatientZero'
+		UNION ALL SELECT s.managed_by FROM telemetry_sources s JOIN applications a ON a.id = s.application_id
+			WHERE a.name = 'PatientZero' AND s.config->>'application_name' = 'PatientZero') r")" = config,config,config ]
+}
+wait_for 60 "kind's inventory file applied: local-dev, PatientZero and its source managed by the file" inventory_applied
+# Prometheus has scraped the API since it applied the file, and it counted
+# no invalid file or failed apply.
+wait_for 60 "the API's inventory applies scraped, none invalid or failed" \
+	value_is 'sum(heartbeat_api_inventory_applies_total{result=~"invalid|error"}) + 0 * sum(heartbeat_api_inventory_applied_timestamp_seconds)' 0
+local_dev=$(environment_id local-dev)
+code=$(api_call PATCH "/api/v1/environments/$local_dev" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data '{"description": "changed by kind-e2e"}')
+[ "$code" = 409 ] || fail "changing local-dev through the API returned $code, want 409: the inventory file manages it: $(cat "$WORK/api-body")"
+inventory_audited() {
+	loki_query '{service_name="heartbeat-api"} | event_name="heartbeat.audit" |= "local-dev"' | jq -e \
+		'any(.data.result[].values[][1] | fromjson; .entity_type == "environment" and .action == "create" and .actor.type == "config" and (.config_version | startswith("sha256:")))'
+}
+wait_for 120 "local-dev's creation by the inventory file in Loki" inventory_audited
+pass "kind's inventory file is applied: local-dev, PatientZero and its source are managed by the file, created by actor config in Loki; a PATCH of local-dev is 409"
+
 observed_source=$(register local-dev E2eShop)
 unwatched_source=$(register e2e-unwatched E2eNobodyReads)
 # The API keeps the collector's answer for 15s: a first read made while the

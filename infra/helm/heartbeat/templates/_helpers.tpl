@@ -39,6 +39,8 @@ Call with (dict "root" $ "image" .Values.dbCollector.image).
 {{/* Fixed name of the integrations ConfigMap. */}}
 {{- define "heartbeat.integrationsConfigMap" -}}heartbeat-integrations{{- end }}
 
+{{- define "heartbeat.inventoryConfigMap" -}}heartbeat-inventory{{- end }}
+
 {{/*
 The collectors of the rendered integrations.yaml, as a YAML list (read it
 back with fromYamlArray): the hand-written integrations.collectors, then
