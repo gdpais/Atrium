@@ -29,7 +29,8 @@ const (
 	// failed validation, or the existing rows refused it: nothing changed)
 	// or error (it could not be read or applied, such as PostgreSQL down;
 	// tried again at the next read). A file read again unchanged after it
-	// was applied or found invalid is not counted.
+	// was applied or failed validation is not counted; one the existing
+	// rows refused is tried again, and counted, at each read.
 	MetricInventoryApplies = "heartbeat_api_inventory_applies_total"
 	// MetricInventoryAppliedTime is when the API last applied the file, or
 	// found PostgreSQL matching it, as a Unix time; absent until then.

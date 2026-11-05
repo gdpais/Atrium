@@ -981,7 +981,7 @@ its own reads.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or found not valid, is not counted |
+| `heartbeat_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or after it failed validation, is not counted; one PostgreSQL's rows refused is tried again, and counted, at each read |
 | `heartbeat_api_inventory_applied_timestamp_seconds` | gauge | none | When the replica last applied the file or found PostgreSQL matching it, as a Unix time; absent before the first time |
 
 ### Heartbeat's own telemetry

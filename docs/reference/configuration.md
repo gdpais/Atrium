@@ -435,8 +435,9 @@ component's `name` and `type` in its application; a source's `type`,
 `name`; a probe's `name` on its target. Renaming one creates a new row and
 disables the old. A disabled source no longer holds its `application_name`
 for the file, so a renamed application can take its source's name; a
-disabled target still holds its server, port and database, so a target is
-not renamed in place. A target keeps its `engine`.
+disabled target still holds its name and its server, port and database,
+so a target is not renamed: a file that renames one is refused, naming the
+target to list again. A target keeps its `engine`.
 
 The file's probe assignments are approved by the merge of its pull request:
 they are `approved`, with `approved_at` set and no `approved_by`, and the

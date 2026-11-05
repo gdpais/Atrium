@@ -350,6 +350,24 @@ func TestApplyFileMovesAnApplicationNameToARenamedApplication(t *testing.T) {
 	}
 }
 
+// A target renamed in the file is refused, naming the old target: the
+// disabled row would still hold its server, port and database.
+func TestApplyFileRefusesARenamedTarget(t *testing.T) {
+	f := newFixture(t)
+	text := shop(t, "target-rename")
+	f.apply(t, "sha256:1", text)
+	mark := f.mark(t)
+	_, err := f.svc.ApplyFile(context.Background(), fileCaller, "sha256:2", parse(t, strings.Replace(text, "  - name: shop-db\n", "  - name: shop-primary\n", 1)))
+	var fileErr *inventory.FileError
+	if !errors.As(err, &fileErr) || !strings.Contains(err.Error(), "database_targets[0]") || !strings.Contains(err.Error(), `list it under its name "shop-db"`) {
+		t.Fatalf("ApplyFile = %v, want a problem at database_targets[0] naming shop-db", err)
+	}
+	f.none(t, mark)
+	if n := f.count(t, "database_targets where name = 'shop-db' and status = 'active'"); n != 1 {
+		t.Fatal("the refused file disabled the target")
+	}
+}
+
 // Replicas applying the same file at once take turns: one makes the
 // changes, the others find nothing to change.
 func TestApplyFileTakesTurns(t *testing.T) {

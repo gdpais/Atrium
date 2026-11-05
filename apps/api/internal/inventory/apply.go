@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -439,9 +440,10 @@ func (a *applier) updateSource(row store.TelemetrySource, mode, status string, c
 }
 
 // targets applies the file's database targets and disables the ones it
-// manages and no longer lists, first, so that the database they were for is
-// free for the file's. It returns the rows of the file's targets, in the
-// file's order.
+// manages and no longer lists. A disabled target still holds its name and
+// its server, port and database (database_targets_identity_uq is not
+// partial), so a target the file renames is refused, naming the old one. It
+// returns the rows of the file's targets, in the file's order.
 func (a *applier) targets(files []FileDatabaseTarget) ([]store.DatabaseTarget, error) {
 	rows, err := a.q.LockEnvironmentDatabaseTargets(a.ctx, a.env.ID)
 	if err != nil {
@@ -482,6 +484,9 @@ func (a *applier) targets(files []FileDatabaseTarget) ([]store.DatabaseTarget, e
 				Labels: labels, ManagedBy: configManaged,
 			})
 			if err := targetTaken(err, DatabaseTarget{Engine: f.Engine, Name: f.Name, Host: f.Host, Port: f.Port, DatabaseName: f.DatabaseName}); err != nil {
+				if held, ok := dropped(rows, listed, f); ok {
+					return nil, refuse(at, "target %q, which the file no longer lists, is disabled and still holds this server, port and database: a target is not renamed; list it under its name %q", held.Name, held.Name)
+				}
 				return nil, fileConflict(at, err)
 			}
 			after, err := databaseTarget(created)
@@ -685,6 +690,19 @@ func (a *applier) approve(before, current store.ProbeAssignment, action string) 
 		was = probeAssignment(before)
 	}
 	return updated, a.record(audit.EntityProbeAssignment, action, after.ID.String(), was, after)
+}
+
+// dropped returns the target the file manages and no longer lists that is
+// for f's server, port and database, as database_targets_identity_uq
+// compares them.
+func dropped(rows []store.DatabaseTarget, listed map[string]bool, f FileDatabaseTarget) (store.DatabaseTarget, bool) {
+	for _, row := range rows {
+		if !listed[row.Name] && row.ManagedBy == ManagedByConfig && row.Engine == f.Engine && row.Host == f.Host &&
+			int(row.Port) == f.Port && strings.EqualFold(row.DatabaseName.String, f.DatabaseName) {
+			return row, true
+		}
+	}
+	return store.DatabaseTarget{}, false
 }
 
 // fileConflict places a ConflictError the rows returned at at in the file.
