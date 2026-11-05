@@ -74,6 +74,10 @@ type Config struct {
 	// UI are rendered from (TODO 4.9): the file the DB collector reads, the
 	// heartbeat-integrations ConfigMap. Empty renders no links.
 	IntegrationsPath string
+	// InventoryPath is the environment's inventory file (ADR 0021), mounted
+	// from a ConfigMap: the API applies it to PostgreSQL at start and when
+	// it changes. Empty applies none.
+	InventoryPath string
 	// ShutdownDelay is how long the API keeps serving once shutdown begins,
 	// with GET /readyz answering 503, before it stops accepting
 	// connections: time for its Service to stop sending it requests.
@@ -161,6 +165,7 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		links:            links.NewSource(cfg.IntegrationsPath, logger),
 		drain:            deps.drain,
 		checkApplied:     deps.checkApplied,
+		applyInventory:   deps.applyInventory,
 		closeDeps:        deps.close,
 		timeouts:         t,
 	}, nil
@@ -191,6 +196,9 @@ type connected struct {
 	// checkApplied marks probe assignments applied until its context ends;
 	// nil without the collector's URL.
 	checkApplied func(context.Context)
+	// applyInventory applies the inventory file until its context ends;
+	// nil without one.
+	applyInventory func(context.Context)
 	// close closes both connections.
 	close func()
 }
@@ -263,8 +271,18 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 			}
 		},
 	}
+	host, _ := os.Hostname()
+	if applier := inventory.NewFileApplier(result.inventory, cfg.InventoryPath, host, logger); applier != nil {
+		for _, c := range applier.Collectors() {
+			if err := registerer.Register(c); err != nil {
+				result.close()
+				return connected{}, err
+			}
+		}
+		result.applyInventory = applier.Run
+		logger.Info("inventory file on", "path", cfg.InventoryPath)
+	}
 	if collector != nil {
-		host, _ := os.Hostname()
 		actor := audit.SystemActor(inventory.AppliedCheckTask, host)
 		result.checkApplied = func(ctx context.Context) { result.inventory.RunAppliedCheck(ctx, actor, logger) }
 	}
@@ -313,6 +331,9 @@ type runDeps struct {
 	// checkApplied, when set, runs beside the HTTP server until shutdown:
 	// the probe assignment applied check in production.
 	checkApplied func(context.Context)
+	// applyInventory, when set, runs beside the HTTP server until shutdown:
+	// the inventory file's applier in production.
+	applyInventory func(context.Context)
 	// closeDeps, when set, closes the PostgreSQL and Redis connections once
 	// the HTTP server has drained.
 	closeDeps func()
@@ -340,7 +361,7 @@ func run(ctx context.Context, deps runDeps) error {
 	// The drainer stops when shutdown begins and is waited for before the
 	// connections close: records written by the requests still draining
 	// wait in the outbox for the next replica.
-	for _, task := range []func(context.Context){deps.drain, deps.checkApplied} {
+	for _, task := range []func(context.Context){deps.drain, deps.checkApplied, deps.applyInventory} {
 		if task == nil {
 			continue
 		}

@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "actor": {
-      "description": "Who made the change: a logged-in user, an administrative command run in an API container, the API itself running a task of its own, or a client that is not logged in, such as one whose login failed.",
+      "description": "Who made the change: a logged-in user, an administrative command run in an API container, the API itself running a task of its own, the inventory file the API applied, or a client that is not logged in, such as one whose login failed.",
       "oneOf": [
         {
           "type": "object",
@@ -52,6 +52,16 @@
           "properties": {
             "type": {"const": "system"},
             "command": {"description": "The task the API ran, such as the probe assignment applied check.", "type": "string", "minLength": 1},
+            "host": {"description": "The host the API ran on: the pod's name.", "type": "string"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "file"],
+          "properties": {
+            "type": {"const": "config"},
+            "file": {"description": "The inventory file the API applied (ADR 0021), as mounted in the API; the record's config_version is the file's revision.", "type": "string", "minLength": 1},
             "host": {"description": "The host the API ran on: the pod's name.", "type": "string"}
           }
         },
@@ -90,7 +100,7 @@
       "type": ["object", "null"]
     },
     "config_version": {
-      "description": "The runtime config version the change concerns, when it concerns runtime config.",
+      "description": "The runtime config version the change concerns, when it concerns runtime config: for a change the inventory file made, the file's revision.",
       "type": "string",
       "minLength": 1
     }

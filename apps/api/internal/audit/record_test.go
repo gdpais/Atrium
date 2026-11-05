@@ -123,6 +123,23 @@ func TestWriteRecordsAUserActorAndAConfigVersion(t *testing.T) {
 	}
 }
 
+// The inventory file, applied by the API, is an actor too: by the file and
+// the host, with the file's revision as the config version.
+func TestWriteRecordsTheInventoryFileAsActor(t *testing.T) {
+	db := &recorder{}
+	change := validChange()
+	change.Actor = audit.ConfigActor("/etc/heartbeat/inventory/inventory.yaml", "api-7d9f-xk2p")
+	change.ConfigVersion = "sha256:9c1e"
+	if _, err := audit.Write(context.Background(), store.New(db), change); err != nil {
+		t.Fatal(err)
+	}
+	encoded := db.execs[0][1].([]byte)
+	audittest.Validate(t, encoded)
+	if !strings.Contains(string(encoded), `"actor":{"type":"config","host":"api-7d9f-xk2p","file":"/etc/heartbeat/inventory/inventory.yaml"}`) {
+		t.Fatalf("record's actor: %s", encoded)
+	}
+}
+
 // A change the schema could not describe fails the change, and nothing is
 // written.
 func TestWriteRejectsChangesItCannotRecord(t *testing.T) {
@@ -140,6 +157,13 @@ func TestWriteRejectsChangesItCannotRecord(t *testing.T) {
 		"user ID not a UUID": func(c *audit.Change) { c.Actor = audit.UserActor("42", "operator@example.com") },
 		"cli without command": func(c *audit.Change) {
 			c.Actor = audit.CLIActor("", "host")
+		},
+		"config without file": func(c *audit.Change) { c.Actor = audit.ConfigActor("", "host") },
+		"config with command": func(c *audit.Change) {
+			c.Actor = audit.Actor{Type: audit.ActorConfig, File: "inventory.yaml", Command: "x"}
+		},
+		"cli with file": func(c *audit.Change) {
+			c.Actor = audit.Actor{Type: audit.ActorCLI, Command: "x", File: "inventory.yaml"}
 		},
 		"mixed actor": func(c *audit.Change) {
 			c.Actor = audit.Actor{Type: audit.ActorCLI, Command: "x", Email: "a@example.com"}

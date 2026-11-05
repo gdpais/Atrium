@@ -7,8 +7,9 @@
 -- Fails with a foreign key violation when the target or the definition
 -- version does not exist, and with a unique violation when the target has
 -- this version already.
-insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, created_by)
-values (@database_target_id, @probe_definition_id, @interval_seconds, sqlc.narg(timeout_ms), sqlc.narg(max_rows), @enabled, sqlc.narg(created_by))
+-- managed_by is api when null.
+insert into probe_assignments (database_target_id, probe_definition_id, interval_seconds, timeout_ms, max_rows, enabled, created_by, managed_by)
+values (@database_target_id, @probe_definition_id, @interval_seconds, sqlc.narg(timeout_ms), sqlc.narg(max_rows), @enabled, sqlc.narg(created_by), coalesce(sqlc.narg(managed_by)::text, 'api'))
 returning *;
 
 -- name: GetProbeAssignment :one

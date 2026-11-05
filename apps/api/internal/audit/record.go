@@ -102,6 +102,10 @@ const (
 	// that marks a probe assignment applied: by what it ran and the host
 	// (the pod) it ran on.
 	ActorSystem = "system"
+	// ActorConfig is the inventory file (ADR 0021), applied by the API: by
+	// the file, as mounted, and the host (the pod) that applied it. Its
+	// records' ConfigVersion is the file's revision.
+	ActorConfig = "config"
 )
 
 // Actor is who made a change.
@@ -112,6 +116,7 @@ type Actor struct {
 	Command string `json:"command,omitempty"`
 	Host    string `json:"host,omitempty"`
 	Address string `json:"address,omitempty"`
+	File    string `json:"file,omitempty"`
 }
 
 // UserActor is a logged-in user.
@@ -129,6 +134,11 @@ func SystemActor(task, host string) Actor {
 	return Actor{Type: ActorSystem, Command: task, Host: host}
 }
 
+// ConfigActor is the inventory file at path, applied by the API on host.
+func ConfigActor(path, host string) Actor {
+	return Actor{Type: ActorConfig, File: path, Host: host}
+}
+
 // ClientActor is a client that is not logged in, at address.
 func ClientActor(address string) Actor {
 	return Actor{Type: ActorClient, Address: address}
@@ -136,11 +146,12 @@ func ClientActor(address string) Actor {
 
 func (a Actor) validate() error {
 	switch {
-	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "" && a.Address == "":
-	case (a.Type == ActorCLI || a.Type == ActorSystem) && a.Command != "" && a.UserID == "" && a.Email == "" && a.Address == "":
-	case a.Type == ActorClient && a.Address != "" && a.UserID == "" && a.Email == "" && a.Command == "" && a.Host == "":
+	case a.Type == ActorUser && uuid.MatchString(a.UserID) && a.Email != "" && a.Command == "" && a.Host == "" && a.Address == "" && a.File == "":
+	case (a.Type == ActorCLI || a.Type == ActorSystem) && a.Command != "" && a.UserID == "" && a.Email == "" && a.Address == "" && a.File == "":
+	case a.Type == ActorConfig && a.File != "" && a.UserID == "" && a.Email == "" && a.Command == "" && a.Address == "":
+	case a.Type == ActorClient && a.Address != "" && a.UserID == "" && a.Email == "" && a.Command == "" && a.Host == "" && a.File == "":
 	default:
-		return fmt.Errorf("actor %+v: want a user with a UUID and an email, a command or a system task, or a client address", a)
+		return fmt.Errorf("actor %+v: want a user with a UUID and an email, a command or a system task, an inventory file, or a client address", a)
 	}
 	return nil
 }

@@ -13,8 +13,8 @@ import (
 
 const createEnvironment = `-- name: CreateEnvironment :one
 
-insert into environments (name, slug, type, description, status, labels)
-values ($1, $2, $3, $4, $5, $6)
+insert into environments (name, slug, type, description, status, labels, managed_by)
+values ($1, $2, $3, $4, $5, $6, coalesce($7::text, 'api'))
 returning id, name, slug, type, description, status, labels, created_at, updated_at, managed_by
 `
 
@@ -25,10 +25,12 @@ type CreateEnvironmentParams struct {
 	Description string
 	Status      string
 	Labels      []byte
+	ManagedBy   pgtype.Text
 }
 
 // Environments, the top ownership boundary (ADR 0001). Package inventory
 // validates what these write and audits each change in its transaction.
+// managed_by is api when null.
 func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentParams) (Environment, error) {
 	row := q.db.QueryRow(ctx, createEnvironment,
 		arg.Name,
@@ -37,6 +39,7 @@ func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentPa
 		arg.Description,
 		arg.Status,
 		arg.Labels,
+		arg.ManagedBy,
 	)
 	var i Environment
 	err := row.Scan(

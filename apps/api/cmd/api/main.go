@@ -42,6 +42,8 @@
 //	HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN    the collector's admin token, for its GET /admin/config
 //	HEARTBEAT_API_INTEGRATIONS_PATH        the integrations.yaml links to Grafana are rendered from, the file the
 //	                                       collector reads (default: none; no links)
+//	HEARTBEAT_API_INVENTORY_PATH           the environment's inventory file (ADR 0021), applied to PostgreSQL at start
+//	                                       and when it changes (default: none)
 //	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
 //	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
@@ -98,6 +100,7 @@ const (
 	envCollectorURL          = "HEARTBEAT_API_COLLECTOR_URL"
 	envCollectorAdminToken   = "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"
 	envIntegrationsPath      = "HEARTBEAT_API_INTEGRATIONS_PATH"
+	envInventoryPath         = "HEARTBEAT_API_INVENTORY_PATH"
 	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
 )
 
@@ -215,6 +218,7 @@ func loadConfig() (app.Config, error) {
 	}
 	cfg.CollectorAdminToken = strings.TrimSpace(os.Getenv(envCollectorAdminToken))
 	cfg.IntegrationsPath = strings.TrimSpace(os.Getenv(envIntegrationsPath))
+	cfg.InventoryPath = strings.TrimSpace(os.Getenv(envInventoryPath))
 	if cfg.SessionIdleTimeout, err = duration(envSessionIdleTimeout, auth.DefaultIdleTimeout, time.Minute, 0); err != nil {
 		return app.Config{}, err
 	}

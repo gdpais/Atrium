@@ -13,8 +13,8 @@ import (
 
 const createComponent = `-- name: CreateComponent :one
 
-insert into application_components (application_id, name, component_type, runtime_name, labels)
-values ($1, $2, $3, $4, $5)
+insert into application_components (application_id, name, component_type, runtime_name, labels, managed_by)
+values ($1, $2, $3, $4, $5, coalesce($6::text, 'api'))
 returning id, application_id, name, component_type, runtime_name, labels, created_at, updated_at, managed_by
 `
 
@@ -24,12 +24,14 @@ type CreateComponentParams struct {
 	ComponentType string
 	RuntimeName   string
 	Labels        []byte
+	ManagedBy     pgtype.Text
 }
 
 // Application components: each belongs to one application,
 // application_components.application_id, which nothing updates. A
 // component's environment is its application's, read through the join.
 // Fails with a foreign key violation when the application does not exist.
+// managed_by is api when null.
 func (q *Queries) CreateComponent(ctx context.Context, arg CreateComponentParams) (ApplicationComponent, error) {
 	row := q.db.QueryRow(ctx, createComponent,
 		arg.ApplicationID,
@@ -37,6 +39,7 @@ func (q *Queries) CreateComponent(ctx context.Context, arg CreateComponentParams
 		arg.ComponentType,
 		arg.RuntimeName,
 		arg.Labels,
+		arg.ManagedBy,
 	)
 	var i ApplicationComponent
 	err := row.Scan(
