@@ -230,8 +230,13 @@ func (s *Server) DeleteProbeAssignment(ctx context.Context, req openapi.DeletePr
 		return nil, err
 	}
 	err = s.probeAssignments.DeleteProbeAssignment(ctx, caller, req.Id)
-	if p, ok := failure(err, "probe assignment"); ok && p.Status == http.StatusNotFound {
-		return openapi.DeleteProbeAssignment404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound(p)}, nil
+	if p, ok := failure(err, "probe assignment"); ok {
+		switch p.Status {
+		case http.StatusNotFound:
+			return openapi.DeleteProbeAssignment404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound(p)}, nil
+		case http.StatusConflict:
+			return openapi.DeleteProbeAssignment409ApplicationProblemPlusJSONResponse{ConflictApplicationProblemPlusJSONResponse: conflict(p)}, nil
+		}
 	}
 	if err != nil {
 		return nil, err

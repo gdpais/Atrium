@@ -364,6 +364,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
     delete:
@@ -1226,6 +1228,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         default:
           $ref: "#/components/responses/Error"
   /api/v1/probe-assignments/{id}/approve:
@@ -1979,8 +1983,9 @@ components:
         the name, slug or email; a delete is refused because other entities
         still refer to this one; for a probe definition, it is built-in or
         disabled, or the version is no longer the latest; or the change would
-        leave no active admin, or a user without a role. The detail says
-        which.
+        leave no active admin, or a user without a role; or the row is
+        managed by its environment's inventory file (ADR 0021), so only a
+        change to the file may change it. The detail says which.
       content:
         application/problem+json:
           schema:

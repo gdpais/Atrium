@@ -173,6 +173,7 @@ func TestProbeAssignmentErrors(t *testing.T) {
 		{"reject: invalid", http.MethodPost, "/api/v1/probe-assignments/" + id + "/reject", `{"reason":"x"}`, &inventory.InvalidError{Field: "reason", Reason: "bad"}, http.StatusBadRequest},
 		{"reject: not a draft", http.MethodPost, "/api/v1/probe-assignments/" + id + "/reject", `{}`, &inventory.ConflictError{Detail: "approved"}, http.StatusConflict},
 		{"delete: unknown", http.MethodDelete, "/api/v1/probe-assignments/" + id, "", inventory.ErrNotFound, http.StatusNotFound},
+		{"delete: managed by the inventory file", http.MethodDelete, "/api/v1/probe-assignments/" + id, "", &inventory.ConflictError{Detail: "managed by its environment's inventory file"}, http.StatusConflict},
 		{"render: failure", http.MethodGet, "/api/v1/probe-assignments/rendered", "", &inventory.RenderError{Reason: "bad"}, http.StatusInternalServerError},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

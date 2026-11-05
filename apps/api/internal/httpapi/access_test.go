@@ -116,6 +116,41 @@ func TestSpecDeclaresTheGuardsRefusals(t *testing.T) {
 	}
 }
 
+// Each write the inventory file's rows refuse (ADR 0021 §4) declares 409:
+// the service answers a ConflictError for a config-managed row, and a
+// handler can answer only the statuses its operation declares, so a
+// missing 409 turns the refusal into a server error.
+func TestSpecDeclaresTheInventoryFilesRefusals(t *testing.T) {
+	var doc struct {
+		Paths map[string]map[string]yaml.Node `yaml:"paths"`
+	}
+	if err := yaml.Unmarshal(api.Spec, &doc); err != nil {
+		t.Fatal(err)
+	}
+	var refused []string
+	for _, collection := range []string{"environments", "applications", "components", "telemetry-sources", "database-targets", "probe-assignments"} {
+		refused = append(refused, "PATCH /api/v1/"+collection+"/{id}", "DELETE /api/v1/"+collection+"/{id}")
+	}
+	refused = append(refused, "POST /api/v1/probe-assignments", "POST /api/v1/probe-assignments/{id}/approve", "POST /api/v1/probe-assignments/{id}/reject")
+	for _, pattern := range refused {
+		method, path, _ := strings.Cut(pattern, " ")
+		node, ok := doc.Paths[path][strings.ToLower(method)]
+		if !ok {
+			t.Errorf("%s is not in the spec", pattern)
+			continue
+		}
+		var op struct {
+			Responses map[string]yaml.Node `yaml:"responses"`
+		}
+		if err := node.Decode(&op); err != nil {
+			t.Fatalf("%s: %v", pattern, err)
+		}
+		if _, ok := op.Responses["409"]; !ok {
+			t.Errorf("%s declares no 409, so a config-managed row's refusal is a 500", pattern)
+		}
+	}
+}
+
 func TestAccessRulesNeedEachOperationToDeclareOne(t *testing.T) {
 	spec := func(security string) []byte {
 		return []byte(`
