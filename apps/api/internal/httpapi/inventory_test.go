@@ -298,6 +298,7 @@ func TestInventoryErrors(t *testing.T) {
 	notFound, invalid := inventory.ErrNotFound, &inventory.InvalidError{Field: "slug", Reason: `"Prod": want lower-case letters`}
 	conflict := &inventory.ConflictError{Detail: "the environment still has applications, so it cannot be deleted: disable it instead"}
 	owner := &inventory.OwnerError{Detail: "environment 5d0c8a3e-1b2f-4c6d-8e9f-0a1b2c3d4e5f does not exist"}
+	managed := &inventory.ConflictError{Detail: "the environment is managed by its environment's inventory file (ADR 0021): change it there, by pull request"}
 	for _, tc := range []struct {
 		op     int // index in inventoryOperations
 		err    error
@@ -310,7 +311,7 @@ func TestInventoryErrors(t *testing.T) {
 		{1, owner, http.StatusInternalServerError, ""}, // createEnvironment has no owner
 		{2, notFound, http.StatusNotFound, "no environment has this ID"},
 		{3, notFound, http.StatusNotFound, "no environment"},
-		{3, conflict, http.StatusInternalServerError, ""}, // updateEnvironment declares no 409
+		{3, managed, http.StatusConflict, "inventory file"},
 		{4, conflict, http.StatusConflict, "disable it instead"},
 		{4, notFound, http.StatusNotFound, "no environment"},
 		{5, invalid, http.StatusBadRequest, "slug: "},

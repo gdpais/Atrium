@@ -232,6 +232,8 @@ func (s *Server) UpdateEnvironment(ctx context.Context, req openapi.UpdateEnviro
 			return openapi.UpdateEnvironment400ApplicationProblemPlusJSONResponse{BadRequestApplicationProblemPlusJSONResponse: badRequest(p)}, nil
 		case http.StatusNotFound:
 			return openapi.UpdateEnvironment404ApplicationProblemPlusJSONResponse{NotFoundApplicationProblemPlusJSONResponse: notFound(p)}, nil
+		case http.StatusConflict:
+			return openapi.UpdateEnvironment409ApplicationProblemPlusJSONResponse{ConflictApplicationProblemPlusJSONResponse: conflict(p)}, nil
 		}
 	}
 	if err != nil {
