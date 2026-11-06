@@ -64,6 +64,34 @@ api:
   # Browsers treat localhost as secure, so they keep the __Host- session
   # cookie over plain HTTP.
   siteOrigin: http://localhost:8081
+  # local-dev, the environment the kind collectors report, as code
+  # (ADR 0021): the API applies it at start, and its rows refuse the API's
+  # writes. PatientZero (make patientzero-up) is its application; its
+  # outsystems_logs collector extracts local-dev, so the source is observed
+  # while PatientZero runs. kind-e2e checks the file is applied. A
+  # production environment keeps this as a file of its own in the
+  # configuration repository, passed with --set-file.
+  inventory: |
+    version: 1
+    environment:
+      slug: local-dev
+      name: Local development
+      type: development
+      description: The kind cluster's environment (infra/helm/values/kind.yaml)
+    applications:
+      - name: PatientZero
+        platform: outsystems
+        owner_team: Heartbeat
+        criticality: low
+        components:
+          - name: Shop
+            type: traditional_web_app
+            runtime_name: PatientZero
+        telemetry_sources:
+          - type: outsystems
+            ingest_mode: agentless
+            config:
+              application_name: PatientZero
 
 # The same operator access to the engines with a loopback NodePort (make
 # health, the demo helpers): Prometheus, Alertmanager and the OTel Collector's

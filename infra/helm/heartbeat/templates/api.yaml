@@ -26,6 +26,12 @@ credentials directory. */}}
 directory mount (not subPath) so ConfigMap updates reach the pod; the API
 rereads the file at most every 30 seconds, without a restart. */}}
 {{- $apiMounts := prepend $mounts (dict "name" "integrations" "mountPath" "/app/config" "readOnly" true) }}
+{{- /* The environment's inventory file (ADR 0021), when api.inventory holds
+one: the API applies it at start and rereads it every 30 seconds, so a
+whole-directory mount lets a change reach the pod without a restart. */}}
+{{- if $a.inventory }}
+{{- $apiMounts = append $apiMounts (dict "name" "inventory" "mountPath" "/app/inventory" "readOnly" true) }}
+{{- end }}
 # The API (ADR 0013). Stateless, so a Deployment: a new pod starts before the
 # old one stops, and its init container applies the new image's migrations
 # first. Migrations are expand, then contract (CONTRIBUTING.md), so the old
@@ -124,6 +130,11 @@ spec:
             # the integrations config the collector reads (TODO 4.9).
             - name: HEARTBEAT_API_INTEGRATIONS_PATH
               value: /app/config/integrations.yaml
+            {{- if $a.inventory }}
+            # The environment's inventory, applied to PostgreSQL (ADR 0021).
+            - name: HEARTBEAT_API_INVENTORY_PATH
+              value: /app/inventory/inventory.yaml
+            {{- end }}
             {{- with $a.goMemLimit | default (include "heartbeat.goMemLimit" (dict "limit" (dig "limits" "memory" "" $a.resources) "name" "api")) }}
             # Go's soft memory limit, below the container limit.
             - name: GOMEMLIMIT
@@ -167,6 +178,11 @@ spec:
         - name: integrations
           configMap:
             name: {{ include "heartbeat.integrationsConfigMap" . }}
+        {{- if $a.inventory }}
+        - name: inventory
+          configMap:
+            name: {{ include "heartbeat.inventoryConfigMap" . }}
+        {{- end }}
         {{- with $a.credentials.existingSecret }}
         - name: credentials
           secret:

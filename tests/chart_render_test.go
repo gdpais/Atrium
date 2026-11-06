@@ -186,7 +186,7 @@ var chartProfiles = []chartProfile{
 	{
 		name:            "defaults",
 		present:         slices.Concat([]string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
-		absent:          []string{"PersistentVolumeClaim/valkey-data"},
+		absent:          []string{"PersistentVolumeClaim/valkey-data", "ConfigMap/heartbeat-inventory"},
 		collectorPeers:  []string{bundledPrometheusPeer},
 		apiPeers:        []string{bundledPrometheusPeer},
 		backendPolicies: defaultBackendPolicies,
@@ -213,7 +213,7 @@ var chartProfiles = []chartProfile{
 		name:     "kind",
 		values:   []string{"kind.yaml"},
 		apiSite:  "http://localhost:8081",
-		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
+		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector", "ConfigMap/heartbeat-inventory"}, apiObjects),
 		apiPeers: []string{bundledPrometheusPeer},
 		// The host through the loopback NodePort; pods stay limited to Prometheus.
 		collectorPeers:  []string{bundledPrometheusPeer, kindHostPeer},
