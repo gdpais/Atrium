@@ -115,13 +115,16 @@ the API manages, changes nothing: the last applied inventory stays.
 ```bash
 # The file applied: changed or unchanged, never invalid or error.
 curl -s localhost:8081/metrics | grep '^heartbeat_api_inventory_applies_total'
-# The rows the file made.
-curl -sS -b cookies 'localhost:8081/api/v1/database-targets' | jq '.items[] | {id, name, status}'
+# The rows, with who manages them (config for the file's).
+curl -s localhost:8081/metrics | grep -E '^heartbeat_api_inventory_(application|source|database_target)_info'
 # The probes, applied once the collector runs them.
 curl -sS -b cookies 'localhost:8081/api/v1/probe-assignments?state=applied' | jq '.items[] | {id, collector_id}'
 ```
 
-The API's own change to one of these rows answers 409, naming the file
+Each row is one series of the
+[inventory info metrics](../reference/metrics-and-endpoints.md#inventory-info-metrics),
+so Grafana lists it too; a source shows `observation="observed"` once its
+collector reads its logs. The API's own change to one of these rows answers 409, naming the file
 ([one writer per row](../reference/metrics-and-endpoints.md#inventory)).
 Each change is audited in Loki with actor type `config`, the file's path and
 its revision:
