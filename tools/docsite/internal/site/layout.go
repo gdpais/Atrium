@@ -128,12 +128,16 @@ type link struct {
 	Label    string
 	Href     string
 	Current  bool
+	ID       string
+	Open     bool
 	Children []link
 }
 
 type group struct {
+	ID    string
 	Label string
 	Note  string
+	Open  bool
 	Links []link
 }
 
@@ -144,16 +148,57 @@ type pageView struct {
 	Groups       []group
 	Archive      *link
 	Archived     bool
+	Crumbs       []link
+	Prev, Next   *link
 	TOC          []heading
 	Body         template.HTML
 	SourcePath   string
 	SourceURL    string
+	EditURL      string
+	RepoURL      string
 	Diagram      bool
 	MermaidURL   string
 	MermaidHash  string
 	Assets       map[string]string
 	IsHome       bool
 	GeneratorCmd string
+}
+
+// readingOrder is the sidebar flattened: home, then each group's pages with
+// their children. It drives the previous and next page links.
+func (nav navData) readingOrder() []navEntry {
+	order := []navEntry{{Label: "Home", Page: nav.Home}}
+	for _, g := range nav.Groups {
+		for _, e := range g.Items {
+			order = append(order, navEntry{Label: e.Label, Page: e.Page})
+			order = append(order, e.Children...)
+		}
+	}
+	return order
+}
+
+// groupOf names the sidebar group a page sits in, for breadcrumbs and the
+// "where" line of search results. parent is the entry a child nests under.
+func (nav navData) groupOf(p *page) (label string, parent *navEntry) {
+	switch {
+	case p == nav.Home:
+		return "", nil
+	case p == nav.Archive || p.archived:
+		return "Archive", nil
+	}
+	for _, g := range nav.Groups {
+		for i, e := range g.Items {
+			if e.Page == p {
+				return g.Label, nil
+			}
+			for _, c := range e.Children {
+				if c.Page == p {
+					return g.Label, &g.Items[i]
+				}
+			}
+		}
+	}
+	return "", nil
 }
 
 func (b *builder) layout(p *page, nav navData, body []byte) ([]byte, error) {
@@ -168,6 +213,8 @@ func (b *builder) layout(p *page, nav navData, body []byte) ([]byte, error) {
 		Body:         template.HTML(body),
 		SourcePath:   p.src,
 		SourceURL:    b.repoLink("blob", p.src),
+		EditURL:      b.repoLink("edit", p.src),
+		RepoURL:      b.cfg.RepoURL,
 		Diagram:      p.diagram,
 		MermaidURL:   MermaidURL,
 		MermaidHash:  mermaidIntegrity,
@@ -175,13 +222,19 @@ func (b *builder) layout(p *page, nav navData, body []byte) ([]byte, error) {
 		GeneratorCmd: "make docs-site",
 		Assets:       b.assets,
 	}
+	ids := newSlugger()
 	for _, g := range nav.Groups {
-		vg := group{Label: g.Label, Note: g.Note}
+		vg := group{ID: ids.slug(g.Label), Label: g.Label, Note: g.Note}
 		for _, e := range g.Items {
 			l := toLink(e.Label, e.Page)
+			l.ID = vg.ID + "-" + ids.slug(e.Label)
+			l.Open = l.Current
 			for _, c := range e.Children {
-				l.Children = append(l.Children, toLink(c.Label, c.Page))
+				cl := toLink(c.Label, c.Page)
+				l.Open = l.Open || cl.Current
+				l.Children = append(l.Children, cl)
 			}
+			vg.Open = vg.Open || l.Open
 			vg.Links = append(vg.Links, l)
 		}
 		view.Groups = append(view.Groups, vg)
@@ -191,6 +244,35 @@ func (b *builder) layout(p *page, nav navData, body []byte) ([]byte, error) {
 		l.Current = p == nav.Archive || p.archived
 		view.Archive = &l
 	}
+
+	if label, parent := nav.groupOf(p); p != nav.Home {
+		view.Crumbs = append(view.Crumbs, toLink("Home", nav.Home))
+		switch {
+		case label == "Archive" && p != nav.Archive && nav.Archive != nil:
+			view.Crumbs = append(view.Crumbs, toLink("Archive", nav.Archive))
+		case label != "" && label != "Archive":
+			view.Crumbs = append(view.Crumbs, link{Label: label})
+		}
+		if parent != nil {
+			view.Crumbs = append(view.Crumbs, toLink(parent.Label, parent.Page))
+		}
+	}
+	order := nav.readingOrder()
+	for i, e := range order {
+		if e.Page != p {
+			continue
+		}
+		if i > 0 {
+			l := toLink(order[i-1].Label, order[i-1].Page)
+			view.Prev = &l
+		}
+		if i+1 < len(order) {
+			l := toLink(order[i+1].Label, order[i+1].Page)
+			view.Next = &l
+		}
+		break
+	}
+
 	for _, h := range p.headings {
 		if h.Level == 2 || h.Level == 3 {
 			view.TOC = append(view.TOC, h)
@@ -206,27 +288,62 @@ func (b *builder) layout(p *page, nav navData, body []byte) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// searchIndex is a script rather than JSON so search also works when the
-// site is opened from the filesystem, where fetch() is blocked.
-func (b *builder) searchIndex() ([]byte, error) {
-	type entry struct {
-		Title    string    `json:"t"`
-		URL      string    `json:"u"`
-		Archived bool      `json:"a,omitempty"`
-		Headings []heading `json:"h"`
-		Text     string    `json:"x"`
+// searchIndex lists every page once and every h1-h3 section of every page
+// with its text, so a result can open the matching section. It is a script
+// rather than JSON so search also works when the site is opened from the
+// filesystem, where fetch() is blocked.
+func (b *builder) searchIndex(nav navData) ([]byte, error) {
+	type pageEntry struct {
+		Title    string `json:"t"`
+		URL      string `json:"u"`
+		Group    string `json:"g,omitempty"`
+		Archived bool   `json:"r,omitempty"`
+		// Order is the page's place in the sidebar; pages outside it sort last.
+		Order int `json:"o"`
 	}
-	entries := make([]entry, 0, len(b.pages))
-	for _, p := range b.pages {
-		var hs []heading
-		for _, h := range p.headings {
-			if h.Level > 1 {
-				hs = append(hs, h)
-			}
+	type sectionEntry struct {
+		Page    int    `json:"p"`
+		Heading string `json:"h"`
+		Anchor  string `json:"a,omitempty"`
+		Level   int    `json:"l"`
+		Text    string `json:"x"`
+	}
+	index := struct {
+		Pages    []pageEntry    `json:"pages"`
+		Sections []sectionEntry `json:"sections"`
+	}{Pages: []pageEntry{}, Sections: []sectionEntry{}}
+	order := map[*page]int{}
+	for i, e := range nav.readingOrder() {
+		order[e.Page] = i
+	}
+	for i, p := range b.pages {
+		o, listed := order[p]
+		if !listed {
+			o = len(order) + i
 		}
-		entries = append(entries, entry{Title: p.title, URL: p.out, Archived: p.archived, Headings: hs, Text: p.text})
+		group, parent := nav.groupOf(p)
+		if p == nav.Home {
+			group = "Home"
+		} else if group == "" {
+			group = "More pages"
+		}
+		if parent != nil {
+			group += " · " + parent.Label
+		}
+		index.Pages = append(index.Pages, pageEntry{Title: p.title, URL: p.out, Group: group, Archived: p.archived, Order: o})
+		for _, s := range p.sections {
+			e := sectionEntry{Page: i, Heading: p.title, Level: 1, Text: strings.Join(s.text, " ")}
+			if s.heading >= 0 {
+				h := p.headings[s.heading]
+				e.Heading, e.Level = h.Text, h.Level
+				if h.Level > 1 {
+					e.Anchor = h.ID
+				}
+			}
+			index.Sections = append(index.Sections, e)
+		}
 	}
-	data, err := json.Marshal(entries)
+	data, err := json.Marshal(index)
 	if err != nil {
 		return nil, err
 	}

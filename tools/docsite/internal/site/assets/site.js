@@ -1,11 +1,36 @@
-// Heartbeat docs site behaviour: mobile drawer, on-this-page highlighting,
-// search and Mermaid diagrams. Generated into docs/site/assets by make docs-site.
+// Heartbeat docs site behaviour: mobile drawer, collapsible menus, colour
+// theme, on-this-page highlighting, the search dialog, search highlights and
+// Mermaid diagrams. Generated into docs/site/assets by make docs-site.
 (function () {
   "use strict";
 
   var root = document.body.getAttribute("data-root") || "";
+  var docEl = document.documentElement;
 
-  // Mobile sidebar drawer.
+  // localStorage can be missing or throw (private windows, file:// in some
+  // browsers); every use goes through these.
+  function load(key) {
+    try { return window.localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function save(key, value) {
+    try {
+      if (value === null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+    } catch (e) { /* not persisted */ }
+  }
+
+  // A fragment such as #%E0 is not valid percent-encoding; decoding must not
+  // throw, or the rest of the page's behaviour would not start.
+  function decodeId(fragment) {
+    try { return decodeURIComponent(fragment); } catch (e) { return fragment; }
+  }
+
+  function isTyping(target) {
+    var tag = ((target && target.tagName) || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || !!(target && target.isContentEditable);
+  }
+
+  // ---------------------------------------------------------------- drawer
   function setupDrawer() {
     var button = document.querySelector(".menu-button");
     var sidebar = document.getElementById("sidebar");
@@ -33,6 +58,85 @@
     });
   }
 
+  // ------------------------------------------------------------------ menus
+  // Groups open and close from their heading, and the choice is remembered.
+  // The group holding the current page always opens. Child lists (the ADRs)
+  // start closed unless the current page is one of them.
+  var NAV_KEY = "heartbeat-docs-nav";
+  function setupNav() {
+    var sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+    var closed = {};
+    try { closed = JSON.parse(load(NAV_KEY) || "{}") || {}; } catch (e) { closed = {}; }
+
+    Array.prototype.forEach.call(sidebar.querySelectorAll(".nav-group"), function (group) {
+      var id = group.getAttribute("data-group");
+      var toggle = group.querySelector(".nav-group-toggle");
+      function set(open) {
+        group.classList.toggle("collapsed", !open);
+        toggle.setAttribute("aria-expanded", String(open));
+      }
+      set(!closed[id] || group.hasAttribute("data-current"));
+      toggle.addEventListener("click", function () {
+        var open = toggle.getAttribute("aria-expanded") !== "true";
+        set(open);
+        if (open) delete closed[id]; else closed[id] = true;
+        save(NAV_KEY, JSON.stringify(closed));
+      });
+    });
+
+    Array.prototype.forEach.call(sidebar.querySelectorAll(".nav-children-toggle"), function (toggle) {
+      var list = document.getElementById(toggle.getAttribute("aria-controls"));
+      if (!list) return;
+      toggle.addEventListener("click", function () {
+        var open = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(open));
+        if (open) list.removeAttribute("data-collapsed"); else list.setAttribute("data-collapsed", "");
+      });
+    });
+
+    // Bring the current page into view in a long sidebar.
+    var current = sidebar.querySelector("a[aria-current=page]");
+    if (current) {
+      var s = sidebar.getBoundingClientRect(), c = current.getBoundingClientRect();
+      if (c.top < s.top || c.bottom > s.bottom) {
+        sidebar.scrollTop += c.top - s.top - sidebar.clientHeight / 3;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ theme
+  // Automatic (follow the system), light or dark; the inline script in the
+  // page head applies a stored choice before first paint.
+  var THEME_KEY = "heartbeat-docs-theme";
+  var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
+  function isDark() {
+    var t = docEl.getAttribute("data-theme");
+    return t === "dark" || (t !== "light" && darkQuery.matches);
+  }
+  function setupTheme() {
+    var button = document.querySelector(".theme-button");
+    if (!button) return;
+    var modes = ["auto", "light", "dark"];
+    var names = { auto: "automatic", light: "light", dark: "dark" };
+    function show(mode) {
+      button.setAttribute("data-mode", mode);
+      var next = modes[(modes.indexOf(mode) + 1) % modes.length];
+      var label = "Colour theme: " + names[mode] + ". Switch to " + names[next] + ".";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    }
+    show(docEl.getAttribute("data-theme") || "auto");
+    button.addEventListener("click", function () {
+      var mode = modes[(modes.indexOf(button.getAttribute("data-mode")) + 1) % modes.length];
+      if (mode === "auto") docEl.removeAttribute("data-theme"); else docEl.setAttribute("data-theme", mode);
+      save(THEME_KEY, mode === "auto" ? null : mode);
+      show(mode);
+      window.dispatchEvent(new Event("heartbeat-theme"));
+    });
+  }
+
+  // --------------------------------------------------------- on this page
   // Highlight the on-this-page entry for the section being read. A section is
   // current once its heading passes a reading line near the top of the
   // window. Sections near the end of a page can never scroll that far, so
@@ -41,12 +145,12 @@
   // picked from the list stays current until the reader scrolls by hand.
   function setupTocHighlight() {
     var toc = document.querySelector(".toc");
-    var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+    var links = Array.prototype.slice.call(document.querySelectorAll(".toc li a"));
     if (!toc || !links.length) return;
     var targets = links.map(function (a) {
-      return document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)));
+      return document.getElementById(decodeId(a.getAttribute("href").slice(1)));
     });
-    var top = 100;
+    var top = 120;
     var picked = -1;
     var pending = false;
 
@@ -80,123 +184,379 @@
       schedule();
     }
     links.forEach(function (a) {
-      a.addEventListener("click", function () { pick(decodeURIComponent(a.getAttribute("href").slice(1))); });
+      a.addEventListener("click", function () { pick(decodeId(a.getAttribute("href").slice(1))); });
     });
     ["wheel", "touchmove", "keydown"].forEach(function (type) {
       window.addEventListener(type, function () { picked = -1; }, { passive: true });
     });
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
-    if (window.location.hash) pick(decodeURIComponent(window.location.hash.slice(1)));
+    if (window.location.hash) pick(decodeId(window.location.hash.slice(1)));
     update();
   }
 
-  // Search over page titles, headings and text. The index is loaded on first
-  // use as a script so it also works from file:// URLs.
-  function setupSearch() {
-    var input = document.getElementById("search-input");
-    var results = document.getElementById("search-results");
-    if (!input || !results) return;
-    var box = input.parentNode;
-    var loading = false;
+  // ----------------------------------------------------------------- search
+  // A dialog over the page, opened with Ctrl+K / Cmd+K or "/". The index
+  // lists every page and every h1-h3 section with its text; it is loaded as
+  // a script on first use so search also works from file:// URLs.
+  function norm(s) {
+    return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
+  function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
+  // A query is words that must all match, or one "exact phrase" in quotes.
+  function parseQuery(q) {
+    q = q.trim();
+    var m = q.match(/^"(.+)"$/);
+    if (m) { var exact = norm(m[1]).trim(); return { exact: true, phrase: exact, terms: [exact] }; }
+    var terms = norm(q).split(/\s+/).filter(Boolean);
+    return { exact: false, phrase: terms.length > 1 ? terms.join(" ") : null, terms: terms };
+  }
+
+  var ICONS = {
+    page: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 2.5h6.5L15 6v11.5H5z M11.5 2.5V6H15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    section: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M7.5 3L6 17M14 3l-1.5 14M3.5 7.5h13M3 12.5h13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    text: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 5h12M4 9h12M4 13h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+  };
+
+  function setupSearch() {
+    var box = document.getElementById("search");
+    var input = document.getElementById("search-input");
+    var list = document.getElementById("search-results");
+    var meta = document.getElementById("search-meta");
+    if (!box || !input || !list || !meta) return;
+    var data = null, pages = null, failed = false, waiting = null;
+    var options = [], selected = -1, timer = null, lastFocus = null;
+
+    var mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
+    Array.prototype.forEach.call(document.querySelectorAll("[data-mod-key]"), function (k) { k.textContent = mac ? "⌘" : "Ctrl"; });
+
+    // Callers that arrive while the index loads (a hover prefetch, then the
+    // click that opens the dialog) all run once it is in.
     function withIndex(done) {
-      if (window.HEARTBEAT_SEARCH) return done();
-      if (loading) return;
-      loading = true;
+      if (data) return done();
+      if (failed) return;
+      meta.textContent = "Loading the search index…";
+      if (waiting) { waiting.push(done); return; }
+      waiting = [done];
       var s = document.createElement("script");
       s.src = root + (document.body.getAttribute("data-search-index") || "assets/search-index.js");
-      s.onload = function () { loading = false; done(); };
-      s.onerror = function () { loading = false; };
+      s.onload = function () {
+        var index = window.HEARTBEAT_SEARCH || { pages: [], sections: [] };
+        pages = index.pages.map(function (p) { p._t = norm(p.t); return p; });
+        data = index.sections.map(function (s) {
+          var page = pages[s.p];
+          return { page: page, h: s.h, a: s.a || "", l: s.l, x: s.x || "", _h: norm(s.h), _x: norm(s.x) };
+        });
+        var calls = waiting;
+        waiting = null;
+        calls.forEach(function (f) { f(); });
+      };
+      s.onerror = function () {
+        waiting = null; failed = true;
+        meta.textContent = "The search index could not be loaded.";
+      };
       document.head.appendChild(s);
     }
 
-    function el(tag, className, text) {
-      var e = document.createElement(tag);
-      if (className) e.className = className;
-      if (text) e.textContent = text;
-      return e;
+    function count(hay, t) {
+      var c = 0, i = hay.indexOf(t);
+      while (i !== -1 && c < 20) { c++; i = hay.indexOf(t, i + t.length); }
+      return c;
     }
 
-    function snippet(text, term) {
-      var i = text.toLowerCase().indexOf(term);
-      if (i < 0) return "";
-      var start = Math.max(0, i - 50);
-      var end = Math.min(text.length, i + term.length + 70);
-      return (start > 0 ? "…" : "") + text.slice(start, end).trim() + (end < text.length ? "…" : "");
-    }
-
-    function search(query) {
-      var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-      var found = [];
-      (window.HEARTBEAT_SEARCH || []).forEach(function (page) {
-        var headings = page.h || [];
-        var title = page.t.toLowerCase();
-        var hay = title + " " + headings.map(function (h) { return h.t; }).join(" ").toLowerCase() + " " + page.x.toLowerCase();
-        if (!terms.every(function (t) { return hay.indexOf(t) >= 0; })) return;
-        var score = 0;
-        terms.forEach(function (t) {
-          if (title.indexOf(t) >= 0) score += 10;
-          if (headings.some(function (h) { return h.t.toLowerCase().indexOf(t) >= 0; })) score += 3;
-        });
-        var section = null;
-        for (var i = 0; i < headings.length && !section; i++) {
-          var ht = headings[i].t.toLowerCase();
-          if (terms.every(function (t) { return ht.indexOf(t) >= 0; })) section = headings[i];
+    function search(q) {
+      var p = parseQuery(q), out = [];
+      var wordStart = p.terms.map(function (t) { return new RegExp("(^|[^a-z0-9])" + reEsc(t)); });
+      data.forEach(function (e) {
+        var score = 0, inHead = true;
+        for (var i = 0; i < p.terms.length; i++) {
+          var t = p.terms[i];
+          var h = e._h.indexOf(t) !== -1, pt = e.page._t.indexOf(t) !== -1, c = count(e._x, t);
+          if (!h && !pt && !c) return;
+          if (!h && !(pt && e.l === 1)) inHead = false;
+          score += (h ? 30 : 0) + (pt ? 12 : 0) + Math.min(c, 8) * 2;
+          if (h && wordStart[i].test(e._h)) score += 10;
         }
-        if (page.a) score -= 20;
-        found.push({ page: page, section: section, score: score });
+        if (p.phrase) {
+          if (e._h.indexOf(p.phrase) !== -1) score += 40;
+          else if (e._x.indexOf(p.phrase) !== -1) score += 15;
+          else if (p.exact) return;
+        }
+        if (e.l === 1 && inHead) score += 25;
+        if (e.l === 2) score += 3;
+        // Results are listed by group: titles and headings that match, then
+        // mentions in the text, then archived pages.
+        var rank = e.page.r ? 2 : inHead ? 0 : 1;
+        out.push({ e: e, score: score, rank: rank });
       });
-      found.sort(function (a, b) { return b.score - a.score || a.page.t.localeCompare(b.page.t); });
-      return { terms: terms, hits: found.slice(0, 15) };
+      out.sort(function (a, b) { return a.rank - b.rank || b.score - a.score || a.e.page.t.localeCompare(b.e.page.t); });
+      return out;
+    }
+
+    function mark(text, p) {
+      var terms = (p.phrase && !p.exact ? [p.phrase] : []).concat(p.terms)
+        .filter(function (t) { return t.length > 0; })
+        .sort(function (a, b) { return b.length - a.length; });
+      if (!terms.length) return esc(text);
+      // Match on the raw text and escape each piece, so a query such as
+      // "amp" never splits an entity like &amp;.
+      var re = new RegExp("(" + terms.map(reEsc).join("|") + ")", "gi");
+      return text.split(re).map(function (piece, i) {
+        return i % 2 ? "<mark>" + esc(piece) + "</mark>" : esc(piece);
+      }).join("");
+    }
+
+    function snippet(e, p) {
+      var x = e.x, nx = x.length === e._x.length ? e._x : x.toLowerCase(), pos = -1;
+      if (p.phrase) pos = nx.indexOf(p.phrase);
+      for (var i = 0; i < p.terms.length && pos === -1; i++) pos = nx.indexOf(p.terms[i]);
+      if (pos === -1) return x.length > 160 ? x.slice(0, 160) + "…" : x;
+      var start = Math.max(0, pos - 60), end = Math.min(x.length, pos + 130);
+      while (start > 0 && start > pos - 80 && x[start - 1] !== " ") start--;
+      return (start > 0 ? "…" : "") + x.slice(start, end).trim() + (end < x.length ? "…" : "");
+    }
+
+    function href(e, q) {
+      return root + e.page.u + (q ? "?hl=" + encodeURIComponent(q.trim()) : "") + (e.a ? "#" + e.a : "");
+    }
+
+    function option(i, url, icon, where, title, text, tags) {
+      return '<li role="option" id="search-option-' + i + '">' +
+        '<a href="' + esc(url) + '" tabindex="-1">' +
+        '<span class="search-icon">' + ICONS[icon] + "</span>" +
+        '<span class="search-where">' + esc(where) + "</span>" +
+        '<span class="search-title">' + title + (tags || "") + "</span>" +
+        (text ? '<span class="search-snippet">' + text + "</span>" : "") +
+        "</a></li>";
+    }
+
+    // With no query the dialog lists every current page by sidebar group, so
+    // it doubles as a quick page switcher.
+    function renderPages() {
+      var html = [], group = null, n = 0;
+      pages.slice().sort(function (a, b) { return a.o - b.o; }).forEach(function (page) {
+        if (page.r) return;
+        if (page.g !== group) {
+          group = page.g;
+          html.push('<li class="search-group" role="presentation">' + esc(group) + "</li>");
+        }
+        html.push(option(n++, root + page.u, "page", group, esc(page.t)));
+      });
+      meta.textContent = "Jump to a page, or type to search every section.";
+      return html;
     }
 
     function render() {
-      var query = input.value.trim();
-      box.classList.toggle("active", query.length > 0);
-      results.hidden = query.length === 0;
-      results.textContent = "";
-      if (!query) return;
-      var r = search(query);
-      if (!r.hits.length) {
-        results.appendChild(el("p", "empty", window.HEARTBEAT_SEARCH ? "No matches." : "Loading…"));
-        return;
+      var q = input.value, html;
+      if (q.trim().replace(/"/g, "").length < 2) {
+        html = renderPages();
+      } else {
+        var p = parseQuery(q), hits = search(q), shown = hits.slice(0, 50);
+        var pageCount = {};
+        hits.forEach(function (r) { pageCount[r.e.page.u] = 1; });
+        var pc = Object.keys(pageCount).length;
+        meta.textContent = hits.length
+          ? hits.length + (hits.length === 1 ? " match" : " matches") + " in " + pc + (pc === 1 ? " page" : " pages") +
+            (hits.length > shown.length ? " · showing the best " + shown.length : "")
+          : "";
+        html = [];
+        var group = null;
+        shown.forEach(function (r, i) {
+          var g = ["Pages and sections", "Mentions in the text", "Archived pages"][r.rank];
+          if (g !== group) { html.push('<li class="search-group" role="presentation">' + g + "</li>"); group = g; }
+          var e = r.e, where = e.page.g + (e.l > 1 ? " · " + e.page.t : "");
+          var tags = e.page.r ? '<span class="search-tag archived">Archived</span>' : "";
+          html.push(option(i, href(e, q), e.l === 1 ? "page" : (r.rank === 1 ? "text" : "section"), where, mark(e.h, p), e.x ? mark(snippet(e, p), p) : "", tags));
+        });
+        if (!shown.length) {
+          html.push('<li class="search-empty" role="presentation">No results for “' + esc(q.trim()) + "”. Try fewer or shorter words.</li>");
+        }
       }
-      var list = el("ul");
-      r.hits.forEach(function (hit) {
-        var a = el("a");
-        a.href = root + hit.page.u + (hit.section ? "#" + hit.section.id : "");
-        var title = el("span", "result-title", hit.page.t);
-        if (hit.page.a) title.appendChild(el("span", "result-tag", "archived"));
-        a.appendChild(title);
-        if (hit.section) a.appendChild(el("span", "result-section", hit.section.t));
-        var text = snippet(hit.page.x, r.terms[0]);
-        if (text) a.appendChild(el("span", "result-snippet", text));
-        var li = el("li");
-        li.appendChild(a);
-        list.appendChild(li);
-      });
-      results.appendChild(list);
+      list.innerHTML = html.join("");
+      options = Array.prototype.slice.call(list.querySelectorAll("li[role=option]"));
+      select(options.length ? 0 : -1, true);
     }
 
-    input.addEventListener("focus", function () { withIndex(render); });
-    input.addEventListener("input", function () { withIndex(render); render(); });
+    function select(i, keepScroll) {
+      if (options[selected]) { options[selected].classList.remove("selected"); options[selected].removeAttribute("aria-selected"); }
+      selected = i;
+      if (!options[i]) { input.removeAttribute("aria-activedescendant"); return; }
+      options[i].classList.add("selected");
+      options[i].setAttribute("aria-selected", "true");
+      input.setAttribute("aria-activedescendant", options[i].id);
+      if (!keepScroll) options[i].scrollIntoView({ block: "nearest" });
+      else list.scrollTop = 0;
+    }
+
+    function open() {
+      if (!box.hidden) { input.select(); return; }
+      lastFocus = document.activeElement;
+      box.hidden = false;
+      document.body.style.overflow = "hidden";
+      input.focus();
+      input.select();
+      withIndex(render);
+    }
+    function close() {
+      box.hidden = true;
+      document.body.style.overflow = "";
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll("[data-search-open]"), function (b) {
+      b.addEventListener("click", open);
+      b.addEventListener("pointerenter", function () { withIndex(function () {}); }, { once: true });
+    });
+    // A result on the current page only changes the address's #section, so
+    // the browser does not load a new page: close the dialog when one is
+    // followed, unless it opens in a new tab.
+    box.addEventListener("click", function (e) {
+      if (e.target.closest("[data-search-close]")) close();
+      else if (e.target.closest("li[role=option] a") && !(e.metaKey || e.ctrlKey || e.shiftKey || e.button)) close();
+    });
+    // Coming back to a page from the browser history restores it as it was
+    // left, dialog included.
+    window.addEventListener("pageshow", function (e) {
+      if (e.persisted && !box.hidden) close();
+    });
+    list.addEventListener("mousemove", function (e) {
+      var li = e.target.closest("li[role=option]");
+      var i = options.indexOf(li);
+      if (i >= 0 && i !== selected) select(i, true);
+    });
+    input.addEventListener("input", function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () { if (data) render(); }, 80);
+    });
     input.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { input.value = ""; render(); }
-      if (e.key === "Enter") {
-        var first = results.querySelector("a");
-        if (first) window.location.href = first.href;
+      if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) { e.preventDefault(); if (options.length) select((selected + 1) % options.length); }
+      else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) { e.preventDefault(); if (options.length) select((selected - 1 + options.length) % options.length); }
+      else if (e.key === "Enter") {
+        var a = options[selected] && options[selected].querySelector("a");
+        if (a) {
+          e.preventDefault();
+          if (e.metaKey || e.ctrlKey) window.open(a.href, "_blank");
+          else { close(); window.location.href = a.href; }
+        }
       }
     });
+    // Focus stays in the dialog while it is open.
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "Tab") { e.preventDefault(); input.focus(); }
+    });
     document.addEventListener("keydown", function (e) {
-      var tag = (document.activeElement && document.activeElement.tagName) || "";
-      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") {
+      if (e.key === "Escape" && !box.hidden) { e.preventDefault(); close(); return; }
+      var mod = (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K");
+      if (mod || (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e.target))) {
         e.preventDefault();
-        var sidebar = document.getElementById("sidebar");
-        var menu = document.querySelector(".menu-button");
-        if (menu && window.getComputedStyle(menu.parentNode).display !== "none" && !sidebar.classList.contains("open")) menu.click();
-        input.focus();
+        if (mod && !box.hidden) close(); else open();
       }
+    });
+  }
+
+  // After opening a search result (?hl=words), mark the words on the page and
+  // offer previous / next / clear. The first match at or after the linked
+  // section is shown.
+  function setupHighlights() {
+    var q = null;
+    try { q = new URLSearchParams(window.location.search).get("hl"); } catch (e) { return; }
+    var article = document.querySelector("article.markdown");
+    var bar = document.getElementById("hlbar");
+    if (!q || !article || !bar) return;
+    var input = document.getElementById("search-input");
+    if (input) input.value = q;
+
+    var p = parseQuery(q);
+    var terms = p.exact ? [p.phrase] : p.terms;
+    // Unquoted words that appear together on the page highlight as a phrase.
+    if (!p.exact && p.phrase && norm(article.textContent).indexOf(p.phrase) !== -1) terms = [p.phrase];
+    terms = terms.filter(function (t) { return t.length >= 2; }).sort(function (a, b) { return b.length - a.length; });
+    if (!terms.length) return;
+    var re = new RegExp(terms.map(reEsc).join("|"), "gi");
+    var walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        if (!n.nodeValue.trim() || n.parentNode.closest("script, style, button, .anchor, .diagram, mark")) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [], node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    var marks = [];
+    nodes.forEach(function (n) {
+      if (marks.length > 500) return;
+      var text = n.nodeValue, folded = norm(text);
+      if (folded.length !== text.length) folded = text.toLowerCase();
+      re.lastIndex = 0;
+      var m, last = 0, frag = null;
+      while ((m = re.exec(folded)) !== null) {
+        if (!frag) frag = document.createDocumentFragment();
+        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var mk = document.createElement("mark");
+        mk.className = "hl";
+        mk.textContent = text.slice(m.index, m.index + m[0].length);
+        frag.appendChild(mk);
+        marks.push(mk);
+        last = m.index + m[0].length;
+        if (m[0].length === 0) re.lastIndex++;
+      }
+      if (frag) { frag.appendChild(document.createTextNode(text.slice(last))); n.parentNode.replaceChild(frag, n); }
+    });
+    if (!marks.length) return;
+
+    var text = document.getElementById("hlbar-text");
+    // The first match at or after the section the address names.
+    function firstInSection() {
+      var target = window.location.hash ? document.getElementById(decodeId(window.location.hash.slice(1))) : null;
+      if (!target) return 0;
+      for (var i = 0; i < marks.length; i++) {
+        if (target.contains(marks[i]) || (target.compareDocumentPosition(marks[i]) & Node.DOCUMENT_POSITION_FOLLOWING)) return i;
+      }
+      return 0;
+    }
+    var cur = firstInSection();
+    function show(i, scroll) {
+      if (marks[cur]) marks[cur].classList.remove("current");
+      cur = (i + marks.length) % marks.length;
+      var m = marks[cur];
+      var d = m.closest("details");
+      if (d) d.open = true;
+      m.classList.add("current");
+      if (scroll) m.scrollIntoView({ block: "center" });
+      text.textContent = (cur + 1) + " of " + marks.length + (marks.length > 500 ? "+" : "") + " · “" + q + "”";
+    }
+    function clear() {
+      marks.forEach(function (m) { m.replaceWith(document.createTextNode(m.textContent)); });
+      article.normalize();
+      bar.hidden = true;
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.delete("hl");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      } catch (e) { /* the address keeps ?hl */ }
+    }
+    bar.addEventListener("click", function (e) {
+      var action = e.target.closest("[data-hl]");
+      if (!action) return;
+      var a = action.getAttribute("data-hl");
+      if (a === "prev") show(cur - 1, true);
+      if (a === "next") show(cur + 1, true);
+      if (a === "clear") clear();
+    });
+    bar.hidden = false;
+    // Scroll only when the match is not already in view (the browser has
+    // scrolled to the linked section by now).
+    window.setTimeout(function () {
+      var r = marks[cur].getBoundingClientRect();
+      show(cur, r.top < 0 || r.bottom > window.innerHeight);
+    }, 60);
+    // Another result on this page, or a link to one of its sections: count
+    // from there, without scrolling away from the section the reader picked.
+    window.addEventListener("hashchange", function () {
+      if (!bar.hidden) show(firstInSection(), false);
     });
   }
 
@@ -352,11 +712,10 @@
       return;
     }
     var font = getComputedStyle(document.body).fontFamily;
-    var dark = window.matchMedia("(prefers-color-scheme: dark)");
     var generation = 0;
     function renderAll() {
       var run = ++generation;
-      var t = diagramThemes[dark.matches ? "dark" : "light"];
+      var t = diagramThemes[isDark() ? "dark" : "light"];
       var vars = diagramVars(t, font);
       blocks.reduce(function (prev, block, i) {
         return prev.then(function () {
@@ -385,12 +744,13 @@
         });
       }, Promise.resolve()).then(function () {
         // Rendering changes the page height; keep an anchor target in view.
-        var target = run === 1 && window.location.hash && document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+        var target = run === 1 && window.location.hash && document.getElementById(decodeId(window.location.hash.slice(1)));
         if (target && window.scrollY > 0) target.scrollIntoView();
       });
     }
     renderAll();
-    if (dark.addEventListener) dark.addEventListener("change", renderAll);
+    if (darkQuery.addEventListener) darkQuery.addEventListener("change", renderAll);
+    window.addEventListener("heartbeat-theme", renderAll);
   }
 
   // Wide diagrams are shrunk to fit the column; the expand button shows one
@@ -448,10 +808,21 @@
     block.appendChild(button);
   }
 
+  // The compact on-this-page box reads best under the page title.
+  function placeInlineToc() {
+    var toc = document.querySelector(".toc-inline");
+    var title = document.querySelector("article.markdown > h1");
+    if (toc && title) title.insertAdjacentElement("afterend", toc);
+  }
+
   function init() {
+    placeInlineToc();
     setupDrawer();
+    setupNav();
+    setupTheme();
     setupTocHighlight();
     setupSearch();
+    setupHighlights();
     setupDiagrams();
   }
   // This script is deferred, so DOMContentLoaded is still ahead, and it only
