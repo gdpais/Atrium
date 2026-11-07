@@ -32,7 +32,9 @@ type ApplyResult struct {
 // slug, an application by its name in the environment, a component by its
 // name and type in its application, a telemetry source by its type, ingest
 // mode and application_name in its application, a target by its name in
-// the environment, a probe assignment by its probe on its target. A row
+// the environment, a probe assignment by its probe on its target. A target
+// the file creates has the ID FileTargetID gives it, so that the file
+// renders the collectors the API does (RenderFile). A row
 // that matches is updated to match the file; one that does not exist is
 // created, managed by the file. A row the file manages and no longer lists
 // is disabled, never deleted: an application, a source or a target gets
@@ -479,7 +481,7 @@ func (a *applier) targets(files []FileDatabaseTarget) ([]store.DatabaseTarget, e
 		row, ok := byName[f.Name]
 		if !ok {
 			created, err := a.q.CreateDatabaseTarget(a.ctx, store.CreateDatabaseTargetParams{
-				EnvironmentID: a.env.ID, Engine: f.Engine, Name: f.Name, Host: f.Host, Port: int32(f.Port),
+				ID: pgUUID(FileTargetID(a.env.Slug, f.Name)), EnvironmentID: a.env.ID, Engine: f.Engine, Name: f.Name, Host: f.Host, Port: int32(f.Port),
 				DatabaseName: pgText(f.DatabaseName), Status: f.Status, CredentialRef: f.CredentialRef,
 				Labels: labels, ManagedBy: configManaged,
 			})
