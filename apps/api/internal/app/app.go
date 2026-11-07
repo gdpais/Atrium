@@ -204,9 +204,10 @@ type connected struct {
 }
 
 // connect creates the PostgreSQL pool and the Redis client, without
-// connecting, registers their pool metrics, the audit outbox's and the
-// logins', and returns their readiness checks, the login service, the audit
-// drainer, and a function that closes both.
+// connecting, registers their pool metrics, the audit outbox's, the
+// logins' and the inventory's info metrics, and returns their readiness
+// checks, the login service, the audit drainer, and a function that closes
+// both.
 //
 // The PostgreSQL check passes when a query reaches the database and its
 // schema is at least the newest migration this build embeds, so a replica
@@ -270,6 +271,10 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 				logger.Warn("shutdown: close redis client", "error", err)
 			}
 		},
+	}
+	if err := registerer.Register(result.inventory.InfoCollector()); err != nil {
+		result.close()
+		return connected{}, err
 	}
 	host, _ := os.Hostname()
 	if applier := inventory.NewFileApplier(result.inventory, cfg.InventoryPath, host, logger); applier != nil {
