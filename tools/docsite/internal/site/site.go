@@ -74,7 +74,9 @@ type page struct {
 	source   []byte
 	doc      ast.Node
 	headings []heading
-	text     string
+	// sections split the page's searchable text at its h1-h3 headings, so
+	// search can link straight to the section that matches.
+	sections []section
 	diagram  bool
 	// links maps each Link node that points at another page to that page;
 	// the sidebar is built from these on the home page.
@@ -82,6 +84,13 @@ type page struct {
 	// anchors are the #fragment links to published pages, checked against
 	// the target's heading IDs once every page is parsed.
 	anchors []anchorRef
+}
+
+// section is the text under one heading, up to the next h1-h3. heading
+// indexes page.headings; -1 is text that comes before any heading.
+type section struct {
+	heading int
+	text    []string
 }
 
 type anchorRef struct {
@@ -135,7 +144,7 @@ func Build(cfg Config) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	index, err := b.searchIndex()
+	index, err := b.searchIndex(nav)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +231,16 @@ func (b *builder) parse(p *page) []string {
 
 	var problems []string
 	var headingNodes []*ast.Heading
-	var searchText []string
+	addText := func(t string) {
+		if t == "" {
+			return
+		}
+		if len(p.sections) == 0 {
+			p.sections = append(p.sections, section{heading: -1})
+		}
+		last := &p.sections[len(p.sections)-1]
+		last.text = append(last.text, t)
+	}
 	slugs := newSlugger()
 	_ = ast.Walk(p.doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -238,9 +256,13 @@ func (b *builder) parse(p *page) []string {
 				p.title = h.Text
 			}
 			headingNodes = append(headingNodes, n)
-			searchText = append(searchText, h.Text)
+			if n.Level <= 3 {
+				p.sections = append(p.sections, section{heading: len(p.headings) - 1})
+			} else {
+				addText(h.Text)
+			}
 		case *ast.Paragraph, *ast.TextBlock, *east.TableCell:
-			searchText = append(searchText, plainText(n, source))
+			addText(plainText(n, source))
 		case *ast.FencedCodeBlock:
 			if string(n.Language(source)) == "mermaid" {
 				p.diagram = true
@@ -278,7 +300,6 @@ func (b *builder) parse(p *page) []string {
 	if p.title == "" {
 		p.title = strings.TrimSuffix(path.Base(p.src), ".md")
 	}
-	p.text = strings.Join(searchText, " ")
 	// Anchor links are appended after the walk so they stay out of the
 	// heading text used for IDs, the table of contents and search.
 	for _, n := range headingNodes {
