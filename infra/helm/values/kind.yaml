@@ -68,8 +68,14 @@ api:
   # (ADR 0021): the API applies it at start, and its rows refuse the API's
   # writes. PatientZero (make patientzero-up) is its application; its
   # outsystems_logs collector extracts local-dev, so the source is observed
-  # while PatientZero runs. kind-e2e checks the file is applied. A
-  # production environment keeps this as a file of its own in the
+  # while PatientZero runs. Its database target is the sandbox SQL Server
+  # (make sqlserver-dev-up), named patientzero beside sqlserver-dev.yaml's
+  # own sqlserver-dev collector (the collector refuses one target name in
+  # two collectors), with probes the file approves: make
+  # kind-assignments renders them into managedCollectors. Without the
+  # sandbox the target is only down; scripts/kind.sh points it at a
+  # throwaway cluster's own container. kind-e2e checks the file is applied.
+  # A production environment keeps this as a file of its own in the
   # configuration repository, passed with --set-file.
   inventory: |
     version: 1
@@ -92,6 +98,21 @@ api:
             ingest_mode: agentless
             config:
               application_name: PatientZero
+    database_targets:
+      # The server, not one of PatientZero's databases: the collector's
+      # login has a user only in patientzero_log, and these probes read
+      # server-wide views. The credential is the sandbox's collector login,
+      # from the Secret make sqlserver-dev-up creates.
+      - name: patientzero
+        host: heartbeat-sqlserver-dev
+        credential_ref: env/sqlserver-dev
+        probes:
+          - name: sessions
+            interval_seconds: 30
+          - name: blocking
+            interval_seconds: 30
+          - name: waits
+            interval_seconds: 30
 
 # The same operator access to the engines with a loopback NodePort (make
 # health, the demo helpers): Prometheus, Alertmanager and the OTel Collector's

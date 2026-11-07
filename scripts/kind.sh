@@ -209,6 +209,28 @@ migrate_collector_policy() {
 	kubectl_ -n "$NAMESPACE" delete statefulset db-collector --cascade=orphan --wait >/dev/null
 }
 
+SANDBOX_HOST=heartbeat-sqlserver-dev
+
+# kind.yaml's inventory file (api.inventory) declares PatientZero's database
+# target on the sandbox SQL Server, by its default container name. A
+# throwaway cluster (kind-e2e, SQLSERVER_CONTAINER) runs its own container,
+# so it deploys the same file with that host, from $STATE_DIR/inventory.yaml.
+inventory_values() {
+	rm -f "$STATE_DIR/inventory.yaml"
+	[ "$SQLSERVER_CONTAINER" != "$SANDBOX_HOST" ] || return 0
+	mkdir -p "$STATE_DIR"
+	{
+		echo api:
+		awk '/^  inventory: \|$/ { p = 1; print; next }
+			p && (/^    / || /^$/) { print; next }
+			p { exit }' "$VALUES_DIR/kind.yaml" |
+			sed "s/^\( *host: \)$SANDBOX_HOST\$/\1$SQLSERVER_CONTAINER/"
+	} >"$STATE_DIR/inventory.yaml.new"
+	grep -q "^ *host: $SQLSERVER_CONTAINER\$" "$STATE_DIR/inventory.yaml.new" ||
+		{ rm -f "$STATE_DIR/inventory.yaml.new"; die "$VALUES_DIR/kind.yaml's api.inventory names no host $SANDBOX_HOST; update inventory_values in $0"; }
+	mv "$STATE_DIR/inventory.yaml.new" "$STATE_DIR/inventory.yaml"
+}
+
 cmd_deploy() {
 	cluster_exists || die "kind cluster $CLUSTER does not exist; run make kind-up"
 	# A deploy pairs the current chart with the image: rebuild when the code is
@@ -229,6 +251,10 @@ cmd_deploy() {
 	minimal) set -- "$@" -f "$VALUES_DIR/minimal.yaml" ;;
 	*) die "PROFILE must be full or minimal, not $PROFILE" ;;
 	esac
+	inventory_values
+	if [ -f "$STATE_DIR/inventory.yaml" ]; then
+		set -- "$@" -f "$STATE_DIR/inventory.yaml"
+	fi
 	# sqlserver-up leaves a marker so later deploys keep the SQL Server target.
 	if [ -f "$STATE_DIR/sqlserver-dev" ]; then
 		set -- "$@" -f "$VALUES_DIR/sqlserver-dev.yaml"

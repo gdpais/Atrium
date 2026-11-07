@@ -129,7 +129,10 @@ probe deadline.
 
 There are three ways. The recommended one is the environment's inventory
 file: see [onboarding by pull request](onboarding-by-pull-request.md). The
-other two are through the API, or by hand in the values.
+other two are through the API, or by hand in the values. On kind, the
+inventory file in `kind.yaml` declares PatientZero's target, `patientzero`,
+on the sandbox SQL Server
+([local development](local-development.md#change-collector-config-without-restarting)).
 
 ### Through the API
 
@@ -222,7 +225,7 @@ restart. The kubelet updates the files within about a minute.
 
 | Where | Steps |
 | --- | --- |
-| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for approved probe assignments, `make kind-assignments`. |
+| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for probe assignments, approved through the API or by the inventory file, `make kind-assignments`. |
 | Installed from a release | Put the values in a file and run `helm upgrade` with it and all your other values files ([installing a release](install-from-release.md#5-add-a-sql-server-target)). |
 | Production | Commit the values to the `heartbeat-deploy` repository; Argo CD syncs them. |
 

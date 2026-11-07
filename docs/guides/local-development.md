@@ -266,10 +266,17 @@ Released images are built by CI, not by hand: see
 ## Change collector config without restarting
 
 Edit the `integrations` values and run `make kind-deploy`; for probe
-assignments approved through the API, run `make kind-assignments`, which
-renders them in the API's pod into `.tmp/kind/heartbeat/managed-collectors.yaml`
-and deploys with it (later `make kind-deploy` runs keep it; delete the file
-to drop them). The collector is not restarted: the ConfigMap reaches the pod within about a minute and the
+assignments, run `make kind-assignments`, which renders them in the API's
+pod into `.tmp/kind/heartbeat/managed-collectors.yaml` and deploys with it
+(later `make kind-deploy` runs keep it; delete the file to drop them). The
+render holds the assignments approved through the API and those of kind's
+inventory file (`api.inventory` in `kind.yaml`): PatientZero's database
+target, `patientzero`, on the sandbox SQL Server with the `sessions`,
+`blocking` and `waits` probes every 30s. It is a second target on the
+server `sqlserver-dev` already collects, so its metrics carry
+`target="patientzero"`. Without `make sqlserver-dev-up` the target is only
+down. Change it in `kind.yaml`, not through the API: the API refuses to
+change rows the file manages (409). The collector is not restarted: the ConfigMap reaches the pod within about a minute and the
 collector polls the file every 5s. To apply it sooner:
 
 ```bash

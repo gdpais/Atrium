@@ -801,7 +801,7 @@ wait_for 120 "the source's audit record in Loki" source_audited
 pass "an OutSystems source for local-dev is observed by oslogs-e2e through GET /admin/config; one for e2e-unwatched is not; the registration is audited in Loki"
 
 # ----------------------------------------------------------------------------
-step "a probe assignment approved through the API is applied by the collector"
+step "probe assignments approved through the API and by the inventory file are applied by the collector"
 # ADR 0014: an operator assigns a probe to a database target, an admin
 # approves it, and the API renders it into managedCollectors. The API never
 # writes cluster state: `scripts/kind.sh assignments` (make kind-assignments)
@@ -810,6 +810,11 @@ step "a probe assignment approved through the API is applied by the collector"
 # /admin/config runs it as rendered. The target is the e2e SQL Server under
 # another name, so its metrics come with target="e2e-assigned". The admin
 # is the only user, and holds every role.
+#
+# ADR 0021: kind's inventory file declares PatientZero's database target,
+# patientzero, with three probes the file approves itself; scripts/kind.sh
+# points it at this run's SQL Server. The same render holds them, from
+# PostgreSQL, and the API refuses to change the target.
 kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward-assignments.log" 2>&1 &
 port_forward_pid=$!
 wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward-assignments.log"
@@ -824,6 +829,24 @@ code=$(api_call GET /api/v1/environments -H "@$WORK/session-header")
 [ "$code" = 200 ] || fail "listing environments returned $code"
 local_dev=$(jq -r '.items[] | select(.slug == "local-dev") | .id' "$WORK/api-body")
 [ -n "$local_dev" ] || fail "no local-dev environment: $(cat "$WORK/api-body")"
+# The file's target and its assignments: config-managed, on this run's
+# container, approved with no user (migration 0008), before any render.
+file_target=$(psql_ "SELECT t.id FROM database_targets t JOIN environments e ON e.id = t.environment_id
+	WHERE e.slug = 'local-dev' AND t.name = 'patientzero' AND t.managed_by = 'config' AND t.host = '$SQL_CONTAINER' AND t.status = 'active'")
+[ -n "$file_target" ] || fail "no config-managed patientzero target on $SQL_CONTAINER in local-dev: $(psql_ "SELECT name, host, managed_by, status FROM database_targets")"
+# file_assignments: each of the file's assignments as <probe> <manager>
+# <state> <approved by the file>, sorted.
+file_assignments() {
+	psql_ "SELECT string_agg(d.name || ' ' || a.managed_by || ' ' || a.state || ' ' || (a.approved_by IS NULL AND a.approved_at IS NOT NULL)::text, ',' ORDER BY d.name)
+		FROM probe_assignments a JOIN probe_definitions d ON d.id = a.probe_definition_id WHERE a.database_target_id = '$file_target'"
+}
+[ "$(file_assignments)" = "blocking config approved true,sessions config approved true,waits config approved true" ] ||
+	fail "the file's assignments: $(file_assignments)"
+code=$(api_call PATCH "/api/v1/database-targets/$file_target" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data '{"status": "disabled"}')
+[ "$code" = 409 ] || fail "disabling the patientzero target through the API returned $code, want 409: the inventory file manages it: $(cat "$WORK/api-body")"
+code=$(api_call DELETE "/api/v1/database-targets/$file_target" -H "@$WORK/session-header" -H "Origin: $site")
+[ "$code" = 409 ] || fail "deleting the patientzero target through the API returned $code, want 409: $(cat "$WORK/api-body")"
+[ "$(psql_ "SELECT status FROM database_targets WHERE id = '$file_target'")" = active ] || fail "the refused writes changed the patientzero target"
 code=$(api_post /api/v1/database-targets "$(jq -nc --arg env "$local_dev" --arg host "$SQL_CONTAINER" \
 	'{environment_id: $env, name: "e2e-assigned", host: $host, database_name: "tempdb", credential_ref: "env/sqlserver-dev"}')")
 [ "$code" = 201 ] || fail "creating the e2e-assigned target returned $code: $(cat "$WORK/api-body")"
@@ -846,17 +869,25 @@ jq -e '.state == "approved" and .approved_by != null' "$WORK/api-body" >/dev/nul
 code=$(api_call GET /api/v1/probe-assignments/rendered -H "@$WORK/session-header")
 [ "$code" = 200 ] && grep -q "id: $assigned_collector" "$WORK/api-body" || fail "the approval is not rendered ($code): $(cat "$WORK/api-body")"
 cp "$WORK/api-body" "$WORK/rendered-api.yaml"
+# The file's target renders as a collector of its own, api-<target id>-30s,
+# with its three probes.
+file_collector=api-$file_target-30s
+grep -q "id: $file_collector" "$WORK/rendered-api.yaml" || fail "the file's assignments are not rendered as $file_collector: $(cat "$WORK/rendered-api.yaml")"
 EXTRA_VALUES="$WORK/e2e-oslogs.yaml $base_values" scripts/kind.sh assignments >/dev/null
 # What kind deployed is what the API serves.
 cmp -s "$WORK/rendered-api.yaml" ".tmp/kind/$CLUSTER/managed-collectors.yaml" ||
 	fail "the file kind.sh deployed differs from GET /api/v1/probe-assignments/rendered"
 wait_for 180 "sessions of target e2e-assigned" has_value "sum(heartbeat_sqlserver_sessions{target=\"e2e-assigned\"})"
+wait_for 120 "sessions of target patientzero" has_value "sum(heartbeat_sqlserver_sessions{target=\"patientzero\"})"
+target_up patientzero 1 || fail "the patientzero target is not up: $(prom 'heartbeat_collector_target_up{target="patientzero"}')"
 assignment_is() {
 	[ "$(api_call GET "/api/v1/probe-assignments/$assignment" -H "@$WORK/session-header")" = 200 ] &&
 		jq -e --arg state "$1" '.state == $state' "$WORK/api-body" >/dev/null
 }
 # The applied check runs every 30s, on the collector's answer kept 15s.
 wait_for 120 "the assignment applied" assignment_is applied
+file_applied() { [ "$(file_assignments)" = "blocking config applied true,sessions config applied true,waits config applied true" ]; }
+wait_for 120 "the file's assignments applied" file_applied
 code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $site")
 [ "$code" = 204 ] || fail "the logout returned $code"
 kill "$port_forward_pid" 2>/dev/null || true
@@ -866,9 +897,15 @@ assignment_audited() {
 		'[.data.result[].values[][1] | fromjson | select(.entity_type == "probe_assignment" and .entity_id == $id) | .action] | sort == ["apply", "approve", "create"]'
 }
 wait_for 120 "the assignment's create, approve and apply records in Loki" assignment_audited
+file_target_audited() {
+	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$file_target\"" | jq -e --arg id "$file_target" \
+		'any(.data.result[].values[][1] | fromjson; .entity_type == "database_target" and .entity_id == $id and .action == "create" and .actor.type == "config")'
+}
+wait_for 120 "the patientzero target's creation by the inventory file in Loki" file_target_audited
 # Later steps deploy without it: the state file is what keeps it.
 rm -f ".tmp/kind/$CLUSTER/managed-collectors.yaml"
 pass "assignment $assignment (sessions on e2e-assigned, every 20s) went draft -> approved -> applied; $assigned_collector runs it and its sessions reach Prometheus; create, approve and apply audited in Loki"
+pass "the inventory file's patientzero target and its 3 assignments are config-managed and approved by the file; a PATCH and a DELETE of the target are 409; $file_collector runs them from the same render, its sessions reach Prometheus, all 3 applied; created by actor config in Loki"
 
 # ----------------------------------------------------------------------------
 step "unauthenticated endpoints expose no diagnostics"

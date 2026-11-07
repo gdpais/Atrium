@@ -48,6 +48,17 @@ func TestKindsInventoryIsValid(t *testing.T) {
 	if f.Environment.Slug != "local-dev" || len(f.Applications) != 1 || f.Applications[0].Name != "PatientZero" {
 		t.Fatalf("kind's inventory = %+v, want local-dev with PatientZero", f)
 	}
+	// PatientZero's database target is the sandbox SQL Server, under its own
+	// name: sqlserver-dev is the static collector's target in
+	// sqlserver-dev.yaml. scripts/kind.sh rewrites the host for a throwaway
+	// cluster's container, so it must stay this exact string.
+	if len(f.DatabaseTargets) != 1 {
+		t.Fatalf("kind's inventory has %d database targets, want PatientZero's", len(f.DatabaseTargets))
+	}
+	target := f.DatabaseTargets[0]
+	if target.Name != "patientzero" || target.Host != "heartbeat-sqlserver-dev" || target.CredentialRef != "env/sqlserver-dev" || len(target.Probes) == 0 {
+		t.Fatalf("kind's database target = %+v, want patientzero on heartbeat-sqlserver-dev with env/sqlserver-dev and probes", target)
+	}
 }
 
 func TestTheExampleInventoryFileIsValid(t *testing.T) {
