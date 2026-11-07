@@ -757,7 +757,7 @@ sources_query=$(jq -r '.dashboard.panels[] | select(.title == "Telemetry sources
 	"$WORK/inventory-dashboard.json" | sed 's/\$environment/.*/g')
 [ -n "$sources_query" ] || fail "the inventory dashboard has no Telemetry sources query"
 dashboard_lists_sources() {
-	prom "$sources_query" | jq -e '[.data.result[].metric.application_name] | contains(["PatientZero", "E2eShop", "E2eNobodyReads"])'
+	prom "$sources_query" | jq -e '["PatientZero", "E2eShop", "E2eNobodyReads"] - [.data.result[].metric.application_name] == []'
 }
 wait_for 30 "the inventory dashboard's sources table" dashboard_lists_sources
 pass "Grafana's inventory dashboard lists PatientZero, E2eShop and E2eNobodyReads in its sources table"

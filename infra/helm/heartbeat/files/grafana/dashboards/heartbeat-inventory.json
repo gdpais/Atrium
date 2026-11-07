@@ -404,7 +404,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (environment, application, platform, criticality, status, managed_by) (heartbeat_api_inventory_application_info{environment=~\"$environment\"} * on (environment, application) group_left () count by (environment, application) (max by (environment, application, source_type, ingest_mode, application_name) (heartbeat_api_inventory_source_info{environment=~\"$environment\",status=\"active\"})))",
+          "expr": "max by (environment, application, platform, criticality, status, managed_by) (heartbeat_api_inventory_application_info{environment=~\"$environment\"} * on (environment, application) group_left () (count by (environment, application) (max by (environment, application, source_type, ingest_mode, application_name) (heartbeat_api_inventory_source_info{environment=~\"$environment\",status=\"active\"})) or 0 * max by (environment, application) (heartbeat_api_inventory_application_info{environment=~\"$environment\"})))",
           "refId": "B",
           "instant": true,
           "range": false,
@@ -415,7 +415,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (environment, application, platform, criticality, status, managed_by) (heartbeat_api_inventory_application_info{environment=~\"$environment\"} * on (environment, application) group_left () count by (environment, application) (max by (environment, application, source_type, ingest_mode, application_name) (heartbeat_api_inventory_source_info{environment=~\"$environment\",status=\"active\",observation=\"observed\"})))",
+          "expr": "max by (environment, application, platform, criticality, status, managed_by) (heartbeat_api_inventory_application_info{environment=~\"$environment\"} * on (environment, application) group_left () (count by (environment, application) (max by (environment, application, source_type, ingest_mode, application_name) (heartbeat_api_inventory_source_info{environment=~\"$environment\",status=\"active\",observation=\"observed\"})) or 0 * max by (environment, application) (heartbeat_api_inventory_application_info{environment=~\"$environment\"})))",
           "refId": "C",
           "instant": true,
           "range": false,
