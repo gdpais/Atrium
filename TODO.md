@@ -501,7 +501,7 @@ in Grafana → a guide → this stage's validation.
 - [ ] `api inventory render -f <file>`: probe assignments to `managedCollectors` without a database, as ADR 0014 renders them; `make kind-assignments` uses it for config-managed assignments
 
 ### 5.3 Reading the inventory
-- [ ] Info metrics on the API's `/metrics` for the inventory (environment, application, status, manager; target engine; source observed), with bounded cardinality
+- [x] Info metrics on the API's `/metrics` for the inventory (environment, application, status, manager; target engine; source observed), with bounded cardinality: `heartbeat_api_inventory_{environment,application,source,database_target}_info`, read from PostgreSQL at each scrape, one series per row up to 1,000 per kind (`heartbeat_api_inventory_info_truncated`), labels only names and closed sets ([inventory info metrics](docs/reference/metrics-and-endpoints.md#inventory-info-metrics))
 - [ ] A Grafana dashboard that lists the inventory beside its health, with the API's deep links
 - [ ] Guide: onboard an application, a source and a database target by pull request (`docs/guides/`)
 - [ ] Tokens for machine clients of the API, when the first one needs them (ADR 0021 §7)

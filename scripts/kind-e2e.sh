@@ -737,6 +737,18 @@ observation_is() {
 wait_for 60 "the local-dev source observed by oslogs-e2e" observation_is "$observed_source" observed '["oslogs-e2e"]'
 observation_is "$unwatched_source" not_observed '[]' ||
 	fail "the e2e-unwatched source is not reported unobserved: $(cat "$WORK/api-body")"
+# The inventory's info metrics [5.3], as Prometheus scraped them: the file's
+# PatientZero managed by config, the API's sources with their observation.
+inventory_listed() {
+	value_is 'count(max without (instance) (
+		heartbeat_api_inventory_application_info{environment="local-dev",application="PatientZero",managed_by="config",status="active"}
+		or heartbeat_api_inventory_source_info{environment="local-dev",application_name="E2eShop",managed_by="api",observation="observed"}
+		or heartbeat_api_inventory_source_info{environment="e2e-unwatched",application_name="E2eNobodyReads",observation="not_observed"}
+	))' 3
+}
+wait_for 60 "the inventory in the API's info metrics, scraped" inventory_listed
+svc_get api:8081 /metrics | grep -E '^heartbeat_api_inventory_[a-z_]+_info[{]' | sed 's/^/      /'
+pass "the inventory's info metrics list PatientZero (config) and the API's sources with their observation"
 
 # Deep links [4.9]: the API renders the templates of the integrations.yaml
 # the collector runs from, mounted from the same ConfigMap. E2eShop's
