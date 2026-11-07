@@ -173,6 +173,11 @@ func TestApplyFileCreatesTheInventoryOnceAndAuditsIt(t *testing.T) {
 	if !strings.Contains(string(rendered), "name: blocking") || strings.Contains(string(rendered), "name: cpu") {
 		t.Fatalf("render:\n%s", rendered)
 	}
+	// The file renders the same bytes without a database (ADR 0021 §5).
+	offline, err := inventory.RenderFile(parse(t, shop(t, "create")))
+	if err != nil || string(offline) != string(rendered) {
+		t.Fatalf("RenderFile() = %v\n%s\nwant the API's render\n%s", err, offline, rendered)
+	}
 
 	mark = f.mark(t)
 	if again := f.apply(t, "sha256:one", shop(t, "create")); again.Changes != 0 {

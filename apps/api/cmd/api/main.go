@@ -11,6 +11,8 @@
 //	                                             the approved probe assignments
 //	api inventory check -f FILE                  check an environment's inventory file (ADR 0021),
 //	                                             with no database or setting; exit 1 when it is not valid
+//	api inventory render -f FILE                 print the managedCollectors values file rendered from the
+//	                                             file's probe assignments, with no database or setting
 //
 // `api migrate up` is what the API's init container runs before the API
 // starts. The migrate, users and probe-assignments commands need only the
@@ -109,7 +111,7 @@ const (
 const maxShutdownDelay = time.Minute
 
 // errUsage marks a command line that names no command.
-var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password | api probe-assignments render | api inventory check -f FILE`)
+var errUsage = errors.New(`usage: api | api migrate up | api migrate version | api users create-admin --email ADDRESS [--name NAME] < password | api probe-assignments render | api inventory check -f FILE | api inventory render -f FILE`)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -122,6 +124,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	case errors.Is(err, errInvalidInventory):
+		// check has written the problems to stdout; render, whose stdout
+		// is the values file, returns them to go to stderr.
+		if err != errInvalidInventory {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(1)
 	case err != nil:
 		logger.Error("api exited with error", "error", err)
@@ -184,6 +191,8 @@ func execute(ctx context.Context, args []string, logger *slog.Logger, stdin io.R
 		return renderAssignments(ctx, stdout)
 	case len(args) >= 2 && args[0] == "inventory" && args[1] == "check":
 		return checkInventory(args[2:], stdout)
+	case len(args) >= 2 && args[0] == "inventory" && args[1] == "render":
+		return renderInventory(args[2:], stdout)
 	}
 	return errUsage
 }
