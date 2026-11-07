@@ -34,7 +34,7 @@ rules. Before the pull request:
 ## 2. Edit the file
 
 Add the application with its components and telemetry source, and the
-target with its probes:
+target with its probes, under the file's `version` and `environment`:
 
 ```yaml
 applications:
@@ -67,7 +67,7 @@ so:
 | Retire an application, a source or a target | Set `status: disabled`, or remove it: either way the row is disabled, never deleted, and its history stays |
 | Stop a probe | `enabled: false`, or remove it |
 | Rename an application | Rename it: a new row is created and the old one disabled |
-| Rename a target | Not possible: a disabled target keeps its name and its server. Add a new target, and disable the old one in a later change |
+| Rename a target | Not possible: a target keeps its name, and a disabled one still holds its server, port and database, so a new name for the same database is refused. A new target under another name works only for another server or database |
 | Take over a row made through the API | Not possible: a file that lists it is refused. A row with nothing depending on it can be deleted through the API first; a target with probe assignments cannot, and stays the API's |
 
 ## 3. Check and render
@@ -124,7 +124,8 @@ curl -sS -b cookies 'localhost:8081/api/v1/probe-assignments?state=applied' | jq
 Each row is one series of the
 [inventory info metrics](../reference/metrics-and-endpoints.md#inventory-info-metrics),
 so Grafana lists it too; a source shows `observation="observed"` once its
-collector reads its logs. The API's own change to one of these rows answers 409, naming the file
+collector reads its logs. The API's own change to one of these rows
+answers 409, saying the inventory file manages it
 ([one writer per row](../reference/metrics-and-endpoints.md#inventory)).
 Each change is audited in Loki with actor type `config`, the file's path and
 its revision:
