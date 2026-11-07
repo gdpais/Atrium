@@ -11,8 +11,8 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; next Grafana deep links [4.9], then the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
-| 4 | Inventory as code | Planned: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, the API applies the file it is given, and `api inventory render` renders its probes to `managedCollectors` offline [5.2]; next the chart mounts the file and kind onboards PatientZero from it [5.2], and the inventory's info metrics and dashboard [5.3] |
+| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. Left: the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 4 | Inventory as code | In progress: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; next kind's inventory declares PatientZero's database target [5.2], and the inventory's info metrics and dashboard [5.3] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
 | 7 | Investigations, alerting and reporting | Not started |
@@ -33,7 +33,7 @@ in a demo on real-shaped data, not when its checklist is ticked
 | 1 | DBA, SRE | See a SQL Server's waits, blocking, sessions, memory and storage in Grafana, with no agent on the database host |
 | 2 | SRE | See an OutSystems application's health, errors and latency, with its logs, in Grafana, and be alerted when its objective burns |
 | 3 | Operator | Onboard an application, a SQL Server target and its probes through the API, without editing YAML, with every change audited |
-| 4 | Operator | Do the same in a browser |
+| 4 | Operator | Do the same by a pull request to the environment's inventory file, and see the inventory in Grafana |
 | 5 | SRE, on-call | Run Heartbeat on EKS against production databases, with alerts reaching on-call |
 | 6 | Application owner | Read an application's and its databases' health together, end to end |
 | 7 | SRE | Ask what happened to a user, session or request in a time window and get correlated evidence; get low-noise alerts and a weekly report |
@@ -329,7 +329,7 @@ Query safety and collector endpoint security are phase 1 work, not deferred here
   exporters cover, recorded as an ADR. It decides whether to build a custom
   Oracle collector, adopt Alloy for Oracle, or run the phase-11 comparison first,
   so a custom collector is not built only to be replaced [21]
-- Then: connectivity, probes, evidence, config, API/Web onboarding, dashboards,
+- Then: connectivity, probes, evidence, config, onboarding through the inventory file, dashboards,
   rules, investigation/report integration, an isolated test target and a runbook
 
 Exit: supported versions, least privilege, metric semantics and query load

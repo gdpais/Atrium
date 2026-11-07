@@ -2,6 +2,7 @@ package site
 
 import (
 	"bytes"
+	"encoding/json"
 	"html"
 	"net/url"
 	"os"
@@ -98,7 +99,7 @@ func checkRepoLink(t *testing.T, cfg Config, page, link string) {
 	rest := strings.TrimPrefix(link, cfg.RepoURL+"/")
 	rest, _, _ = strings.Cut(rest, "#")
 	parts := strings.SplitN(rest, "/", 3)
-	if len(parts) != 3 || (parts[0] != "blob" && parts[0] != "tree") || parts[1] != cfg.Ref {
+	if len(parts) != 3 || (parts[0] != "blob" && parts[0] != "tree" && parts[0] != "edit") || parts[1] != cfg.Ref {
 		t.Errorf("%s: malformed repository link %q", page, link)
 		return
 	}
@@ -107,7 +108,7 @@ func checkRepoLink(t *testing.T, cfg Config, page, link string) {
 		t.Errorf("%s: repository link %q: %v", page, link, err)
 		return
 	}
-	if info.IsDir() != (parts[0] == "tree") {
+	if info.IsDir() != (parts[0] == "tree") { // blob and edit links name files
 		t.Errorf("%s: repository link %q uses the wrong kind for %s", page, link, parts[2])
 	}
 }
@@ -155,7 +156,7 @@ func TestSiteContents(t *testing.T) {
 
 	home := string(files["index.html"])
 	for _, group := range []string{"New readers", "Developers"} {
-		if !strings.Contains(home, "<h2>"+group+"</h2>") {
+		if !regexp.MustCompile(`(?s)<h2 class="nav-group-title">\s*<button class="nav-group-toggle"[^>]*>\s*<span>` + group + `</span>`).MatchString(home) {
 			t.Errorf("sidebar is missing the %q audience group", group)
 		}
 	}
@@ -163,8 +164,12 @@ func TestSiteContents(t *testing.T) {
 		t.Error("an audience group's parenthetical must become its note")
 	}
 	// The ADR nests under the decisions index it shares a directory with.
-	if !regexp.MustCompile(`(?s)decisions/index\.html"[^<]*>Decisions</a>\s*<ul class="nav-list nav-children">.*?0001-example\.html`).MatchString(home) {
-		t.Error("ADR pages must nest under the decisions index in the sidebar")
+	if !regexp.MustCompile(`(?s)decisions/index\.html"[^<]*>Decisions</a>.*?<ul class="nav-list nav-children" id="[^"]+" data-collapsed>.*?0001-example\.html`).MatchString(home) {
+		t.Error("ADR pages must nest, collapsed, under the decisions index in the sidebar")
+	}
+	adr := string(files["architecture/decisions/0001-example.html"])
+	if !regexp.MustCompile(`<ul class="nav-list nav-children" id="[^"]+">`).MatchString(adr) {
+		t.Error("the ADR list must start open on an ADR page")
 	}
 	if !strings.Contains(string(files["architecture/overview.html"]), `<div class="table-wrap"><table>`) {
 		t.Error("tables must be wrapped in a scroll container")
@@ -172,6 +177,93 @@ func TestSiteContents(t *testing.T) {
 	if !strings.Contains(home, testRepoURL+"/blob/main/config/app.yaml") ||
 		!strings.Contains(home, testRepoURL+"/tree/main/docs/guides") {
 		t.Error("links to repository files and directories must point at the repository")
+	}
+}
+
+// Every page but home carries breadcrumbs that name its sidebar group, and
+// pages link to their neighbours in sidebar order.
+func TestBreadcrumbsAndPager(t *testing.T) {
+	_, files := buildFixtureSite(t)
+	home := string(files["index.html"])
+	if strings.Contains(home, `class="breadcrumbs"`) || strings.Contains(home, `rel="prev"`) {
+		t.Error("the home page has no breadcrumbs and no previous page")
+	}
+	if !strings.Contains(home, `<a class="pager-link pager-next" href="product/overview.html" rel="next">`) {
+		t.Error("home must link to the first sidebar page as next")
+	}
+	adr := string(files["architecture/decisions/0001-example.html"])
+	for _, want := range []string{
+		`<li><a href="../../index.html">Home</a></li>`,
+		`<li><span>Developers</span></li>`,
+		`<li><a href="index.html">Decisions</a></li>`,
+		`<li><span aria-current="page">0001. Example decision</span></li>`,
+		`href="index.html" rel="prev"`,
+	} {
+		if !strings.Contains(adr, want) {
+			t.Errorf("ADR page is missing %s", want)
+		}
+	}
+	if !strings.Contains(adr, testRepoURL+"/edit/main/docs/architecture/decisions/0001-example.md") {
+		t.Error("pages must link to their source for editing")
+	}
+	old := string(files["archive/old-plan.html"])
+	if !strings.Contains(old, `<li><a href="index.html">Archive</a></li>`) || strings.Contains(old, `class="pager"`) {
+		t.Error("archived pages sit under the archive in breadcrumbs and have no pager")
+	}
+}
+
+// The search index lists each page once, in sidebar order, and each h1-h3
+// section with its own text and anchor.
+func TestSearchIndexSections(t *testing.T) {
+	_, files := buildFixtureSite(t)
+	raw := string(files["assets/search-index.js"])
+	raw = strings.TrimSuffix(strings.TrimSpace(raw[strings.Index(raw, "=")+1:]), ";")
+	var index struct {
+		Pages []struct {
+			URL      string `json:"u"`
+			Archived bool   `json:"r"`
+			Order    int    `json:"o"`
+		} `json:"pages"`
+		Sections []struct {
+			Page    int    `json:"p"`
+			Heading string `json:"h"`
+			Anchor  string `json:"a"`
+			Level   int    `json:"l"`
+			Text    string `json:"x"`
+		} `json:"sections"`
+	}
+	if err := json.Unmarshal([]byte(raw), &index); err != nil {
+		t.Fatal(err)
+	}
+	byURL := map[string]int{}
+	for i, p := range index.Pages {
+		byURL[p.URL] = i
+	}
+	setup, ok := byURL["guides/setup.html"]
+	if !ok {
+		t.Fatal("guides/setup.html is not in the search index")
+	}
+	if index.Pages[byURL["index.html"]].Order != 0 || index.Pages[byURL["product/overview.html"]].Order != 1 {
+		t.Error("pages must carry their sidebar order")
+	}
+	if !index.Pages[byURL["archive/old-plan.html"]].Archived {
+		t.Error("archived pages must be marked in the index")
+	}
+	var levels []int
+	for _, s := range index.Sections {
+		if s.Page != setup {
+			continue
+		}
+		levels = append(levels, s.Level)
+		if s.Level > 1 && s.Anchor == "" {
+			t.Errorf("section %q has no anchor", s.Heading)
+		}
+		if s.Level == 1 && s.Anchor != "" {
+			t.Errorf("the page section %q must link to the page, not an anchor", s.Heading)
+		}
+	}
+	if len(levels) < 2 || levels[0] != 1 {
+		t.Errorf("setup guide sections have levels %v; want the page first, then its sections", levels)
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"heartbeat/internal/config"
 	configschema "heartbeat/packages/config-schema"
 )
@@ -20,6 +22,32 @@ func exampleFile(t *testing.T) string {
 	t.Helper()
 	_, here, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "config", "inventory.example.yaml")
+}
+
+// kind's values declare local-dev's inventory (api.inventory), which every
+// kind cluster applies: it must stay valid, and it must be the environment
+// the kind collectors report.
+func TestKindsInventoryIsValid(t *testing.T) {
+	_, here, _, _ := runtime.Caller(0)
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "infra", "helm", "values", "kind.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values struct {
+		API struct {
+			Inventory string `yaml:"inventory"`
+		} `yaml:"api"`
+	}
+	if err := yaml.Unmarshal(raw, &values); err != nil {
+		t.Fatal(err)
+	}
+	f, err := ParseFile([]byte(values.API.Inventory))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Environment.Slug != "local-dev" || len(f.Applications) != 1 || f.Applications[0].Name != "PatientZero" {
+		t.Fatalf("kind's inventory = %+v, want local-dev with PatientZero", f)
+	}
 }
 
 func TestTheExampleInventoryFileIsValid(t *testing.T) {

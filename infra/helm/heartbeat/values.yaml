@@ -186,6 +186,14 @@ api:
   # header equal to it, logging in included (ADR 0013 §8). Empty refuses
   # them all, so nobody can log in.
   siteOrigin: ""
+  # The environment's inventory file (ADR 0021), as text: its environment,
+  # applications, telemetry sources and database targets, applied to
+  # PostgreSQL by the API at start and whenever it changes
+  # (docs/reference/configuration.md#inventory-file). Keep it as its own file
+  # beside the values, checked with `api inventory check -f`, and pass it
+  # with `--set-file api.inventory=inventory.yaml` (Argo CD: fileParameters).
+  # Empty: none, and the inventory changes through the API's endpoints only.
+  inventory: ""
   # Serving unready 5s (HEARTBEAT_API_SHUTDOWN_DELAY) while the Service drops
   # the pod, HTTP drain 10s, the audit drainer's last delete 5s, then 3s to
   # send the service's last logs. Raise it with the delay.

@@ -5,18 +5,20 @@ inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
 The schema is defined by the migrations in [`db/migrations`](../../db/migrations)
-(`0001_foundations`, `0002_audit_outbox`, `0003_login_roles`, `0004_probe_definitions`, then `0005_database_targets`), which are authoritative. If this
+(`0001_foundations` to `0008_config_approvals`), which are authoritative. If this
 page and the migrations disagree, the migrations win; please fix this page.
 
 > **Status:** the schema is migrated and covered by tests. The API (`apps/api`)
-> writes `users`, `user_roles` and `audit_outbox` so far, through
-> `api users create-admin`, logins (`users.last_login_at`, upgraded
-> password hashes) and the users API, the inventory, `environments`,
-> `applications` and `application_components`, and `telemetry_sources`,
-> through `/api/v1` ([inventory](../reference/metrics-and-endpoints.md#inventory),
-> [telemetry sources](../reference/metrics-and-endpoints.md#telemetry-sources));
-> the other tables wait for its later endpoints. The
-> DB collector takes its targets from YAML, not these tables
+> writes `users`, `user_roles` and `audit_outbox` (through
+> `api users create-admin`, logins and the users API), the inventory
+> (`environments`, `applications`, `application_components`),
+> `telemetry_sources`, `database_targets`, `probe_definitions` and
+> `probe_assignments`, through `/api/v1`
+> ([inventory](../reference/metrics-and-endpoints.md#inventory)) and from the
+> environment's inventory file
+> ([applying the file](../reference/configuration.md#applying-the-file)). The
+> investigation, alerting and reporting tables wait for phase 7. The DB
+> collector takes its targets from YAML, not these tables
 > ([ADR 0002](decisions/0002-runtime-config-in-yaml.md)).
 
 ## What PostgreSQL does not store
@@ -33,7 +35,7 @@ See [ADR 0001](decisions/0001-postgresql-metadata-only.md) for the reasoning.
 | Audit records | Loki, as OTLP log records; written first to a transient outbox in the change's transaction ([ADR 0016](decisions/0016-audit-records-through-an-outbox.md)) |
 | Report binaries | Object storage or filesystem (planned); PostgreSQL keeps only `artifact_uri` |
 
-Tables deliberately **not** created in the MVP:
+Tables deliberately **not** created:
 
 | Table | Why not |
 | --- | --- |
@@ -315,7 +317,7 @@ erDiagram
 
 ### Identity and access
 
-`users`, `roles`, `user_roles`. Intentionally minimal for the MVP: a shared
+`users`, `roles`, `user_roles`. Intentionally minimal: a shared
 SRE/admin-style user is acceptable, with no permission tables, SSO tables or
 environment-scoped RBAC yet. Disable users (`status = 'disabled'`) rather than
 deleting them; foreign keys restrict deletion.
@@ -392,7 +394,8 @@ What the API keeps true of these rows [4.3]:
 ### Database observability
 
 `database_targets`, `probe_definitions`, `probe_assignments` describe monitored
-databases and versioned probe policies for the future control-plane workflow.
+databases and versioned probe policies, managed through the API or the
+inventory file.
 Targets belong to an environment; `credential_ref` is a reference only.
 
 - Probe definitions are versioned and disabled rather than deleted
@@ -418,8 +421,10 @@ Targets belong to an environment; `credential_ref` is a reference only.
   to a production target.
 - There is deliberately no direct `application → database_target` relation.
 
-Today the collector ignores these tables and reads targets and probes from
-`config/integrations.yaml`; see
+The collector never reads these tables. It reads targets and probes from its
+YAML config, into which the API renders the approved probe assignments
+(`managedCollectors`,
+[ADR 0014](decisions/0014-probe-assignments-to-runtime-config.md)); see
 [database observability](database-observability.md).
 
 ### Investigations and evidence

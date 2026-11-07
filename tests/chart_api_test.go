@@ -236,6 +236,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 	}
 	checkAPICollectorAccess(t, objects, api)
 	checkAPIIntegrations(t, objects, spec, migrate, api)
+	checkAPIInventory(t, objects, spec, migrate, api)
 	got := apiDependencies{
 		postgresHost: apiEnv["HEARTBEAT_API_POSTGRES_HOST"], postgresPort: apiEnv["HEARTBEAT_API_POSTGRES_PORT"],
 		postgresDatabase: apiEnv["HEARTBEAT_API_POSTGRES_DATABASE"], sslMode: apiEnv["HEARTBEAT_API_POSTGRES_SSLMODE"],
@@ -632,6 +633,42 @@ func checkAPIIntegrations(t *testing.T, objects map[string]object, spec podSpec,
 	}
 	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["HEARTBEAT_API_INTEGRATIONS_PATH"] != "" {
 		t.Error("migrate mounts or names the integrations config; `api migrate up` reads only PostgreSQL's settings")
+	}
+}
+
+// checkAPIInventory checks that the environment's inventory file
+// (ADR 0021), when api.inventory holds one, is the heartbeat-inventory
+// ConfigMap, mounted in the API alone as a whole directory so that its
+// updates reach the pod, and named by HEARTBEAT_API_INVENTORY_PATH; without
+// one, the API names no file.
+func checkAPIInventory(t *testing.T, objects map[string]object, spec podSpec, migrate, api container) {
+	t.Helper()
+	const dir = "/app/inventory"
+	cm, ok := objects["ConfigMap/heartbeat-inventory"]
+	path := api.env()["HEARTBEAT_API_INVENTORY_PATH"]
+	if !ok {
+		if path != "" {
+			t.Errorf("HEARTBEAT_API_INVENTORY_PATH = %q without ConfigMap/heartbeat-inventory", path)
+		}
+		return
+	}
+	if strings.TrimSpace(cm.Data["inventory.yaml"]) == "" {
+		t.Error("ConfigMap/heartbeat-inventory holds no inventory.yaml")
+	}
+	if path != dir+"/inventory.yaml" {
+		t.Errorf("HEARTBEAT_API_INVENTORY_PATH = %q, want %s/inventory.yaml", path, dir)
+	}
+	volume, whole := api.mountedAt(dir)
+	if !whole {
+		t.Fatalf("the API mounts %q at %s, want a whole read-only directory", volume, dir)
+	}
+	for _, v := range spec.Template.Spec.Volumes {
+		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "heartbeat-inventory") {
+			t.Errorf("volume %s at %s is not ConfigMap heartbeat-inventory", volume, dir)
+		}
+	}
+	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["HEARTBEAT_API_INVENTORY_PATH"] != "" {
+		t.Error("migrate mounts or names the inventory file; `api migrate up` reads only PostgreSQL's settings")
 	}
 }
 

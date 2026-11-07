@@ -36,19 +36,24 @@ Heartbeat's own objects (fixed names; one release per namespace):
 | `NetworkPolicy/api`, `/postgresql`, `/valkey` | The API's 8081 from Prometheus and `api.networkPolicy.peers`; PostgreSQL's 5432 and Valkey's 6379 from the API and their `extraPeers` only |
 | `NetworkPolicy/otel-collector`, `/prometheus`, `/alertmanager`, `/loki`, `/tempo` | Ingress to each bundled engine only from the components that use it, on their ports; see [network access](#network-access). Rendered only for an engine that is on |
 | `ConfigMap/heartbeat-integrations` | `integrations.yaml`, rendered from the `integrations` values, with the `managedCollectors` list appended to its collectors ([collectors rendered by the API](../reference/configuration.md#collectors-rendered-by-the-api)) |
+| `ConfigMap/heartbeat-inventory` | The environment's [inventory file](../reference/configuration.md#inventory-file), from `api.inventory`, mounted in the API, which applies it to PostgreSQL. Only when `api.inventory` is set; kind's values declare `local-dev` and PatientZero ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)) |
 | `ConfigMap/heartbeat-prometheus-rules` | Rule files; Prometheus mounts them at `/etc/prometheus-rules` and its config reloader reloads on change. `prometheusRules.configReloadAlert.enabled: false` leaves out the config reload alert ([rules](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules)) |
 | `ConfigMap/heartbeat-dashboards` | Dashboards; label `grafana_dashboard: "1"` for shared Grafanas with a dashboard sidecar |
 | `PersistentVolumeClaim/otel-collector-queue` | The OTel Collector's logs export queue (`otelCollectorQueue.persistence`, 1 GiB): rows the Collector accepted survive its restart. Only with the Collector, so not in the `minimal` profile. kind uses its default `standard` (local-path) class, a directory on the node that lives as long as the cluster. Without persistence the queue is an emptyDir, which survives a container restart but not a new pod |
 
 Third-party engines are pinned chart dependencies, each turned off with
-`<name>.enabled=false` so an environment can use shared services instead:
+`<name>.enabled=false` so an environment can use shared services instead.
+Their versions are pinned in
+[`Chart.yaml`](../../infra/helm/heartbeat/Chart.yaml) and `Chart.lock`, and
+Renovate proposes updates:
 
-| Dependency | Version | Engine | Notes |
-| --- | --- | --- | --- |
-| `prometheus` (prometheus-community) | 29.35.0 | Prometheus v3.15.0, Alertmanager v0.34.1 | Static and DNS discovery only, no cluster RBAC. Sends alerts to Alertmanager |
-| `grafana` (grafana-community) | 13.2.7 | Grafana 13.2.3 | Stateless; datasources and dashboards from source |
-| `loki` (grafana-community) | 18.13.7 | Loki 3.7.8 | Monolithic, filesystem storage locally |
-| `opentelemetry-collector` (alias `otelCollector`) | 0.175.0 | otelcol-contrib 0.161.0 | One-replica StatefulSet (`otel-collector-0`), so only one pod at a time opens the export queue. Metrics to Prometheus, logs to Loki through a queue on disk |
+| Dependency | Engine | Notes |
+| --- | --- | --- |
+| `prometheus` (prometheus-community) | Prometheus, Alertmanager | Static and DNS discovery only, no cluster RBAC. Sends alerts to Alertmanager |
+| `grafana` (grafana-community) | Grafana | Stateless; datasources and dashboards from source |
+| `loki` (grafana-community) | Loki | Monolithic, filesystem storage locally |
+| `tempo` (grafana-community) | Tempo | Single binary, one replica, seven days of traces on a claim ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)); off in the `minimal` profile |
+| `opentelemetry-collector` (alias `otelCollector`) | otelcol-contrib | One-replica StatefulSet (`otel-collector-0`), so only one pod at a time opens the export queue. Metrics to Prometheus, logs to Loki through a queue on disk, traces to Tempo |
 
 Rules the chart keeps (checked by `make chart-check`): only namespaced
 objects, no CRDs; deterministic rendering (no random values, lookups or
@@ -237,8 +242,9 @@ and redeploy. In production Argo CD reverts such drift.
 
 ## Production
 
-Production values live in the `heartbeat-deploy` config repository and Argo CD
-renders the chart from them (ADR 0005).
+Production values will live in the `heartbeat-deploy` config repository,
+beside each environment's inventory file, and Argo CD will render the chart
+from them (ADR 0005); neither exists yet (roadmap phase 5).
 [`production.example.yaml`](../../infra/helm/values/production.example.yaml)
 shows the shape (ECR digests, External Secrets, gp3 volumes, S3 for Loki,
 the API on Amazon RDS and ElastiCache over TLS with the RDS CA bundle mounted,

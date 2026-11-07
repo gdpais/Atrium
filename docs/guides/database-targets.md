@@ -2,10 +2,12 @@
 
 How to add, change or remove a monitored SQL Server database.
 
-Monitored targets are configured in `config/integrations.yaml`, not in
-PostgreSQL or a UI. Onboarding a database is a config change
-([ADR 0002](../architecture/decisions/0002-runtime-config-in-yaml.md)). All keys
-are described in the [configuration reference](../reference/configuration.md).
+The collector reads its targets from its YAML config (`integrations.yaml`),
+never from PostgreSQL, so onboarding a database is a config change
+([ADR 0002](../architecture/decisions/0002-runtime-config-in-yaml.md)): either
+the API renders it from approved probe assignments, or you write it by hand
+([step 2](#2-add-the-target)). All keys are described in the
+[configuration reference](../reference/configuration.md).
 
 SQL Server is the only supported engine. Adding PostgreSQL, MySQL, Oracle or
 MongoDB targets requires a new collector kind and connector in code, not just

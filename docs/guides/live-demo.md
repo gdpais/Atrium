@@ -426,10 +426,14 @@ These checks come back empty or trivial today, and that is expected:
 
 | Check | Result | Planned in |
 | --- | --- | --- |
-| `hb_k get --raw /api/v1/namespaces/heartbeat/services/loki:3100/proxy/loki/api/v1/labels` (a pod of your own would time out: Loki admits only its clients) | `{"status":"success"}` with no labels: nothing writes to Loki | Phase 2 |
 | Evidence from `blocking` and `sessions` | discarded by the default sink | Phase 7 (TODO §12.4) |
-| `hb_k exec postgresql-0 -- psql -U heartbeat -Atc 'SELECT version FROM schema_migrations'` | the newest migration's number; the tables are empty: the API has no endpoint that writes yet | Phase 3 (TODO §4.2–4.5) |
-| Probe assignments from the API | config comes only from YAML | Phase 3 (TODO §2.5) |
+| `hb_k exec postgresql-0 -- psql -U heartbeat -Atc 'SELECT count(*) FROM investigations'` | `0`: the investigation, alerting and reporting tables wait for their workers | Phase 7 (TODO §4.6–4.8) |
+| `hb_k get configmap heartbeat-prometheus-rules -o jsonpath='{.data.heartbeat-rendered\.rules\.yml}'` | `groups: []`: no rules are rendered from alert policies yet | Phase 7 (TODO §13) |
+
+The API, its inventory and probe assignments are deployed and used, but this
+page does not walk through them: see
+[run the API](local-development.md#run-the-api) and
+[onboarding SQL Server targets](database-targets.md#through-the-api).
 
 ## What to judge
 
@@ -440,9 +444,9 @@ These checks come back empty or trivial today, and that is expected:
 | Raw rows match exported samples; units and counter types as documented | Probe catalog and descriptors (TODO §2.3, §2.4) | A signal you need cannot be expressed as one query plus descriptors |
 | `lock_timeout` 1000, `deadlock_priority` -5, no access to application data, sysadmin alert | Least privilege and query safety (TODO §2.2) | The grants are not acceptable to DBAs |
 | Frozen server: collector stays ready, bounded stuck call | Hard deadline (TODO §2.6) | Recovery takes too long |
-| One broken probe fails the target; its healthy probes' series are cleared during backoff | Per-target failure handling (TODO §2.6; per-probe isolation is a follow-up) | Losing every probe of a target for up to 5 minutes because one probe is broken is not acceptable |
+| One broken probe fails only itself; the target stays up and its other probes keep collecting | Per-probe failure isolation (TODO §2.6) | A broken probe goes unnoticed because its target stays up |
 | `blocking_session_id` as a label | Probe label choice | Session IDs churn and create new series; the detail may belong in evidence instead |
-| Evidence, Loki and PostgreSQL unused | Phases 2, 3 and 7 | Something you need now depends on them |
+| Collector evidence and the investigation, alerting and reporting tables unused | Phase 7 | Something you need now depends on them |
 
 ## Clean up
 
