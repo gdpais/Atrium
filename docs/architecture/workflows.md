@@ -6,10 +6,11 @@ through the control-plane API and the inventory as code
 ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)); people read
 the results in Grafana.
 
-> **Status:** mostly planned. Implemented today: the stock OpenTelemetry
-> Collector pipeline, OutSystems 11 log extraction by the DB collector,
-> Prometheus rules, Alertmanager routing, the PostgreSQL schema and the API's
-> inventory. The session analyzer and reporting service are empty scaffolds. See the [current runtime](overview.md#current-runtime)
+> **Status:** ingestion is built; investigation and reporting are planned.
+> Implemented today: the stock OpenTelemetry Collector pipeline, OutSystems 11
+> log extraction by the DB collector, Prometheus rules, Alertmanager routing,
+> the PostgreSQL schema, the API's inventory and audit records. The session
+> analyzer and reporting service are empty scaffolds. See the [current runtime](overview.md#current-runtime)
 > and the [roadmap](../product/roadmap.md).
 
 All four workflows follow the same pattern:
@@ -26,8 +27,8 @@ All four workflows follow the same pattern:
 
 | Service | Owns | Status |
 | --- | --- | --- |
-| API / control plane (`apps/api`) | Inventory CRUD, telemetry source and database target onboarding, alert policy and report schedule CRUD, users/roles, investigation APIs, Grafana deep links from YAML templates, audit records. Uses PostgreSQL for durable data and Redis for queues, idempotency keys and cached summaries. | Bootstrap built: health, readiness, metrics and the OpenAPI spec; audit records through the outbox, and `api users create-admin`; login, logout and cookie sessions with roles, and users and their roles managed by admins [4.2]; environments, applications and components [4.3]; telemetry sources and their observation [4.4] |
-| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | Planned [5] |
+| API / control plane (`apps/api`) | Inventory CRUD, telemetry source and database target onboarding, alert policy and report schedule CRUD, users/roles, investigation APIs, Grafana deep links from YAML templates, audit records. Uses PostgreSQL for durable data and Redis for queues, idempotency keys and cached summaries. | Built for onboarding: login, cookie sessions and roles, users managed by admins [4.2]; environments, applications and components [4.3]; telemetry sources and their observation [4.4]; database targets, probe definitions and assignments rendered to `managedCollectors` [4.5]; deep links [4.9]; audit records through the outbox [4.10]. Investigation, alerting and reporting APIs come with their workers in phase 7 [4.6–4.8] |
+| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | In progress [5]: the API applies the mounted file; the offline render and the Grafana inventory are next |
 | Session analyzer (`services/session-analyzer`) | Investigation jobs: correlation across Prometheus, Loki, collector evidence and metadata; anomaly windows; adaptive baseline computation. | Planned |
 | Reporting (`services/reporting`) | Scheduled and on-demand report jobs, rendering, delivery, run metadata. | Planned |
 
@@ -85,7 +86,7 @@ components, and evidence links into Grafana/Loki.
    are cached in Redis.
 6. The API returns the timeline and links; the evidence opens in Grafana.
 
-**Non-goals in the MVP:** no session table, no session identity mapping table,
+**Non-goals:** no session table, no session identity mapping table,
 no raw evidence blobs in PostgreSQL. Session correlation is recomputed from
 Loki/Prometheus at investigation time.
 
@@ -101,8 +102,9 @@ Validate which OutSystems fields are reliably present early.
   into Prometheus-compatible rules. Baselines must be explainable, because
   opaque adaptive alerting erodes trust.
 - **Evaluation** happens in Prometheus. **Routing, grouping, deduplication,
-  silencing and delivery** happen in Alertmanager (email, webhook, later
-  PagerDuty/Slack).
+  silencing and delivery** happen in Alertmanager (email, webhooks, and the
+  chat receivers chosen for production in
+  [ADR 0005](decisions/0005-production-delivery-and-operations-defaults.md)).
 - **PostgreSQL** stores policy intent (`alert_policies`), route intent
   (`notification_routes`) and alert history (`alert_events`). It never evaluates
   alerts. Do not build a second alert engine.
@@ -135,7 +137,7 @@ unsafely.
    `artifact_uri`.
 5. The API exposes run status and downloads.
 
-**MVP report content:** application/service health summary, top regressions,
+**First report content:** application/service health summary, top regressions,
 recurring wait/lock hotspots, alert noise summary, SLA/SLO deltas where
 available. The first target is a weekly summary delivered by email.
 

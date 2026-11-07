@@ -2,8 +2,8 @@
 
 - Status: Accepted. Extraction, the eight log-type queries, the watermark
   volume, the Loki path, derived metrics and dashboards are built. The survey
-  of a real logging database ran on 2026-10-19: the fixtures hold its DDL;
-  the review of each query against it is pending
+  of a real logging database ran on 2026-10-19: the fixtures hold its DDL,
+  and each query has been reviewed against it
   ([TODO 3.3](../../../TODO.md)).
 - Date: 2026-10-10. Amended 2026-10-26: the recount (below) shows the rows
   committed past the lag, which the log delay metric could not. Amended

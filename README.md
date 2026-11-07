@@ -17,16 +17,19 @@ on every push; `make docs-site` builds it locally into `docs/site/`.
 
 ## Status
 
-Early MVP construction. See the [roadmap](docs/product/roadmap.md) and
-[TODO.md](TODO.md).
+Phases 0 and 1 are done, phase 2 (OutSystems ingest) waits for its outcome
+demo and release, phase 3 (the API) for its validation, and phase 4
+(inventory as code) is in progress; nothing runs in production yet. See the
+[product overview](docs/product/overview.md#current-status), the
+[roadmap](docs/product/roadmap.md) and [TODO.md](TODO.md).
 
 | Component | Path | Status |
 | --- | --- | --- |
-| DB collector (SQL Server) | `services/db-collector` | Phase 1 done: probes, hot reload, failure isolation, readiness, secured endpoints, least-privilege login, counters and self-metrics |
-| Kubernetes delivery | `infra/helm`, `infra/kind` | One Helm chart for kind, CI and production: the DB collector plus pinned Prometheus, Alertmanager, Grafana, Loki and OTel Collector; kind workflow and acceptance tests |
-| Metadata schema | `db/migrations` | Migrated and tested; no service uses it yet |
+| DB collector (SQL Server, OutSystems 11 logs) | `services/db-collector` | SQL Server probes, hot reload, failure isolation, readiness, secured endpoints, least-privilege login, counters and self-metrics; OutSystems 11 log extraction to Loki with derived metrics |
+| Kubernetes delivery | `infra/helm`, `infra/kind` | One Helm chart for kind, CI and production: the DB collector and the API plus pinned Prometheus, Alertmanager, Grafana, Loki, Tempo and OTel Collector; kind workflow and acceptance tests; production (EKS, Argo CD) not built |
+| Metadata schema | `db/migrations` | Migrated and tested; written by the API |
 | Shared contracts | `packages/` | JSON schemas for config and telemetry payloads |
-| API | `apps/api` | Bootstrap: health, readiness on PostgreSQL and Redis (Valkey), metrics, the OpenAPI spec and `api migrate up`; deployed by the chart with its PostgreSQL and Valkey, migrating in an init container |
+| API | `apps/api` | Login and roles, the inventory, telemetry sources, database targets and probe assignments rendered to the collector's config, Grafana deep links, audit records; applies the environment's inventory file; deployed by the chart with its PostgreSQL and Valkey |
 | Session analyzer, reporting | `services/session-analyzer`, `services/reporting` | Not started |
 
 ## Quick start
@@ -83,16 +86,17 @@ and the [changelog](CHANGELOG.md).
 apps/
   api/                 control-plane API: OpenAPI spec, HTTP service, sqlc queries
 services/
-  db-collector/        SQL Server collector
+  db-collector/        SQL Server and OutSystems 11 log collector
   session-analyzer/    investigation and baseline worker (scaffold)
   reporting/           report worker (scaffold)
 internal/config/       shared integrations config manager
 internal/credentials/  shared credential lookup (HEARTBEAT_CREDENTIAL_<REF>)
 packages/
-  config-schema/       integrations YAML JSON schema
+  config-schema/       JSON schemas: integrations, inventory file, telemetry sources
   telemetry-contracts/ shared payload contracts
 db/migrations/         PostgreSQL schema migrations, embedded in the API
-config/                integrations.yaml for running a service outside Kubernetes
+config/                integrations.yaml for running a service outside Kubernetes;
+                       inventory.example.yaml, an example inventory file
 infra/helm/heartbeat/  Helm chart: workloads, engine config, rules, dashboards
 infra/helm/values/     values per environment (kind, minimal, SQL Server sandbox,
                        production example, external platform example)
@@ -100,6 +104,7 @@ infra/kind/            local kind cluster config
 infra/docker-compose.test.yml  disposable PostgreSQL fixture for integration tests
 tests/                 repository, migration and integration tests
 tools/docsite/         Markdown-to-HTML docs site generator (separate Go module)
+tools/patientzero/     synthetic OutSystems 11 test application (separate Go module)
 docs/                  documentation (index: docs/README.md)
 ```
 

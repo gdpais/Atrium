@@ -6,15 +6,20 @@ correlated across logs. The decision behind the ingest path is
 [ADR 0008](decisions/0008-outsystems-11-log-extraction.md); the operator flow
 is in [workflows](workflows.md#application-telemetry-ingestion-outsystems-first).
 
-> **Status: partly built.** Extraction to the OTel Collector and the derived
-> metrics (data path steps 1, 2, 4 and 5) run as the db-collector's
-> `outsystems_logs` kind, switched off by default
+> **Status: built for OutSystems 11 self-managed** (roadmap phase 2).
+> Extraction to the OTel Collector and the derived metrics (data path steps
+> 1, 2, 4 and 5) run as the db-collector's `outsystems_logs` kind, switched
+> off by default
 > ([configuration](../reference/configuration.md#outsystems_logs-collectors));
-> the chart ships their recording rules and SLO alerts. Loki indexes
-> `outsystems.log_type` as a label (`outsystems_log_type` in LogQL). Request
-> traces are designed, not built. Field names and log types follow
-> OutSystems 11; they are confirmed against the SRE team's queries and the
-> logging database DDL before the queries are reviewed.
+> the chart ships their recording rules, SLO alerts and dashboards. Loki
+> indexes `outsystems.log_type` as a label (`outsystems_log_type` in LogQL).
+> The request timeline from logs is built
+> ([step A](#step-a-request-timeline-from-logs-with-phase-2)); synthesized
+> traces are designed, not built
+> ([step B](#step-b-synthesized-otlp-traces-after-step-a)). Field names and
+> log types follow OutSystems 11, and each log-type query was reviewed
+> against a real logging database's surveyed DDL
+> ([open questions](#open-questions)).
 
 ## Scope
 

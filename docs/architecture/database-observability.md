@@ -3,12 +3,12 @@
 ## Scope
 - SQL Server is the first DB engine in scope.
 - Oracle is the intended future monitored engine; PostgreSQL is Heartbeat's metadata store, not a monitoring target in the current scope.
-- PostgreSQL can store target metadata, probe definitions, and probe assignments for future control-plane workflows.
-- Active collector runtime desired state is not read from PostgreSQL for MVP.
+- PostgreSQL stores target metadata, probe definitions and probe assignments for the control plane (the API and the inventory file).
+- The collector never reads PostgreSQL: its desired state is YAML, into which the API renders approved probe assignments ([ADR 0014](decisions/0014-probe-assignments-to-runtime-config.md)).
 
 ## SQL Server signal coverage
 
-Target signal set for the MVP, compared with what the built-in probe catalog
+Target signal set for the product, compared with what the built-in probe catalog
 emits today. Metric names and labels are listed in the
 [metrics reference](../reference/metrics-and-endpoints.md#sql-server-probe-metrics).
 
@@ -220,6 +220,6 @@ before merging any selected integration or planning production adoption.
 
 ## Metadata model
 
-The planned control-plane tables (`database_targets`, `probe_definitions`,
+The control-plane tables (`database_targets`, `probe_definitions`,
 `probe_assignments`) and the deferred asset/topology extension are described in
 the [data model](data-model.md#database-observability).
