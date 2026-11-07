@@ -483,11 +483,11 @@ read them with their APIs and workers [6, 12–14], not here. Remaining work,
 in order, one pull request each: file schema and offline validation (done)
 → one writer per row (done) → the API applies the file (done) → the chart mounts it and kind
 onboards PatientZero from it (done) → offline render of assignments (done) → the inventory
-in Grafana → a guide → this stage's validation.
+in Grafana (done) → a guide (done) → this stage's validation (done).
 
 - [x] Decide how the inventory is managed: as code, with no Web UI ([ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md))
 - [x] Remove the Web UI built in 5.1–5.2: `apps/web`, the API's static handler and CSP, the API image's Node stage, the `web` CI job, Playwright in `kind-e2e`, Node in `tools-check` and Renovate
-- [ ] Validate this stage: PatientZero's environment, application, OutSystems source, database target and probe assignments applied from the inventory file on kind, audited as `config`, refused by the API's writes, rendered into `managedCollectors` and run by the collector; the inventory listed in Grafana [16.3]
+- [x] Validate this stage (2026-11-07): PatientZero's environment, application, OutSystems source, database target and probe assignments applied from the inventory file on kind, audited as `config`, refused by the API's writes, rendered into `managedCollectors` and run by the collector; the inventory listed in Grafana [16.3] ([`kind end-to-end` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/42409324809/job/128516821642), and locally on `2562b69`, 55 checks: `local-dev`, PatientZero and its source managed by the file, created by actor `config` in Loki, a PATCH of `local-dev` 409; the `patientzero` target and its 3 assignments config-managed and approved by the file, a PATCH and a DELETE of the target 409, run by the collector from the same render with their sessions in Prometheus; the info metrics and the *Heartbeat Inventory* dashboard list PatientZero). Custom probe definitions in the file [5.1] are not part of this exit
 
 ### 5.1 Inventory file
 - [x] JSON Schema for the inventory file in `packages/config-schema` (one environment, its applications with components and telemetry sources, its database targets with built-in probes), closed objects, credentials only as references; a Go loader (`inventory.ParseFile`) that also runs the API's own checks offline: fields, uniqueness, source configs, probe policies against the collector's catalog, one interval per target; every problem reported with its place, never quoting a credential reference ([inventory file](docs/reference/configuration.md#inventory-file))
