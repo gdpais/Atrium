@@ -178,3 +178,127 @@ func TestDashboardsAreConsistent(t *testing.T) {
 		}
 	}
 }
+
+// The inventory dashboard's data links are the API's deep links [4.9]:
+// each deep_link_template of the chart's integrations, with Grafana's
+// field values for the API's variables. A template changed, added or
+// removed without its link fails here.
+func TestInventoryDashboardLinksAreTheLinkTemplates(t *testing.T) {
+	root := repoRoot(t)
+	content, err := os.ReadFile(filepath.Join(root, "infra/helm/heartbeat/values.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var values struct {
+		Integrations struct {
+			Dashboards struct {
+				DashboardTemplates map[string]string `yaml:"dashboard_templates"`
+				DeepLinkTemplates  map[string]string `yaml:"deep_link_templates"`
+			} `yaml:"dashboards"`
+		} `yaml:"integrations"`
+	}
+	if err := yaml.Unmarshal(content, &values); err != nil {
+		t.Fatal(err)
+	}
+	templates := values.Integrations.Dashboards.DeepLinkTemplates
+	if len(templates) == 0 {
+		t.Fatal("no integrations.dashboards.deep_link_templates in values.yaml")
+	}
+	if got := values.Integrations.Dashboards.DashboardTemplates["heartbeat-inventory"]; got != "/d/heartbeat-inventory" {
+		t.Errorf("dashboard_templates lists heartbeat-inventory as %q, want /d/heartbeat-inventory", got)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, dashboardDir, "heartbeat-inventory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var board struct {
+		Panels []struct {
+			FieldConfig struct {
+				Overrides []struct {
+					Matcher struct {
+						ID      string `json:"id"`
+						Options string `json:"options"`
+					} `json:"matcher"`
+					Properties []struct {
+						ID    string          `json:"id"`
+						Value json.RawMessage `json:"value"`
+					} `json:"properties"`
+				} `json:"overrides"`
+			} `json:"fieldConfig"`
+		} `json:"panels"`
+	}
+	if err := json.Unmarshal(raw, &board); err != nil {
+		t.Fatal(err)
+	}
+	// The links on each column, by the column's (label's) name.
+	links := map[string][]string{}
+	for _, p := range board.Panels {
+		for _, o := range p.FieldConfig.Overrides {
+			for _, prop := range o.Properties {
+				if prop.ID != "links" {
+					continue
+				}
+				var ls []struct {
+					URL string `json:"url"`
+				}
+				if err := json.Unmarshal(prop.Value, &ls); err != nil {
+					t.Fatal(err)
+				}
+				for _, l := range ls {
+					links[o.Matcher.Options] = append(links[o.Matcher.Options], l.URL)
+				}
+			}
+		}
+	}
+
+	// The API's variables as Grafana fills them in a row of the table: the
+	// clicked value is the application_name or the target, the row's
+	// environment, and the dashboard's time range.
+	grafana := strings.NewReplacer(
+		"${environment}", "${__data.fields.environment}",
+		"${application}", "${__value.raw}",
+		"${target}", "${__value.raw}",
+		"from=${from}&to=${to}", "${__url_time_range}",
+	)
+	for name, template := range templates {
+		column := "target"
+		if strings.Contains(template, "${application}") || strings.Contains(template, "${logs_query}") {
+			column = "application_name"
+		}
+		prefix, isLogs := strings.CutSuffix(template, "${logs_query}")
+		found := false
+		for _, url := range links[column] {
+			if !isLogs {
+				found = found || url == grafana.Replace(template)
+				continue
+			}
+			// ${logs_query} is the Explore pane the API's Grafana adapter
+			// writes: the application's Loki stream selector.
+			rest, ok := strings.CutPrefix(url, prefix)
+			if !ok {
+				continue
+			}
+			var pane struct {
+				Datasource string `json:"datasource"`
+				Queries    []struct {
+					Datasource struct{ Type, UID string } `json:"datasource"`
+					Expr       string                     `json:"expr"`
+				} `json:"queries"`
+				Range struct{ From, To string } `json:"range"`
+			}
+			if err := json.Unmarshal([]byte(rest), &pane); err != nil {
+				t.Errorf("the %s link's pane is not JSON: %v", name, err)
+				continue
+			}
+			found = found || pane.Datasource == "loki" && len(pane.Queries) == 1 &&
+				pane.Queries[0].Datasource.UID == "loki" && pane.Queries[0].Datasource.Type == "loki" &&
+				pane.Queries[0].Expr == `{service_name="${__value.raw}", deployment_environment_name="${__data.fields.environment}"}` &&
+				pane.Range.From == "${__from}" && pane.Range.To == "${__to}"
+		}
+		if !found {
+			t.Errorf("deep link template %s (%s) has no link on the inventory dashboard's %s column; its links: %q",
+				name, template, column, links[column])
+		}
+	}
+}

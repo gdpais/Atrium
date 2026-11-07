@@ -97,7 +97,7 @@ list.
 | OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the outcome demo and the release |
 | Heartbeat's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Heartbeat Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Left: the phase 3 validation |
-| Inventory as code (replaces the Web UI) | In progress: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, and kind declares PatientZero in it; next the offline render of assignments, then the inventory in Grafana |
+| Inventory as code (replaces the Web UI) | In progress: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health; next kind's inventory declares PatientZero's database target |
 | Session analyzer, reporting | Not started (phase 7) |
 
 ## Risks

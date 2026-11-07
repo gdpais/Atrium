@@ -408,6 +408,12 @@ on kind:
 curl -sS -b cookies 'localhost:8081/api/v1/applications/<id>/links?from=2026-11-04T09:00:00Z&to=2026-11-04T10:00:00Z'
 ```
 
+The *Heartbeat Inventory* dashboard carries the same links on its sources'
+`application_name` and its targets' `target`, with Grafana's row values for
+the variables; a test (`tests/dashboards_test.go`) fails when a shipped
+template and the dashboard's link differ. A deployment that changes
+`deep_link_templates` gets the new links from the API, not on the dashboard.
+
 The API does not query the platform: a log search runs in Grafana, from
 the link. Searching logs from the API (to check that an `application_name`
 has logs, or for investigations) waits for the query adapters [6].
@@ -996,6 +1002,13 @@ apply; whether a source is observed comes from the collector's
 `GET /admin/config`, which the API reads at most every 15 seconds (as for
 [telemetry sources](#telemetry-sources)). Every replica reports the same
 rows, so aggregate away `instance`: `max without (instance) (heartbeat_api_inventory_application_info)`.
+The chart's *Heartbeat Inventory* dashboard (`heartbeat-inventory`) lists them
+beside their health: each source with its observation, its requests and
+failed share from the [derived OutSystems metrics](#derived-outsystems-metrics)
+and its environment's extraction lag; each database target with
+`heartbeat_collector_target_up`, the time since its last success and its
+failures in a row. Its tables join on `environment` and on `application_name`
+or `target`, the labels those series share.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |

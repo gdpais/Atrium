@@ -4,6 +4,7 @@ dashboards:
   dashboard_templates:
     sqlserver-overview: /d/sqlserver-overview
     heartbeat-service: /d/heartbeat-service
+    heartbeat-inventory: /d/heartbeat-inventory
     outsystems-overview: /d/outsystems-overview
   deep_link_templates:
     logs-explore: /explore?orgId=1&left=${logs_query}
