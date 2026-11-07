@@ -127,29 +127,12 @@ probe deadline.
 
 ## 2. Add the target
 
-There are three ways: in the environment's inventory file, through the API,
-or by hand in the values.
-
-### In the inventory file
-
-List the target under `database_targets` of the environment's
-[inventory file](../reference/configuration.md#inventory-file), with its
-probes, and open a pull request; the API applies the file once it is
-deployed, and the merge approves the probes. The rows are the file's: the
-API's update and delete of them answer 409. The API renders them into
-`managedCollectors` as it renders the assignments approved through it
-(below), and they show `applied` once the collector runs them. kind's
-inventory file declares PatientZero's target this way:
-
-```yaml
-database_targets:
-  - name: patientzero
-    host: heartbeat-sqlserver-dev
-    credential_ref: env/sqlserver-dev
-    probes:
-      - name: sessions
-        interval_seconds: 30
-```
+There are three ways. The recommended one is the environment's inventory
+file: see [onboarding by pull request](onboarding-by-pull-request.md). The
+other two are through the API, or by hand in the values. On kind, the
+inventory file in `kind.yaml` declares PatientZero's target, `patientzero`,
+on the sandbox SQL Server
+([local development](local-development.md#change-collector-config-without-restarting)).
 
 ### Through the API
 
