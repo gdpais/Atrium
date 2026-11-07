@@ -503,7 +503,7 @@ in Grafana → a guide → this stage's validation.
 ### 5.3 Reading the inventory
 - [ ] Info metrics on the API's `/metrics` for the inventory (environment, application, status, manager; target engine; source observed), with bounded cardinality
 - [ ] A Grafana dashboard that lists the inventory beside its health, with the API's deep links
-- [ ] Guide: onboard an application, a source and a database target by pull request (`docs/guides/`)
+- [x] Guide: onboard an application, a source and a database target by pull request ([onboarding by pull request](docs/guides/onboarding-by-pull-request.md))
 - [ ] Tokens for machine clients of the API, when the first one needs them (ADR 0021 §7)
 
 ---
