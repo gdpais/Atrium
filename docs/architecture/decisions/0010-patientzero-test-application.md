@@ -1,7 +1,7 @@
 # 0010. PatientZero, a synthetic OutSystems application to test against
 
-- Status: Accepted; first slice being built (service, databases, three entry
-  points, k6 load). Updated 2026-10-19: the survey ran and the replica is gone
+- Status: Accepted; first slice built (service, databases, three entry
+  points, k6 load, scenario runner) [TODO 16.5]. Updated 2026-10-19: the survey ran and the replica is gone
   (see Context); its DDL and aggregates are what PatientZero uses. Updated
   2026-10-23: the `bad-deploy` and `slow-sql` rows below describe those
   scenarios as built.
