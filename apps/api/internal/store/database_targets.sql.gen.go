@@ -26,12 +26,13 @@ func (q *Queries) CountDatabaseTargetAssignments(ctx context.Context, databaseTa
 
 const createDatabaseTarget = `-- name: CreateDatabaseTarget :one
 
-insert into database_targets (environment_id, engine, name, host, port, database_name, status, credential_ref, labels, managed_by)
-values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10::text, 'api'))
+insert into database_targets (id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, managed_by)
+values (coalesce($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, coalesce($11::text, 'api'))
 returning id, environment_id, engine, name, host, port, database_name, status, credential_ref, labels, created_at, updated_at, managed_by
 `
 
 type CreateDatabaseTargetParams struct {
+	ID            pgtype.UUID
 	EnvironmentID pgtype.UUID
 	Engine        string
 	Name          string
@@ -50,9 +51,10 @@ type CreateDatabaseTargetParams struct {
 // Fails with a foreign key violation when the environment does not exist,
 // and with a unique violation when the environment has a target of that
 // name, or of that engine, host, port and database.
-// managed_by is api when null.
+// managed_by is api when null; id is a random UUID when null.
 func (q *Queries) CreateDatabaseTarget(ctx context.Context, arg CreateDatabaseTargetParams) (DatabaseTarget, error) {
 	row := q.db.QueryRow(ctx, createDatabaseTarget,
+		arg.ID,
 		arg.EnvironmentID,
 		arg.Engine,
 		arg.Name,

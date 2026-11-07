@@ -236,7 +236,7 @@ join environments e on e.id = t.environment_id
 join probe_definitions d on d.id = a.probe_definition_id
 where a.enabled and a.state in ('approved', 'proposed', 'applied')
   and t.status = 'active' and d.enabled
-order by t.id, a.interval_seconds, probe_name, a.id
+order by t.id, a.interval_seconds, coalesce(d.overrides, d.name) collate "C", a.id
 `
 
 type ListRenderedProbeAssignmentsRow struct {
@@ -263,7 +263,9 @@ type ListRenderedProbeAssignmentsRow struct {
 // What a render holds (ADR 0014 §2): the enabled assignments in an approved
 // state, of active targets and enabled definitions, with their target, its
 // environment and the definition version each pins. updated_at lets the
-// applied check see that an assignment changed after it was listed.
+// applied check see that an assignment changed after it was listed. Probe
+// names sort byte-wise (collate "C"), as RenderFile sorts them, whatever
+// the database's locale.
 func (q *Queries) ListRenderedProbeAssignments(ctx context.Context) ([]ListRenderedProbeAssignmentsRow, error) {
 	rows, err := q.db.Query(ctx, listRenderedProbeAssignments)
 	if err != nil {

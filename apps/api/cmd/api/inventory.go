@@ -48,3 +48,32 @@ func checkInventory(args []string, stdout io.Writer) error {
 		*path, file.Environment.Slug, len(file.Applications), components, sources, len(file.DatabaseTargets), probes)
 	return err
 }
+
+// renderInventory runs `api inventory render -f FILE`: it renders the
+// probe assignments of an environment's inventory file into the
+// managedCollectors values file (ADR 0021 §5, ADR 0014's format) with no
+// database or other setting, so the pull request that changes an
+// assignment carries the collectors it renders. A file that is not valid
+// is reported as `inventory check` reports it, and nothing is written.
+func renderInventory(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("inventory render", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	path := flags.String("f", "", "")
+	if err := flags.Parse(args); err != nil || flags.NArg() > 0 || *path == "" {
+		return errUsage
+	}
+	file, err := inventory.LoadFile(*path)
+	var ferr *inventory.FileError
+	switch {
+	case errors.As(err, &ferr):
+		return fmt.Errorf("%s: %w: %v", *path, errInvalidInventory, ferr)
+	case err != nil:
+		return err
+	}
+	rendered, err := inventory.RenderFile(file)
+	if err != nil {
+		return err
+	}
+	_, err = stdout.Write(rendered)
+	return err
+}

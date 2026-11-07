@@ -48,7 +48,9 @@ not know which collectors came from the API.
 The API renders the file from approved assignments
 ([probe assignments](metrics-and-endpoints.md#probe-assignments)): on kind,
 `make kind-assignments` deploys it; in production a pull request to
-`heartbeat-deploy` will carry it [18]. Empty or absent, the chart renders
+`heartbeat-deploy` will carry it [18]. An environment's inventory file
+renders the same file offline, with `api inventory render`
+([rendering the file's collectors](#rendering-the-files-collectors)). Empty or absent, the chart renders
 exactly what `integrations` alone renders. Managed targets count like
 hand-written ones: the collector's egress NetworkPolicy opens their ports,
 and the install notes count them.
@@ -463,6 +465,37 @@ once, `heartbeat_api_inventory_applies_total{result="invalid"}` counts it
 unaffected. A file refused by the rows is tried again at each read, as those
 rows may change; an invalid one when it changes. Rows of other environments
 are never read or changed.
+
+### Rendering the file's collectors
+
+The probes in the file render to the `managedCollectors` values file
+([collectors rendered by the API](#collectors-rendered-by-the-api)) without a database, so the pull request that
+changes a probe carries the collectors it makes (ADR 0021 §5):
+
+```bash
+go run ./apps/api/cmd/api inventory render -f config/inventory.example.yaml > managed-collectors.yaml
+```
+
+It checks the file as `inventory check` does; a file that is not valid
+writes nothing to standard output, prints its problems to standard error
+and exits 1. The render follows the API's own rules: one `sqlserver`
+collector per active target with enabled probes, at the probes' interval,
+with the ID `api-<target id>-<interval>s`, probes sorted by name, and
+checked with the integrations schema and the collector's loader. A disabled
+target or probe, and a target with no probes, render nothing; a built-in
+probe runs the collector's own query, and its timeout unless the file sets
+one.
+
+A target the file creates gets a fixed ID, a version 5 UUID of the
+environment's `slug` and the target's `name`, so the offline render names
+the collectors the API renders once it has applied the file: when every
+assignment the API holds comes from this file, `inventory render` and
+`api probe-assignments render`, which renders every environment's, print
+the same bytes. The
+configuration repository's CI will fail when the committed render is stale
+[18]. On kind, `make kind-assignments` keeps rendering in the API's pod,
+from PostgreSQL, which holds the file's assignments and those made through
+the API.
 
 ## Credential resolution
 
