@@ -753,7 +753,7 @@ pass "the inventory's info metrics list PatientZero (config) and the API's sourc
 # table's own query, for every environment, lists the three sources.
 svc_get grafana:3000 /api/dashboards/uid/heartbeat-inventory >"$WORK/inventory-dashboard.json" ||
 	fail "Grafana has no heartbeat-inventory dashboard"
-sources_query=$(jq -r '.dashboard.panels[] | select(.title == "Telemetry sources") | .targets[] | select(.refId == "A") | .expr' \
+sources_query=$(jq -r '.dashboard.panels[] | select(.type == "table" and .title == "Telemetry sources") | .targets[] | select(.refId == "A") | .expr' \
 	"$WORK/inventory-dashboard.json" | sed 's/\$environment/.*/g')
 [ -n "$sources_query" ] || fail "the inventory dashboard has no Telemetry sources query"
 dashboard_lists_sources() {
