@@ -68,7 +68,7 @@ so:
 | Stop a probe | `enabled: false`, or remove it |
 | Rename an application | Rename it: a new row is created and the old one disabled |
 | Rename a target | Not possible: a disabled target keeps its name and its server. Add a new target, and disable the old one in a later change |
-| Take over a row made through the API | Not possible: a file that lists it is refused. Delete the row through the API first, then add it to the file |
+| Take over a row made through the API | Not possible: a file that lists it is refused. A row with nothing depending on it can be deleted through the API first; a target with probe assignments cannot, and stays the API's |
 
 ## 3. Check and render
 
