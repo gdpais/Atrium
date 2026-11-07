@@ -749,6 +749,18 @@ inventory_listed() {
 wait_for 60 "the inventory in the API's info metrics, scraped" inventory_listed
 svc_get api:8081 /metrics | grep -E '^heartbeat_api_inventory_[a-z_]+_info[{]' | sed 's/^/      /'
 pass "the inventory's info metrics list PatientZero (config) and the API's sources with their observation"
+# The inventory dashboard [5.3], as Grafana provisioned it: its sources
+# table's own query, for every environment, lists the three sources.
+svc_get grafana:3000 /api/dashboards/uid/heartbeat-inventory >"$WORK/inventory-dashboard.json" ||
+	fail "Grafana has no heartbeat-inventory dashboard"
+sources_query=$(jq -r '.dashboard.panels[] | select(.title == "Telemetry sources") | .targets[] | select(.refId == "A") | .expr' \
+	"$WORK/inventory-dashboard.json" | sed 's/\$environment/.*/g')
+[ -n "$sources_query" ] || fail "the inventory dashboard has no Telemetry sources query"
+dashboard_lists_sources() {
+	prom "$sources_query" | jq -e '[.data.result[].metric.application_name] | contains(["PatientZero", "E2eShop", "E2eNobodyReads"])'
+}
+wait_for 30 "the inventory dashboard's sources table" dashboard_lists_sources
+pass "Grafana's inventory dashboard lists PatientZero, E2eShop and E2eNobodyReads in its sources table"
 
 # Deep links [4.9]: the API renders the templates of the integrations.yaml
 # the collector runs from, mounted from the same ConfigMap. E2eShop's
