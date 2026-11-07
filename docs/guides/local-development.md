@@ -399,7 +399,7 @@ A migration is a `NNNN_name.up.sql` and `NNNN_name.down.sql` pair in
 written expand then contract ([CONTRIBUTING](../../CONTRIBUTING.md)). The API
 embeds the files and `api migrate up` applies the new ones with
 golang-migrate, recording the version in `schema_migrations`; in a cluster
-an init container will run it before the API starts [4.1]. Until the
+the API's `migrate` init container runs it before the API starts. Until the
 database has the newest version the API embeds, its readiness check fails,
 so a replica of a new release never serves an old schema. An older release
 started against a newer schema (a rollback) migrates nothing and is ready.
