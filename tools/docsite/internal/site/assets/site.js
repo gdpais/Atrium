@@ -19,6 +19,12 @@
     } catch (e) { /* not persisted */ }
   }
 
+  // A fragment such as #%E0 is not valid percent-encoding; decoding must not
+  // throw, or the rest of the page's behaviour would not start.
+  function decodeId(fragment) {
+    try { return decodeURIComponent(fragment); } catch (e) { return fragment; }
+  }
+
   function isTyping(target) {
     var tag = ((target && target.tagName) || "").toLowerCase();
     return tag === "input" || tag === "textarea" || tag === "select" || !!(target && target.isContentEditable);
@@ -142,7 +148,7 @@
     var links = Array.prototype.slice.call(document.querySelectorAll(".toc li a"));
     if (!toc || !links.length) return;
     var targets = links.map(function (a) {
-      return document.getElementById(decodeURIComponent(a.getAttribute("href").slice(1)));
+      return document.getElementById(decodeId(a.getAttribute("href").slice(1)));
     });
     var top = 120;
     var picked = -1;
@@ -178,14 +184,14 @@
       schedule();
     }
     links.forEach(function (a) {
-      a.addEventListener("click", function () { pick(decodeURIComponent(a.getAttribute("href").slice(1))); });
+      a.addEventListener("click", function () { pick(decodeId(a.getAttribute("href").slice(1))); });
     });
     ["wheel", "touchmove", "keydown"].forEach(function (type) {
       window.addEventListener(type, function () { picked = -1; }, { passive: true });
     });
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
-    if (window.location.hash) pick(decodeURIComponent(window.location.hash.slice(1)));
+    if (window.location.hash) pick(decodeId(window.location.hash.slice(1)));
     update();
   }
 
@@ -494,7 +500,7 @@
     if (!marks.length) return;
 
     var text = document.getElementById("hlbar-text"), cur = 0;
-    var target = window.location.hash ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null;
+    var target = window.location.hash ? document.getElementById(decodeId(window.location.hash.slice(1))) : null;
     if (target) {
       for (var i = 0; i < marks.length; i++) {
         if (target.contains(marks[i]) || (target.compareDocumentPosition(marks[i]) & Node.DOCUMENT_POSITION_FOLLOWING)) { cur = i; break; }
@@ -721,7 +727,7 @@
         });
       }, Promise.resolve()).then(function () {
         // Rendering changes the page height; keep an anchor target in view.
-        var target = run === 1 && window.location.hash && document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+        var target = run === 1 && window.location.hash && document.getElementById(decodeId(window.location.hash.slice(1)));
         if (target && window.scrollY > 0) target.scrollIntoView();
       });
     }
