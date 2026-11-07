@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 )
@@ -291,6 +292,7 @@ func TestExecuteRejectsUnknownCommands(t *testing.T) {
 		{"users", "create-admin", "--name", "Admin"}, {"users", "create-admin", "--password", "x"},
 		{"probe-assignments"}, {"probe-assignments", "render", "extra"}, {"probe-assignments", "apply"},
 		{"inventory"}, {"inventory", "check"}, {"inventory", "check", "-f"}, {"inventory", "check", "-f", "a.yaml", "b.yaml"}, {"inventory", "apply"},
+		{"inventory", "render"}, {"inventory", "render", "-f"}, {"inventory", "render", "-f", "a.yaml", "b.yaml"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			err := execute(context.Background(), args, slog.New(slog.DiscardHandler), strings.NewReader(""), &bytes.Buffer{})
@@ -398,5 +400,37 @@ func TestInventoryCheckNeedsOnlyTheFile(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "sa:pw") {
 		t.Errorf("output quotes the credential reference: %q", out.String())
+	}
+}
+
+// inventory render needs no database or setting either; a file that is
+// not valid writes nothing to stdout, which is the values file.
+func TestInventoryRenderNeedsOnlyTheFile(t *testing.T) {
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good.yaml")
+	bad := filepath.Join(dir, "bad.yaml")
+	if err := os.WriteFile(good, []byte("version: 1\nenvironment: {slug: dev, name: Dev, type: test}\ndatabase_targets: [{name: a, host: db, credential_ref: env/a, probes: [{name: waits}]}]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bad, []byte("version: 1\nenvironment: {slug: dev, name: Dev, type: test}\ndatabase_targets: [{name: a, host: db, credential_ref: \"sa:pw\"}]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := execute(context.Background(), []string{"inventory", "render", "-f", good}, slog.New(slog.DiscardHandler), strings.NewReader(""), &out); err != nil {
+		t.Fatalf("render of a valid file = %v", err)
+	}
+	if !strings.HasPrefix(out.String(), inventory.RenderHeader+"managedCollectors:\n  - id: api-"+inventory.FileTargetID("dev", "a").String()+"-30s\n") {
+		t.Errorf("output = %q", out.String())
+	}
+	out.Reset()
+	err := execute(context.Background(), []string{"inventory", "render", "-f", bad}, slog.New(slog.DiscardHandler), strings.NewReader(""), &out)
+	if !errors.Is(err, errInvalidInventory) || !strings.Contains(err.Error(), "database_targets[0].credential_ref") {
+		t.Fatalf("render of an invalid file = %v, want errInvalidInventory naming the problem", err)
+	}
+	if strings.Contains(err.Error(), "sa:pw") {
+		t.Errorf("error quotes the credential reference: %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("render of an invalid file wrote %q", out.String())
 	}
 }

@@ -2,11 +2,15 @@ package inventory
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
 
@@ -97,6 +101,58 @@ func render(ctx context.Context, q *store.Queries) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list the approved probe assignments: %w", err)
 	}
+	return renderRows(rows)
+}
+
+// fileTargets names the IDs of the targets an inventory file creates: a
+// version 5 UUID of the environment's slug and the target's name, in this
+// namespace, so the file's render needs no database.
+var fileTargets = uuid.MustParse("5f0b6f3e-6c1d-4f5e-9a37-2d8c4b1e7a90")
+
+// FileTargetID is the ID of the database target an inventory file declares
+// as name in the environment with slug: the one the API gives it when it
+// applies the file, and that its collector's ID, api-<id>-<interval>s, is
+// rendered from.
+func FileTargetID(slug, name string) uuid.UUID {
+	return uuid.NewSHA1(fileTargets, []byte(slug+"/"+name))
+}
+
+// RenderFile renders an inventory file's probe assignments, as ParseFile
+// returned it, into the values file that holds managedCollectors (ADR 0021
+// §5) without a database: the bytes RenderProbeAssignments returns once
+// the API has applied the file, when it holds no other assignments. A
+// target the file disables, and a probe it disables, are left out. Its
+// built-in probes take the collector's own query and timeout, as the API's
+// built-in definitions set none.
+func RenderFile(f File) ([]byte, error) {
+	var rows []store.ListRenderedProbeAssignmentsRow
+	for _, t := range f.DatabaseTargets {
+		if t.Status != StatusActive {
+			continue
+		}
+		id := pgUUID(FileTargetID(f.Environment.Slug, t.Name))
+		for _, p := range t.Probes {
+			if !p.On() {
+				continue
+			}
+			rows = append(rows, store.ListRenderedProbeAssignmentsRow{
+				IntervalSeconds: int32(p.IntervalSeconds), TimeoutMs: pgInt(p.TimeoutMS), MaxRows: pgInt(p.MaxRows),
+				State: StateApproved, TargetID: id, TargetName: t.Name, Host: t.Host, Port: int32(t.Port),
+				DatabaseName: pgText(t.DatabaseName), CredentialRef: t.CredentialRef, EnvironmentSlug: f.Environment.Slug,
+				DefinitionName: p.Name, Builtin: true, ProbeName: p.Name,
+			})
+		}
+	}
+	// As the API's query orders them: by target, interval, then probe.
+	slices.SortStableFunc(rows, func(a, b store.ListRenderedProbeAssignmentsRow) int {
+		return cmp.Or(bytes.Compare(a.TargetID.Bytes[:], b.TargetID.Bytes[:]),
+			cmp.Compare(a.IntervalSeconds, b.IntervalSeconds), strings.Compare(a.ProbeName, b.ProbeName))
+	})
+	return renderRows(rows)
+}
+
+// renderRows renders rows, ordered by target, interval and probe.
+func renderRows(rows []store.ListRenderedProbeAssignmentsRow) ([]byte, error) {
 	values := managedValues{ManagedCollectors: []managedCollector{}}
 	byTarget := map[[16]byte]int{}
 	for _, row := range rows {

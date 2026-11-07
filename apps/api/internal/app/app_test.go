@@ -18,6 +18,7 @@ import (
 
 	"heartbeat/apps/api/internal/audit"
 	"heartbeat/apps/api/internal/httpapi"
+	"heartbeat/apps/api/internal/inventory"
 	"heartbeat/apps/api/internal/redis"
 	"heartbeat/apps/api/internal/store"
 )
@@ -386,10 +387,12 @@ func TestRunWithDependenciesDown(t *testing.T) {
 			t.Errorf("%s has %d series (%v), want %d", name, got, err, want)
 		}
 	}
-	// The outbox's gauges need the database: absent while it is down, and
-	// the scrape still succeeds.
+	// The outbox's gauges and the inventory's info metrics need the
+	// database: absent while it is down, and the scrape still succeeds.
 	for name, want := range map[string]int{
 		audit.MetricRecordsDelivered: 1, audit.MetricOutboxRows: 0, audit.MetricOutboxOldestAge: 0,
+		inventory.MetricEnvironmentInfo: 0, inventory.MetricApplicationInfo: 0, inventory.MetricSourceInfo: 0,
+		inventory.MetricDatabaseTargetInfo: 0, inventory.MetricInfoTruncated: 0,
 	} {
 		if got, err := testutil.GatherAndCount(registry, name); err != nil || got != want {
 			t.Errorf("%s has %d series (%v), want %d", name, got, err, want)
