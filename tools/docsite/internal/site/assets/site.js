@@ -228,31 +228,35 @@
     var list = document.getElementById("search-results");
     var meta = document.getElementById("search-meta");
     if (!box || !input || !list || !meta) return;
-    var data = null, pages = null, loading = false, failed = false;
+    var data = null, pages = null, failed = false, waiting = null;
     var options = [], selected = -1, timer = null, lastFocus = null;
 
     var mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
     Array.prototype.forEach.call(document.querySelectorAll("[data-mod-key]"), function (k) { k.textContent = mac ? "⌘" : "Ctrl"; });
 
+    // Callers that arrive while the index loads (a hover prefetch, then the
+    // click that opens the dialog) all run once it is in.
     function withIndex(done) {
       if (data) return done();
-      if (failed || loading) return;
-      loading = true;
+      if (failed) return;
       meta.textContent = "Loading the search index…";
+      if (waiting) { waiting.push(done); return; }
+      waiting = [done];
       var s = document.createElement("script");
       s.src = root + (document.body.getAttribute("data-search-index") || "assets/search-index.js");
       s.onload = function () {
-        loading = false;
         var index = window.HEARTBEAT_SEARCH || { pages: [], sections: [] };
         pages = index.pages.map(function (p) { p._t = norm(p.t); return p; });
         data = index.sections.map(function (s) {
           var page = pages[s.p];
           return { page: page, h: s.h, a: s.a || "", l: s.l, x: s.x || "", _h: norm(s.h), _x: norm(s.x) };
         });
-        done();
+        var calls = waiting;
+        waiting = null;
+        calls.forEach(function (f) { f(); });
       };
       s.onerror = function () {
-        loading = false; failed = true;
+        waiting = null; failed = true;
         meta.textContent = "The search index could not be loaded.";
       };
       document.head.appendChild(s);
@@ -407,8 +411,12 @@
       b.addEventListener("click", open);
       b.addEventListener("pointerenter", function () { withIndex(function () {}); }, { once: true });
     });
+    // A result on the current page only changes the address's #section, so
+    // the browser does not load a new page: close the dialog when one is
+    // followed, unless it opens in a new tab.
     box.addEventListener("click", function (e) {
       if (e.target.closest("[data-search-close]")) close();
+      else if (e.target.closest("li[role=option] a") && !(e.metaKey || e.ctrlKey || e.shiftKey || e.button)) close();
     });
     // Coming back to a page from the browser history restores it as it was
     // left, dialog included.
@@ -432,7 +440,7 @@
         if (a) {
           e.preventDefault();
           if (e.metaKey || e.ctrlKey) window.open(a.href, "_blank");
-          else window.location.href = a.href;
+          else { close(); window.location.href = a.href; }
         }
       }
     });
@@ -499,13 +507,17 @@
     });
     if (!marks.length) return;
 
-    var text = document.getElementById("hlbar-text"), cur = 0;
-    var target = window.location.hash ? document.getElementById(decodeId(window.location.hash.slice(1))) : null;
-    if (target) {
+    var text = document.getElementById("hlbar-text");
+    // The first match at or after the section the address names.
+    function firstInSection() {
+      var target = window.location.hash ? document.getElementById(decodeId(window.location.hash.slice(1))) : null;
+      if (!target) return 0;
       for (var i = 0; i < marks.length; i++) {
-        if (target.contains(marks[i]) || (target.compareDocumentPosition(marks[i]) & Node.DOCUMENT_POSITION_FOLLOWING)) { cur = i; break; }
+        if (target.contains(marks[i]) || (target.compareDocumentPosition(marks[i]) & Node.DOCUMENT_POSITION_FOLLOWING)) return i;
       }
+      return 0;
     }
+    var cur = firstInSection();
     function show(i, scroll) {
       if (marks[cur]) marks[cur].classList.remove("current");
       cur = (i + marks.length) % marks.length;
@@ -535,12 +547,17 @@
       if (a === "clear") clear();
     });
     bar.hidden = false;
-    // Scroll only when the first match is not already in view (the browser
-    // has scrolled to the linked section by now).
+    // Scroll only when the match is not already in view (the browser has
+    // scrolled to the linked section by now).
     window.setTimeout(function () {
       var r = marks[cur].getBoundingClientRect();
       show(cur, r.top < 0 || r.bottom > window.innerHeight);
     }, 60);
+    // Another result on this page, or a link to one of its sections: count
+    // from there, without scrolling away from the section the reader picked.
+    window.addEventListener("hashchange", function () {
+      if (!bar.hidden) show(firstInSection(), false);
+    });
   }
 
   // Diagram styling for the HTML site: flat, thin-bordered boxes in tinted
