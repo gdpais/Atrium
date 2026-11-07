@@ -503,7 +503,7 @@ in Grafana → a guide → this stage's validation.
 ### 5.3 Reading the inventory
 - [x] Info metrics on the API's `/metrics` for the inventory (environment, application, status, manager; target engine; source observed), with bounded cardinality: `heartbeat_api_inventory_{environment,application,source,database_target}_info`, read from PostgreSQL at each scrape, one series per row up to 1,000 per kind (`heartbeat_api_inventory_info_truncated`), labels only names and closed sets ([inventory info metrics](docs/reference/metrics-and-endpoints.md#inventory-info-metrics))
 - [x] A Grafana dashboard that lists the inventory beside its health, with the API's deep links: *Heartbeat Inventory* (`heartbeat-inventory`), its applications, sources (observation, requests, failed share, extraction lag) and targets (up, last success, failures in a row) joined from the info metrics; its data links are the chart's `deep_link_templates`, kept equal by `TestInventoryDashboardLinksAreTheLinkTemplates`; `kind-e2e` checks its sources table lists kind's sources
-- [ ] Guide: onboard an application, a source and a database target by pull request (`docs/guides/`)
+- [x] Guide: onboard an application, a source and a database target by pull request ([onboarding by pull request](docs/guides/onboarding-by-pull-request.md))
 - [ ] Tokens for machine clients of the API, when the first one needs them (ADR 0021 §7)
 
 ---

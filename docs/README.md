@@ -47,6 +47,9 @@ which is not committed.
 - [Onboarding SQL Server targets](guides/database-targets.md): the
   collector's login, certificates, and adding a target through the API or by
   hand
+- [Onboarding by pull request](guides/onboarding-by-pull-request.md): add,
+  change or retire an application, its source and its database targets in
+  the environment's inventory file
 
 **Architecture (how it is built and why)**
 
@@ -85,7 +88,7 @@ which is not committed.
 | Folder | Contents |
 | --- | --- |
 | [`product/`](product/) | [Overview](product/overview.md), [roadmap](product/roadmap.md), [how we work](product/operating-model.md) |
-| [`guides/`](guides/) | Task-oriented how-tos: running it ([local development](guides/local-development.md), [walkthrough](guides/kind-walkthrough.md), [live demo](guides/live-demo.md), [Kubernetes delivery](guides/kubernetes-local.md)) and operating it ([installing a release](guides/install-from-release.md), [SQL Server targets](guides/database-targets.md)) |
+| [`guides/`](guides/) | Task-oriented how-tos: running it ([local development](guides/local-development.md), [walkthrough](guides/kind-walkthrough.md), [live demo](guides/live-demo.md), [Kubernetes delivery](guides/kubernetes-local.md)) and operating it ([installing a release](guides/install-from-release.md), [SQL Server targets](guides/database-targets.md), [onboarding by pull request](guides/onboarding-by-pull-request.md)) |
 | [`architecture/`](architecture/) | [Overview](architecture/overview.md), [operator workflows](architecture/workflows.md), [data model](architecture/data-model.md), [database observability](architecture/database-observability.md), [application observability](architecture/application-observability.md) |
 | [`architecture/decisions/`](architecture/decisions/README.md) | Architecture decision records (ADRs), numbered, with their index |
 | [`reference/`](reference/) | Lookup tables for [configuration](reference/configuration.md) and [metrics and endpoints](reference/metrics-and-endpoints.md) |
