@@ -127,7 +127,9 @@ probe deadline.
 
 ## 2. Add the target
 
-There are two ways: through the API, or by hand in the values.
+There are three ways. The recommended one is the environment's inventory
+file: see [onboarding by pull request](onboarding-by-pull-request.md). The
+other two are through the API, or by hand in the values.
 
 ### Through the API
 
