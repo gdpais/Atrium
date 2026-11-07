@@ -127,7 +127,29 @@ probe deadline.
 
 ## 2. Add the target
 
-There are two ways: through the API, or by hand in the values.
+There are three ways: in the environment's inventory file, through the API,
+or by hand in the values.
+
+### In the inventory file
+
+List the target under `database_targets` of the environment's
+[inventory file](../reference/configuration.md#inventory-file), with its
+probes, and open a pull request; the API applies the file once it is
+deployed, and the merge approves the probes. The rows are the file's: the
+API's update and delete of them answer 409. The API renders them into
+`managedCollectors` as it renders the assignments approved through it
+(below), and they show `applied` once the collector runs them. kind's
+inventory file declares PatientZero's target this way:
+
+```yaml
+database_targets:
+  - name: patientzero
+    host: heartbeat-sqlserver-dev
+    credential_ref: env/sqlserver-dev
+    probes:
+      - name: sessions
+        interval_seconds: 30
+```
 
 ### Through the API
 
@@ -220,7 +242,7 @@ restart. The kubelet updates the files within about a minute.
 
 | Where | Steps |
 | --- | --- |
-| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for approved probe assignments, `make kind-assignments`. |
+| kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for probe assignments, approved through the API or by the inventory file, `make kind-assignments`. |
 | Installed from a release | Put the values in a file and run `helm upgrade` with it and all your other values files ([installing a release](install-from-release.md#5-add-a-sql-server-target)). |
 | Production | Commit the values to the `heartbeat-deploy` repository; Argo CD syncs them. |
 

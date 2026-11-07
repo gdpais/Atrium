@@ -389,7 +389,10 @@ its own beside the environment's values and pass it with
 same file is the one `api inventory check` checks. Without it, the inventory
 changes through the API's endpoints only. On kind,
 [`infra/helm/values/kind.yaml`](../../infra/helm/values/kind.yaml) declares
-`local-dev` with PatientZero and its OutSystems source this way.
+`local-dev` this way: PatientZero, its OutSystems source, and its database
+target `patientzero` on the sandbox SQL Server with three probes, which
+`make kind-assignments` renders like the API's
+([local development](../guides/local-development.md#change-collector-config-without-restarting)).
 
 Check a file before opening the pull request; the configuration repository's
 CI runs the same command:
