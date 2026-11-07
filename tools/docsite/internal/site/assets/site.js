@@ -260,6 +260,7 @@
 
     function search(q) {
       var p = parseQuery(q), out = [];
+      var wordStart = p.terms.map(function (t) { return new RegExp("(^|[^a-z0-9])" + reEsc(t)); });
       data.forEach(function (e) {
         var score = 0, inHead = true;
         for (var i = 0; i < p.terms.length; i++) {
@@ -268,7 +269,7 @@
           if (!h && !pt && !c) return;
           if (!h && !(pt && e.l === 1)) inHead = false;
           score += (h ? 30 : 0) + (pt ? 12 : 0) + Math.min(c, 8) * 2;
-          if (h && new RegExp("(^|[^a-z0-9])" + reEsc(t)).test(e._h)) score += 10;
+          if (h && wordStart[i].test(e._h)) score += 10;
         }
         if (p.phrase) {
           if (e._h.indexOf(p.phrase) !== -1) score += 40;
@@ -277,10 +278,12 @@
         }
         if (e.l === 1 && inHead) score += 25;
         if (e.l === 2) score += 3;
-        if (e.page.r) score -= 40;
-        out.push({ e: e, score: score, head: inHead });
+        // Results are listed by group: titles and headings that match, then
+        // mentions in the text, then archived pages.
+        var rank = e.page.r ? 2 : inHead ? 0 : 1;
+        out.push({ e: e, score: score, rank: rank });
       });
-      out.sort(function (a, b) { return b.score - a.score || a.e.page.t.localeCompare(b.e.page.t); });
+      out.sort(function (a, b) { return a.rank - b.rank || b.score - a.score || a.e.page.t.localeCompare(b.e.page.t); });
       return out;
     }
 
@@ -288,10 +291,13 @@
       var terms = (p.phrase && !p.exact ? [p.phrase] : []).concat(p.terms)
         .filter(function (t) { return t.length > 0; })
         .sort(function (a, b) { return b.length - a.length; });
-      var safe = esc(text);
-      if (!terms.length) return safe;
-      var re = new RegExp("(" + terms.map(function (t) { return reEsc(esc(t)); }).join("|") + ")", "gi");
-      return safe.replace(re, "<mark>$1</mark>");
+      if (!terms.length) return esc(text);
+      // Match on the raw text and escape each piece, so a query such as
+      // "amp" never splits an entity like &amp;.
+      var re = new RegExp("(" + terms.map(reEsc).join("|") + ")", "gi");
+      return text.split(re).map(function (piece, i) {
+        return i % 2 ? "<mark>" + esc(piece) + "</mark>" : esc(piece);
+      }).join("");
     }
 
     function snippet(e, p) {
@@ -350,11 +356,11 @@
         html = [];
         var group = null;
         shown.forEach(function (r, i) {
-          var g = r.head ? "Pages and sections" : "Mentions in the text";
+          var g = ["Pages and sections", "Mentions in the text", "Archived pages"][r.rank];
           if (g !== group) { html.push('<li class="search-group" role="presentation">' + g + "</li>"); group = g; }
           var e = r.e, where = e.page.g + (e.l > 1 ? " · " + e.page.t : "");
           var tags = e.page.r ? '<span class="search-tag archived">Archived</span>' : "";
-          html.push(option(i, href(e, q), e.l === 1 ? "page" : (r.head ? "section" : "text"), where, mark(e.h, p), e.x ? mark(snippet(e, p), p) : "", tags));
+          html.push(option(i, href(e, q), e.l === 1 ? "page" : (r.rank === 1 ? "text" : "section"), where, mark(e.h, p), e.x ? mark(snippet(e, p), p) : "", tags));
         });
         if (!shown.length) {
           html.push('<li class="search-empty" role="presentation">No results for “' + esc(q.trim()) + "”. Try fewer or shorter words.</li>");
@@ -397,6 +403,11 @@
     });
     box.addEventListener("click", function (e) {
       if (e.target.closest("[data-search-close]")) close();
+    });
+    // Coming back to a page from the browser history restores it as it was
+    // left, dialog included.
+    window.addEventListener("pageshow", function (e) {
+      if (e.persisted && !box.hidden) close();
     });
     list.addEventListener("mousemove", function (e) {
       var li = e.target.closest("li[role=option]");
