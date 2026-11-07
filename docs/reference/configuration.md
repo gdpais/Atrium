@@ -488,9 +488,10 @@ one.
 
 A target the file creates gets a fixed ID, a version 5 UUID of the
 environment's `slug` and the target's `name`, so the offline render names
-the collectors the API renders once it has applied the file: for an
-environment whose assignments all come from the file, `inventory render`
-and `api probe-assignments render` print the same bytes. The
+the collectors the API renders once it has applied the file: when every
+assignment the API holds comes from this file, `inventory render` and
+`api probe-assignments render`, which renders every environment's, print
+the same bytes. The
 configuration repository's CI will fail when the committed render is stale
 [18]. On kind, `make kind-assignments` keeps rendering in the API's pod,
 from PostgreSQL, which holds the file's assignments and those made through
