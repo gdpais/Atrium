@@ -82,7 +82,7 @@ served beside it.
 
 | Endpoint | Auth | Behavior |
 | --- | --- | --- |
-| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), [logins](#logins), [audit delivery](#audit-delivery), Go runtime and process metrics |
+| `GET /metrics` | none | Prometheus exposition: [request metrics](#api-requests), [logins](#logins), [audit delivery](#audit-delivery), [the inventory](#inventory-info-metrics), Go runtime and process metrics |
 | `GET /healthz` | none | Liveness only; 200 `ok` while the process serves HTTP. It checks no dependency, so a PostgreSQL or Redis outage never restarts the pod |
 | `GET /readyz` | none | 200 when every readiness check passes, 503 otherwise. The checks run concurrently on each call, 2s at most in all; a check without an answer by then fails. `postgresql`: a query reaches the database and its schema version is at least the newest migration the API embeds, and that migration is not dirty (a newer version passes, dirty or not, so the previous release keeps serving while the next one migrates). `redis`: a `PING` reaches Redis (Valkey) and authenticates. Each passes again on its own once its dependency is back. The body is only `{"status":"ready"}` or `{"status":"not_ready"}`; the failing checks and their errors (`schema not migrated`, a refused connection, a failed login, never a password) are logged when the status changes |
 | `POST /api/v1/session` | none; `Origin` | Log in: 201 with the session and its cookie ([below](#logging-in-and-sessions)) |
@@ -983,6 +983,48 @@ its own reads.
 | --- | --- | --- | --- |
 | `heartbeat_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or after it failed validation, is not counted; one PostgreSQL's rows refused is tried again, and counted, at each read |
 | `heartbeat_api_inventory_applied_timestamp_seconds` | gauge | none | When the replica last applied the file or found PostgreSQL matching it, as a Unix time; absent before the first time |
+
+### Inventory info metrics
+
+The inventory as Grafana reads it ([ADR 0021 §6](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)):
+one series per row of PostgreSQL, always 1, the row's identity and state in
+its labels, whichever writer made it (the API's endpoints or the
+[inventory file](configuration.md#applying-the-file)). Each replica reads
+PostgreSQL at each scrape, four small queries, so a change shows at the next
+scrape on every replica and nothing has to be refreshed after a write or an
+apply; whether a source is observed comes from the collector's
+`GET /admin/config`, which the API reads at most every 15 seconds (as for
+[telemetry sources](#telemetry-sources)). Every replica reports the same
+rows, so aggregate away `instance`: `max without (instance) (heartbeat_api_inventory_application_info)`.
+
+| Metric | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `heartbeat_api_inventory_environment_info` | gauge | `environment`, `type`, `status`, `managed_by` | An environment. `environment` is its slug, the `environment` of the collector's series |
+| `heartbeat_api_inventory_application_info` | gauge | `environment`, `application`, `platform`, `criticality`, `status`, `managed_by` | An application, by its name in its environment |
+| `heartbeat_api_inventory_source_info` | gauge | `environment`, `application`, `source_type`, `ingest_mode`, `application_name`, `status`, `managed_by`, `observation` | A telemetry source of the application. `application_name` is its config's (the OutSystems `Application_Name`, the `${application}` of the [links](#links-into-the-platforms-ui)), `""` when it has none; `observation` is its [`observation.status`](#telemetry-sources): `observed`, `not_observed`, `unknown` or `not_applicable` |
+| `heartbeat_api_inventory_database_target_info` | gauge | `environment`, `target`, `engine`, `status`, `managed_by` | A database target. `target` is its name, the `target` of the collector's series |
+| `heartbeat_api_inventory_info_truncated` | gauge | `kind` | 1 when a kind (`environment`, `application`, `source`, `database_target`) has more than 1,000 rows, so its info metric lists only the first 1,000 in label order; 0 otherwise |
+
+`status` is `active` or `disabled`: a row the file dropped is disabled,
+never deleted, so it stays listed. `managed_by` is `api` or `config`
+([one writer per row](#inventory)). While PostgreSQL does not answer within
+2 seconds the scrape has none of these series, rather than part of the
+inventory; the rest of the scrape still works, and `GET /readyz` reports
+the database.
+
+**Cardinality.** Each metric has one series per row, at most 1,000, so the
+inventory, not traffic, sets the count: an environment of 50 applications
+with a source each and 20 targets adds about 120 series per replica. Label
+values are only what people write in the inventory as one field of a row
+(names, slugs, `application_name`, an application's `platform`) and closed sets
+(`type`, `criticality`, `status`, `managed_by`, `ingest_mode`,
+`observation`, the source types and engines the API accepts); never an ID,
+a host, a port, a database name, a label, a config beyond
+`application_name`, or a credential reference. `/metrics` needs no login,
+so whoever reaches the API's port reads these names: route only `/api/v1/…`
+to the API from outside the cluster. A rename, or a change to a
+labelled field, ends one series and starts another, as a deploy changes
+`heartbeat_service_info`.
 
 ### Heartbeat's own telemetry
 
