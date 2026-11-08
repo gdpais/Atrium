@@ -262,13 +262,14 @@ vet:
 	GOCACHE=$$(pwd)/.tmp/gocache go -C $(PATIENTZERO_MODULE) vet ./...
 
 # gofmt -l lists the files it would change; any output fails. staticcheck
-# runs its default checks. shellcheck fails on warnings and errors and leaves
-# its notes (style suggestions) to the author. A deliberate exception gets a
-# "# shellcheck disable=SCxxxx # reason" line above it.
+# runs its default checks, with the build tags of the Docker and chart tests
+# so their files are checked too. shellcheck fails on warnings and errors and
+# leaves its notes (style suggestions) to the author. A deliberate exception
+# gets a "# shellcheck disable=SCxxxx # reason" line above it.
 lint:
 	@unformatted=$$(gofmt -l $$(git ls-files '*.go')); \
 		if [ -n "$$unformatted" ]; then printf 'error: not gofmt-formatted (run gofmt -w):\n%s\n' "$$unformatted" >&2; exit 1; fi
-	$(STATICCHECK) ./...
+	$(STATICCHECK) -tags=integration,chart,sqlserver ./...
 	cd $(DOCSITE_MODULE) && $(STATICCHECK) ./...
 	cd $(PATIENTZERO_MODULE) && $(STATICCHECK) ./...
 	docker run --rm -v "$$(pwd):/mnt:ro" -w /mnt $(SHELLCHECK_IMAGE) --severity=warning $$(git ls-files '*.sh')

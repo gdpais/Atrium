@@ -278,6 +278,9 @@ func TestApplyFileUpdatesAndDisables(t *testing.T) {
 	if n := f.count(t, "applications where status = 'disabled'") + f.count(t, "telemetry_sources where status = 'disabled'"); n != 0 {
 		t.Errorf("%d rows still disabled after the file lists them again", n)
 	}
+	if n := len(f.fileRecordsSince(t, mark)); n == 0 {
+		t.Error("enabling the rows again recorded no audit records")
+	}
 }
 
 // A file that names a row the API manages changes nothing, not even what
