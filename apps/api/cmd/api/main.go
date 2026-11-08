@@ -229,7 +229,7 @@ func loadConfig() (app.Config, error) {
 		return app.Config{}, fmt.Errorf("%s: %w", envCollectorURL, err)
 	}
 	cfg.CollectorAdminToken = strings.TrimSpace(os.Getenv(envCollectorAdminToken))
-	cfg.CollectorCAFile = os.Getenv(envCollectorCAFile)
+	cfg.CollectorCAFile = strings.TrimSpace(os.Getenv(envCollectorCAFile))
 	cfg.IntegrationsPath = strings.TrimSpace(os.Getenv(envIntegrationsPath))
 	cfg.InventoryPath = strings.TrimSpace(os.Getenv(envInventoryPath))
 	if cfg.SessionIdleTimeout, err = duration(envSessionIdleTimeout, auth.DefaultIdleTimeout, time.Minute, 0); err != nil {
