@@ -239,10 +239,10 @@ Validated on 2026-11-08 with `master`'s `kind end-to-end` job as evidence
 ([TODO 4](../../TODO.md#4-core-system-api--control-plane-appsapi)): login
 from the API's origin only, sessions and logout, audited in Loki; an
 environment, applications and OutSystems sources created through the API, the
-collector observing those of its own environment only; the API-managed target `e2e-assigned` with a probe
-assignment approved, applied and run by the collector, each step audited; the
-API's tests cover every role on every endpoint, audit records holding no
-secret, and credentials only as references.
+collector observing those of its own environment only; the API-managed target
+`e2e-assigned` with a probe assignment approved, applied and run by the
+collector, each step audited; the API's tests cover every role on every
+endpoint, audit records holding no secret, and credentials only as references.
 
 ## Phase 4 — Inventory as code
 
