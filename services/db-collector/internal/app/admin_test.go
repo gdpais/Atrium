@@ -64,7 +64,7 @@ func TestAdminAuthStoresOnlyAFixedLengthDigest(t *testing.T) {
 
 func TestAdminEndpointsRequireTheToken(t *testing.T) {
 	manager, _ := newTestConfigManager(t)
-	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run))
+	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run), true)
 	for _, tc := range []struct {
 		method, path, token string
 		want                int
@@ -105,7 +105,7 @@ func TestAdminEndpointsRequireTheToken(t *testing.T) {
 func TestAdminEndpointsDisabledWithoutConfiguredToken(t *testing.T) {
 	manager, _ := newTestConfigManager(t)
 	lifecycle := newPollerLifecycleWithRun(t.Context(), nil, newFakePollers().run)
-	handler := routes(prometheus.NewRegistry(), newService(manager, lifecycle, nil, "", testTimeouts()))
+	handler := routes(prometheus.NewRegistry(), newService(manager, lifecycle, nil, "", testTimeouts()), true)
 	for _, tc := range []struct{ method, path, token string }{
 		{http.MethodGet, "/admin/config", ""},
 		{http.MethodGet, "/admin/config", "Bearer "},
@@ -145,7 +145,7 @@ collectors: []
 	}
 	svc := newTestService(t, manager, newFakePollers().run)
 	svc.warnings = startupWarnings(Config{AdminToken: "test-token", SQLServerTrustServerCertificate: true}, "", slog.New(slog.DiscardHandler))
-	rec := serve(routes(prometheus.NewRegistry(), svc), http.MethodGet, "/admin/config", "Bearer test-token")
+	rec := serve(routes(prometheus.NewRegistry(), svc, true), http.MethodGet, "/admin/config", "Bearer test-token")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
@@ -256,7 +256,7 @@ func TestRunWarnsAboutTrustServerCertificate(t *testing.T) {
 
 func TestAdminConfigReportsOneSnapshot(t *testing.T) {
 	manager, _ := newTestConfigManager(t)
-	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run))
+	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run), true)
 	_, diag := adminConfig(t, handler)
 	if diag.Version == "" || diag.Readiness.ConfigVersion != diag.Version || diag.Config.Version != diag.Version {
 		t.Fatalf("versions differ: top %q, readiness %q, config %q", diag.Version, diag.Readiness.ConfigVersion, diag.Config.Version)

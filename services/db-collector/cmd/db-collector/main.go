@@ -11,6 +11,15 @@
 //	HEARTBEAT_ADMIN_TOKEN               Bearer token for the admin endpoints
 //	                                    (GET /admin/config, POST /admin/config/reload);
 //	                                    unset disables them
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE
+//	                                    PEM certificate and key, both or
+//	                                    neither: the admin endpoints move to
+//	                                    their own HTTPS listener and leave the
+//	                                    listen address (default unset)
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR
+//	                                    HTTPS address of the admin endpoints
+//	                                    (default ":8443")
 //	HEARTBEAT_STATE_DIR                 Writable directory for state that must
 //	                                    survive restarts: the outsystems_logs
 //	                                    watermarks (default "/var/lib/heartbeat")
@@ -33,10 +42,17 @@
 //	                                    each TLS handshake (default unset)
 //
 // Its own telemetry reads the variables package telemetry lists.
+//
+// `db-collector check-config -f FILE` instead loads an integrations file as
+// the collector would, with the probe catalogs, and exits 0 when it is valid
+// and 1 with the problem otherwise. It starts nothing and connects to nothing,
+// for the configuration repository's CI.
 package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -52,6 +68,9 @@ import (
 const telemetryFlush = 3 * time.Second
 
 func main() {
+	if len(os.Args) > 1 {
+		os.Exit(command(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	tel := telemetry.Start("db-collector", os.Stderr)
 	logger := tel.Logger
 	slog.SetDefault(logger)
@@ -69,6 +88,11 @@ func main() {
 			CAFile:   os.Getenv("HEARTBEAT_OTLP_CA_FILE"),
 			CertFile: os.Getenv("HEARTBEAT_OTLP_CLIENT_CERT_FILE"),
 			KeyFile:  os.Getenv("HEARTBEAT_OTLP_CLIENT_KEY_FILE"),
+		},
+		AdminTLS: app.AdminTLS{
+			ListenAddr: os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"),
+			CertFile:   os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"),
+			KeyFile:    os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"),
 		},
 		Logger:    logger,
 		Telemetry: tel,
@@ -121,4 +145,19 @@ func boolEnv(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+// command runs a subcommand and returns the exit code.
+func command(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 3 || args[0] != "check-config" || args[1] != "-f" || args[2] == "" {
+		fmt.Fprintln(stderr, "usage: db-collector | db-collector check-config -f FILE")
+		return 2
+	}
+	version, collectors, err := app.CheckConfig(args[2])
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "%s: valid, %d collector(s), version %s\n", args[2], collectors, version)
+	return 0
 }
