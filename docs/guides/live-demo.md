@@ -406,6 +406,66 @@ only 40 to 50 minutes after its fault started, so give a second run of the
 same scenario that long
 ([SLO scenarios](../../tools/patientzero/scenarios/README.md#slo-scenarios)).
 
+### Follow a broken deploy to its request
+
+The scenario checks pass without anyone looking. This walk is what an SRE
+does with the same fault: from the page to the failing request. Start
+`bad-deploy` and open each dashboard with **Application** set to
+`PatientZero` once the command prints `step broken`. The first checks
+settle within about 4 minutes.
+
+1. **OutSystems Overview** (`outsystems-overview`). *Failed requests* and
+   *Error budget burn (1h)* climb, *Failed requests by application* shows
+   only PatientZero, and the errors in *SLO burn rates* pass 14.4, the fast
+   burn's threshold (the demo's run reached about 20).
+   Latency does not move: this is an error fault, not a slow one.
+2. **OutSystems Errors** (`outsystems-errors`). *Errors by module* shows
+   only `PatientZero_App`. *Top errors* has one new row: `PlaceOrder` from
+   the `Checkout` screen, with a fingerprint (the demo's run had
+   `2b2acd8d67226a9c`). *Users affected* counts the shoppers who hit it.
+   Click the fingerprint to filter the whole dashboard by it.
+3. **Loki**. The same exception, with its request key:
+
+   ```bash
+   G=http://admin:admin@localhost:3001
+   curl -sG "$G/api/datasources/proxy/uid/loki/loki/api/v1/query_range" \
+     --data-urlencode 'query={service_name="PatientZero", outsystems_log_type="error"} |= "Object reference not set"' \
+     --data-urlencode "start=$(($(date +%s)-300))000000000" --data-urlencode limit=1 |
+     jq -c '.data.result[] | {Request_Key: .stream.Request_Key, error_fingerprint: .stream.error_fingerprint, Username: .stream.Username, line: .values[0][1]}'
+   ```
+
+   The fingerprint matches *Top errors*. In Grafana, *Explore* → Loki runs
+   the same query, and *Recent errors* on the Errors dashboard lists the
+   same rows.
+4. **OutSystems Request Timeline** (`outsystems-request`). Paste the
+   `Request_Key` into the **Request_Key** box. *Timeline of the request*
+   shows the `mobile_request` row for `PlaceOrder` and its `error` row,
+   joined by the error's ID. *Messages of the request* shows the log line
+   with its stack (`at PatientZero_App.PlaceOrder()`).
+5. **Alertmanager** (<http://localhost:9093>). `OutSystemsErrorBudgetBurnFast`
+   fires during the fault and resolves after the rollback, and
+   `OutSystemsErrorBudgetBurnSlow` fires later.
+
+A slow screen goes the other way, through the latency dashboard:
+
+```bash
+make patientzero-scenario NAME=orderlist-latency   # about 7 minutes
+```
+
+For three minutes every `OrderList` screen takes 3 s longer. In
+**OutSystems Latency** (`outsystems-latency`), *p95 by log type* and *p95
+by module* show `screen` and `PatientZero_Web` above the 2 s line, and
+*Duration distribution* shows a new band between 2 and 5 s. *Requests
+slower than 2 s* lists each slow `OrderList` request with its user and
+`Request_Key`, which opens it in the Request Timeline like step 4. The
+p50, p95 and p99 tiles at the top cover every log type, so with the
+default **Log type** `All` the integration calls keep them under 100 ms. Set
+**Log type** to `screen` to see the slowdown there too.
+
+Last walked on 2026-11-08, on kind at `13312e0`. `bad-deploy` passed its 11
+checks (8,586 requests, 968 failed, 965 of them injected), and
+`orderlist-latency` passed its 2.
+
 ## 6. Alert delivery
 
 Alertmanager routes Watchdog to `deadmans-switch` and every other alert to
