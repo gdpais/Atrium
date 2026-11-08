@@ -492,7 +492,7 @@ in Grafana (done) → a guide (done) → this stage's validation (done).
 ### 5.1 Inventory file
 - [x] JSON Schema for the inventory file in `packages/config-schema` (one environment, its applications with components and telemetry sources, its database targets with built-in probes), closed objects, credentials only as references; a Go loader (`inventory.ParseFile`) that also runs the API's own checks offline: fields, uniqueness, source configs, probe policies against the collector's catalog, one interval per target; every problem reported with its place, never quoting a credential reference ([inventory file](docs/reference/configuration.md#inventory-file))
 - [x] `api inventory check -f <file>`: validate without a database, for the configuration repository's CI and for authors; [`config/inventory.example.yaml`](config/inventory.example.yaml) is tested to stay valid
-- [ ] Custom probe definitions in the inventory file, with their query checked by the collector's validator, so a file can assign one
+- [ ] ~~Custom probe definitions in the inventory file~~: deferred (2026-11-08) to [17] until a target in a file needs one; meanwhile such a target stays out of the file, managed through the API
 
 ### 5.2 Applying the inventory
 - [x] One writer per row: `managed_by` (`api` by default, or `config`) on environments, applications, components, telemetry sources, database targets and probe assignments (migration 0007, expand only); the API's update and delete, an assignment's approval and rejection, and a new assignment on a config-managed target are 409 and audit nothing ([one writer per row](docs/reference/metrics-and-endpoints.md#inventory))
@@ -884,6 +884,7 @@ trusts its caller by design, so these keep it on the load path:
 - [ ] DB-backed audit/compliance search
 - [ ] custom dashboard engine
 - [ ] autonomous RCA
+- [ ] Custom probe definitions in the inventory file [5.1], when a target declared in a file needs one: the query in a `.sql` file beside the inventory, referenced by path, checked offline as one read-only `SELECT` by the collector's validator; needs an expand-only migration (`environment_id`, `managed_by` on `probe_definitions`) and an amendment to ADR 0021. Custom definitions only replace a built-in's query; a new measurement is a new built-in probe in the collector's catalog
 
 ---
 

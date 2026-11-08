@@ -446,7 +446,7 @@ func (c *fileChecker) probes(target string, t *FileDatabaseTarget) {
 		p := &t.Probes[i]
 		switch {
 		case strings.HasPrefix(p.Name, probedefs.CustomPrefix):
-			c.add(at+".name", "%q: custom probe definitions are not in the inventory file yet; assign it through the API", p.Name)
+			c.add(at+".name", "%q: the inventory file takes built-in probes only; a target that runs a custom probe definition stays out of the file, managed through the API", p.Name)
 			continue
 		case !builtinProbes[[2]string{t.Engine, p.Name}]:
 			c.add(at+".name", "%q is no built-in %s probe (services/db-collector/probecatalog)", p.Name, t.Engine)
