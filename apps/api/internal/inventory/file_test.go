@@ -191,7 +191,7 @@ database_targets:
 `, []string{
 			"database_targets[0].probes[1].name: \"cpu\" is database_targets[0].probes[0] too",
 			"database_targets[0].probes[2].name: \"nothing\" is no built-in sqlserver probe",
-			"database_targets[0].probes[3].name: \"custom_waits\": custom probe definitions",
+			"database_targets[0].probes[3].name: \"custom_waits\": the inventory file takes built-in probes only",
 			"database_targets[0].probes[4].timeout_ms:",
 			"database_targets[0].probes[5].interval_seconds: 60s, and database_targets[0].probes[0] runs every 30s",
 		}},

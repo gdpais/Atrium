@@ -420,8 +420,11 @@ then the API's own rules, the ones its endpoints apply:
 
 Defaults the file may leave out: `status` active, `criticality` medium,
 `engine` sqlserver, `port` 1433, a probe's `interval_seconds` 30 and
-`enabled` true. Label values are strings: quote a number or a date. Custom
-probe definitions are not in the file yet; assign one through the API.
+`enabled` true. Label values are strings: quote a number or a date. The file
+takes built-in probes only: a target that runs a custom probe definition
+stays out of the file and is managed through the API, which refuses an
+assignment on a target the file manages. Custom definitions in the file are
+deferred until a target needs one.
 
 ### Applying the file
 
