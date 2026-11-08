@@ -1062,6 +1062,12 @@ type object struct {
 	} `yaml:"metadata"`
 	Data map[string]string `yaml:"data"`
 	Spec yaml.Node         `yaml:"spec"`
+	// Rules are a Role's.
+	Rules []struct {
+		Resources []string `yaml:"resources"`
+	} `yaml:"rules"`
+	// AutomountServiceAccountToken is a ServiceAccount's.
+	AutomountServiceAccountToken *bool `yaml:"automountServiceAccountToken"`
 }
 
 func (o object) id() string { return o.Kind + "/" + o.Metadata.Name }
@@ -1208,6 +1214,7 @@ func TestChartProfiles(t *testing.T) {
 			}
 
 			checkIntegrations(t, objects)
+			checkNoSecretReaders(t, objects)
 			checkCollectorIDs(t, objects, profile.collectorIDs)
 			checkCollectorSingleton(t, objects)
 			checkStatefulSetPolicies(t, objects)
@@ -1432,6 +1439,30 @@ func checkCollectorMissingAlert(t *testing.T, objects map[string]object) {
 	}
 	if got && !strings.Contains(content, `absent(up{job="db-collector"})`) {
 		t.Errorf("%s does not alert on absent(up{job=\"db-collector\"}):\n%s", file, content)
+	}
+}
+
+// No Role may read the namespace's Secrets: they hold the API's, SQL
+// Server's and Grafana's credentials and the collector's admin token, and
+// none of the chart's workloads reads them through the Kubernetes API.  The
+// Loki subchart rendered one for its rules sidecar, which the chart does not
+// run, and Loki mounts no service account token.
+func checkNoSecretReaders(t *testing.T, objects map[string]object) {
+	t.Helper()
+	for id, obj := range objects {
+		if obj.Kind != "Role" {
+			continue
+		}
+		for _, rule := range obj.Rules {
+			if slices.Contains(rule.Resources, "secrets") || slices.Contains(rule.Resources, "*") {
+				t.Errorf("%s can read Secrets: %v", id, rule.Resources)
+			}
+		}
+	}
+	// A profile on an external platform renders no Loki.
+	sa, ok := objects["ServiceAccount/loki"]
+	if ok && (sa.AutomountServiceAccountToken == nil || *sa.AutomountServiceAccountToken) {
+		t.Error("ServiceAccount/loki automounts its token; Loki never calls the Kubernetes API")
 	}
 }
 
