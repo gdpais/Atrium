@@ -11,6 +11,15 @@
 //	HEARTBEAT_ADMIN_TOKEN               Bearer token for the admin endpoints
 //	                                    (GET /admin/config, POST /admin/config/reload);
 //	                                    unset disables them
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE
+//	                                    PEM certificate and key, both or
+//	                                    neither: the admin endpoints move to
+//	                                    their own HTTPS listener and leave the
+//	                                    listen address (default unset)
+//	HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR
+//	                                    HTTPS address of the admin endpoints
+//	                                    (default ":8443")
 //	HEARTBEAT_STATE_DIR                 Writable directory for state that must
 //	                                    survive restarts: the outsystems_logs
 //	                                    watermarks (default "/var/lib/heartbeat")
@@ -52,8 +61,13 @@ func main() {
 		CredentialsDir:                  os.Getenv("HEARTBEAT_CREDENTIALS_DIR"),
 		WatchInterval:                   durationEnv("HEARTBEAT_CONFIG_WATCH_INTERVAL", 0),
 		SQLServerTrustServerCertificate: boolEnv("HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE", false),
-		Logger:                          logger,
-		Telemetry:                       tel,
+		AdminTLS: app.AdminTLS{
+			ListenAddr: os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"),
+			CertFile:   os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"),
+			KeyFile:    os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"),
+		},
+		Logger:    logger,
+		Telemetry: tel,
 	}
 	err := app.Run(ctx, cfg)
 	stop()

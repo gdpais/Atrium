@@ -54,6 +54,38 @@
             }
           }
         },
+        "adminTLS": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "kubernetes.io/tls Secret that moves the admin endpoints to their own HTTPS port; empty keeps them on 8082.",
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "not": {
+                "const": 8082
+              }
+            },
+            "ca": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret with the PEM CA the API verifies the admin certificate with; empty uses the system roots.",
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
         "credentials": {
           "type": "object",
           "additionalProperties": false,

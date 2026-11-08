@@ -207,7 +207,7 @@ chart-deps:
 # HELM=<path> repeats the checks with another Helm binary (CI uses Helm 3).
 chart-check:
 	$(HELM) lint --strict $(CHART_DIR) -f infra/helm/values/kind.yaml
-	HELM=$(HELM) GOCACHE=$$(pwd)/.tmp/gocache go test -tags=chart -count=1 -run TestChartProfiles ./tests
+	HELM=$(HELM) GOCACHE=$$(pwd)/.tmp/gocache go test -tags=chart -count=1 -run '^TestChart(Profiles|Collector)' ./tests
 	$(HELM) lint --strict $(PATIENTZERO_CHART_DIR) $(PATIENTZERO_CHART_CHECK_VALUES)
 	HELM=$(HELM) GOCACHE=$$(pwd)/.tmp/gocache go test -tags=chart -count=1 -run TestPatientZeroChart ./tests
 

@@ -70,6 +70,9 @@ type Config struct {
 	// CollectorAdminToken is the collector's admin token, sent as a bearer
 	// token. It is never logged.
 	CollectorAdminToken string
+	// CollectorCAFile, when set, holds the PEM certificates that verify the
+	// collector's https admin listener instead of the system roots.
+	CollectorCAFile string
 	// IntegrationsPath is the integrations.yaml links into the platform's
 	// UI are rendered from (TODO 4.9): the file the DB collector reads, the
 	// heartbeat-integrations ConfigMap. Empty renders no links.
@@ -253,7 +256,10 @@ func connect(cfg Config, logger *slog.Logger, registerer prometheus.Registerer) 
 		IdleTimeout: cmp.Or(cfg.SessionIdleTimeout, auth.DefaultIdleTimeout),
 		MaxAge:      cmp.Or(cfg.SessionMaxAge, auth.DefaultMaxAge),
 	}
-	collector := collectorClient(cfg, logger)
+	collector, err := collectorClient(cfg, logger)
+	if err != nil {
+		return connected{}, err
+	}
 	// One hasher, so logins and password changes share its cap.
 	hasher := password.NewHasher(password.DefaultParams, password.DefaultConcurrency)
 	result := connected{
@@ -495,16 +501,20 @@ func routes(registry *prometheus.Registry, metrics *telemetry.HTTPMetrics, api *
 
 // collectorClient is the client that reads the collector's admin config,
 // or nil when no URL is set.
-func collectorClient(cfg Config, logger *slog.Logger) *collectors.Client {
+func collectorClient(cfg Config, logger *slog.Logger) (*collectors.Client, error) {
 	if cfg.CollectorURL == "" {
 		logger.Warn("no collector URL is set, so whether a telemetry source is observed is unknown and no probe assignment is marked applied")
-		return nil
+		return nil, nil
+	}
+	httpClient, err := collectors.NewHTTPClient(cfg.CollectorCAFile)
+	if err != nil {
+		return nil, err
 	}
 	if cfg.CollectorAdminToken == "" {
 		logger.Warn("no collector admin token is set, so the collector refuses the API and observations are unknown", "collector_url", cfg.CollectorURL)
 	}
 	logger.Info("telemetry source observation and the probe assignment applied check on", "collector_url", cfg.CollectorURL)
-	return &collectors.Client{URL: cfg.CollectorURL, Token: cfg.CollectorAdminToken}
+	return &collectors.Client{URL: cfg.CollectorURL, Token: cfg.CollectorAdminToken, HTTP: httpClient}, nil
 }
 
 // inventoryOptions has the inventory read the collector through client,

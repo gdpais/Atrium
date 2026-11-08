@@ -12,11 +12,14 @@ package collectors
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -247,4 +250,27 @@ func coverage(doc adminConfig, at time.Time) Coverage {
 		slices.Sort(out.ByEnvironment[env])
 	}
 	return out
+}
+
+// NewHTTPClient returns the client that reads the collector, with
+// [DefaultTimeout] and, when caFile is set, a TLS 1.2+ configuration that
+// verifies the collector's https admin listener with the certificates in
+// caFile instead of the system roots. caFile is read once.
+func NewHTTPClient(caFile string) (*http.Client, error) {
+	client := &http.Client{Timeout: DefaultTimeout}
+	if caFile == "" {
+		return client, nil
+	}
+	pem, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("read the collector's CA file: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("the collector's CA file %s holds no PEM certificate", caFile)
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
+	client.Transport = transport
+	return client, nil
 }

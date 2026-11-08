@@ -95,7 +95,7 @@ func newConfigMetricsFixture(t *testing.T, pollers *fakePollers, collectors ...t
 	metrics.observe(nil)
 	svc := newTestService(t, manager, pollers.run)
 	svc.configMetrics = metrics
-	return svc, routes(registry, svc), registry, path
+	return svc, routes(registry, svc, true), registry, path
 }
 
 // configState is what the config metrics say.

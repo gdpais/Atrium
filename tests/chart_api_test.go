@@ -4,6 +4,7 @@ package tests
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"sort"
@@ -686,7 +687,19 @@ func checkAPICollectorAccess(t *testing.T, objects map[string]object, api contai
 		}
 		return
 	}
-	if want := "http://db-collector:8082"; url != want {
+	pod := decodePodSpec(t, sts).Template.Spec
+	// With dbCollector.adminTLS the admin endpoints are on their own HTTPS
+	// port, and only the CA reaches the API's pod.
+	want := "http://db-collector:8082"
+	if addr := pod.Containers[0].env()["HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"]; addr != "" {
+		want = "https://db-collector" + addr
+		if ca := api.env()["HEARTBEAT_API_COLLECTOR_CA_FILE"]; ca != "" {
+			if name, wholeDir := api.mountedAt(filepath.Dir(ca)); name != "collector-ca" || !wholeDir {
+				t.Errorf("HEARTBEAT_API_COLLECTOR_CA_FILE %q is in volume %q; want the collector-ca directory mount", ca, name)
+			}
+		}
+	}
+	if url != want {
 		t.Errorf("HEARTBEAT_API_COLLECTOR_URL = %q, want %q", url, want)
 	}
 	tokenRef := func(c container, name string) string {
@@ -702,7 +715,6 @@ func checkAPICollectorAccess(t *testing.T, objects map[string]object, api contai
 		}
 		return ""
 	}
-	pod := decodePodSpec(t, sts).Template.Spec
 	if got, want := tokenRef(api, "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"), tokenRef(pod.Containers[0], "HEARTBEAT_ADMIN_TOKEN"); got != want {
 		t.Errorf("the API's collector token comes from %q, the collector's from %q", got, want)
 	}

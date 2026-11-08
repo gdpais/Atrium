@@ -909,7 +909,7 @@ Server must be monitored sooner.
 - [ ] Validate production-specific networking, identity, TLS, storage, retention and restore in the target environment; kind tests alone do not establish production acceptance
 - [ ] Optional: rehearse Argo CD on kind before the first production deploy
 - [ ] TLS and auth headers on the collector's OTLP exporter, before it sends to an external Collector or platform
-- [ ] TLS for the collector's admin endpoints: the bearer token travels over plain HTTP
+- [x] TLS for the collector's admin endpoints: the bearer token travels over plain HTTP. `dbCollector.adminTLS` moves them to their own HTTPS port (8443, certificate read at each handshake) that only the operators and the API reach; port 8082 keeps `/metrics` and health for Prometheus and the kubelet, and the API verifies the certificate with `adminTLS.ca`; on in the production example ([admin endpoints over HTTPS](docs/reference/metrics-and-endpoints.md#db-collector-8082))
 
 ## 19. Advanced collector reliability and HA
 

@@ -2388,8 +2388,28 @@ func checkCollectorEgress(t *testing.T, objects map[string]object, want []string
 // silently cut off scraping.
 func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPeers []string) {
 	t.Helper()
+	// With dbCollector.adminTLS the admin endpoints have their own port,
+	// named admin on the Service.
+	adminPort := 0
+	if svc, ok := objects["Service/db-collector"]; ok {
+		var svcSpec struct {
+			Ports []struct {
+				Name string `yaml:"name"`
+				Port int    `yaml:"port"`
+			} `yaml:"ports"`
+		}
+		if err := svc.Spec.Decode(&svcSpec); err != nil {
+			t.Fatal(err)
+		}
+		for _, port := range svcSpec.Ports {
+			if port.Name == "admin" {
+				adminPort = port.Port
+			}
+		}
+	}
 	// The API reads GET /admin/config whenever it is deployed: its pods are
-	// the last peer.
+	// the last peer, of port 8082 or, with adminTLS, of the admin port only.
+	apiPeer := ""
 	if api, ok := objects["Deployment/api"]; ok {
 		var apiSpec struct {
 			Selector labelSelector `yaml:"selector"`
@@ -2397,7 +2417,10 @@ func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPe
 		if err := api.Spec.Decode(&apiSpec); err != nil {
 			t.Fatal(err)
 		}
-		wantPeers = append(slices.Clone(wantPeers), "pods"+apiSpec.Selector.String())
+		apiPeer = "pods" + apiSpec.Selector.String()
+		if adminPort == 0 {
+			wantPeers = append(slices.Clone(wantPeers), apiPeer)
+		}
 	}
 	policy, ok := objects["NetworkPolicy/db-collector"]
 	if !ok {
@@ -2434,16 +2457,37 @@ func checkCollectorNetworkPolicy(t *testing.T, objects map[string]object, wantPe
 	if spec.Ingress == nil {
 		t.Fatal("db-collector NetworkPolicy has no ingress field; render ingress: [] to deny all")
 	}
-	var gotPeers []string
+	var gotPeers, adminPeers []string
 	for _, rule := range *spec.Ingress {
-		if len(rule.Ports) != 1 || rule.Ports[0].Port != 8082 || rule.Ports[0].Protocol != "TCP" {
-			t.Errorf("db-collector NetworkPolicy rule ports = %+v, want only TCP 8082", rule.Ports)
-		}
 		if rule.From == nil || len(*rule.From) == 0 {
 			t.Fatal("db-collector NetworkPolicy rule has an empty from, which admits every source")
 		}
+		if adminPort != 0 && len(rule.Ports) == 1 && rule.Ports[0].Port == adminPort && rule.Ports[0].Protocol == "TCP" {
+			for _, peer := range *rule.From {
+				adminPeers = append(adminPeers, peerString(peer))
+			}
+			continue
+		}
+		if len(rule.Ports) != 1 || rule.Ports[0].Port != 8082 || rule.Ports[0].Protocol != "TCP" {
+			t.Errorf("db-collector NetworkPolicy rule ports = %+v, want only TCP 8082 (or the admin port %d)", rule.Ports, adminPort)
+		}
 		for _, peer := range *rule.From {
 			gotPeers = append(gotPeers, peerString(peer))
+		}
+	}
+	if adminPort != 0 {
+		// Only the operators and the API reach the admin port; Prometheus
+		// and the scrapers keep port 8082 alone.
+		if apiPeer != "" && !slices.Contains(adminPeers, apiPeer) {
+			t.Errorf("the admin port %d does not admit the API (%s); peers %q", adminPort, apiPeer, adminPeers)
+		}
+		for _, peer := range adminPeers {
+			if strings.Contains(peer, "prometheus") {
+				t.Errorf("the admin port %d admits %s", adminPort, peer)
+			}
+		}
+		if len(adminPeers) == 0 {
+			t.Errorf("no ingress rule for the admin port %d", adminPort)
 		}
 	}
 	if !reflect.DeepEqual(gotPeers, wantPeers) {
@@ -2710,5 +2754,57 @@ func checkCollectorState(t *testing.T, objects map[string]object, emptyDir bool)
 		if size := claim.Resources.Requests["storage"]; size != "256Mi" {
 			t.Errorf("state claim requests %s, want 256Mi", size)
 		}
+	}
+}
+
+// dbCollector.adminTLS moves the admin endpoints to their own HTTPS port:
+// the collector mounts only its certificate and key, the Service and the
+// NetworkPolicy gain the port, and the API mounts only the CA.
+func TestChartCollectorAdminTLS(t *testing.T) {
+	objects := parseObjects(t, helmTemplate(t, chartProfile{set: []string{
+		"dbCollector.adminTLS.existingSecret=admin-tls",
+		"dbCollector.adminTLS.port=9443",
+		"dbCollector.adminTLS.ca.existingSecret=admin-ca",
+		"dbCollector.adminTLS.ca.key=bundle.pem",
+	}}))
+	collector := decodePodSpec(t, objects["StatefulSet/db-collector"]).Template.Spec
+	env := collector.Containers[0].env()
+	if env["HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"] != ":9443" ||
+		env["HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"] != "/var/run/secrets/heartbeat/admin-tls/tls.crt" ||
+		env["HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"] != "/var/run/secrets/heartbeat/admin-tls/tls.key" {
+		t.Errorf("collector admin TLS env = %v", env)
+	}
+	if name, wholeDir := collector.Containers[0].mountedAt("/var/run/secrets/heartbeat/admin-tls"); name != "admin-tls" || !wholeDir {
+		t.Errorf("admin certificate in volume %q (whole directory %v)", name, wholeDir)
+	}
+	api := decodePodSpec(t, objects["Deployment/api"]).Template.Spec
+	var apiContainer container
+	for _, c := range api.Containers {
+		if c.Name == "api" {
+			apiContainer = c
+		}
+	}
+	apiEnv := apiContainer.env()
+	if apiEnv["HEARTBEAT_API_COLLECTOR_URL"] != "https://db-collector:9443" || apiEnv["HEARTBEAT_API_COLLECTOR_CA_FILE"] != "/var/run/secrets/heartbeat/collector-ca/ca.crt" {
+		t.Errorf("API collector env = %v", apiEnv)
+	}
+	rendered := string(helmTemplate(t, chartProfile{set: []string{
+		"dbCollector.adminTLS.existingSecret=admin-tls",
+		"dbCollector.adminTLS.port=9443",
+		"dbCollector.adminTLS.ca.existingSecret=admin-ca",
+		"dbCollector.adminTLS.ca.key=bundle.pem",
+	}}))
+	// The API's pod gets the CA's key alone, never tls.key.
+	for _, doc := range strings.Split(rendered, "\n---") {
+		if strings.Contains(doc, "kind: Deployment") && strings.Contains(doc, "name: api\n") {
+			if strings.Contains(doc, "tls.key") || !strings.Contains(doc, "key: bundle.pem") {
+				t.Error("the API's pod must mount only the CA key bundle.pem of admin-ca")
+			}
+		}
+	}
+	if _, stderr, err := runHelmTemplate(t, chartProfile{set: []string{"dbCollector.adminTLS.port=8082"}}); err == nil {
+		t.Error("adminTLS.port 8082 rendered; it must differ from the metrics port")
+	} else if !strings.Contains(stderr, "adminTLS") {
+		t.Errorf("unexpected error: %s", stderr)
 	}
 }

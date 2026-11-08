@@ -29,6 +29,24 @@ dbCollector:
   adminToken:
     existingSecret: heartbeat-runtime
     key: admin-token
+  # Serve the admin endpoints over HTTPS on their own port, so the admin token
+  # never crosses the network in the clear. Set existingSecret to a
+  # kubernetes.io/tls Secret (tls.crt, tls.key) whose certificate names
+  # db-collector and db-collector.<namespace>.svc, such as one cert-manager
+  # renews: it is read at each TLS handshake, so a renewal needs no restart.
+  # Port 8082 then keeps /metrics and the health endpoints over plain HTTP
+  # (Prometheus, the kubelet) and no longer serves /admin. Empty keeps the
+  # admin endpoints on port 8082.
+  adminTLS:
+    existingSecret: ""
+    port: 8443
+    # Secret with the PEM CA that verifies the certificate, mounted in the API
+    # (key only), which reads GET /admin/config over https. Can be the same
+    # Secret when it holds ca.crt (cert-manager's does). Empty uses the
+    # system roots.
+    ca:
+      existingSecret: ""
+      key: ca.crt
   # Secret with one HEARTBEAT_CREDENTIAL_<REF> key per credential_ref,
   # mounted as files that the collector reads on every connection: a key added
   # or rotated reaches it within about a minute, without a restart
