@@ -1119,3 +1119,50 @@ func TestLoadRuntimeConfigOutSystemsLogsRecountOff(t *testing.T) {
 		t.Fatalf("recount_window = %s, want 0 (off)", got)
 	}
 }
+
+// A key the format does not define is refused, at any depth, instead of
+// dropped with its setting falling back to the default.
+func TestParseRuntimeConfigRejectsUnknownKeys(t *testing.T) {
+	valid := `collectors:
+  - id: sql-prod
+    kind: sqlserver
+    enabled: true
+    credential_ref: kv/sql-prod
+    config:
+      environment: prod
+      scrape_interval: 30s
+      targets:
+        - name: core-db
+          host: sql.prod.local
+          port: 1433
+          database_name: Heartbeat
+          credential_ref: kv/core-db
+          probes:
+            - name: waits
+              max_rows: 10
+`
+	if _, err := ParseRuntimeConfig([]byte(valid)); err != nil {
+		t.Fatalf("valid config: %v", err)
+	}
+	for name, typo := range map[string][2]string{
+		"top level": {"collectors:", "colectors: []\ncollectors:"},
+		"collector": {"    enabled: true", "    enabeld: true"},
+		"config":    {"      scrape_interval: 30s", "      scrape_intervl: 30s"},
+		"target":    {"          port: 1433", "          prot: 1433"},
+		"probe":     {"              max_rows: 10", "              max_row: 10"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			content := strings.Replace(valid, typo[0], typo[1], 1)
+			if content == valid {
+				t.Fatalf("typo %q not applied", typo[1])
+			}
+			_, err := ParseRuntimeConfig([]byte(content))
+			if err == nil || !strings.Contains(err.Error(), "not found in type") {
+				t.Fatalf("got %v, want the unknown key refused", err)
+			}
+		})
+	}
+	if _, err := ParseRuntimeConfig(nil); err != nil {
+		t.Fatalf("empty file: %v", err)
+	}
+}

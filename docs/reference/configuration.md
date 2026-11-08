@@ -71,6 +71,11 @@ reload, or failed to start.
 
 ## `integrations.yaml`
 
+A key the format does not define is rejected, at any depth, with the line it
+is on: a misspelt key (`scrape_intervl`, `max_row`) would otherwise be
+dropped and its setting fall back to the default. At startup the collector
+then does not start; on a hot reload it keeps the last valid config.
+
 ### Endpoints
 
 Heartbeat never writes to the observability platform itself: logs go to the
