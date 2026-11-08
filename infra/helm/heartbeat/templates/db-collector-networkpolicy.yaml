@@ -7,12 +7,17 @@
 {{- /* The bundled Prometheus server, by its Deployment's selector labels. */}}
 {{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "prometheus") | fromYaml) }}
 {{- end }}
-{{- $peers = concat $peers $np.scrapers $np.operators }}
+{{- $peers = concat $peers $np.scrapers }}
+{{- /* Who may call the admin endpoints: the operators and the API, which
+reads GET /admin/config for whether telemetry sources are observed (ADR 0017
+§4). With adminTLS they are on their own port, which Prometheus and the
+scrapers do not reach. */}}
+{{- $adminPeers := $np.operators }}
 {{- if .Values.api.enabled }}
-{{- /* The API reads GET /admin/config for whether telemetry sources are
-observed (ADR 0017 §4). */}}
-{{- $peers = append $peers (include "heartbeat.enginePeer" (dict "root" $ "engine" "api") | fromYaml) }}
+{{- $adminPeers = append $adminPeers (include "heartbeat.enginePeer" (dict "root" $ "engine" "api") | fromYaml) }}
 {{- end }}
+{{- $adminTLS := .Values.dbCollector.adminTLS.existingSecret }}
+{{- $peers = concat $peers (ternary $np.operators $adminPeers (not (empty $adminTLS))) }}
 {{- /* The ports of the monitored databases, from the enabled collectors'
 targets, managedCollectors included; a collector without enabled: true is
 off, as the collector reads it. */}}
@@ -33,7 +38,9 @@ off, as the collector reads it. */}}
 # Only Prometheus, the configured scrapers, the operator peers and the API (for
 # GET /admin/config) may reach the collector's
 # port 8082 (metrics, health and the token-protected admin endpoints); all
-# other ingress, including from other pods in the namespace, is dropped.
+# other ingress, including from other pods in the namespace, is dropped. With
+# dbCollector.adminTLS the admin endpoints move to their own HTTPS port, which
+# only the operators and the API reach, and the API leaves port 8082.
 # Kubelet probes and `kubectl port-forward` are not subject to NetworkPolicy.
 # With no peers the policy denies all ingress: an empty `from` would allow
 # every source, so it is never rendered. With egress on, the collector may
@@ -55,13 +62,22 @@ spec:
     {{- if $egress.enabled }}
     - Egress
     {{- end }}
-  {{- if $peers }}
+  {{- if or $peers (and $adminTLS $adminPeers) }}
   ingress:
+    {{- with $peers }}
     - ports:
         - protocol: TCP
           port: 8082
       from:
-        {{- toYaml $peers | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- if and $adminTLS $adminPeers }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.dbCollector.adminTLS.port }}
+      from:
+        {{- toYaml $adminPeers | nindent 8 }}
+    {{- end }}
   {{- else }}
   ingress: []
   {{- end }}

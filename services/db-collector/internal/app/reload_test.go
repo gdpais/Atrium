@@ -26,7 +26,7 @@ func newReloadFixture(t *testing.T, pollers *fakePollers, collectors ...testColl
 		t.Fatalf("reload fixture config: %v", err)
 	}
 	svc := newTestService(t, manager, pollers.run)
-	return svc, routes(prometheus.NewRegistry(), svc), path
+	return svc, routes(prometheus.NewRegistry(), svc, true), path
 }
 
 // adminConfig fetches GET /admin/config with the test token.

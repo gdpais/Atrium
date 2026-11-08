@@ -41,6 +41,25 @@ Grafana or `kubectl port-forward`; the API has no host port.
 
 Reload can also be triggered with `SIGHUP` or file polling.
 
+**Admin endpoints over HTTPS.** By default the admin endpoints share port
+8082 with `/metrics`, and the bearer token travels over plain HTTP. With
+`dbCollector.adminTLS.existingSecret` (a `kubernetes.io/tls` Secret whose
+certificate names `db-collector` and `db-collector.<namespace>.svc`) they move
+to their own HTTPS port, `adminTLS.port` (8443), and port 8082 answers 404 for
+them; `/metrics` and the health endpoints stay on 8082 for Prometheus and the
+kubelet. The certificate is read at each TLS handshake, so a renewal
+(cert-manager) needs no restart; TLS 1.2 is the minimum. The `db-collector`
+Service gains an `admin` port, the NetworkPolicy admits only the operators
+and the API to it, and the API reads `https://db-collector:8443`, verifying
+the certificate with `adminTLS.ca` (only the CA is mounted in its pod). A
+missing or unloadable certificate stops the collector at start.
+
+```bash
+kubectl -n heartbeat port-forward svc/db-collector 8443
+curl -s --cacert ca.crt --resolve db-collector:8443:127.0.0.1 \
+  -H "Authorization: Bearer $TOKEN" https://db-collector:8443/admin/config | jq .readiness
+```
+
 `GET /admin/config` returns:
 
 | Field | Content |

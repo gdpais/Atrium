@@ -22,7 +22,7 @@ import (
 func TestRoutesExposeHealthzAndCompatibilityHealthcheck(t *testing.T) {
 	configManager, _ := newTestConfigManager(t)
 	svc := newTestService(t, configManager, newFakePollers().run)
-	handler := routes(prometheus.NewRegistry(), svc)
+	handler := routes(prometheus.NewRegistry(), svc, true)
 
 	for _, path := range []string{"/healthz", "/healthcheck"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -244,7 +244,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder, out any) {
 
 func TestReloadRouteRejectsUnauthorizedAndInvalidCandidates(t *testing.T) {
 	manager, path := newTestConfigManager(t)
-	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run))
+	handler := routes(prometheus.NewRegistry(), newTestService(t, manager, newFakePollers().run), true)
 	active := manager.Snapshot().Config.Version
 	for _, tc := range []struct {
 		method, token string
@@ -280,7 +280,7 @@ func TestReloadRouteRejectsReloadBeforeInitialReconcile(t *testing.T) {
 	manager, _ := newTestConfigManager(t)
 	lifecycle := newPollerLifecycleWithRun(context.Background(), nil, newFakePollers().run)
 	svc := newService(manager, lifecycle, nil, "test-token", testTimeouts())
-	handler := routes(prometheus.NewRegistry(), svc)
+	handler := routes(prometheus.NewRegistry(), svc, true)
 	if rec := serve(handler, http.MethodPost, "/admin/config/reload", "Bearer test-token"); rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("reload before initial reconcile returned %d", rec.Code)
 	}

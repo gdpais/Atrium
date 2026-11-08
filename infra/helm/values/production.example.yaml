@@ -38,6 +38,13 @@ dbCollector:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
   adminToken:
     existingSecret: heartbeat-runtime
+  # The admin endpoints on their own HTTPS port, so the token is never sent in
+  # the clear: a cert-manager Certificate for db-collector and
+  # db-collector.heartbeat.svc, whose Secret also holds ca.crt for the API.
+  adminTLS:
+    existingSecret: db-collector-admin-tls
+    ca:
+      existingSecret: db-collector-admin-tls
   # The bundled Prometheus is allowed automatically, so only operator access
   # is listed: the operators' VPN range (placeholder). The range must not
   # overlap the pod or VPC subnets (with the Amazon VPC CNI pods have VPC

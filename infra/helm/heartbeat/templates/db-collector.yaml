@@ -68,6 +68,15 @@ spec:
             - name: HEARTBEAT_CREDENTIALS_DIR
               value: /var/run/secrets/heartbeat/credentials
             {{- end }}
+            {{- if $c.adminTLS.existingSecret }}
+            # The admin endpoints leave port 8082 for their own HTTPS port.
+            - name: HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR
+              value: ":{{ $c.adminTLS.port }}"
+            - name: HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE
+              value: /var/run/secrets/heartbeat/admin-tls/tls.crt
+            - name: HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE
+              value: /var/run/secrets/heartbeat/admin-tls/tls.key
+            {{- end }}
             {{- if $c.otlpExporter.headers.existingSecret }}
             - name: HEARTBEAT_OTLP_HEADERS_DIR
               value: /var/run/secrets/heartbeat/otlp-headers
@@ -104,6 +113,10 @@ spec:
           ports:
             - name: http
               containerPort: 8082
+            {{- if $c.adminTLS.existingSecret }}
+            - name: admin
+              containerPort: {{ $c.adminTLS.port }}
+            {{- end }}
           # Liveness only checks the process: a monitored database outage must
           # never restart the collector. Readiness reports whether the
           # collectors are actually cycling (reasons in GET /admin/config).
@@ -137,6 +150,11 @@ spec:
               mountPath: /var/run/secrets/heartbeat/credentials
               readOnly: true
             {{- end }}
+            {{- if $c.adminTLS.existingSecret }}
+            - name: admin-tls
+              mountPath: /var/run/secrets/heartbeat/admin-tls
+              readOnly: true
+            {{- end }}
             {{- if $c.otlpExporter.headers.existingSecret }}
             - name: otlp-headers
               mountPath: /var/run/secrets/heartbeat/otlp-headers
@@ -162,6 +180,17 @@ spec:
             secretName: {{ . }}
             # Readable by the pod's fsGroup only.
             defaultMode: 0440
+        {{- end }}
+        {{- with $c.adminTLS.existingSecret }}
+        - name: admin-tls
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
         {{- end }}
         {{- with $c.otlpExporter.headers.existingSecret }}
         - name: otlp-headers
@@ -273,6 +302,11 @@ spec:
       {{- if and (eq $c.service.type "NodePort") $c.service.nodePort }}
       nodePort: {{ $c.service.nodePort }}
       {{- end }}
+    {{- if $c.adminTLS.existingSecret }}
+    - name: admin
+      port: {{ $c.adminTLS.port }}
+      targetPort: admin
+    {{- end }}
   {{- if and (has $c.service.type (list "NodePort" "LoadBalancer")) $c.service.externalTrafficPolicy }}
   externalTrafficPolicy: {{ $c.service.externalTrafficPolicy }}
   {{- end }}

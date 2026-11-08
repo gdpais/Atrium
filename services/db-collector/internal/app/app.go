@@ -8,6 +8,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,6 +79,10 @@ type Config struct {
 	// SQL Server containers. Production should keep this disabled; when set,
 	// startup logs a warning that GET /admin/config also lists.
 	SQLServerTrustServerCertificate bool
+	// AdminTLS, when it names a certificate, moves the admin endpoints off
+	// ListenAddr to their own HTTPS listener ([AdminTLS]), so the admin
+	// token never travels over plain HTTP.
+	AdminTLS AdminTLS
 	// OTLPHeadersDir, when set, holds one file per header the OTLP exporter
 	// adds to every request to opentelemetry.endpoint, such as
 	// Authorization: the headers Secret mounted as a directory, read at each
@@ -253,6 +258,8 @@ type runDeps struct {
 	timeouts         timeouts
 	// onListen, when set, receives the bound HTTP address.
 	onListen func(net.Addr)
+	// onAdminListen, when set, receives the bound admin HTTPS address.
+	onAdminListen func(net.Addr)
 }
 
 // run is Run after dependency construction.
@@ -261,12 +268,30 @@ func run(ctx context.Context, deps runDeps) error {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
+	adminTLS := deps.cfg.AdminTLS.Enabled()
+	var adminTLSConfig *tls.Config
+	if adminTLS {
+		var err error
+		if adminTLSConfig, err = deps.cfg.AdminTLS.serverConfig(); err != nil {
+			return err
+		}
+	}
 	listener, err := net.Listen("tcp", deps.cfg.ListenAddr)
 	if err != nil {
 		return err
 	}
 	if deps.onListen != nil {
 		deps.onListen(listener.Addr())
+	}
+	var adminListener net.Listener
+	if adminTLS {
+		if adminListener, err = net.Listen("tcp", deps.cfg.AdminTLS.listenAddr()); err != nil {
+			_ = listener.Close()
+			return err
+		}
+		if deps.onAdminListen != nil {
+			deps.onAdminListen(adminListener.Addr())
+		}
 	}
 
 	// Pollers must outlive ctx until they are stopped explicitly, so shutdown
@@ -275,9 +300,21 @@ func run(ctx context.Context, deps runDeps) error {
 	svc := newService(deps.configManager, lifecycle, logger, deps.cfg.AdminToken, deps.timeouts)
 	svc.warnings = startupWarnings(deps.cfg, deps.configManager.Snapshot().Config.OpenTelemetry.Endpoint, logger)
 	svc.configMetrics = deps.configMetrics
-	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: telemetry.Traced(deps.httpMetrics.Instrument(routes(deps.registry, svc))), ReadHeaderTimeout: 10 * time.Second}
-	serveErr := make(chan error, 1)
+	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: telemetry.Traced(deps.httpMetrics.Instrument(routes(deps.registry, svc, !adminTLS))), ReadHeaderTimeout: 10 * time.Second}
+	servers := []*http.Server{server}
+	serveErr := make(chan error, 2)
 	go func() { serveErr <- server.Serve(listener) }()
+	if adminTLS {
+		adminServer := &http.Server{
+			Addr:              adminListener.Addr().String(),
+			Handler:           telemetry.Traced(deps.httpMetrics.Instrument(adminRoutes(svc))),
+			TLSConfig:         adminTLSConfig,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		servers = append(servers, adminServer)
+		go func() { serveErr <- adminServer.ServeTLS(adminListener, "", "") }()
+		logger.Info("admin endpoints served over HTTPS only", "addr", adminListener.Addr().String())
+	}
 	logger.Info("http server listening", "addr", listener.Addr().String())
 
 	var background sync.WaitGroup
@@ -297,7 +334,7 @@ func run(ctx context.Context, deps runDeps) error {
 			runErr = err
 		}
 	}
-	svc.shutdown(server, &background, deps.closeConnections)
+	svc.shutdown(servers, &background, deps.closeConnections)
 	return runErr
 }
 
@@ -360,14 +397,20 @@ func (s *service) initialReconcile(ctx context.Context) error {
 
 // shutdown drains HTTP, stops every poller, waits for reload goroutines, and
 // closes pooled connections, each step bounded by its timeout.
-func (s *service) shutdown(server *http.Server, background *sync.WaitGroup, closeConnections func() error) {
+func (s *service) shutdown(servers []*http.Server, background *sync.WaitGroup, closeConnections func() error) {
 	start := s.now()
 	s.logger.Info("shutdown: draining http server", "timeout", s.timeouts.httpShutdown.String())
 	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), s.timeouts.httpShutdown)
-	if err := server.Shutdown(httpCtx); err != nil {
-		s.logger.Warn("shutdown: http drain timed out; closing connections", "error", err)
-		_ = server.Close()
+	var drain sync.WaitGroup
+	for _, server := range servers {
+		drain.Go(func() {
+			if err := server.Shutdown(httpCtx); err != nil {
+				s.logger.Warn("shutdown: http drain timed out; closing connections", "addr", server.Addr, "error", err)
+				_ = server.Close()
+			}
+		})
 	}
+	drain.Wait()
 	cancelHTTP()
 
 	s.logger.Info("shutdown: stopping collector pollers", "timeout", s.timeouts.pollerStop.String())
@@ -419,7 +462,7 @@ func waitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 //
 // The unauthenticated endpoints expose no config, error text or names; every
 // admin endpoint goes through requireAdmin.
-func routes(registry *prometheus.Registry, svc *service) http.Handler {
+func routes(registry *prometheus.Registry, svc *service, admin bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	health := func(w http.ResponseWriter, _ *http.Request) {
@@ -432,9 +475,22 @@ func routes(registry *prometheus.Registry, svc *service) http.Handler {
 		report := svc.readiness(svc.configManager.Snapshot(), false)
 		writeJSON(w, report.httpStatus(), readinessStatus{Status: report.Status})
 	})
+	if admin {
+		addAdminRoutes(mux, svc)
+	}
+	return mux
+}
+
+// adminRoutes serves only the admin endpoints, for the HTTPS admin listener.
+func adminRoutes(svc *service) http.Handler {
+	mux := http.NewServeMux()
+	addAdminRoutes(mux, svc)
+	return mux
+}
+
+func addAdminRoutes(mux *http.ServeMux, svc *service) {
 	mux.HandleFunc("/admin/config", svc.requireAdmin(http.MethodGet, svc.handleConfig))
 	mux.HandleFunc("/admin/config/reload", svc.requireAdmin(http.MethodPost, svc.handleReload))
-	return mux
 }
 
 // reloadResponse is the body of POST /admin/config/reload. The endpoint is
