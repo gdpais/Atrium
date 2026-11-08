@@ -82,7 +82,7 @@ phase delivers each capability.
 ## Current status
 
 Phases 0 and 1 are done. Phase 2 (OutSystems ingest) passed its validation on
-2026-11-02 and waits for its outcome demo and its release. Phase 3 (the API)
+2026-11-02 and its outcome demo on 2026-11-08, and waits for its release. Phase 3 (the API)
 has its validation left, and phase 4 (inventory as code) is in progress.
 Nothing runs in production yet: production delivery is phase 5. See the
 [roadmap](roadmap.md) for each phase and [TODO.md](../../TODO.md) for the task
@@ -94,7 +94,7 @@ list.
 | Kubernetes delivery: one Helm chart for kind, CI and production; kind workflow and acceptance tests | Done for kind and CI; `v0.1.0` is published on GHCR and the next release waits for the release app [0.5]; production (EKS, Argo CD) is phase 5 |
 | SQL Server DB collector (probes, hot reload, failure isolation, readiness) | Done: secured endpoints, least-privilege login, counters and self-metrics, CPU, buffer cache and file I/O signals, per-probe failure isolation |
 | OTel Collector, Prometheus, Loki, Tempo, Grafana, Alertmanager | Provisioned by the chart; alerts reach Alertmanager (with a Watchdog) but notify no one until an environment configures a receiver; chat receivers only in the production example |
-| OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the outcome demo and the release |
+| OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the release |
 | Heartbeat's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Heartbeat Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Left: the phase 3 validation |
 | Inventory as code (replaces the Web UI) | In progress: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health; next kind's inventory declares PatientZero's database target |
