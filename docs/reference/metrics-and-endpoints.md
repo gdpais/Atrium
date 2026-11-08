@@ -67,7 +67,7 @@ curl -s --cacert ca.crt --resolve db-collector:8443:127.0.0.1 \
 | `version`, `loaded_at`, `last_reload_at` | Active config version (SHA-256 of the file) and timestamps |
 | `last_reload_err`, `runtime_diverged`, `rollback_err` | Why the last reload was rejected or failed; set until the next successful reload. Monitoring sees it as [`heartbeat_collector_config_last_reload_successful`](#config-reloads) 0 |
 | `warnings` | Insecure startup settings, e.g. `sqlserver_trust_server_certificate` |
-| `readiness` | What `/readyz` decided and why: `status`, `reasons`, and per collector its phase, cycle age, restarts and targets. Each target has its state (`ok`, `failed`, `backoff`, `blocked` for an `outsystems_logs` target waiting for the OTel Collector, or `degraded` for a target with some probes failing), consecutive failures, last success and the raw driver `error` of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A `blocked` target's `error` says which log type waits, with how many rows, and for how long. A `degraded` target lists its failing `probes`, each with its state (`failed`, or `backoff` while it waits out its own backoff), consecutive failures, next attempt and `error` |
+| `readiness` | What `/readyz` decided and why: `status`, `reasons`, and per collector its phase, cycle age, restarts and targets. Each target has its state (`ok`, `failed`, `backoff`, `blocked` for an `outsystems_logs` target waiting for the OTel Collector, `degraded` for a target with some probes failing or skipped, or `skipped` for a target the cycle deadline left no time for), consecutive failures, last success and the raw driver `error` of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A `blocked` target's `error` says which log type waits, with how many rows, and for how long. A `degraded` target lists its failing `probes`, each with its state (`failed`, `backoff` while it waits out its own backoff, or `skipped` when the cycle deadline came before it started), consecutive failures, next attempt and `error` |
 | `config` | The active config, redacted ([configuration reference](configuration.md#validation-and-reload-behavior)) |
 
 ```bash
@@ -753,6 +753,27 @@ run. While a target backs off none of its probes run and all its probe
 series are cleared, so they leave a gap instead of a frozen value; only the
 `heartbeat_collector_target_*` and `heartbeat_collector_probe_up` series stay.
 
+A probe that cannot start because its cycle already reached its deadline
+(the probes before it, or the wait for one of the concurrent target slots,
+used the whole scrape interval) is `skipped`, not failed: it does not back
+off, keeps exporting the series of its last run, and its
+`heartbeat_collector_probe_up` stays as it was. The next cycle runs the
+target's first skipped probe first, and dispatches the first skipped
+target first, so a short cycle does not starve the same probes or targets
+every time. A skipped probe does not count as a probe that ran:
+a target whose other probes succeeded is `degraded`, and a target none of
+whose probes ran is `skipped`, keeps all its series and does not back off,
+but its last success does not advance: `time() -
+heartbeat_collector_target_last_success_timestamp_seconds` shows how stale
+its series are. No alert watches that age; a collector whose cycles keep
+running out of time fires `HeartbeatCollectorCyclesLate` and
+`HeartbeatCollectorCyclesLateFast` instead. Under a sustained overload the
+same targets can be skipped every cycle: targets compete for the slots in
+the configured order. `heartbeat_collector_probe_errors_total` still counts
+the skip with reason `not_started`, and
+`heartbeat_collector_cycle_duration_seconds` shows the cycle using its whole
+interval.
+
 A probe that returns no rows exports no series:
 `heartbeat_sqlserver_blocked_requests` is absent, not 0, while nothing is
 blocked. Queries that need a zero fall back to targets whose `blocking` probe
@@ -856,8 +877,9 @@ Two more have other labels. `heartbeat_outsystems_stage_duration_seconds`
 `read` (the query), `build` (rows to OTLP records), `export` (until the OTel
 Collector accepted it, waiting for Loki included), `derive` (the derived metrics)
 and `watermark` (the save to disk); buckets 10ms to 300s, at most 440 series per
-collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the row data
-held in memory now, read, being exported or pending, against the 64 MiB allowed.
+collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the memory
+held now by batches read, being exported or pending (their row data and, once
+built, their records and request body), against the 64 MiB allowed.
 
 **The recount.** Once a minute (in each minute that has a poll), each log type counts again, per minute of
 `Instant`, the rows its query returns in the `recount_window` (default 10

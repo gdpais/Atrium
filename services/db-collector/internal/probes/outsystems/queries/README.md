@@ -28,6 +28,9 @@ OutSystems 11 logging database, one file per log type. Why they live here:
   The collector runs the query in its own session with
   `SET LOCK_TIMEOUT 1000; SET DEADLOCK_PRIORITY LOW;` and a hard deadline; do
   not set session options, open transactions or create objects here.
+- Cut every unbounded (`varchar(max)`, `nvarchar(max)`) column in SQL to
+  16,385 characters, as `error.sql` does with `LEFT(r.Stack, 16385)`: the
+  driver reads each value whole, and a record keeps only 16 KiB of it.
 - Read the current **and** the previous week. The platform keeps ten cycle
   tables per log type (`oslog_<TYPE>_0` to `_9`, one week each) behind two
   views: `oslog_<TYPE>` is the current week's table and `oslog_<TYPE>_Previous`

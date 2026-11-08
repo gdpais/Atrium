@@ -171,7 +171,7 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 	}
 	held := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Name: MetricHeldBytes,
-		Help: "OutSystems log row data held in memory now: read, being exported or pending.",
+		Help: "OutSystems log batches held in memory now, row data and built records: read, being exported or pending.",
 	}, func() float64 {
 		if read := m.heldBytes.Load(); read != nil {
 			return float64((*read)())

@@ -10,6 +10,10 @@
 -- names of README.md (Standard columns).
 -- Entrypoint_Name is the entry point (standard name Screen). Module_Name is
 -- the free text the error was logged with, Espace_Name the module.
+-- Stack is the error detail's FullStackTrace, a varchar(max) that a monitored
+-- application's users can make arbitrarily long: it is cut here to one
+-- character more than the 16 KiB a record keeps, so the driver never holds a
+-- whole one and the collector still marks the record outsystems.truncated.
 SELECT TOP (@limit)
     r.Instant,
     r.Message,
@@ -25,7 +29,7 @@ SELECT TOP (@limit)
     r.Username,
     r.Tenant_Id,
     r.Server,
-    r.Stack,
+    LEFT(r.Stack, 16385) AS Stack,
     r.EnvironmentInformation
 -- Each week's view is cut to @limit rows in Instant order before the
 -- union, so a backlog costs @limit index rows per view instead of every row
