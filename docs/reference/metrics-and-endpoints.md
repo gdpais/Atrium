@@ -852,8 +852,9 @@ Two more have other labels. `heartbeat_outsystems_stage_duration_seconds`
 `read` (the query), `build` (rows to OTLP records), `export` (until the OTel
 Collector accepted it, waiting for Loki included), `derive` (the derived metrics)
 and `watermark` (the save to disk); buckets 10ms to 300s, at most 440 series per
-collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the row data
-held in memory now, read, being exported or pending, against the 64 MiB allowed.
+collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the memory
+held now by batches read, being exported or pending (their row data and, once
+built, their records and request body), against the 64 MiB allowed.
 
 **The recount.** Once a minute (in each minute that has a poll), each log type counts again, per minute of
 `Instant`, the rows its query returns in the `recount_window` (default 10

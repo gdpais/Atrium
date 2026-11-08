@@ -56,7 +56,9 @@ import (
 //     again, as a failed export always has.
 //
 // The batches held at once, read, being exported or pending, are bounded by
-// [Executor.MaxHeldBytes] of row data, so a backlog in every log type while
+// [Executor.MaxHeldBytes] of memory: their row data, and, once a batch's
+// records are built, twice the records' encoded size for the records
+// themselves and the request body the export marshals from them, so a backlog in every log type while
 // the Collector is blocked cannot exhaust the collector's memory: past it, a
 // log type reads a smaller batch, and once less than [minBatchBytes] is
 // left, it reads nothing and is blocked too until an export ends.
@@ -235,6 +237,16 @@ func (s *exportState) reserve(want, max int64) int64 {
 	return grant
 }
 
+// add counts n more bytes as held, even past the budget: the records and
+// body of a batch already read, which the batch's export releases.  The
+// budget can be overrun by at most one batch's records per log type; the
+// next reserve then waits until enough is released.
+func (s *exportState) add(n int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.held += n
+}
+
 // release returns n bytes to the held budget.
 func (s *exportState) release(n int64) {
 	s.mu.Lock()
@@ -270,9 +282,9 @@ func isDone(e *export) bool {
 }
 
 // startExport sends logs in the background and, once the Collector accepts
-// them, counts the rows and saves next as key's watermark.  The batch's held
-// bytes are released when the export ends.
-func (e *Executor) startExport(callCtx context.Context, item collectormetadata.ScheduledProbe, key WatermarkKey, logs []*logspb.ResourceLogs, batch Batch, rows [][]any, instants []time.Time, next Watermark, location *time.Location) *export {
+// them, counts the rows and saves next as key's watermark.  held, the bytes
+// the batch and its records hold, is released when the export ends.
+func (e *Executor) startExport(callCtx context.Context, item collectormetadata.ScheduledProbe, key WatermarkKey, logs []*logspb.ResourceLogs, batch Batch, rows [][]any, instants []time.Time, next Watermark, location *time.Location, held int64) *export {
 	s := &e.exports
 	s.init()
 	endpoint := item.OutSystemsLogs.LogsEndpoint
@@ -323,7 +335,7 @@ func (e *Executor) startExport(callCtx context.Context, item collectormetadata.S
 		}
 		elapsed := time.Since(pending.started)
 		s.mu.Lock()
-		s.held -= batch.Bytes
+		s.held -= held
 		blocked := pending.blocked
 		pending.err = err
 		close(pending.done)

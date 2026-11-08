@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/golang-sql/civil"
@@ -164,6 +165,7 @@ func readRows(rows rowReader, batch *Batch, params QueryParams) error {
 		if err := rows.Scan(scans...); err != nil {
 			return fmt.Errorf("scan row: %w", err)
 		}
+		capValues(values)
 		spent := params.MaxBytes > 0 && size >= params.MaxBytes
 		if spent && instant >= 0 && len(batch.Rows) < params.Limit && !sameInstant(values[instant], batch.Rows[len(batch.Rows)-1][instant]) {
 			batch.Rows, batch.Partial = append(batch.Rows, values), true
@@ -178,6 +180,34 @@ func readRows(rows rowReader, batch *Batch, params QueryParams) error {
 		return fmt.Errorf("iterate rows: %w", err)
 	}
 	return nil
+}
+
+// maxScannedValueBytes is the most of a text or binary value a held row
+// keeps: one byte more than a record keeps ([maxValueBytes]), so a record
+// built from the row is still cut and marked outsystems.truncated.  A
+// query_template that selects an unbounded column without cutting it in SQL
+// still has each value read whole by the driver, but the row holds only this
+// much of it while it waits for its export.
+const maxScannedValueBytes = maxValueBytes + 1
+
+// capValues cuts each text and binary value of a scanned row to
+// maxScannedValueBytes, copying the kept part so the driver's whole value
+// can be freed.
+func capValues(values []any) {
+	for i, v := range values {
+		switch v := v.(type) {
+		case string:
+			if len(v) > maxScannedValueBytes {
+				values[i] = strings.Clone(v[:maxScannedValueBytes])
+			}
+		case []byte:
+			if len(v) > maxScannedValueBytes {
+				kept := make([]byte, maxScannedValueBytes)
+				copy(kept, v)
+				values[i] = kept
+			}
+		}
+	}
 }
 
 // rowBytes estimates the memory a scanned row holds: the text and binary

@@ -323,8 +323,13 @@ Rules:
   character boundary and ending in `…[truncated]`, and the record gets
   `outsystems.truncated = true`. `Stack` and `EnvironmentInformation` are
   the usual ones; Loki keeps attributes as structured metadata, 64 KB per
-  line by default. `error.fingerprint` is computed from the whole `Message`
-  and `Stack`, so it does not change.
+  line by default. The built-in `error` query cuts `Stack`, a `varchar(max)`
+  that a monitored application's users can make arbitrarily long, to 16,385
+  characters in SQL, so the driver never reads a whole one; a
+  `query_template` that selects an unbounded column must cut it the same way
+  (`LEFT(column, 16385)`). Any longer text or binary value is cut to 16 KiB
+  plus one byte as soon as its row is read. `error.fingerprint` is computed
+  from the first lines of `Stack`, so the cut does not change it.
 - The watermark of each collector, target and log type is a file under
   `HEARTBEAT_STATE_DIR` (`outsystems_logs/<collector>.<target>.<log type>.json`).
   It moves only after the OTel Collector accepted the batch, so delivery is at
@@ -337,7 +342,9 @@ Rules:
   the Collector accepts it, and the log type reads nothing more meanwhile.
   `heartbeat_outsystems_export_blocked` is 1 and the target stays up
   ([metrics](metrics-and-endpoints.md#outsystems-log-extraction)). At most
-  64 MiB of row data is held in such batches across all log types; near
+  64 MiB is held in such batches across all log types, counting each
+  batch's row data and, once its records are built, twice their encoded size
+  (the records and the request body made from them); near
   that, a batch reads only what is left, and with less than 1 MiB left the
   other log types wait too. In each cycle the calls of one target wait for
   the Collector at most half the poll interval in all, so its other log

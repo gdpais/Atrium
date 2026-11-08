@@ -12,6 +12,7 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 // Column names the query contract gives a meaning (queries/README.md).
@@ -313,4 +314,16 @@ func unixNano(t time.Time) uint64 {
 		return uint64(ns)
 	}
 	return 0
+}
+
+// recordsBytes estimates the memory the built records of a batch hold while
+// it is exported: their encoded size twice, once for the records' own
+// allocations, which take about as much as their encoding, and once for the
+// marshalled request body.
+func recordsBytes(logs []*logspb.ResourceLogs) int64 {
+	var n int64
+	for _, l := range logs {
+		n += int64(proto.Size(l))
+	}
+	return 2 * n
 }
