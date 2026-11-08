@@ -727,9 +727,9 @@ func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.Co
 // executeProbe runs item under its probe timeout.  Probes that cannot start
 // before the cycle deadline are reported as skipped ([errProbeSkipped]);
 // probes canceled before they start, probes whose target still has an
-// abandoned call running, and probes that panic are reported as errors.  A probe that does
-// not return within the abandon grace after its context is done is abandoned
-// and reported as timed out.  Executions are timed and failures counted
+// abandoned call running, and probes that panic are reported as errors.  A
+// probe that does not return within the abandon grace after its context is
+// done is abandoned and reported as timed out.  Executions are timed and failures counted
 // through the Runner's [ProbeMetrics].
 func (r Runner) executeProbe(ctx context.Context, item collectormetadata.ScheduledProbe, interval time.Duration) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
 	name := item.Definition.Name

@@ -29,8 +29,9 @@ const (
 	TargetBlocked TargetState = "blocked"
 	// TargetDegraded is a target with probes that failed, back off on their
 	// own or were skipped while its other probes succeeded: only the failing
-	// probes are missing, and skipped ones keep their last series.  The target does not back off, heartbeat_collector_target_up
-	// stays 1 and its last success advances; Probes lists the failing probes.
+	// probes are missing, and skipped ones keep their last series.  The
+	// target does not back off, heartbeat_collector_target_up stays 1 and its
+	// last success advances; Probes lists the failing probes.
 	// A target is failed, and backs off as a whole, only when every probe
 	// that ran failed.
 	TargetDegraded TargetState = "degraded"
@@ -39,7 +40,9 @@ const (
 	// whole scrape interval.  It is not a failure: the target does not back
 	// off, and its series, heartbeat_collector_target_up included, keep the
 	// values of the last cycle that ran it.  Its last success does not
-	// advance, so freshness alerts still fire if it keeps being skipped.
+	// advance, so its age shows how stale those series are; no alert watches
+	// it, but a collector whose cycles keep running out of time fires
+	// HeartbeatCollectorCyclesLate.
 	TargetSkipped TargetState = "skipped"
 )
 

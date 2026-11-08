@@ -58,8 +58,9 @@ import (
 // The batches held at once, read, being exported or pending, are bounded by
 // [Executor.MaxHeldBytes] of memory: their row data, and, once a batch's
 // records are built, twice the records' encoded size for the records
-// themselves and the request body the export marshals from them, so a backlog in every log type while
-// the Collector is blocked cannot exhaust the collector's memory: past it, a
+// themselves and the request body the export marshals from them, so a
+// backlog in every log type while the Collector is blocked cannot exhaust
+// the collector's memory: past it, a
 // log type reads a smaller batch, and once less than [minBatchBytes] is
 // left, it reads nothing and is blocked too until an export ends.
 

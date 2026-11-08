@@ -1442,7 +1442,7 @@ func checkCollectorMissingAlert(t *testing.T, objects map[string]object) {
 	}
 }
 
-// No Role may read the namespace's Secrets: they hold the API's, SQL
+// No Role or ClusterRole may read Secrets: they hold the API's, SQL
 // Server's and Grafana's credentials and the collector's admin token, and
 // none of the chart's workloads reads them through the Kubernetes API.  The
 // Loki subchart rendered one for its rules sidecar, which the chart does not
@@ -1450,7 +1450,7 @@ func checkCollectorMissingAlert(t *testing.T, objects map[string]object) {
 func checkNoSecretReaders(t *testing.T, objects map[string]object) {
 	t.Helper()
 	for id, obj := range objects {
-		if obj.Kind != "Role" {
+		if obj.Kind != "Role" && obj.Kind != "ClusterRole" {
 			continue
 		}
 		for _, rule := range obj.Rules {

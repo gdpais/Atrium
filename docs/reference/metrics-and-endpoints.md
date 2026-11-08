@@ -743,8 +743,13 @@ target's first skipped probe first, so a short cycle does not starve the
 same probes every time. A skipped probe does not count as a probe that ran:
 a target whose other probes succeeded is `degraded`, and a target none of
 whose probes ran is `skipped`, keeps all its series and does not back off,
-but its last success does not advance, so freshness alerts still fire if it
-keeps being skipped. `heartbeat_collector_probe_errors_total` still counts
+but its last success does not advance: `time() -
+heartbeat_collector_target_last_success_timestamp_seconds` shows how stale
+its series are. No alert watches that age; a collector whose cycles keep
+running out of time fires `HeartbeatCollectorCyclesLate` and
+`HeartbeatCollectorCyclesLateFast` instead. Under a sustained overload the
+same targets can be skipped every cycle: targets compete for the slots in
+the configured order. `heartbeat_collector_probe_errors_total` still counts
 the skip with reason `not_started`, and
 `heartbeat_collector_cycle_duration_seconds` shows the cycle using its whole
 interval.
