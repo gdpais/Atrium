@@ -739,8 +739,9 @@ A probe that cannot start because its cycle already reached its deadline
 used the whole scrape interval) is `skipped`, not failed: it does not back
 off, keeps exporting the series of its last run, and its
 `heartbeat_collector_probe_up` stays as it was. The next cycle runs the
-target's first skipped probe first, so a short cycle does not starve the
-same probes every time. A skipped probe does not count as a probe that ran:
+target's first skipped probe first, and dispatches the first skipped
+target first, so a short cycle does not starve the same probes or targets
+every time. A skipped probe does not count as a probe that ran:
 a target whose other probes succeeded is `degraded`, and a target none of
 whose probes ran is `skipped`, keeps all its series and does not back off,
 but its last success does not advance: `time() -

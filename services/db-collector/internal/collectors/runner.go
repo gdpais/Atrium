@@ -58,6 +58,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -348,6 +349,10 @@ type targetTracker struct {
 	// lastCycleStart is when the previous cycle started; only the Poller's own
 	// goroutine reads and writes it, between cycles.
 	lastCycleStart time.Time
+	// firstTarget names the target the next cycle dispatches first: the first
+	// one the previous cycle skipped.  Only the cycle's own goroutine reads
+	// and writes it, outside the target goroutines.
+	firstTarget string
 	// startAt names, per target, the probe its next cycle runs first: the
 	// first probe the previous cycle skipped, so that a cycle too short for
 	// all of a target's probes does not starve the same ones every time.
@@ -527,25 +532,57 @@ func (r Runner) runCycle(ctx context.Context, collector collectorconfig.Collecto
 	var wg sync.WaitGroup
 	// Never leave target goroutines behind, even if this function panics.
 	defer wg.Wait()
-	for i, group := range groups {
+	// Slots are taken here, in dispatch order, so that order decides which
+	// targets a cycle too short for all of them leaves out.  It starts at the
+	// first target the previous cycle skipped: under sustained overload the
+	// skipped targets take turns instead of the same ones never running.
+	order := targetOrder(groups, tracker.firstTarget)
+	for _, i := range order {
+		group := groups[i]
 		state := tracker.get(group.name)
 		if started.Before(state.nextAttempt) {
 			result.Targets[i] = r.skipTarget(collector.ID, group, state)
 			continue
 		}
+		if !acquire(cycleCtx, sem) {
+			// The cycle is over: its probes find the deadline passed and
+			// are skipped.
+			result.Targets[i] = r.runTarget(cycleCtx, collector, group, tracker, started)
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result.Targets[i] = r.runTarget(cycleCtx, collector, group, tracker, started, sem)
+			defer func() { <-sem }()
+			result.Targets[i] = r.runTarget(cycleCtx, collector, group, tracker, started)
 		}()
 	}
 	wg.Wait()
+	tracker.firstTarget = ""
+	for _, i := range order {
+		if result.Targets[i].State == TargetSkipped {
+			tracker.firstTarget = result.Targets[i].Target
+			break
+		}
+	}
 	result.Finished = tracker.now()
 	r.recordCycle(collector.ID, result.Finished.Sub(started))
 	if !errors.Is(ctx.Err(), context.Canceled) {
 		r.metrics.observeCycle(collector.ID, result.Finished.Sub(started), collector.ScrapeInterval)
 	}
 	return result
+}
+
+// targetOrder returns the indexes of groups in the order a cycle dispatches
+// them: the configured order, rotated to start at the target named first
+// when it is one of groups.
+func targetOrder(groups []targetGroup, first string) []int {
+	start := max(slices.IndexFunc(groups, func(g targetGroup) bool { return g.name == first }), 0)
+	order := make([]int, 0, len(groups))
+	for i := range groups {
+		order = append(order, (start+i)%len(groups))
+	}
+	return order
 }
 
 // cycleContext bounds a cycle by the scrape interval when one is set.
@@ -619,7 +656,7 @@ func runOrder(items []collectormetadata.ScheduledProbe, first string) []int {
 // target is backing off, when they all run.  Probes the cycle deadline
 // leaves no time for are skipped, not failed, and the next cycle starts with
 // the first of them.  It never panics.
-func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, sem chan struct{}) (result TargetResult) {
+func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time) (result TargetResult) {
 	ctx, span := tracer.Start(ctx, "collector.target", trace.WithAttributes(attribute.String("heartbeat.target", group.name)))
 	defer func() {
 		span.SetAttributes(attribute.String("heartbeat.target.state", string(result.State)))
@@ -628,9 +665,6 @@ func (r Runner) runTarget(ctx context.Context, collector collectorconfig.Collect
 		}
 		span.End()
 	}()
-	if acquire(ctx, sem) {
-		defer func() { <-sem }()
-	}
 	runs := make([]probeRun, len(group.items))
 	waitingAll := true
 	for i, item := range group.items {

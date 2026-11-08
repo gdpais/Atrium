@@ -881,3 +881,54 @@ func TestBlockedProbeIsNotAFailure(t *testing.T) {
 		t.Fatalf("cycle error %v, want the general probe's failure only", err)
 	}
 }
+
+// Targets take the concurrency slots in dispatch order, which starts at the
+// first target the previous cycle skipped, so under sustained overload the
+// skipped targets take turns rather than the same ones never running.
+func TestCycleDeadlineSkippedTargetIsDispatchedFirstNextCycle(t *testing.T) {
+	var mu sync.Mutex
+	var calls []string
+	slow := atomic.Bool{}
+	executor := funcExecutor(func(ctx context.Context, item collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
+		mu.Lock()
+		calls = append(calls, item.Target.Name)
+		mu.Unlock()
+		if slow.Load() {
+			select {
+			case <-time.After(150 * time.Millisecond):
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		}
+		return sampleFor(item), nil, nil
+	})
+	runner := NewRunner(executor, collectorexport.NewInMemoryExporter(), nil).
+		WithLogger(slog.New(slog.DiscardHandler)).
+		WithMaxConcurrentTargets(1)
+	collector := testCollector(200*time.Millisecond, testTarget("t1", "p1"), testTarget("t2", "p1"), testTarget("t3", "p1"))
+	for i := range collector.Targets {
+		collector.Targets[i].Probes[0].TimeoutMS = 60_000 // capped at the interval
+	}
+	tracker := newTargetTracker()
+	tracker.jitter = func() float64 { return 0 }
+
+	// t1 takes 150ms of the 200ms cycle, t2 runs into the deadline, t3 never
+	// gets the slot.
+	slow.Store(true)
+	result := runner.runCycle(context.Background(), collector, tracker)
+	states := []TargetState{result.Targets[0].State, result.Targets[1].State, result.Targets[2].State}
+	if fmt.Sprint(states) != fmt.Sprint([]TargetState{TargetOK, TargetFailed, TargetSkipped}) {
+		t.Fatalf("first cycle states = %v; want ok, failed, skipped", states)
+	}
+
+	slow.Store(false)
+	mu.Lock()
+	calls = nil
+	mu.Unlock()
+	runner.runCycle(context.Background(), collector, tracker)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) == 0 || calls[0] != "t3" {
+		t.Fatalf("expected the skipped target dispatched first, got calls %v", calls)
+	}
+}
