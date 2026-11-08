@@ -25,12 +25,13 @@ mkdir -p "$dir"
 
 # download <url> <file>: curl retries a timeout, a refused connection and a
 # 408, 429, 500, 502, 503 or 504 answer, waiting 1, 2, 4 ... 64 seconds
-# between tries (about two minutes in all), so a short outage at a release
-# host doesn't fail the job. A stalled try gives up after five minutes. A
-# failure names the URL, which curl's -s hides.
+# between tries (about two minutes in all, longer if the host sends
+# Retry-After), so a short outage at a release host doesn't fail the job. A
+# stalled try gives up after five minutes. Other errors, such as a 404, fail
+# at once. A failure names the URL, which curl's -s hides.
 download() {
 	curl -fsSL --retry 7 --retry-connrefused --connect-timeout 20 --max-time 300 \
-		-o "$2" "$1" || { echo "download failed after retries: $1" >&2; exit 1; }
+		-o "$2" "$1" || { echo "download failed: $1" >&2; exit 1; }
 }
 
 # fetch <url> <checksum-url> <file>: downloads and verifies against the first
