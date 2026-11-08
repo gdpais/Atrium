@@ -370,11 +370,12 @@ and collector contracts are prerequisites, and its decisions are recorded
 (ADRs 0013–0017). Deep links [4.9] need YAML templates and datasources [8.1,
 9.3], which exist.
 
-Remaining work: this stage's validation. Deep links [4.9] are done,
-rendered from the integrations templates the collector reads. Probe
-assignments render to `managedCollectors` and are applied on kind [4.5,
-2.5]; ADR 0014's pull request output waits for `heartbeat-deploy` [18], and
-until then the output is `none`.
+Validated on 2026-11-08: everything this stage builds now is done. Deep
+links [4.9] are rendered from the integrations templates the collector
+reads. Probe assignments render to `managedCollectors` and are applied on
+kind [4.5, 2.5]; ADR 0014's pull request output to `heartbeat-deploy` is
+built only if production needs assignments managed by the API (ADR 0021
+narrows it) [18], and until then the output is `none`.
 
 Investigations, alerting and reporting [4.6–4.8] and the job/result
 contracts are built later, with their workers [6, 7, 12–14]: nothing consumes
@@ -384,7 +385,7 @@ queue tests alone.
 
 - [ ] Define/version API-to-worker job/result contracts before the first queue producer and consumer, with the first worker [6, 7]; integration-test each complete workflow when its worker lands (envelope and delivery rules: [ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md))
 - [x] Define how approved metadata probe assignments become YAML/Kubernetes runtime config [2.5, 8]; keep runtime desired state out of PostgreSQL ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
-- [ ] Validate this stage: auth/ownership/secret refs, CRUD persistence, audit redaction and collector onboarding, with PatientZero registered through the API on kind and its database target's probes applied by the collector [16.1–16.2, 16.5]
+- [x] Validate this stage (2026-11-08): auth/ownership/secret refs, CRUD persistence, audit redaction and collector onboarding [16.1–16.2]. PatientZero is no longer registered through the API: since [ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) the inventory file manages it and the API refuses its writes, which stage 4's validation covers [5]; the API path is validated on API-managed rows instead. On kind ([`kind end-to-end` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/42494007790/job/128772265888), `b44a347`, 55 checks): login only from the API's own origin (403 from another), the `__Host-` session cookie, logout ending the session (401 after), each audited in Loki; an environment, applications and OutSystems sources created through the API, the collector observing a source of its environment and not another's, audited; the API-managed target `e2e-assigned` with a `sessions` assignment taken draft → approved → applied, run by the collector from `managedCollectors` with its sessions in Prometheus, each step audited; deep links rendered for an API-created target. In the API's tests: each role on every endpoint (`TestInventoryRoles`, `TestDatabaseTargetRoles`, `TestProbeAssignmentRoles`, `TestProbeDefinitionOperationsNeedTheirRole`, `TestLinkRoles`, `TestServiceRoles`); no secret in any entity type's audit record (`TestAuditRecordsHoldNoSecrets`); credentials only as references (`TestCredentialRef`, `TestCredentialRefsNeverShareAKey`); CRUD persistence against PostgreSQL in `internal/inventory`, `internal/users`, `internal/auth`, `internal/probedefs` and `internal/store` integration tests
 
 ### 4.1 Service bootstrap
 - [x] Create Go service entrypoint `apps/api/cmd/api/`
@@ -861,8 +862,8 @@ First slice, with phase 2:
 - [ ] Replace the hand-run load in the [live demo](docs/guides/live-demo.md) with the scenarios [16.2, 16.3]
 
 Later, each with the phase that needs it:
-- [ ] Phase 3: register PatientZero through the API as the reference application: its environment, application, OutSystems source and business database target, with probes applied by the collector [4]
-- [ ] Phase 4: onboard PatientZero from the inventory file [5, 16.3]
+- [x] ~~Phase 3: register PatientZero through the API as the reference application~~: superseded (2026-11-08) by phase 4, since ADR 0021 makes the inventory file PatientZero's only writer; the API path is validated on API-managed rows on kind [4]
+- [x] Phase 4: onboard PatientZero from the inventory file [5, 16.3]: its environment, application, OutSystems source, database target and three probes, applied on kind and run by the collector (stage 4's validation, 2026-11-07)
 - [ ] Phase 7, with the analyzer and alert work that uses them: timers, extension calls and a fake consumed REST partner; long-running screens and timers; `Instant` in a configured time zone across daylight saving switches; the `blocking` (and deadlock), `slow-partner`, `timer-backlog` and `bad-front-end` scenarios [6, 13]
 - [ ] Phase 7: investigations and reports on PatientZero runs compared with their journals; decide soak runs or a Prometheus TSDB backfill for multi-day baselines and weekly reports [6, 13, 14]
 - [ ] OTLP mode for the OutSystems Cloud/ODC streams and traces [3.4, 3.6]; a MuleSoft-like source [3.4]; an Oracle-backed variant [21]

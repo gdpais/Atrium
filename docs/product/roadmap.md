@@ -11,7 +11,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | In progress: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. Left: the stage's validation. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `heartbeat-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
 | 6 | Complete application and database product workflows | Not started |
@@ -230,8 +230,19 @@ consumes them before, and their shape depends on the correlation model and
 the evidence design.
 
 Exit: auth/ownership, CRUD persistence, secret refs and audit redaction;
-PatientZero registered through the API as an application with its telemetry
-source and database target, whose approved probes the collector runs on kind.
+an application with its telemetry source and a database target registered
+through the API, whose approved probes the collector runs on kind.
+PatientZero was to be that application; since ADR 0021 the inventory file
+manages it and the API refuses its writes, so phase 4 validates it.
+
+Validated on 2026-11-08 with `master`'s `kind end-to-end` job as evidence
+([TODO 4](../../TODO.md#4-core-system-api--control-plane-appsapi)): login
+from the API's origin only, sessions and logout, audited in Loki; an
+environment, applications and OutSystems sources created through the API, the
+collector observing those of its own environment only; the API-managed target `e2e-assigned` with a probe
+assignment approved, applied and run by the collector, each step audited; the
+API's tests cover every role on every endpoint, audit records holding no
+secret, and credentials only as references.
 
 ## Phase 4 — Inventory as code
 
