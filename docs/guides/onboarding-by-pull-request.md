@@ -15,7 +15,7 @@ them all. This guide is the workflow around the file.
 | --- | --- |
 | kind | `api.inventory` in [`infra/helm/values/kind.yaml`](../../infra/helm/values/kind.yaml), applied by `make kind-deploy` |
 | Installed from a release | A file of its own, passed with `helm upgrade … --set-file api.inventory=inventory.yaml` |
-| Production | The environment's folder in `heartbeat-deploy`, synced by Argo CD (`fileParameters`); that repository and its CI wait for production delivery [18] |
+| Production | `environments/<env>/inventory.yaml` in the private [`heartbeat-deploy`](https://github.com/gdpais/heartbeat-deploy) repository. Its `scripts/render.sh` writes the file as `inventory-values.yaml` (`api.inventory`) beside the render below, and Argo CD passes both as values files |
 
 ## 1. Prepare what the file refers to
 
@@ -72,7 +72,9 @@ so:
 
 ## 3. Check and render
 
-Run the same commands the configuration repository's CI runs:
+Run the same commands the configuration repository's CI runs (in
+`heartbeat-deploy`, `scripts/render.sh` and `scripts/check.sh` run them all,
+the collector's `db-collector check-config` on the rendered chart included):
 
 ```bash
 go run ./apps/api/cmd/api inventory check -f inventory.yaml
@@ -104,7 +106,7 @@ revision. Reviewers check:
 | --- | --- |
 | kind | `make kind-deploy`; for the target's probes, `make kind-assignments` |
 | Installed from a release | `helm upgrade` with `--set-file api.inventory=inventory.yaml`, `-f managed-collectors.yaml` after your other values files |
-| Production | Merge; Argo CD syncs the file and the render |
+| Production | Merge in `heartbeat-deploy`; Argo CD syncs the file and the render (by hand until the first production deploy is validated [18]) |
 
 The API rereads the file every 30 seconds and applies a changed one in one
 transaction. A file it refuses, because it fails validation or names a row
