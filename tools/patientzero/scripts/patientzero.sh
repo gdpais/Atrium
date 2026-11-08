@@ -647,6 +647,7 @@ admin_retry() {
 	shift
 	attempt=0
 	while :; do
+		# shellcheck disable=SC2034 # read by the eval below
 		if response_=$(admin "$@"); then
 			eval "$var=\$response_"
 			return 0
@@ -786,11 +787,12 @@ cmd_scenario() {
 	helm status "$RELEASE" --kube-context "$CONTEXT" --namespace "$NAMESPACE" >/dev/null 2>&1 ||
 		die "PatientZero is not installed on $CLUSTER; run make patientzero-up"
 	command -v jq >/dev/null || die "jq is required"
-	work= forward= run= started_load= agent= answered=
+	work='' forward='' run='' started_load='' agent='' answered=''
 	trap scenario_cleanup EXIT
 	trap 'exit 130' INT TERM
 	scenario_forward
 	admin_retry listing /admin/scenarios --fail || die "GET /admin/scenarios failed"
+	# shellcheck disable=SC2154 # admin_retry set listing
 	if [ -z "${SCENARIO:-}" ]; then
 		printf '%s' "$listing" | jq -r '.scenarios[] |
 			"\(.name)  (\(.faults | join(", ")); load \(.load); at most \(.max_duration_seconds | ceil)s)\(if .runnable then "" else "  NOT RUNNABLE HERE: " + .reason end)\n  \(.description)\n"'

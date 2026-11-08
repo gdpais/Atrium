@@ -77,7 +77,7 @@ func readPassword(stdin io.Reader) (string, error) {
 	if f, ok := stdin.(*os.File); ok {
 		if info, err := f.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
 			return "", errors.New("standard input is a terminal or a device: pipe the password in, such as with " +
-				`read -rs PASSWORD && printf '%s\n' "$PASSWORD" | api users create-admin --email ...`)
+				`read -rs PASSWORD && printf '%s\n' "$PASSWORD" | api users create-admin --email <address>`)
 		}
 	}
 	// Room for the longest password, a line end, and one byte to tell that

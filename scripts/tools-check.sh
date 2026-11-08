@@ -32,10 +32,12 @@ fi
 
 node_tag=${KIND_NODE_IMAGE#*:}
 node_tag=${node_tag%@*}
+# shellcheck disable=SC2046 # split into the major, minor and patch fields
 set -- $(split_version "$node_tag")
 node_minor=$2
 if command -v kubectl >/dev/null 2>&1; then
 	have=$(kubectl version --client -o json 2>/dev/null | sed -nE 's/.*"gitVersion": *"([^"]+)".*/\1/p' | head -n 1)
+	# shellcheck disable=SC2046 # split into the major, minor and patch fields
 	set -- $(split_version "$have")
 	skew=$(($2 - node_minor))
 	# kubectl supports one minor version of skew with the API server.
@@ -50,8 +52,10 @@ fi
 
 if command -v helm >/dev/null 2>&1; then
 	have=$(helm version --template '{{.Version}}')
+	# shellcheck disable=SC2046 # split into the major, minor and patch fields
 	set -- $(split_version "$have")
 	h_major=$1 h_minor=$2
+	# shellcheck disable=SC2046 # split into the major, minor and patch fields
 	set -- $(split_version "$HELM_MIN_VERSION")
 	if [ "$h_major" -eq "$1" ] && [ "$h_minor" -ge "$2" ]; then
 		ok "helm $have"
