@@ -42,10 +42,17 @@
 //	                                    each TLS handshake (default unset)
 //
 // Its own telemetry reads the variables package telemetry lists.
+//
+// `db-collector check-config -f FILE` instead loads an integrations file as
+// the collector would, with the probe catalogs, and exits 0 when it is valid
+// and 1 with the problem otherwise. It starts nothing and connects to nothing,
+// for the configuration repository's CI.
 package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -61,6 +68,9 @@ import (
 const telemetryFlush = 3 * time.Second
 
 func main() {
+	if len(os.Args) > 1 {
+		os.Exit(command(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	tel := telemetry.Start("db-collector", os.Stderr)
 	logger := tel.Logger
 	slog.SetDefault(logger)
@@ -135,4 +145,19 @@ func boolEnv(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+// command runs a subcommand and returns the exit code.
+func command(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 3 || args[0] != "check-config" || args[1] != "-f" || args[2] == "" {
+		fmt.Fprintln(stderr, "usage: db-collector | db-collector check-config -f FILE")
+		return 2
+	}
+	version, collectors, err := app.CheckConfig(args[2])
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "%s: valid, %d collector(s), version %s\n", args[2], collectors, version)
+	return 0
 }
