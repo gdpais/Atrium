@@ -97,7 +97,7 @@ type Client struct {
 // NewClient returns a Client with the default limits.
 func NewClient() *Client {
 	return &Client{
-		HTTP:            &http.Client{Timeout: DefaultRequestTimeout},
+		HTTP:            newHTTPClient(),
 		MaxRequestBytes: DefaultMaxRequestBytes,
 		InitialBackoff:  DefaultInitialBackoff,
 		MaxBackoff:      DefaultMaxBackoff,

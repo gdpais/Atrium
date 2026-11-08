@@ -574,7 +574,9 @@ them from Secrets under `dbCollector.otlpExporter`:
 | `tls.clientCert.existingSecret` | A `kubernetes.io/tls` Secret (`tls.crt`, `tls.key`) | Presents it for mutual TLS, reading it at each TLS handshake, so a renewed certificate (cert-manager) is used by the next connection |
 
 TLS 1.2 is the minimum, and the receiver's certificate and host name are
-always verified. A missing or unreadable CA or client certificate stops the
+always verified. Redirects are not followed: a `3xx` answer fails the
+export, so the headers never reach a host other than `opentelemetry.endpoint`.
+A missing or unreadable CA or client certificate stops the
 collector at start. Headers over an `http://` endpoint send the token in the
 clear: the collector warns at start (`otlp_headers_over_http`, also in
 `GET /admin/config`). With `dbCollector.networkPolicy.egress.enabled`, admit

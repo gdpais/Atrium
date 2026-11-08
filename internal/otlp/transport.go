@@ -35,12 +35,13 @@ func (f TLSFiles) Empty() bool {
 }
 
 // NewHTTPClient returns an HTTP client for OTLP/HTTP export with the
-// per-attempt [DefaultRequestTimeout] and, when files names any, a TLS
+// per-attempt [DefaultRequestTimeout], redirects refused ([refuseRedirect])
+// and, when files names any, a TLS
 // configuration built from them.  It fails when only one of CertFile and
 // KeyFile is set, when the CA file cannot be read or holds no certificate,
 // or when the client certificate cannot be loaded now.
 func NewHTTPClient(files TLSFiles) (*http.Client, error) {
-	client := &http.Client{Timeout: DefaultRequestTimeout}
+	client := newHTTPClient()
 	if files.Empty() {
 		return client, nil
 	}
@@ -52,6 +53,18 @@ func NewHTTPClient(files TLSFiles) (*http.Client, error) {
 	transport.TLSClientConfig = config
 	client.Transport = transport
 	return client, nil
+}
+
+func newHTTPClient() *http.Client {
+	return &http.Client{Timeout: DefaultRequestTimeout, CheckRedirect: refuseRedirect}
+}
+
+// refuseRedirect makes a 3xx answer the response, which [Client.Export]
+// fails as rejected.  Following it would resend the configured headers, such
+// as an api-key that net/http only strips when it is Authorization, to
+// whatever host the redirect names, even over plain http.
+func refuseRedirect(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
 }
 
 func tlsConfig(files TLSFiles) (*tls.Config, error) {

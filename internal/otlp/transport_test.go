@@ -292,3 +292,42 @@ func TestExportSendsNothingWhenHeadersFail(t *testing.T) {
 		t.Fatalf("the receiver got %d requests without the headers", rec.attempts)
 	}
 }
+
+func TestExportDoesNotFollowRedirects(t *testing.T) {
+	var leaked []string
+	var mu sync.Mutex
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		leaked = append(leaked, r.Header.Get("Api-Key"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer elsewhere.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "api-key"), []byte("secret"))
+	for name, client := range map[string]*Client{"NewClient": NewClient(), "NewHTTPClient": nil} {
+		t.Run(name, func(t *testing.T) {
+			if client == nil {
+				httpClient, err := NewHTTPClient(TLSFiles{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				client = NewClient()
+				client.HTTP = httpClient
+			}
+			client.MaxAttempts = 1
+			client.Headers = HeadersFromDir(dir)
+			err := client.Export(context.Background(), redirector.URL, oneRecord())
+			if err == nil || !strings.Contains(err.Error(), "307") {
+				t.Fatalf("export through a redirect = %v, want it rejected with the 307", err)
+			}
+		})
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("the redirect target got %d requests", len(leaked))
+	}
+}
