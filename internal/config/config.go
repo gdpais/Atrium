@@ -3,9 +3,12 @@
 package config
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -273,11 +276,26 @@ func LoadRuntimeConfig(path string) (RuntimeConfig, error) {
 	return ParseRuntimeConfig(content)
 }
 
+// decodeDocument decodes an integrations YAML file, refusing keys the format
+// does not define: a misspelt key (scrape_intervl, max_row) would otherwise
+// be dropped without a word and its setting fall back to the default, which
+// is how a reviewed file comes to run with values nobody chose.  An empty
+// file is an empty document.
+func decodeDocument(content []byte) (document, error) {
+	var doc document
+	dec := yaml.NewDecoder(bytes.NewReader(content))
+	dec.KnownFields(true)
+	if err := dec.Decode(&doc); err != nil && !errors.Is(err, io.EOF) {
+		return document{}, err
+	}
+	return doc, nil
+}
+
 // ParseRuntimeConfig validates, normalises, and versions the content of a
 // candidate integrations YAML file, as LoadRuntimeConfig does a file's.
 func ParseRuntimeConfig(content []byte) (RuntimeConfig, error) {
-	var doc document
-	if err := yaml.Unmarshal(content, &doc); err != nil {
+	doc, err := decodeDocument(content)
+	if err != nil {
 		return RuntimeConfig{}, fmt.Errorf("parse runtime config: %w", err)
 	}
 	cfg := RuntimeConfig{

@@ -302,3 +302,32 @@ func TestVarcharMaxStacksStayWithinTheHeapBudget(t *testing.T) {
 		t.Fatalf("peak live heap %.1f MiB, want at most %d MiB", float64(peak)/(1<<20), heapBudget>>20)
 	}
 }
+
+// A value longer than a record keeps is cut when the row is read, to a copy,
+// so the driver's whole value is not held while the batch waits; the record
+// built from it is still marked truncated.
+func TestReadRowsCapsLongValues(t *testing.T) {
+	long := strings.Repeat("x", 1<<20)
+	batch := Batch{Columns: []Column{{"Instant", "DATETIME2"}, {"Message", "NVARCHAR"}, {"Stack", "NVARCHAR"}, {"Data", "VARBINARY"}}}
+	rows := &fakeRows{n: 1, row: func(int) []any { return []any{at(time.Minute), "short", long, []byte(long)} }}
+	if err := readRows(rows, &batch, QueryParams{Limit: 10}); err != nil {
+		t.Fatal(err)
+	}
+	row := batch.Rows[0]
+	if row[1] != "short" {
+		t.Fatalf("short value changed: %v", row[1])
+	}
+	stack, data := row[2].(string), row[3].([]byte)
+	if len(stack) != maxScannedValueBytes || len(data) != maxScannedValueBytes {
+		t.Fatalf("kept %d and %d bytes, want %d", len(stack), len(data), maxScannedValueBytes)
+	}
+	if cap(data) != maxScannedValueBytes {
+		t.Fatalf("binary value keeps the driver's %d-byte array", cap(data))
+	}
+	if batch.Bytes > int64(4*32+2*maxScannedValueBytes+len("short")) {
+		t.Fatalf("batch counts %d bytes, want only what it keeps", batch.Bytes)
+	}
+	if _, cut := truncate(stack); !cut {
+		t.Fatalf("a cut value must still be marked truncated in its record")
+	}
+}

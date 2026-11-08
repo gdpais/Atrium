@@ -851,6 +851,17 @@ loki:
   # Namespaced RBAC only.
   rbac:
     namespaced: true
+  # No rules sidecar: the chart's Loki ruler is not used (alerting rules live
+  # in Prometheus). Its default would render a Role that reads every Secret
+  # and ConfigMap of the namespace, bound to Loki's service account, even
+  # with singleBinary.sidecar off.
+  sidecar:
+    rules:
+      enabled: false
+  # Loki never calls the Kubernetes API: no token in its pod, so a
+  # compromised Loki cannot use one.
+  serviceAccount:
+    automountServiceAccountToken: false
   singleBinary:
     replicas: 1
     sidecar: false

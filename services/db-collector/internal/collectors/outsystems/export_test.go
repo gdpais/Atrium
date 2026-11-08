@@ -298,8 +298,11 @@ func TestHeldBatchesBlockOtherReads(t *testing.T) {
 	x.executor.MaxHeldBytes = 2 * minBatchBytes
 	x.executor.MaxBatchBytes = 2 * minBatchBytes
 	g := gated(x)
-	// One row of about 2 MiB (its key is both Message and Request_Key).
-	x.source.insert(strings.Repeat("k", minBatchBytes), at(time.Minute))
+	// Rows of about 32 KiB each (their key, cut to maxScannedValueBytes, is
+	// both Message and Request_Key): more than the 2 MiB budget.
+	for i := range 100 {
+		x.source.insert(strings.Repeat("k", maxValueBytes), at(time.Minute+time.Duration(i)*time.Second))
+	}
 	if err := x.runFor(50 * time.Millisecond); !errors.Is(err, collectors.ErrBlocked) {
 		t.Fatalf("first log type: %v", err)
 	}
@@ -516,4 +519,28 @@ func TestABlockedExportReportsItsLastError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	x.executor.Close(ctx)
+}
+
+// While a batch's export waits, the held budget counts the built records and
+// their body as well as the row data, and the export releases all of it.
+func TestHeldBytesCountTheBuiltRecords(t *testing.T) {
+	x := newExtraction(t, t.TempDir(), 100)
+	g := gated(x)
+	for i := range 10 {
+		x.source.insert(strings.Repeat("k", 4<<10), at(time.Minute+time.Duration(i)*time.Second))
+	}
+	if err := x.runFor(50 * time.Millisecond); !errors.Is(err, collectors.ErrBlocked) {
+		t.Fatalf("first call: %v, want blocked on the export", err)
+	}
+	// Each row holds about 8 KiB of text; its record encodes both values
+	// again, counted twice.
+	const rowData = 10 * 8 << 10
+	if held := x.executor.exports.heldBytes(); held < 3*rowData {
+		t.Fatalf("held %d bytes, want the rows and their records, over %d", held, 3*rowData)
+	}
+	g.release()
+	x.settle()
+	if held := x.executor.exports.heldBytes(); held != 0 {
+		t.Fatalf("held %d bytes after the export ended", held)
+	}
 }

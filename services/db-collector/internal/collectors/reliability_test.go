@@ -387,13 +387,18 @@ func TestRunnerAppliesDefaultProbeTimeout(t *testing.T) {
 	}
 }
 
-func TestCycleDeadlineFailsProbesThatCannotStart(t *testing.T) {
+func TestCycleDeadlineSkipsProbesThatCannotStart(t *testing.T) {
 	logger, logs := newCapturedLogger()
-	executor := funcExecutor(func(ctx context.Context, _ collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
-		<-ctx.Done()
-		return nil, nil, ctx.Err()
+	slow := atomic.Bool{}
+	executor := funcExecutor(func(ctx context.Context, item collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
+		if slow.Load() {
+			<-ctx.Done()
+			return nil, nil, ctx.Err()
+		}
+		return sampleFor(item), nil, nil
 	})
-	runner := NewRunner(executor, collectorexport.NewInMemoryExporter(), nil).
+	exporter := collectorexport.NewInMemoryExporter()
+	runner := NewRunner(executor, exporter, nil).
 		WithLogger(logger).
 		WithMaxConcurrentTargets(1)
 	collector := testCollector(100*time.Millisecond,
@@ -406,29 +411,139 @@ func TestCycleDeadlineFailsProbesThatCannotStart(t *testing.T) {
 			collector.Targets[i].Probes[j].TimeoutMS = 60_000 // capped at the interval
 		}
 	}
-
-	start := time.Now()
-	result, err := runner.RunOnce(context.Background(), collector)
-	elapsed := time.Since(start)
-	if err == nil {
-		t.Fatalf("expected deadline errors")
+	tracker := newTargetTracker()
+	tracker.jitter = func() float64 { return 0 }
+	if result := runner.runCycle(context.Background(), collector, tracker); cycleError(result) != nil {
+		t.Fatalf("first cycle: %v", cycleError(result))
 	}
+
+	slow.Store(true)
+	start := time.Now()
+	result := runner.runCycle(context.Background(), collector, tracker)
+	elapsed := time.Since(start)
 	if elapsed > time.Second {
 		t.Fatalf("cycle overran its deadline: %s", elapsed)
 	}
-	notStarted := 0
+	if cycleError(result) == nil {
+		t.Fatalf("expected the probe that ran into the deadline to fail")
+	}
+	// The target that got the only slot runs p1 into the deadline and fails;
+	// its p2 and both probes of the other targets never start, and are
+	// skipped, not failed.
+	var failed, skipped []TargetResult
 	for _, target := range result.Targets {
-		if target.State != TargetFailed {
-			t.Fatalf("expected every target to fail, got %+v", target)
+		switch target.State {
+		case TargetFailed:
+			failed = append(failed, target)
+		case TargetSkipped:
+			skipped = append(skipped, target)
+		default:
+			t.Fatalf("unexpected target state: %+v", target)
 		}
-		notStarted += strings.Count(target.Err.Error(), "not started before cycle deadline")
 	}
-	// t1/p1 runs into the deadline; the remaining five probes never start.
-	if notStarted != 5 {
-		t.Fatalf("expected 5 not-started probe errors, got %d: %v", notStarted, err)
+	if len(failed) != 1 || len(skipped) != 2 {
+		t.Fatalf("expected 1 failed and 2 skipped targets, got %d and %d", len(failed), len(skipped))
 	}
-	if got := len(logs.records(t, "probe failed")); got != 6 {
-		t.Fatalf("expected 6 probe failure logs, got %d", got)
+	for _, target := range skipped {
+		if !errors.Is(target.Err, errProbeSkipped) || target.ConsecutiveFailures != 0 || !target.NextAttempt.IsZero() {
+			t.Fatalf("skipped target must not back off: %+v", target)
+		}
+		// Its series, health ones included, keep the values of the first cycle.
+		for _, probe := range []string{"p1", "p2"} {
+			if _, ok := exporter.Value(testMetric, sampleLabels(target.Target, probe)); !ok {
+				t.Fatalf("series of skipped %s/%s were cleared", target.Target, probe)
+			}
+		}
+		if up, ok := exporter.Value(MetricTargetUp, map[string]string{"collector": "sql-prod", "environment": "prod", "target": target.Target}); !ok || up != 1 {
+			t.Fatalf("target_up of skipped %s = %v, %v; want 1", target.Target, up, ok)
+		}
+	}
+	if got := len(logs.records(t, "probe failed")); got != 1 {
+		t.Fatalf("expected 1 probe failure log, got %d", got)
+	}
+
+	// The skipped targets run on the next cycle, with no backoff.
+	slow.Store(false)
+	result = runner.runCycle(context.Background(), collector, tracker)
+	for _, target := range result.Targets {
+		if target.Target != failed[0].Target && target.State != TargetOK {
+			t.Fatalf("skipped target did not run on the next cycle: %+v", target)
+		}
+	}
+}
+
+// A probe that the cycle deadline leaves no time for, after a slow probe of
+// the same target succeeded, is skipped: the target is degraded, not failed,
+// the probe keeps its series, and the next cycle runs it first.
+func TestCycleDeadlineSkippedProbeRunsFirstNextCycle(t *testing.T) {
+	var mu sync.Mutex
+	var calls []string
+	slow := atomic.Bool{}
+	executor := funcExecutor(func(ctx context.Context, item collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
+		mu.Lock()
+		calls = append(calls, item.Definition.Name)
+		mu.Unlock()
+		if slow.Load() {
+			select {
+			case <-time.After(110 * time.Millisecond):
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		}
+		return sampleFor(item), nil, nil
+	})
+	exporter := collectorexport.NewInMemoryExporter()
+	runner := NewRunner(executor, exporter, nil).WithLogger(slog.New(slog.DiscardHandler))
+	target := testTarget("t1", "p1", "p2", "p3")
+	for i := range target.Probes {
+		target.Probes[i].TimeoutMS = 120
+	}
+	collector := testCollector(200*time.Millisecond, target)
+	tracker := newTargetTracker()
+	tracker.jitter = func() float64 { return 0 }
+	runner.runCycle(context.Background(), collector, tracker)
+
+	// p1 succeeds in 110ms, p2 runs into the 200ms cycle deadline, p3 never
+	// starts.
+	slow.Store(true)
+	mu.Lock()
+	calls = nil
+	mu.Unlock()
+	got := runner.runCycle(context.Background(), collector, tracker).Targets[0]
+	if got.State != TargetDegraded {
+		t.Fatalf("expected a degraded target, got %+v", got)
+	}
+	states := map[string]ProbeState{}
+	for _, probe := range got.Probes {
+		states[probe.Probe] = probe.State
+	}
+	if states["p2"] != ProbeFailed || states["p3"] != ProbeSkipped || len(states) != 2 {
+		t.Fatalf("probe states = %v; want p2 failed, p3 skipped", states)
+	}
+	if _, ok := exporter.Value(testMetric, sampleLabels("t1", "p3")); !ok {
+		t.Fatalf("series of the skipped probe were cleared")
+	}
+	if up, ok := exporter.Value(MetricProbeUp, map[string]string{"collector": "sql-prod", "environment": "prod", "target": "t1", "probe": "p3"}); !ok || up != 1 {
+		t.Fatalf("probe_up of the skipped probe = %v, %v; want its last run's 1", up, ok)
+	}
+	if up, _ := exporter.Value(MetricProbeUp, map[string]string{"collector": "sql-prod", "environment": "prod", "target": "t1", "probe": "p2"}); up != 0 {
+		t.Fatalf("probe_up of the failed probe = %v; want 0", up)
+	}
+	if err := cycleError(CycleResult{Targets: []TargetResult{got}}); err == nil || errors.Is(err, errProbeSkipped) {
+		t.Fatalf("cycle error must name p2 only, got %v", err)
+	}
+
+	slow.Store(false)
+	mu.Lock()
+	calls = nil
+	mu.Unlock()
+	if got := runner.runCycle(context.Background(), collector, tracker).Targets[0]; got.State != TargetDegraded && got.State != TargetOK {
+		t.Fatalf("third cycle: %+v", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) == 0 || calls[0] != "p3" {
+		t.Fatalf("expected the skipped probe to run first, got calls %v", calls)
 	}
 }
 
@@ -764,5 +879,56 @@ func TestBlockedProbeIsNotAFailure(t *testing.T) {
 	}
 	if err := cycleError(result); !errors.Is(err, errDivideByZero) || errors.Is(err, ErrBlocked) {
 		t.Fatalf("cycle error %v, want the general probe's failure only", err)
+	}
+}
+
+// Targets take the concurrency slots in dispatch order, which starts at the
+// first target the previous cycle skipped, so under sustained overload the
+// skipped targets take turns rather than the same ones never running.
+func TestCycleDeadlineSkippedTargetIsDispatchedFirstNextCycle(t *testing.T) {
+	var mu sync.Mutex
+	var calls []string
+	slow := atomic.Bool{}
+	executor := funcExecutor(func(ctx context.Context, item collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
+		mu.Lock()
+		calls = append(calls, item.Target.Name)
+		mu.Unlock()
+		if slow.Load() {
+			select {
+			case <-time.After(150 * time.Millisecond):
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		}
+		return sampleFor(item), nil, nil
+	})
+	runner := NewRunner(executor, collectorexport.NewInMemoryExporter(), nil).
+		WithLogger(slog.New(slog.DiscardHandler)).
+		WithMaxConcurrentTargets(1)
+	collector := testCollector(200*time.Millisecond, testTarget("t1", "p1"), testTarget("t2", "p1"), testTarget("t3", "p1"))
+	for i := range collector.Targets {
+		collector.Targets[i].Probes[0].TimeoutMS = 60_000 // capped at the interval
+	}
+	tracker := newTargetTracker()
+	tracker.jitter = func() float64 { return 0 }
+
+	// t1 takes 150ms of the 200ms cycle, t2 runs into the deadline, t3 never
+	// gets the slot.
+	slow.Store(true)
+	result := runner.runCycle(context.Background(), collector, tracker)
+	states := []TargetState{result.Targets[0].State, result.Targets[1].State, result.Targets[2].State}
+	if fmt.Sprint(states) != fmt.Sprint([]TargetState{TargetOK, TargetFailed, TargetSkipped}) {
+		t.Fatalf("first cycle states = %v; want ok, failed, skipped", states)
+	}
+
+	slow.Store(false)
+	mu.Lock()
+	calls = nil
+	mu.Unlock()
+	runner.runCycle(context.Background(), collector, tracker)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) == 0 || calls[0] != "t3" {
+		t.Fatalf("expected the skipped target dispatched first, got calls %v", calls)
 	}
 }

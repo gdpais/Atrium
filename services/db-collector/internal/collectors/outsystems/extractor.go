@@ -275,9 +275,13 @@ func (e *Executor) extractBatch(ctx context.Context, item collectormetadata.Sche
 			observed:    now,
 		})
 		built(nil)
-		// The export releases the batch's bytes when it ends.
+		// The records, and the body the export marshals from them, are held
+		// until the export ends too; the export releases them with the batch.
+		encoded := recordsBytes(logs)
+		e.exports.add(encoded)
+		total := held + encoded
 		held = 0
-		e.startExport(ctx, item, key, logs, batch, rows, instants, *watermark, location)
+		e.startExport(ctx, item, key, logs, batch, rows, instants, *watermark, location, total)
 		return full, nil
 	}
 	e.Metrics.setLag(item, now.Sub(Real(next, location)))
