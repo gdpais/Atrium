@@ -72,9 +72,11 @@ so:
 
 ## 3. Check and render
 
-Run the same commands the configuration repository's CI runs (in
-`heartbeat-deploy`, `scripts/render.sh` and `scripts/check.sh` run them all,
-the collector's `db-collector check-config` on the rendered chart included):
+Run the same commands the configuration repository's CI runs. In
+`heartbeat-deploy`, `scripts/render.sh` rewrites the renders and
+`scripts/check.sh` runs every check, the collector's `db-collector
+check-config` on the rendered chart included; both take `HEARTBEAT_DIR`, a
+Heartbeat checkout at the commit in `HEARTBEAT_REF`. From a Heartbeat checkout:
 
 ```bash
 go run ./apps/api/cmd/api inventory check -f inventory.yaml
@@ -86,7 +88,7 @@ credential reference. `render` writes the `managedCollectors` values file
 that the target's probes make
 ([rendering the file's collectors](../reference/configuration.md#rendering-the-files-collectors)).
 Commit it with the file: the reviewer sees the collectors the change runs,
-and CI fails when the committed render is stale [18].
+and CI fails when the committed render is stale.
 
 ## 4. Open the pull request
 
