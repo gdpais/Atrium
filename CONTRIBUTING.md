@@ -91,6 +91,7 @@ and what it needs. At minimum:
 ```bash
 make test
 make vet
+make lint
 ```
 
 Then:
@@ -126,7 +127,7 @@ branches as `gone`, ready for `git branch -d`.
 | Job | Runs |
 | --- | --- |
 | `Detect changes` | Always. Lists the paths the pull request changes; [`scripts/ci-changes.sh`](scripts/ci-changes.sh) decides which of the jobs below they need |
-| `test` | Always: generated code is current, Go tests with the race detector, vet, Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
+| `test` | Always: generated code is current, Go tests with the race detector, vet, lint (gofmt, staticcheck, shellcheck), Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
 | `SQL Server probes` | When `services/db-collector`, its test scripts or `tools/patientzero` (outside its chart) change; also runs PatientZero's live test |
 | `Helm chart` | When the chart, its values, its tests, or PatientZero's chart or setup script change; lints, renders and checks PatientZero's chart too |
 | `kind end-to-end` | When a service (the db-collector, the API or the migrations it embeds), the chart or the kind setup changes |

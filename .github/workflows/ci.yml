@@ -134,6 +134,8 @@ jobs:
         run: make test-race
       - name: Run Go static checks
         run: make vet
+      - name: Lint Go formatting, staticcheck and shell scripts
+        run: make lint
       - name: Check for reachable known vulnerabilities
         run: make vulncheck
       - name: Validate Prometheus rules

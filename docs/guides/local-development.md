@@ -160,6 +160,7 @@ make patientzero-down       # remove it, its databases and its login
 | `make test` | First `make generate-check`: fails when the API's generated code differs from what its OpenAPI spec and its SQL queries generate. Then all Go unit and repository contract tests, including the docs generator's and PatientZero's modules | Go, a C compiler (sqlc's parser), network access the first time (the generators are fetched by `go run`) |
 | `make test-race` | The same suite with the race detector | Go |
 | `make vet` | Go static checks | Go |
+| `make lint` | `gofmt` and `staticcheck` on all three Go modules, `shellcheck` (warnings and errors) on every tracked shell script | Go, Docker, network access |
 | `make vulncheck` | `govulncheck` on all three Go modules; fails on a known vulnerability the code can reach, standard library included | Go, network access |
 | `make rules-check` | promtool rule validation and unit tests | Docker |
 | `make test-integration` | PostgreSQL migration and index tests; then the API against PostgreSQL and Valkey: golang-migrate applies `db/migrations` (again, concurrently, over a newer schema), the readiness check reads the schema version, credentials rotate, and `/readyz` follows each dependency going away and coming back (`-tags=integration`) | Docker (`postgres:18`, `valkey/valkey`) |
