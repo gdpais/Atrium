@@ -68,6 +68,20 @@ spec:
             - name: HEARTBEAT_CREDENTIALS_DIR
               value: /var/run/secrets/heartbeat/credentials
             {{- end }}
+            {{- if $c.otlpExporter.headers.existingSecret }}
+            - name: HEARTBEAT_OTLP_HEADERS_DIR
+              value: /var/run/secrets/heartbeat/otlp-headers
+            {{- end }}
+            {{- if $c.otlpExporter.tls.ca.existingSecret }}
+            - name: HEARTBEAT_OTLP_CA_FILE
+              value: /var/run/secrets/heartbeat/otlp-ca/ca.crt
+            {{- end }}
+            {{- if $c.otlpExporter.tls.clientCert.existingSecret }}
+            - name: HEARTBEAT_OTLP_CLIENT_CERT_FILE
+              value: /var/run/secrets/heartbeat/otlp-client/tls.crt
+            - name: HEARTBEAT_OTLP_CLIENT_KEY_FILE
+              value: /var/run/secrets/heartbeat/otlp-client/tls.key
+            {{- end }}
             {{- if $c.adminToken.existingSecret }}
             - name: HEARTBEAT_ADMIN_TOKEN
               valueFrom:
@@ -123,6 +137,21 @@ spec:
               mountPath: /var/run/secrets/heartbeat/credentials
               readOnly: true
             {{- end }}
+            {{- if $c.otlpExporter.headers.existingSecret }}
+            - name: otlp-headers
+              mountPath: /var/run/secrets/heartbeat/otlp-headers
+              readOnly: true
+            {{- end }}
+            {{- if $c.otlpExporter.tls.ca.existingSecret }}
+            - name: otlp-ca
+              mountPath: /var/run/secrets/heartbeat/otlp-ca
+              readOnly: true
+            {{- end }}
+            {{- if $c.otlpExporter.tls.clientCert.existingSecret }}
+            - name: otlp-client
+              mountPath: /var/run/secrets/heartbeat/otlp-client
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
@@ -133,6 +162,34 @@ spec:
             secretName: {{ . }}
             # Readable by the pod's fsGroup only.
             defaultMode: 0440
+        {{- end }}
+        {{- with $c.otlpExporter.headers.existingSecret }}
+        - name: otlp-headers
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+        {{- end }}
+        {{- with $c.otlpExporter.tls.ca }}
+        {{- if .existingSecret }}
+        - name: otlp-ca
+          secret:
+            secretName: {{ .existingSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ .key }}
+                path: ca.crt
+        {{- end }}
+        {{- end }}
+        {{- with $c.otlpExporter.tls.clientCert.existingSecret }}
+        - name: otlp-client
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
         {{- end }}
         - name: state
           {{- if $c.persistence.enabled }}

@@ -87,7 +87,7 @@ later, the API's queries.
 | `dashboards.deep_link_templates` | no | Map of name → path on `base_url` with `${variables}`, e.g. `/d/sqlserver-overview?var-environment=${environment}&var-target=${target}`. The API renders each for the applications and database targets that have all its variables ([deep links](metrics-and-endpoints.md#links-into-the-platforms-ui)) |
 | `logs.base_url` | no | The platform's log query API (Loki) |
 | `alerting.base_url` | no | The platform's alert API (Alertmanager) |
-| `opentelemetry.endpoint` | for `outsystems_logs` | Absolute base URL of the OTel Collector's OTLP/HTTP receiver, e.g. `http://otel-collector:4318`; logs go to `<endpoint>/v1/logs`. The chart's NetworkPolicy admits the collector to the bundled Collector's port 4318 only ([network access](../guides/kubernetes-local.md#network-access)) |
+| `opentelemetry.endpoint` | for `outsystems_logs` | Absolute base URL of the OTel Collector's OTLP/HTTP receiver, e.g. `http://otel-collector:4318`; logs go to `<endpoint>/v1/logs`. The chart's NetworkPolicy admits the collector to the bundled Collector's port 4318 only ([network access](../guides/kubernetes-local.md#network-access)). Headers and TLS for an external receiver: [the OTLP exporter](#the-otlp-exporter) |
 
 **Link templates.** Each dashboard and deep-link template is a path on
 `dashboards.base_url`: it starts with a single `/`, and templates without a
@@ -323,8 +323,13 @@ Rules:
   character boundary and ending in `…[truncated]`, and the record gets
   `outsystems.truncated = true`. `Stack` and `EnvironmentInformation` are
   the usual ones; Loki keeps attributes as structured metadata, 64 KB per
-  line by default. `error.fingerprint` is computed from the whole `Message`
-  and `Stack`, so it does not change.
+  line by default. The built-in `error` query cuts `Stack`, a `varchar(max)`
+  that a monitored application's users can make arbitrarily long, to 16,385
+  characters in SQL, so the driver never reads a whole one; a
+  `query_template` that selects an unbounded column must cut it the same way
+  (`LEFT(column, 16385)`). Any longer text or binary value is cut to 16 KiB
+  plus one byte as soon as its row is read. `error.fingerprint` is computed
+  from the first lines of `Stack`, so the cut does not change it.
 - The watermark of each collector, target and log type is a file under
   `HEARTBEAT_STATE_DIR` (`outsystems_logs/<collector>.<target>.<log type>.json`).
   It moves only after the OTel Collector accepted the batch, so delivery is at
@@ -337,7 +342,9 @@ Rules:
   the Collector accepts it, and the log type reads nothing more meanwhile.
   `heartbeat_outsystems_export_blocked` is 1 and the target stays up
   ([metrics](metrics-and-endpoints.md#outsystems-log-extraction)). At most
-  64 MiB of row data is held in such batches across all log types; near
+  64 MiB is held in such batches across all log types, counting each
+  batch's row data and, once its records are built, twice their encoded size
+  (the records and the request body made from them); near
   that, a batch reads only what is left, and with less than 1 MiB left the
   other log types wait too. In each cycle the calls of one target wait for
   the Collector at most half the poll interval in all, so its other log
@@ -552,6 +559,39 @@ Outside Kubernetes (`go run`, tests), leave `HEARTBEAT_CREDENTIALS_DIR` unset
 and export the variables; exporting them in your host shell does not pass them
 into a pod.
 
+### The OTLP exporter
+
+The bundled OTel Collector needs nothing more than `opentelemetry.endpoint`.
+When the collector sends the OutSystems logs straight to an external
+Collector or platform, it can authenticate with headers and verify the
+receiver over https; neither belongs in the endpoint URL. The chart mounts
+them from Secrets under `dbCollector.otlpExporter`:
+
+| Value | Secret | What the collector does |
+| --- | --- | --- |
+| `headers.existingSecret` | Each key a header name, such as `Authorization`, its value the header's value (`Bearer <token>`) | Adds every header to every request, reading the files at each request: a rotated key is sent from the next request on, without a restart. A header it cannot read, or one it sets itself (`Content-Type`, `Content-Encoding`, `Content-Length`, `Host`), fails the attempt as retryable, so nothing is sent without its headers; errors name the file, never its value |
+| `tls.ca.existingSecret`, `tls.ca.key` (`ca.crt`) | A PEM CA bundle | Verifies the receiver with it instead of the system roots. Read at start: restart the collector after changing it |
+| `tls.clientCert.existingSecret` | A `kubernetes.io/tls` Secret (`tls.crt`, `tls.key`) | Presents it for mutual TLS, reading it at each TLS handshake, so a renewed certificate (cert-manager) is used by the next connection |
+
+TLS 1.2 is the minimum, and the receiver's certificate and host name are
+always verified. A missing or unreadable CA or client certificate stops the
+collector at start. Headers over an `http://` endpoint send the token in the
+clear: the collector warns at start (`otlp_headers_over_http`, also in
+`GET /admin/config`). With `dbCollector.networkPolicy.egress.enabled`, admit
+the receiver in `egress.extraRules`.
+
+```bash
+kubectl -n heartbeat create secret generic heartbeat-otlp-headers \
+  --from-literal=Authorization="Bearer $OTLP_TOKEN"
+helm upgrade heartbeat ... \
+  --set dbCollector.otlpExporter.headers.existingSecret=heartbeat-otlp-headers \
+  --set dbCollector.otlpExporter.tls.ca.existingSecret=heartbeat-otlp-ca
+```
+
+Heartbeat's own logs and spans still go to the bundled Collector, which
+forwards them with its own exporter's headers
+([`external-platform.example.yaml`](../../infra/helm/values/external-platform.example.yaml)).
+
 ## Environment variables
 
 ### DB collector
@@ -566,6 +606,9 @@ into a pod.
 | `HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE` | `false` | Skip TLS certificate verification. **Local dev container only**; applies to every target. When set, startup logs a warning and `GET /admin/config` lists it under `warnings` |
 | `HEARTBEAT_CREDENTIALS_DIR` | unset | Directory with one `HEARTBEAT_CREDENTIAL_<REF>` file per credential, read on every connection; references without a file come from the environment. The chart sets it to the mounted `dbCollector.credentials.existingSecret`. See [credential resolution](#credential-resolution) |
 | `HEARTBEAT_CREDENTIAL_<REF>` | — | Target credentials, see [credential resolution](#credential-resolution) |
+| `HEARTBEAT_OTLP_HEADERS_DIR` | unset | Directory of header files added to every request to `opentelemetry.endpoint`, read at each request. The chart sets it from `dbCollector.otlpExporter.headers.existingSecret` ([the OTLP exporter](#the-otlp-exporter)) |
+| `HEARTBEAT_OTLP_CA_FILE` | unset (system roots) | PEM certificates that verify an https `opentelemetry.endpoint`, read at start |
+| `HEARTBEAT_OTLP_CLIENT_CERT_FILE`, `HEARTBEAT_OTLP_CLIENT_KEY_FILE` | unset | Client certificate and key for mutual TLS, both or neither, read at each TLS handshake |
 | `GOMEMLIMIT` | unset | Go's soft memory limit, such as `200MiB`. The chart sets 80% of `dbCollector.resources.limits.memory` (`204MiB` for the default `256Mi`), so the garbage collector works harder before the pod is OOM-killed; `dbCollector.goMemLimit` overrides it, `off` disables it |
 | `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | unset (stderr only) | Where the service sends its own logs, besides stderr: the OTel Collector's `otlp/self` receiver, such as `http://otel-collector:4319/v1/logs`. The chart sets it while `telemetry.enabled` and `otelCollector.enabled` are on. Not read from `OTEL_EXPORTER_OTLP_ENDPOINT`, whose port is the OutSystems delivery path ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | unset (no spans) | Where the service sends its spans, such as `http://otel-collector:4318/v1/traces`. The chart sets it while `telemetry.traces.enabled` and `otelCollector.enabled` are on. The OpenTelemetry SDK reads the other standard variables itself |

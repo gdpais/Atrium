@@ -116,10 +116,11 @@ type startupWarning struct {
 	Message string `json:"message"`
 }
 
-// startupWarnings logs the insecure or degraded settings in cfg and returns
+// startupWarnings logs the insecure or degraded settings in cfg, and in
+// endpoint, the opentelemetry.endpoint of the config loaded at start, and returns
 // the ones GET /admin/config lists. A missing admin token is only logged:
 // nobody could read it from the endpoint it disables.
-func startupWarnings(cfg Config, logger *slog.Logger) []startupWarning {
+func startupWarnings(cfg Config, endpoint string, logger *slog.Logger) []startupWarning {
 	warnings := []startupWarning{}
 	if cfg.SQLServerTrustServerCertificate {
 		warnings = append(warnings, startupWarning{
@@ -128,6 +129,13 @@ func startupWarnings(cfg Config, logger *slog.Logger) []startupWarning {
 				"(HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE): TLS still encrypts the connection, " +
 				"but neither the certificate chain nor the host name is checked, so an attacker in the path " +
 				"can impersonate the server and capture the login. Use it only with throwaway local targets.",
+		})
+	}
+	if cfg.OTLPHeadersDir != "" && strings.HasPrefix(strings.ToLower(endpoint), "http://") {
+		warnings = append(warnings, startupWarning{
+			Code: "otlp_headers_over_http",
+			Message: "The OTLP exporter sends the headers in HEARTBEAT_OTLP_HEADERS_DIR, such as a token, to " +
+				"opentelemetry.endpoint over plain HTTP: anyone in the path can read them. Use an https endpoint.",
 		})
 	}
 	for _, warning := range warnings {

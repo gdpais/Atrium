@@ -85,6 +85,11 @@ type Client struct {
 	Logger *slog.Logger
 	// Metrics records each attempt.  Nil records nothing.
 	Metrics *ClientMetrics
+	// Headers, when set, returns headers added to every request, such as
+	// the receiver's Authorization ([HeadersFromDir]).  It is called once per
+	// attempt; an error fails that attempt as retryable, so nothing is sent
+	// without them.
+	Headers func() (http.Header, error)
 	// sleep waits for d or until ctx ends, reporting whether d elapsed.
 	sleep func(ctx context.Context, d time.Duration) bool
 }
@@ -186,6 +191,15 @@ func (c *Client) post(ctx context.Context, url string, body []byte) (time.Durati
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return 0, &permanentError{err}
+	}
+	if c.Headers != nil {
+		headers, err := c.Headers()
+		if err != nil {
+			return 0, err
+		}
+		for name, values := range headers {
+			req.Header[name] = values
+		}
 	}
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("Content-Encoding", "gzip")

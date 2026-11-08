@@ -64,6 +64,53 @@
             }
           }
         },
+        "otlpExporter": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Headers and TLS for the OTLP/HTTP receiver of the OutSystems logs (opentelemetry.endpoint).",
+          "properties": {
+            "headers": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret whose keys are header names, added to every request; empty sends none.",
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                }
+              }
+            },
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ca": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "Secret with the PEM CA that verifies the receiver; empty uses the system roots.",
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "clientCert": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "kubernetes.io/tls Secret (tls.crt, tls.key) for mutual TLS; empty sends no client certificate.",
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "configWatchInterval": {
           "type": "string",
           "description": "How often the collector re-reads integrations.yaml (Go duration)."
