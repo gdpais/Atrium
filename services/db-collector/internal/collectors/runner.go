@@ -146,6 +146,13 @@ var errProbeAbandoned = errors.New("abandoned while still running")
 // timeout, which tells it apart from the cycle deadline.
 var errProbeTimedOut = errors.New("probe timeout")
 
+// errProbeSkipped marks a probe that did not start because its cycle had
+// already reached its deadline: the probes before it, or the wait for a
+// concurrency slot, used the whole cycle.  It is not a failure of the probe
+// or of its target: neither backs off, and the probe keeps exporting the
+// series of its last run until it runs again.
+var errProbeSkipped = errors.New("skipped: the cycle reached its deadline before the probe started")
+
 // ErrBlocked marks a probe call that ran without error but leaves output
 // waiting to be accepted downstream, so the probe's work is paused: an
 // outsystems_logs log type whose batch the OTel Collector has not accepted
@@ -266,16 +273,19 @@ func (r Runner) RunOnce(ctx context.Context, collector collectorconfig.Collector
 }
 
 // cycleError joins the errors of every failed target in result, and of the
-// failed probes of degraded ones, leaving out their [ErrBlocked] errors.
+// failed probes of degraded ones, leaving out their [ErrBlocked] errors and
+// the targets and probes the cycle deadline skipped.
 func cycleError(result CycleResult) error {
 	var errs []error
 	for _, target := range result.Targets {
 		switch {
 		case target.State == TargetDegraded:
 			for _, probe := range target.Probes {
-				errs = append(errs, fmt.Errorf("target %s: %w", target.Target, probe.Err))
+				if probe.State != ProbeSkipped {
+					errs = append(errs, fmt.Errorf("target %s: %w", target.Target, probe.Err))
+				}
 			}
-		case target.Err != nil && target.State != TargetBlocked:
+		case target.Err != nil && target.State != TargetBlocked && target.State != TargetSkipped:
 			errs = append(errs, fmt.Errorf("target %s: %w", target.Target, target.Err))
 		}
 	}
@@ -338,6 +348,13 @@ type targetTracker struct {
 	// lastCycleStart is when the previous cycle started; only the Poller's own
 	// goroutine reads and writes it, between cycles.
 	lastCycleStart time.Time
+	// startAt names, per target, the probe its next cycle runs first: the
+	// first probe the previous cycle skipped, so that a cycle too short for
+	// all of a target's probes does not starve the same ones every time.
+	startAt map[string]string
+	// lastUp is, per probe, whether its last run succeeded (or waits
+	// downstream): the heartbeat_collector_probe_up a skipped probe keeps.
+	lastUp map[probeKey]bool
 }
 
 func newTargetTracker() *targetTracker {
@@ -388,6 +405,50 @@ func (t *targetTracker) resetProbes(target string) {
 			delete(t.probes, key)
 		}
 	}
+}
+
+// firstProbe returns the probe the next cycle of target runs first, or ""
+// for the configured order.
+func (t *targetTracker) firstProbe(target string) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.startAt[target]
+}
+
+// setFirstProbe makes the next cycle of target run probe first; "" restores
+// the configured order.
+func (t *targetTracker) setFirstProbe(target, probe string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if probe == "" {
+		delete(t.startAt, target)
+		return
+	}
+	if t.startAt == nil {
+		t.startAt = map[string]string{}
+	}
+	t.startAt[target] = probe
+}
+
+// setLastUp records whether the probe of target that just ran succeeded.
+func (t *targetTracker) setLastUp(target, probe string, up bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.lastUp == nil {
+		t.lastUp = map[probeKey]bool{}
+	}
+	t.lastUp[probeKey{target, probe}] = up
+}
+
+// probeLastUp returns 1 when the last run of the probe of target succeeded,
+// and 0 when it failed or the probe never ran.
+func (t *targetTracker) probeLastUp(target, probe string) float64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.lastUp[probeKey{target, probe}] {
+		return 1
+	}
+	return 0
 }
 
 // get returns the current state of target.
@@ -516,7 +577,7 @@ func (r Runner) skipTarget(collectorID string, group targetGroup, state targetSt
 		LastSuccess:         state.lastSuccess,
 		NextAttempt:         state.nextAttempt,
 	}
-	r.recordHealth(collectorID, group, result)
+	r.recordHealth(collectorID, group, result, nil)
 	return result
 }
 
@@ -528,13 +589,36 @@ type probeRun struct {
 	// waiting is the probe's state when it backs off on its own and did not
 	// run.
 	waiting *probeState
+	// skipped is set, wrapping [errProbeSkipped], when the probe did not
+	// start because the cycle reached its deadline first.
+	skipped error
+}
+
+// runOrder returns the indexes of items in the order a cycle runs them: the
+// configured order, rotated to start at the probe named first when it is
+// one of items.
+func runOrder(items []collectormetadata.ScheduledProbe, first string) []int {
+	start := 0
+	for i, item := range items {
+		if item.Definition.Name == first {
+			start = i
+			break
+		}
+	}
+	order := make([]int, 0, len(items))
+	for i := range items {
+		order = append(order, (start+i)%len(items))
+	}
+	return order
 }
 
 // runTarget runs the probes of one target serially, records their samples
 // and evidence, and updates the target's and its probes' backoff state.  A
 // probe that failed while others of the target succeeded backs off on its
 // own and does not run until its backoff ends, unless every probe of the
-// target is backing off, when they all run.  It never panics.
+// target is backing off, when they all run.  Probes the cycle deadline
+// leaves no time for are skipped, not failed, and the next cycle starts with
+// the first of them.  It never panics.
 func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, sem chan struct{}) (result TargetResult) {
 	ctx, span := tracer.Start(ctx, "collector.target", trace.WithAttributes(attribute.String("heartbeat.target", group.name)))
 	defer func() {
@@ -559,7 +643,9 @@ func (r Runner) runTarget(ctx context.Context, collector collectorconfig.Collect
 	}
 	var blocked []error
 	var evidence []collectormetadata.Evidence
-	for i, item := range group.items {
+	firstSkipped := ""
+	for _, i := range runOrder(group.items, tracker.firstProbe(group.name)) {
+		item := group.items[i]
 		if runs[i].waiting != nil && !waitingAll {
 			r.clearScope(collectorexport.Scope{Collector: collector.ID, Target: item.Target.Name, Probe: item.Definition.Name})
 			continue
@@ -567,14 +653,23 @@ func (r Runner) runTarget(ctx context.Context, collector collectorconfig.Collect
 		runs[i].waiting = nil
 		items, err := r.runScopedProbe(ctx, collector, item)
 		switch {
+		case errors.Is(err, errProbeSkipped):
+			runs[i].skipped = err
+			if firstSkipped == "" {
+				firstSkipped = item.Definition.Name
+			}
+			continue
 		case errors.Is(err, ErrBlocked):
 			blocked = append(blocked, err)
 		case err != nil:
 			runs[i].err = err
+			tracker.setLastUp(group.name, item.Definition.Name, false)
 			continue
 		}
+		tracker.setLastUp(group.name, item.Definition.Name, true)
 		evidence = append(evidence, items...)
 	}
+	tracker.setFirstProbe(group.name, firstSkipped)
 	r.publish(collector.ID, group.name, evidence)
 	return r.finishTarget(ctx, collector, group, tracker, cycleStart, runs, errors.Join(blocked...))
 }
@@ -603,6 +698,11 @@ func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.Co
 	ctx, span := tracer.Start(ctx, "collector.probe", trace.WithAttributes(attribute.String("heartbeat.probe", item.Definition.Name)))
 	defer span.End()
 	samples, evidence, err := r.executeProbe(ctx, item, collector.ScrapeInterval)
+	if errors.Is(err, errProbeSkipped) {
+		// Keep the series of its last run: it did not fail.
+		span.SetAttributes(attribute.Bool("heartbeat.probe.skipped", true))
+		return nil, err
+	}
 	if errors.Is(err, ErrBlocked) {
 		span.SetAttributes(attribute.Bool("heartbeat.probe.blocked", true))
 		r.log().DebugContext(ctx, "probe blocked",
@@ -625,8 +725,9 @@ func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.Co
 }
 
 // executeProbe runs item under its probe timeout.  Probes that cannot start
-// before the cycle deadline, probes whose target still has an abandoned call
-// running, and probes that panic are reported as errors.  A probe that does
+// before the cycle deadline are reported as skipped ([errProbeSkipped]);
+// probes canceled before they start, probes whose target still has an
+// abandoned call running, and probes that panic are reported as errors.  A probe that does
 // not return within the abandon grace after its context is done is abandoned
 // and reported as timed out.  Executions are timed and failures counted
 // through the Runner's [ProbeMetrics].
@@ -634,6 +735,9 @@ func (r Runner) executeProbe(ctx context.Context, item collectormetadata.Schedul
 	name := item.Definition.Name
 	if err := ctx.Err(); err != nil {
 		r.metrics.failedUnlessCanceled(ctx, item, ReasonNotStarted)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, nil, fmt.Errorf("probe %s %w", name, errProbeSkipped)
+		}
 		return nil, nil, notStartedError(name, err)
 	}
 	call, busy := r.probeCalls().start(item, time.Now())
@@ -900,9 +1004,13 @@ func (c *probeCalls) finish(item collectormetadata.ScheduledProbe, call *probeCa
 // failed; otherwise its failing probes back off on their own and it is
 // [TargetDegraded], a success of the target.
 func (r Runner) finishTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time, runs []probeRun, blocked error) TargetResult {
-	var errs []error
+	var errs, skipped []error
 	ran, failed := 0, 0
 	for _, run := range runs {
+		if run.skipped != nil {
+			skipped = append(skipped, run.skipped)
+			continue
+		}
 		if run.waiting == nil {
 			ran++
 		}
@@ -911,9 +1019,16 @@ func (r Runner) finishTarget(ctx context.Context, collector collectorconfig.Coll
 			errs = append(errs, run.err)
 		}
 	}
-	// Probes backing off on their own did not run, so they do not count: when
-	// a single probe ran, its one failure fails the target and forgets the
-	// others' backoffs, and they all run on the target's next attempt.
+	// No probe ran: the cycle reached its deadline before the target's turn,
+	// or before its first probe.  That says nothing about the target, so its
+	// state and series stay as they are.
+	if ran == 0 && len(skipped) > 0 {
+		return r.skippedTarget(ctx, collector.ID, group, tracker.get(group.name), errors.Join(skipped...))
+	}
+	// Probes backing off on their own or skipped did not run, so they do not
+	// count: when a single probe ran, its one failure fails the target and
+	// forgets the others' backoffs, and they all run on the target's next
+	// attempt.
 	if failed > 0 && failed == ran {
 		tracker.resetProbes(group.name)
 		return r.failTarget(ctx, collector, group, tracker, cycleStart, runs, errors.Join(errs...))
@@ -922,6 +1037,9 @@ func (r Runner) finishTarget(ctx context.Context, collector collectorconfig.Coll
 	for _, run := range runs {
 		name := run.item.Definition.Name
 		switch {
+		case run.skipped != nil:
+			probes = append(probes, ProbeResult{Probe: name, State: ProbeSkipped, Err: run.skipped})
+			errs = append(errs, run.skipped)
 		case run.waiting != nil:
 			probes = append(probes, ProbeResult{Probe: name, State: ProbeBackoff, Err: run.waiting.lastErr,
 				ConsecutiveFailures: run.waiting.consecutiveFailures, NextAttempt: run.waiting.nextAttempt})
@@ -959,8 +1077,25 @@ func (r Runner) finishTarget(ctx context.Context, collector collectorconfig.Coll
 	case blocked != nil:
 		result.State, result.Err = TargetBlocked, blocked
 	}
-	r.recordHealth(collector.ID, group, result)
+	r.recordHealth(collector.ID, group, result, tracker)
 	return result
+}
+
+// skippedTarget reports a target none of whose probes ran because the cycle
+// reached its deadline first.  It changes neither the target's backoff state
+// nor its series, health ones included: the last cycle that ran it still
+// describes it, and its last success does not advance.
+func (r Runner) skippedTarget(ctx context.Context, collectorID string, group targetGroup, state targetState, err error) TargetResult {
+	r.log().WarnContext(ctx, "target skipped: the cycle reached its deadline before its probes started",
+		"collector", collectorID,
+		"target", group.name)
+	return TargetResult{
+		Target:              group.name,
+		State:               TargetSkipped,
+		Err:                 err,
+		ConsecutiveFailures: state.consecutiveFailures,
+		LastSuccess:         state.lastSuccess,
+	}
 }
 
 // logProbeFailure logs a probe that failed in this cycle with the failure
@@ -999,12 +1134,15 @@ func (r Runner) failTarget(ctx context.Context, collector collectorconfig.Collec
 		LastSuccess:         state.lastSuccess,
 		NextAttempt:         state.nextAttempt,
 	}
-	r.recordHealth(collector.ID, group, result)
+	r.recordHealth(collector.ID, group, result, tracker)
 	return result
 }
 
 // recordHealth exports the self-observability series of one target.
-func (r Runner) recordHealth(collectorID string, group targetGroup, result TargetResult) {
+//
+// tracker, when set, gives the probe_up a skipped probe keeps: that of its
+// last run.
+func (r Runner) recordHealth(collectorID string, group targetGroup, result TargetResult, tracker *targetTracker) {
 	labels := func() map[string]string {
 		return map[string]string{"collector": collectorID, "environment": group.environment, "target": group.name}
 	}
@@ -1016,12 +1154,21 @@ func (r Runner) recordHealth(collectorID string, group targetGroup, result Targe
 		{Metric: MetricTargetUp, Help: "Whether the collector's last cycle for the target succeeded, waiting for downstream or with some probes failing included (1), or failed or is backing off (0).", Value: up, Labels: labels()},
 		{Metric: MetricTargetConsecutiveFailures, Help: "Failed collector cycles for the target since its last success.", Value: float64(result.ConsecutiveFailures), Labels: labels()},
 	}
-	failing := map[string]bool{}
+	failing, skipped := map[string]bool{}, map[string]bool{}
 	for _, probe := range result.Probes {
-		failing[probe.Probe] = true
+		if probe.State == ProbeSkipped {
+			skipped[probe.Probe] = true
+		} else {
+			failing[probe.Probe] = true
+		}
 	}
 	for _, item := range group.items {
 		probeUp := up
+		// A skipped probe did not run: its probe_up keeps the value of its
+		// last run, as its other series do.
+		if skipped[item.Definition.Name] && tracker != nil {
+			probeUp = tracker.probeLastUp(group.name, item.Definition.Name)
+		}
 		if failing[item.Definition.Name] {
 			probeUp = 0
 		}

@@ -48,7 +48,7 @@ Reload can also be triggered with `SIGHUP` or file polling.
 | `version`, `loaded_at`, `last_reload_at` | Active config version (SHA-256 of the file) and timestamps |
 | `last_reload_err`, `runtime_diverged`, `rollback_err` | Why the last reload was rejected or failed; set until the next successful reload. Monitoring sees it as [`heartbeat_collector_config_last_reload_successful`](#config-reloads) 0 |
 | `warnings` | Insecure startup settings, e.g. `sqlserver_trust_server_certificate` |
-| `readiness` | What `/readyz` decided and why: `status`, `reasons`, and per collector its phase, cycle age, restarts and targets. Each target has its state (`ok`, `failed`, `backoff`, `blocked` for an `outsystems_logs` target waiting for the OTel Collector, or `degraded` for a target with some probes failing), consecutive failures, last success and the raw driver `error` of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A `blocked` target's `error` says which log type waits, with how many rows, and for how long. A `degraded` target lists its failing `probes`, each with its state (`failed`, or `backoff` while it waits out its own backoff), consecutive failures, next attempt and `error` |
+| `readiness` | What `/readyz` decided and why: `status`, `reasons`, and per collector its phase, cycle age, restarts and targets. Each target has its state (`ok`, `failed`, `backoff`, `blocked` for an `outsystems_logs` target waiting for the OTel Collector, `degraded` for a target with some probes failing or skipped, or `skipped` for a target the cycle deadline left no time for), consecutive failures, last success and the raw driver `error` of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A `blocked` target's `error` says which log type waits, with how many rows, and for how long. A `degraded` target lists its failing `probes`, each with its state (`failed`, `backoff` while it waits out its own backoff, or `skipped` when the cycle deadline came before it started), consecutive failures, next attempt and `error` |
 | `config` | The active config, redacted ([configuration reference](configuration.md#validation-and-reload-behavior)) |
 
 ```bash
@@ -733,6 +733,21 @@ forgotten. When every probe of a target is backing off on its own, they all
 run. While a target backs off none of its probes run and all its probe
 series are cleared, so they leave a gap instead of a frozen value; only the
 `heartbeat_collector_target_*` and `heartbeat_collector_probe_up` series stay.
+
+A probe that cannot start because its cycle already reached its deadline
+(the probes before it, or the wait for one of the concurrent target slots,
+used the whole scrape interval) is `skipped`, not failed: it does not back
+off, keeps exporting the series of its last run, and its
+`heartbeat_collector_probe_up` stays as it was. The next cycle runs the
+target's first skipped probe first, so a short cycle does not starve the
+same probes every time. A skipped probe does not count as a probe that ran:
+a target whose other probes succeeded is `degraded`, and a target none of
+whose probes ran is `skipped`, keeps all its series and does not back off,
+but its last success does not advance, so freshness alerts still fire if it
+keeps being skipped. `heartbeat_collector_probe_errors_total` still counts
+the skip with reason `not_started`, and
+`heartbeat_collector_cycle_duration_seconds` shows the cycle using its whole
+interval.
 
 A probe that returns no rows exports no series:
 `heartbeat_sqlserver_blocked_requests` is absent, not 0, while nothing is

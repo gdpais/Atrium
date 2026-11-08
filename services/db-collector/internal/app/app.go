@@ -683,8 +683,12 @@ type collectorReport struct {
 	// TargetsDegraded counts targets with probes that failed or back off on
 	// their own while their other probes succeeded
 	// (collectors.TargetDegraded). They are up; their probes say which fail.
-	TargetsDegraded int            `json:"targets_degraded"`
-	Targets         []targetReport `json:"targets"`
+	TargetsDegraded int `json:"targets_degraded"`
+	// TargetsSkipped counts targets none of whose probes ran because the
+	// cycle reached its deadline first (collectors.TargetSkipped). They do
+	// not back off and keep the series of the last cycle that ran them.
+	TargetsSkipped int            `json:"targets_skipped"`
+	Targets        []targetReport `json:"targets"`
 }
 
 // targetReport is the per-target section of readinessReport.
@@ -881,6 +885,8 @@ func addTargets(report *collectorReport, targets []collectors.TargetResult, with
 			report.TargetsBlocked++
 		case collectors.TargetDegraded:
 			report.TargetsDegraded++
+		case collectors.TargetSkipped:
+			report.TargetsSkipped++
 		}
 		var errText string
 		if withErrors && target.Err != nil {
