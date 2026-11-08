@@ -10,7 +10,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | --- | --- | --- |
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
-| 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the outcome demo, and the release, which waits for the owner to create the release app [0.5] |
+| 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the release, which waits for the owner to create the release app [0.5] |
 | 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `heartbeat-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
@@ -177,15 +177,13 @@ path in the scenarios workflow on 2026-11-02
 ([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130): all 48 hours in full, users, sessions and error fingerprints
 exact), and runs after the scenarios from now on [16.5].
 
-Left before the release, in order:
+The outcome demo passed on 2026-11-08, on kind at `13312e0`: from the burn-rate
+page to the failing request's timeline and its Loki message, and from a slow
+screen to its slow requests
+([walk](../guides/live-demo.md#follow-a-broken-deploy-to-its-request)) [16.5].
 
-1. The outcome demo: an SRE sees a broken deploy's errors, latency and logs in
-   Grafana and the burn-rate alert page. The nightly run checks signals in
-   Prometheus, Loki and Alertmanager, not what Grafana shows, and the
-   [live demo](../guides/live-demo.md) runs the scenarios without walking
-   through the dashboards or the logs [16.5]
-2. The release. **Owner:** create the release GitHub App, needed since
-   2026-10-05 [0.5]
+Left before the release: **Owner:** create the release GitHub App, needed since
+2026-10-05 [0.5].
 
 Not in the exit, and done alongside phase 3 before the first production
 deploy: a series budget [2.6], collector
