@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -278,8 +279,23 @@ func TestApplyFileUpdatesAndDisables(t *testing.T) {
 	if n := f.count(t, "applications where status = 'disabled'") + f.count(t, "telemetry_sources where status = 'disabled'"); n != 0 {
 		t.Errorf("%d rows still disabled after the file lists them again", n)
 	}
-	if n := len(f.fileRecordsSince(t, mark)); n == 0 {
-		t.Error("enabling the rows again recorded no audit records")
+	// The file records a row it switches back on as an update from
+	// disabled to active.
+	var enabled []string
+	for _, r := range f.fileRecordsSince(t, mark) {
+		if r.ConfigVersion != "sha256:d" {
+			t.Fatalf("record %+v: want sha256:d", r)
+		}
+		var before, after struct{ Status string }
+		if r.Action != audit.ActionUpdate || json.Unmarshal(r.Before, &before) != nil || json.Unmarshal(r.After, &after) != nil {
+			continue
+		}
+		if before.Status == inventory.StatusDisabled && after.Status == inventory.StatusActive {
+			enabled = append(enabled, r.EntityType)
+		}
+	}
+	if !slices.Contains(enabled, audit.EntityApplication) || !slices.Contains(enabled, audit.EntityTelemetrySource) {
+		t.Errorf("records enabling %v, want Orders and its source among them", enabled)
 	}
 }
 
