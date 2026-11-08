@@ -1,4 +1,4 @@
-.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-assignments kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check test test-integration test-sqlserver test-race vet vulncheck docs-site
+.PHONY: help tools-check install-tools kind-up kind-down kind-deploy kind-assignments kind-images kind-status kind-e2e health sqlserver-dev-init sqlserver-dev-up sqlserver-dev-down patientzero-up patientzero-down patientzero-load patientzero-load-stop patientzero-scenario patientzero-scenarios patientzero-scale patientzero-scale-measure patientzero-scale-collect patientzero-scale-check patientzero-scale-down chart-deps chart-check rules-check generate generate-check test test-integration test-sqlserver test-race vet lint vulncheck docs-site
 
 SQLSERVER_DEV_ENV_FILE := .env.sqlserver-dev
 # Health checks fail fast on HTTP errors (keeping the body) and never hang.
@@ -16,6 +16,10 @@ HELM3_VERSION := v3.22.1
 # go run fetches this exact version and checks it against the Go checksum
 # database, so there is nothing to install.
 GOVULNCHECK_VERSION := v1.9.0
+# Linters for make lint, pinned like govulncheck: staticcheck through go run,
+# shellcheck as an image (it is a Haskell binary, not a Go module).
+STATICCHECK_VERSION := v0.8.2
+SHELLCHECK_IMAGE := koalaman/shellcheck:v0.11.0
 # oapi-codegen writes the API's server types from its OpenAPI spec, and sqlc
 # its typed queries from SQL (ADR 0013). Fetched by go run like govulncheck,
 # so their dependencies stay out of go.mod. sqlc builds with cgo (its
@@ -43,6 +47,9 @@ PATIENTZERO_MODULE := tools/patientzero
 # install script sets them), so chart-check passes placeholders.
 PATIENTZERO_CHART_DIR := $(PATIENTZERO_MODULE)/chart
 PATIENTZERO_CHART_CHECK_VALUES := --set image.tag=ci --set sql.host=ci
+# staticcheck has no -C flag, so lint cds into each module; CURDIR keeps the
+# one shared cache.
+STATICCHECK := GOCACHE=$(CURDIR)/.tmp/gocache go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
 GOVULNCHECK := GOCACHE=$$(pwd)/.tmp/gocache go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 DOCSITE := GOCACHE=$$(pwd)/.tmp/gocache go -C $(DOCSITE_MODULE) run ./cmd/docsite -root ../.. -repo-url $(DOCS_REPO_URL) -ref $(DOCS_REPO_REF)
 API_SPEC := apps/api/openapi.yaml
@@ -87,6 +94,7 @@ help:
 		'  make test-sqlserver      Run every SQL Server probe and OutSystems log query against a disposable SQL Server container (requires Docker)' \
 		'  make test-race           Run all Docker-free tests with the race detector' \
 		'  make vet                 Run Go static checks' \
+		'  make lint                Check Go formatting, run staticcheck on every Go module and shellcheck on every shell script (requires Docker)' \
 		'  make vulncheck           Report known vulnerabilities reachable from the Go code, standard library included' \
 		'  make docs-site           Build the HTML docs site into docs/site (not committed; CI publishes it)'
 
@@ -252,6 +260,19 @@ vet:
 	GOCACHE=$$(pwd)/.tmp/gocache go vet ./...
 	GOCACHE=$$(pwd)/.tmp/gocache go -C $(DOCSITE_MODULE) vet ./...
 	GOCACHE=$$(pwd)/.tmp/gocache go -C $(PATIENTZERO_MODULE) vet ./...
+
+# gofmt -l lists the files it would change; any output fails. staticcheck
+# runs its default checks, with the build tags of the Docker and chart tests
+# so their files are checked too. shellcheck fails on warnings and errors and
+# leaves its notes (style suggestions) to the author. A deliberate exception
+# gets a "# shellcheck disable=SCxxxx # reason" line above it.
+lint:
+	@unformatted=$$(gofmt -l $$(git ls-files '*.go')); \
+		if [ -n "$$unformatted" ]; then printf 'error: not gofmt-formatted (run gofmt -w):\n%s\n' "$$unformatted" >&2; exit 1; fi
+	$(STATICCHECK) -tags=integration,chart,sqlserver ./...
+	cd $(DOCSITE_MODULE) && $(STATICCHECK) ./...
+	cd $(PATIENTZERO_MODULE) && $(STATICCHECK) ./...
+	docker run --rm -v "$$(pwd):/mnt:ro" -w /mnt $(SHELLCHECK_IMAGE) --severity=warning $$(git ls-files '*.sh')
 
 # Fails on any vulnerability reachable from the code; the standard library
 # counts, so a Go patch release with security fixes needs the go directives

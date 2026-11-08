@@ -272,6 +272,7 @@ api_trace() {
 step "cluster $CLUSTER, images, SQL Server target"
 scripts/kind.sh cluster
 scripts/kind.sh images
+# shellcheck source=/dev/null # written by scripts/kind.sh images
 . "./.tmp/kind/$CLUSTER/images.env"
 
 password="E2e-$(openssl rand -hex 16)"
@@ -982,11 +983,11 @@ k create namespace "$other_ns" --dry-run=client -o yaml | k apply -f - >/dev/nul
 wait_for 60 "default ServiceAccount in $other_ns" k -n "$other_ns" get serviceaccount default
 k -n "$NAMESPACE" delete pod np-probe --ignore-not-found --wait=true >/dev/null
 k -n "$other_ns" delete pod np-probe --ignore-not-found --wait=true >/dev/null
-# shellcheck disable=SC2086 # $blocked is a list of words
+# shellcheck disable=SC2046,SC2086 # $blocked is a list of words
 k -n "$NAMESPACE" run np-probe --image="$prom_image" --restart=Never --labels=app.kubernetes.io/name=np-probe \
 	--command -- sh -c "$probe_script" sh $(printf 'http://%s ' $blocked) "http://$node_ip:30090/-/ready" "http://$node_ip:30093/-/ready" \
 	http://grafana:3000/api/health >/dev/null
-# shellcheck disable=SC2086
+# shellcheck disable=SC2046,SC2086 # $blocked is a list of words
 k -n "$other_ns" run np-probe --image="$prom_image" --restart=Never \
 	--labels=app.kubernetes.io/name=grafana,app.kubernetes.io/instance=heartbeat \
 	--command -- sh -c "$probe_script" sh $(printf '%s\n' $blocked | sed "s|^\([^:]*\):|http://\1.$NAMESPACE:|") \
@@ -1406,7 +1407,7 @@ delivered() {
 # 900s cap while it keeps moving. A delivery takes under a minute (6 to 38s
 # over 20 CI runs). Each change of the state is kept, to show the course of
 # a delivery that fails.
-start=$(date +%s) since=$start last= ended=
+start=$(date +%s) since=$start last='' ended=''
 while :; do
 	state=$(delivery_state 2>/dev/null)
 	now=$(date +%s)
@@ -1428,7 +1429,7 @@ while :; do
 done
 printf '      delivery ended after %ss (%s): %s\n' $(($(date +%s) - start)) "$ended" "$state"
 printf '      Loki discarded, by reason: %s\n' "$(loki_discarded)"
-failed= missing= twice=0 rows_all=0
+failed='' missing='' twice=0 rows_all=0
 for backlog in $backlogs; do
 	name=${backlog%%:*} span_s=${backlog#*:}
 	read_rows=$(backlog_read "$name")

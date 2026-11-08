@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shell helpers for the live demo (docs/guides/live-demo.md). Source this file
 # from the repository root in bash or zsh; it defines functions and changes
 # nothing until you call one:
@@ -38,6 +39,7 @@ _hb_sqlcmd() {
 		/opt/mssql-tools18/bin/sqlcmd -S localhost -U "$login" -C -b -I -W -s '|' "$@"
 }
 
+# shellcheck disable=SC2119,SC2120 # callers may pass sqlcmd options; hb_probe passes none
 hb_sql() {
 	local cred
 	cred=$(_hb_env HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV)

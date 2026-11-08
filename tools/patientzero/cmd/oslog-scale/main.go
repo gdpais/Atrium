@@ -38,7 +38,7 @@ import (
 )
 
 // errBehind is caught-up's answer while the collector is still catching up.
-var errBehind = errors.New("Loki does not hold the log's last hour in full yet")
+var errBehind = errors.New("the log's last hour is not in Loki in full yet")
 
 // caughtUpTimeout bounds one caught-up pass, which took at most 10 seconds
 // on CI on 2026-11-02. A port-forward that stalls would otherwise hold the

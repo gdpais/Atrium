@@ -117,6 +117,21 @@
     },
     {
       "customType": "regex",
+      "description": "staticcheck in the Makefile (make lint). A bump can fail make lint on new checks.",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": ["STATICCHECK_VERSION := (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "honnef.co/go/tools",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "shellcheck image in the Makefile (make lint).",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": ["SHELLCHECK_IMAGE := (?<depName>koalaman/shellcheck):(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "k6 image PatientZero's load runs on kind.",
       "managerFilePatterns": ["/^tools/patientzero/scripts/patientzero\\.sh$/"],
       "matchStrings": ["K6_IMAGE=(?<depName>grafana/k6):(?<currentValue>\\d+\\.\\d+\\.\\d+)@(?<currentDigest>sha256:[a-f0-9]+)"],

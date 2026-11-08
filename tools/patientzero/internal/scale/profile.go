@@ -130,10 +130,3 @@ func (p Profile) Validate() error {
 
 // requests is the week's requests: screen and mobile request rows.
 func (p Profile) requests() int { return p.Screen + p.MobileRequest }
-
-// rows is the week's rows across the request-driven log types, errors
-// included.
-func (p Profile) rows() float64 {
-	r := float64(p.requests())
-	return r + float64(p.Integration+p.Extension+p.General+p.RequestEvent) + r*p.ErrorShare
-}
