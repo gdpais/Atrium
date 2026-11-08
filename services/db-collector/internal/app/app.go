@@ -83,6 +83,14 @@ type Config struct {
 	// ListenAddr to their own HTTPS listener ([AdminTLS]), so the admin
 	// token never travels over plain HTTP.
 	AdminTLS AdminTLS
+	// OTLPHeadersDir, when set, holds one file per header the OTLP exporter
+	// adds to every request to opentelemetry.endpoint, such as
+	// Authorization: the headers Secret mounted as a directory, read at each
+	// request ([otlp.HeadersFromDir]).
+	OTLPHeadersDir string
+	// OTLPTLS names the CA and client certificate files for an https
+	// opentelemetry.endpoint ([otlp.TLSFiles]).
+	OTLPTLS otlp.TLSFiles
 	// Logger receives structured service logs. When nil, Run logs JSON to
 	// stderr.
 	Logger *slog.Logger
@@ -183,6 +191,12 @@ func newRunDeps(cfg Config) (runDeps, error) {
 		return runDeps{}, err
 	}
 	logsClient := otlp.NewClient()
+	if logsClient.HTTP, err = otlp.NewHTTPClient(cfg.OTLPTLS); err != nil {
+		return runDeps{}, err
+	}
+	if cfg.OTLPHeadersDir != "" {
+		logsClient.Headers = otlp.HeadersFromDir(cfg.OTLPHeadersDir)
+	}
 	logsClient.Logger = logger
 	logsClient.Metrics = cfg.Telemetry.OTLPClient("outsystems")
 	logs := outsystems.NewExecutor(outsystems.SQLServerSource{Manager: manager},
@@ -284,7 +298,7 @@ func run(ctx context.Context, deps runDeps) error {
 	// can drain HTTP first and then stop pollers in a bounded, logged step.
 	lifecycle := deps.newLifecycle(context.WithoutCancel(ctx))
 	svc := newService(deps.configManager, lifecycle, logger, deps.cfg.AdminToken, deps.timeouts)
-	svc.warnings = startupWarnings(deps.cfg, logger)
+	svc.warnings = startupWarnings(deps.cfg, deps.configManager.Snapshot().Config.OpenTelemetry.Endpoint, logger)
 	svc.configMetrics = deps.configMetrics
 	server := &http.Server{Addr: deps.cfg.ListenAddr, Handler: telemetry.Traced(deps.httpMetrics.Instrument(routes(deps.registry, svc, !adminTLS))), ReadHeaderTimeout: 10 * time.Second}
 	servers := []*http.Server{server}

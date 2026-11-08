@@ -144,7 +144,7 @@ collectors: []
 		t.Fatalf("reload: %v", err)
 	}
 	svc := newTestService(t, manager, newFakePollers().run)
-	svc.warnings = startupWarnings(Config{AdminToken: "test-token", SQLServerTrustServerCertificate: true}, slog.New(slog.DiscardHandler))
+	svc.warnings = startupWarnings(Config{AdminToken: "test-token", SQLServerTrustServerCertificate: true}, "", slog.New(slog.DiscardHandler))
 	rec := serve(routes(prometheus.NewRegistry(), svc, true), http.MethodGet, "/admin/config", "Bearer test-token")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
@@ -188,16 +188,20 @@ func TestStartupWarnings(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		cfg       Config
+		endpoint  string
 		wantCodes []string
 		wantLogs  []string
 	}{
 		{name: "secure", cfg: Config{AdminToken: "t"}},
 		{name: "trust server certificate", cfg: Config{AdminToken: "t", SQLServerTrustServerCertificate: true}, wantCodes: []string{"sqlserver_trust_server_certificate"}, wantLogs: []string{"sqlserver_trust_server_certificate"}},
 		{name: "no admin token is only logged", cfg: Config{}, wantLogs: []string{"admin_token_unset"}},
+		{name: "OTLP headers over http", cfg: Config{AdminToken: "t", OTLPHeadersDir: "/h"}, endpoint: "HTTP://collector:4318", wantCodes: []string{"otlp_headers_over_http"}, wantLogs: []string{"otlp_headers_over_http"}},
+		{name: "OTLP headers over https", cfg: Config{AdminToken: "t", OTLPHeadersDir: "/h"}, endpoint: "https://collector:4318"},
+		{name: "http without OTLP headers", cfg: Config{AdminToken: "t"}, endpoint: "http://collector:4318"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var logs bytes.Buffer
-			warnings := startupWarnings(tc.cfg, slog.New(slog.NewJSONHandler(&logs, nil)))
+			warnings := startupWarnings(tc.cfg, tc.endpoint, slog.New(slog.NewJSONHandler(&logs, nil)))
 			var codes []string
 			for _, warning := range warnings {
 				codes = append(codes, warning.Code)

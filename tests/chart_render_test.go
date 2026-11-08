@@ -2808,3 +2808,97 @@ func TestChartCollectorAdminTLS(t *testing.T) {
 		t.Errorf("unexpected error: %s", stderr)
 	}
 }
+
+// The OTLP exporter's headers and certificates reach the collector as files
+// in directory mounts (no subPath), so a rotated token or a renewed client
+// certificate is used without a restart, and only when their Secrets are set.
+func TestChartCollectorOTLPExporterSecrets(t *testing.T) {
+	type mount struct{ dir, secret string }
+	render := func(set ...string) (map[string]string, map[string]mount) {
+		objects := parseObjects(t, helmTemplate(t, chartProfile{set: set}))
+		var spec struct {
+			Template struct {
+				Spec struct {
+					Containers []struct {
+						Env []struct {
+							Name  string `yaml:"name"`
+							Value string `yaml:"value"`
+						} `yaml:"env"`
+						VolumeMounts []struct {
+							Name      string `yaml:"name"`
+							MountPath string `yaml:"mountPath"`
+							SubPath   string `yaml:"subPath"`
+							ReadOnly  bool   `yaml:"readOnly"`
+						} `yaml:"volumeMounts"`
+					} `yaml:"containers"`
+					Volumes []struct {
+						Name   string `yaml:"name"`
+						Secret *struct {
+							SecretName  string `yaml:"secretName"`
+							DefaultMode int    `yaml:"defaultMode"`
+						} `yaml:"secret"`
+					} `yaml:"volumes"`
+				} `yaml:"spec"`
+			} `yaml:"template"`
+		}
+		sts := objects["StatefulSet/db-collector"]
+		if err := sts.Spec.Decode(&spec); err != nil {
+			t.Fatal(err)
+		}
+		env := map[string]string{}
+		mounts := map[string]mount{}
+		container := spec.Template.Spec.Containers[0]
+		for _, e := range container.Env {
+			if strings.HasPrefix(e.Name, "HEARTBEAT_OTLP_") {
+				env[e.Name] = e.Value
+			}
+		}
+		for _, m := range container.VolumeMounts {
+			if !strings.HasPrefix(m.Name, "otlp-") {
+				continue
+			}
+			if m.SubPath != "" || !m.ReadOnly {
+				t.Errorf("%s mount: subPath %q, readOnly %v; want a read-only directory", m.Name, m.SubPath, m.ReadOnly)
+			}
+			mounts[m.Name] = mount{dir: m.MountPath}
+		}
+		for _, v := range spec.Template.Spec.Volumes {
+			if m, ok := mounts[v.Name]; ok {
+				if v.Secret == nil || v.Secret.DefaultMode != 0o440 {
+					t.Errorf("%s volume: want a Secret with defaultMode 0440", v.Name)
+					continue
+				}
+				m.secret = v.Secret.SecretName
+				mounts[v.Name] = m
+			}
+		}
+		return env, mounts
+	}
+
+	if env, mounts := render(); len(env) > 0 || len(mounts) > 0 {
+		t.Errorf("defaults: OTLP env %v, mounts %v; want none", env, mounts)
+	}
+	env, mounts := render(
+		"dbCollector.otlpExporter.headers.existingSecret=otlp-auth",
+		"dbCollector.otlpExporter.tls.ca.existingSecret=otlp-ca-bundle",
+		"dbCollector.otlpExporter.tls.ca.key=bundle.pem",
+		"dbCollector.otlpExporter.tls.clientCert.existingSecret=otlp-client-tls",
+	)
+	want := map[string]mount{
+		"otlp-headers": {"/var/run/secrets/heartbeat/otlp-headers", "otlp-auth"},
+		"otlp-ca":      {"/var/run/secrets/heartbeat/otlp-ca", "otlp-ca-bundle"},
+		"otlp-client":  {"/var/run/secrets/heartbeat/otlp-client", "otlp-client-tls"},
+	}
+	if !maps.Equal(mounts, want) {
+		t.Errorf("mounts %v, want %v", mounts, want)
+	}
+	wantEnv := map[string]string{
+		"HEARTBEAT_OTLP_HEADERS_DIR":      want["otlp-headers"].dir,
+		"HEARTBEAT_OTLP_CA_FILE":          want["otlp-ca"].dir + "/ca.crt",
+		"HEARTBEAT_OTLP_CLIENT_CERT_FILE": want["otlp-client"].dir + "/tls.crt",
+		"HEARTBEAT_OTLP_CLIENT_KEY_FILE":  want["otlp-client"].dir + "/tls.key",
+	}
+	if !maps.Equal(env, wantEnv) {
+		t.Errorf("env %v, want %v", env, wantEnv)
+	}
+}

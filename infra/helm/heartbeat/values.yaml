@@ -54,6 +54,30 @@ dbCollector:
   # SQL Server credentials are mounted.
   credentials:
     existingSecret: ""
+  # How the collector authenticates to, and verifies, the OTLP/HTTP receiver
+  # it sends the OutSystems logs to (integrations opentelemetry.endpoint),
+  # once that is an external Collector or platform over https. The bundled
+  # Collector needs none of it.
+  otlpExporter:
+    # Secret whose keys are header names and values their values, such as
+    # Authorization: Bearer <token>, added to every request. Mounted as files
+    # read at each request, so a rotated key needs no restart. Over an http://
+    # endpoint the collector warns at start (otlp_headers_over_http). Empty
+    # sends none.
+    headers:
+      existingSecret: ""
+    tls:
+      # Secret holding the PEM CA that verifies the receiver instead of the
+      # system roots, under key. Read at start: restart the collector after
+      # changing it. Empty uses the image's system roots.
+      ca:
+        existingSecret: ""
+        key: ca.crt
+      # kubernetes.io/tls Secret (tls.crt, tls.key) for mutual TLS, read at
+      # each TLS handshake, so a renewed certificate (cert-manager) is used
+      # by the next connection. Empty sends no client certificate.
+      clientCert:
+        existingSecret: ""
   # How often the collector re-reads the mounted integrations.yaml. ConfigMap
   # updates reach the pod after kubelet propagation (up to about a minute).
   configWatchInterval: 5s
