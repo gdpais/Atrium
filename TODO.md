@@ -908,7 +908,7 @@ Server must be monitored sooner.
 - [ ] Document where the monitored SQL Servers sit relative to the EKS VPC; validate pod-to-database DNS/TCP/authentication/TLS from EKS
 - [ ] Validate production-specific networking, identity, TLS, storage, retention and restore in the target environment; kind tests alone do not establish production acceptance
 - [ ] Optional: rehearse Argo CD on kind before the first production deploy
-- [ ] TLS and auth headers on the collector's OTLP exporter, before it sends to an external Collector or platform
+- [x] TLS and auth headers on the collector's OTLP exporter, before it sends to an external Collector or platform: `dbCollector.otlpExporter` mounts a headers Secret (read at each request), a CA and a client certificate (read at each handshake) for `opentelemetry.endpoint`; a warning when headers go over `http://` ([the OTLP exporter](docs/reference/configuration.md#the-otlp-exporter))
 - [ ] TLS for the collector's admin endpoints: the bearer token travels over plain HTTP
 
 ## 19. Advanced collector reliability and HA

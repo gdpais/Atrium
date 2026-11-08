@@ -20,6 +20,17 @@
 //	                                    environment (default unset)
 //	HEARTBEAT_CREDENTIAL_<REF>          Credential for a credential_ref, as
 //	                                    username:password
+//	HEARTBEAT_OTLP_HEADERS_DIR          Directory of header files the OTLP
+//	                                    exporter adds to every request to
+//	                                    opentelemetry.endpoint, one per header,
+//	                                    named by the header; read at each
+//	                                    request (default unset)
+//	HEARTBEAT_OTLP_CA_FILE              PEM certificates that verify an https
+//	                                    opentelemetry.endpoint instead of the
+//	                                    system roots (default unset)
+//	HEARTBEAT_OTLP_CLIENT_CERT_FILE     PEM client certificate and key for
+//	HEARTBEAT_OTLP_CLIENT_KEY_FILE      mutual TLS, both or neither; read at
+//	                                    each TLS handshake (default unset)
 //
 // Its own telemetry reads the variables package telemetry lists.
 package main
@@ -32,6 +43,7 @@ import (
 	"syscall"
 	"time"
 
+	"heartbeat/internal/otlp"
 	"heartbeat/internal/telemetry"
 	"heartbeat/services/db-collector/internal/app"
 )
@@ -52,8 +64,14 @@ func main() {
 		CredentialsDir:                  os.Getenv("HEARTBEAT_CREDENTIALS_DIR"),
 		WatchInterval:                   durationEnv("HEARTBEAT_CONFIG_WATCH_INTERVAL", 0),
 		SQLServerTrustServerCertificate: boolEnv("HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE", false),
-		Logger:                          logger,
-		Telemetry:                       tel,
+		OTLPHeadersDir:                  os.Getenv("HEARTBEAT_OTLP_HEADERS_DIR"),
+		OTLPTLS: otlp.TLSFiles{
+			CAFile:   os.Getenv("HEARTBEAT_OTLP_CA_FILE"),
+			CertFile: os.Getenv("HEARTBEAT_OTLP_CLIENT_CERT_FILE"),
+			KeyFile:  os.Getenv("HEARTBEAT_OTLP_CLIENT_KEY_FILE"),
+		},
+		Logger:    logger,
+		Telemetry: tel,
 	}
 	err := app.Run(ctx, cfg)
 	stop()
