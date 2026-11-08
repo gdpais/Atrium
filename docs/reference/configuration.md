@@ -362,6 +362,11 @@ Rules:
 - The file is validated on startup and on every reload. Values that fail the
   schema never render; a ConfigMap edited by hand can still be invalid, and is
   then rejected as below.
+- `db-collector check-config -f integrations.yaml` runs the same checks
+  offline, the probe catalogs included, and exits 1 naming the problem. It
+  starts and connects to nothing; the configuration repository's CI runs it on
+  each environment's rendered file (`go run ./services/db-collector/cmd/db-collector check-config -f …`
+  from a checkout).
 - An invalid candidate is rejected and the previous config keeps running.
   `POST /admin/config/reload` returns 400 for invalid config and 500 for a
   failed apply. At startup there is no previous config: the collector exits,
