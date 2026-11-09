@@ -1,6 +1,9 @@
 # 0021. Inventory as code; no Web UI
 
-- Status: Accepted
+- Status: Accepted; built and validated on kind 2026-11-07 [TODO 5]. Update
+  2026-11-08: custom probe definitions are not in the file yet, deferred until
+  a target needs one [TODO 17]. "TODO 5.1–5.2" below means the former Web UI
+  sections, since renumbered.
 - Date: 2026-11-04
 
 ## Context

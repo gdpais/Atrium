@@ -53,7 +53,7 @@ phase delivers each capability.
 | Telemetry ingestion | OTLP metrics, logs and traces through the OpenTelemetry Collector; traces in Grafana Tempo | 2; Tempo with Heartbeat's own telemetry ([TODO 3.6](../../TODO.md#36-otlp-trace-ingest)) |
 | Session investigation | Query by application + user/IP/session/request + time range; timeline, anomaly windows and evidence links into Grafana/Loki | 7 |
 | Alerting | Static rules plus adaptive baselines, rendered to Prometheus and routed by Alertmanager | Static rules and SLO alerts in 2; adaptive baselines in 7 |
-| Reporting | Scheduled (weekly first) and on-demand reports, delivered by email | 7 |
+| Reporting | Scheduled (weekly first) and on-demand reports; download or email delivery is an [open question](#open-questions) | 7 |
 | Inventory and administration | Inventory, targets and probes as code, reviewed in pull requests and applied by the API; users and roles, and later policies and schedules, through the API; audit logging ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)) | 3 and 4 |
 
 ### Done when
@@ -82,9 +82,11 @@ phase delivers each capability.
 ## Current status
 
 Phases 0 and 1 are done. Phase 2 (OutSystems ingest) passed its validation on
-2026-11-02 and its outcome demo on 2026-11-08, and waits for its release. Phase 3 (the API)
-has its validation left, and phase 4 (inventory as code) is in progress.
-Nothing runs in production yet: production delivery is phase 5. See the
+2026-11-02 and its outcome demo on 2026-11-08, and waits for its release.
+Phases 3 (the API) and 4 (inventory as code) passed their stage validations
+on kind on 2026-11-08 and 2026-11-07. Phase 5 (production delivery) has
+started: the `heartbeat-deploy` config repository and the collector's TLS
+are built, the AWS infrastructure is not. Nothing runs in production yet. See the
 [roadmap](roadmap.md) for each phase and [TODO.md](../../TODO.md) for the task
 list.
 
@@ -96,8 +98,8 @@ list.
 | OTel Collector, Prometheus, Loki, Tempo, Grafana, Alertmanager | Provisioned by the chart; alerts reach Alertmanager (with a Watchdog) but notify no one until an environment configures a receiver; chat receivers only in the production example |
 | OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the release |
 | Heartbeat's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Heartbeat Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
-| API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Left: the phase 3 validation |
-| Inventory as code (replaces the Web UI) | In progress: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health; next kind's inventory declares PatientZero's database target |
+| API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Validated on kind on 2026-11-08 |
+| Inventory as code (replaces the Web UI) | Done and validated on kind on 2026-11-07: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero and its database target in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health. Deferred: custom probe definitions in the file [17]; tokens for machine clients when the first one needs them |
 | Session analyzer, reporting | Not started (phase 7) |
 
 ## Risks
@@ -112,19 +114,28 @@ list.
 
 ## Open questions
 
-- Which user, session and request identifiers are reliably present in each
-  OutSystems log type? (The first release targets OutSystems 11 self-managed,
-  read from its logging database:
-  [ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md).)
+Answered elsewhere, so not listed here: how identifiers are kept in Loki
+([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)),
+audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)),
+each store's retention ([data retention](../reference/configuration.md#data-retention)),
+chat receivers and the dead-man's switch
+([ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md)),
+and the Grafana stack ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)).
+
+- **Compliance sign-off** before the first production deploy: someone
+  accountable for data protection confirms raw identifiers in Loki, Loki's
+  30-day retention (audit records included) and who has Grafana access
+  ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)
+  point 4; **Owner**, [TODO 9.2](../../TODO.md#92-loki)).
+- How often are user IDs, session IDs and client IPs filled in each
+  OutSystems log type in real data? `Request_Key` is on all eight; the
+  schema survey did not measure the others
+  ([application observability](../architecture/application-observability.md#open-questions)).
 - Is a report download enough, or is email delivery required from the first
   reports?
-- Auth: local logins with roles are built; are SSO/OIDC or multi-tenancy
-  needed?
-- Expected scale: environments, applications, database instances, log volume,
-  scrape interval and retention?
-- On-call tooling beyond the chat receivers chosen for production (Discord,
-  then Slack, Teams and WhatsApp:
-  [ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md))?
-- Compliance constraints: PII handling, retention and audit? (Identifiers in
-  Loki are kept raw pending sign-off before production:
-  [ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md).)
+- Is multi-tenancy needed? OIDC/SSO is deferred until corporate requirements
+  demand it ([ADR 0004](../architecture/decisions/0004-core-technology-choices.md)).
+- Expected scale: environments, applications, database instances and log
+  volume.
+- Is a paging tool needed for escalation beyond the chat receivers? ADR 0005
+  leaves it a separate decision.

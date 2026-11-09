@@ -2,6 +2,9 @@
 
 - Status: Accepted. Implemented for kind and CI on 2026-10-03; production
   delivery follows [ADR 0005](0005-production-delivery-and-operations-defaults.md).
+  Updated by [ADR 0009](0009-remove-the-otel-gateway.md) (the OTel gateway
+  is removed) and [ADR 0015](0015-postgresql-and-redis-delivery.md)
+  (PostgreSQL and Valkey are back in the chart for kind and CI).
 - Date: 2026-09-29
 
 ## Context
