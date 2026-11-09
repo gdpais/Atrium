@@ -696,7 +696,7 @@ its databases' health together.
 
 ### 11.1 Target onboarding
 - [x] Add/edit/disable SQL Server target: the API's `/api/v1/database-targets` [4.5] and the inventory file, `status: disabled` [5]
-- [ ] Validate reachability safely: before a new target's probes are applied, check read-only that it answers and that its login holds the permissions the probes need (`VIEW SERVER STATE`, `VIEW ANY DATABASE`), and report what is missing. Today reachability shows only once the collector runs it (`heartbeat_collector_target_up`)
+- [ ] Validate reachability safely: before a new target's probes are applied, check read-only that it answers and that its login holds the permissions the probes need (`VIEW SERVER STATE`, `VIEW ANY DEFINITION`, `VIEW ANY DATABASE`: [database targets](docs/guides/database-targets.md)), and report what is missing, since without `VIEW ANY DEFINITION` the `storage` and `file_io` metrics are silently missing. Today reachability shows only once the collector runs it (`heartbeat_collector_target_up`)
 - [x] Attach approved probe assignments: draft → approved → applied through the API [4.5], or the inventory file rendered to `managedCollectors` [5.2]
 
 ### 11.2 Signal coverage
