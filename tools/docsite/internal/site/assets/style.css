@@ -188,6 +188,8 @@ kbd {
 .lg-key { fill: var(--logo-key); }
 .lg-key-in { fill: var(--logo-key-in); }
 .lg-ink { fill: var(--logo-ink); }
+/* Forced colours keep SVG fills, so a theme pinned against the system's would hide the logo. */
+@media (forced-colors: active) { .brand-logo path { fill: CanvasText; } }
 .brand-sub {
   margin-left: -0.1rem; padding: 0.2rem 0.45rem; border-radius: 999px;
   font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; color: var(--accent); background: var(--accent-soft);
