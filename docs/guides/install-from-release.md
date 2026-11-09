@@ -27,7 +27,7 @@ instead. Production deploys the same chart from ECR through Argo CD
 ## What you need
 
 - A Kubernetes cluster. CI tests Kubernetes 1.36 on kind.
-- Helm 4.2 and kubectl. The chart also renders with Helm 3, but installs are
+- Helm 4.3 or later, and kubectl. The chart also renders with Helm 3, but installs are
   tested with Helm 4.
 - A default StorageClass. The release asks for seven volumes, 23.25 GiB in
   all (listed under [Uninstall](#uninstall)).

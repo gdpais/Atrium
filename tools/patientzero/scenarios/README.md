@@ -106,9 +106,9 @@ the scenarios.
 | `OutSystemsLogRecountFailing` | Most recounts of a log type fail for 15 minutes | No fault breaks the recount for that long |
 | `OutSystemsDuplicateLogRows` | A recount finds rows delivered twice | `late-commits` and `restarts` check that it stays quiet |
 | `LokiDiscardingLogs` | Loki discards rows, for any reason but rate limiting | `log-growth` and `restarts` check that it stays quiet |
-| `HeartbeatAPIErrorBudgetBurnFast` | The API fails over 1.44% of its requests over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatAPIErrorBudgetBurnSlow` | The API fails over 0.6% of its requests over 6 hours and 30 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatAPISlow` | Over 72% of the API's requests take more than 250 ms over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
+| `HeartbeatAPIErrorBudgetBurnFast` | The API fails over 1.44% of its requests over 1 hour and 5 minutes | No scenario breaks or slows the API |
+| `HeartbeatAPIErrorBudgetBurnSlow` | The API fails over 0.6% of its requests over 6 hours and 30 minutes | No scenario breaks or slows the API |
+| `HeartbeatAPISlow` | Over 72% of the API's requests take more than 250 ms over 1 hour and 5 minutes | No scenario breaks or slows the API |
 | `HeartbeatCollectorCyclesLateFast` | Over 7.2% of a collector's cycles use their whole interval over 1 hour and 5 minutes, with at least 30 cycles an hour | No fault slows a probe past the interval that long |
 | `HeartbeatCollectorCyclesLate` | Over 3% of them do over 6 hours and 30 minutes | As above, and no scenario lasts 6 hours |
 | `HeartbeatExtractionFreshnessBurn` | A log type's lag stays more than 5 minutes past its setting, or its target down, for over 14.4% of an hour and of 5 minutes | The longest outage lasts 4 minutes |
@@ -118,7 +118,7 @@ the scenarios.
 | `HeartbeatGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |
 | `HeartbeatOTLPExportRejected` | The OTel Collector rejects a request for good | No fault misconfigures the endpoint |
 | `HeartbeatOTLPRecordsRejected` | The OTel Collector accepts a request but refuses some of its records (OTLP partial success) | The bundled Collector's receiver never answers with a partial success |
-| `HeartbeatAuditDeliveryStalled` | The oldest audit record waits in the API's outbox for over 4 minutes (2, then its `for: 2m`) | The API is not deployed yet [4.1], and no scenario makes audited changes |
+| `HeartbeatAuditDeliveryStalled` | The oldest audit record waits in the API's outbox for over 4 minutes (2, then its `for: 2m`) | No scenario makes audited changes |
 
 `HeartbeatServiceDown` is covered, but only one of its two rules fires for
 the db-collector in a given cluster: `collector-outage` fires the `absent()`
@@ -299,8 +299,8 @@ bad parameter fails the start request, not half a run.
 
 ### Cluster faults
 
-Restarts and outages of the db-collector, the OTel Collector, Loki and SQL
-Server are `cluster` faults: they act on other workloads, which needs
+Restarts and outages of the db-collector, the OTel Collector, Loki, Tempo
+and SQL Server are `cluster` faults: they act on other workloads, which needs
 Kubernetes RBAC (delete a pod, scale a StatefulSet) or the Docker host (stop
 the SQL Server container, which runs outside the cluster). PatientZero has
 neither, on purpose: a test application that can delete pods is a risk on
@@ -308,7 +308,7 @@ any cluster it is installed on.
 
 | Type | Scope | Parameters | Does |
 | --- | --- | --- | --- |
-| `restart` | cluster | `workload` (required): `db-collector`, `otel-collector`, `loki` or `sqlserver` | When its step starts: deletes the workload's pod and waits until its StatefulSet's new pod is Ready, or restarts SQL Server's container and waits until it is healthy. The end of the step changes nothing |
+| `restart` | cluster | `workload` (required): `db-collector`, `otel-collector`, `loki`, `tempo` or `sqlserver` | When its step starts: deletes the workload's pod and waits until its StatefulSet's new pod is Ready, or restarts SQL Server's container and waits until it is healthy. The end of the step changes nothing |
 | `outage` | cluster | `workload` (required), as for `restart` | For its step: scales the StatefulSet to 0 and waits until its pod is gone, or stops SQL Server's container; at the end, scales it back to 1 and waits until it is ready, or starts the container and waits until it is healthy |
 
 The workloads are the Heartbeat chart's StatefulSets in the Heartbeat
@@ -330,7 +330,7 @@ fails, and the run with it, if the agent has not answered within 5
 minutes. Without an agent PatientZero refuses such a scenario (HTTP 422),
 and the listing marks it `agent: true`.
 
-The agent applies only these two types to these four workloads, for the
+The agent applies only these two types to these five workloads, for the
 run it started. Interrupted, it stops the run detached (`POST
 /admin/run/stop?detach=1`: PatientZero fails the pending and later requests
 at once instead of waiting), then ends the outages it started. Killed

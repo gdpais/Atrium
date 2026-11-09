@@ -10,7 +10,7 @@ page you need to run the app. Two optional guides build on it:
 | [Live demo](live-demo.md) | Reviewing what each feature does on a running stack, stage by stage |
 
 Prerequisites: Docker, Go 1.27+, and kind, kubectl and Helm at the pinned
-versions (kind v0.33, kubectl within one minor of Kubernetes 1.36, Helm 4.2+).
+versions (kind v0.33, kubectl within one minor of Kubernetes 1.36, Helm 4.3+).
 `make tools-check` verifies all of them and says how to fix any mismatch. Run
 `make help` for the full target list.
 
@@ -247,8 +247,8 @@ remove only the `heartbeat-test-<id>` project using the test Compose file.
 
 ## Build images
 
-`make kind-images` builds the collector image for the kind node's own
-architecture and loads it. To build by hand: the Dockerfile compiles for
+`make kind-images` builds the collector and API images for the kind node's
+own architecture and loads them. To build by hand: the Dockerfile compiles for
 Docker's selected target platform; the build stage runs natively and cross-compiles Go, so no CPU
 emulation is needed.
 

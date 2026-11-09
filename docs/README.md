@@ -4,7 +4,7 @@ Start with the group for what you want to do. Every topic has one home; other
 pages link to it instead of repeating it.
 
 These pages are also published as an HTML site at
-<https://gdpais.github.io/Heartbeat/>, rebuilt from `master` on every push. The Markdown
+<https://gdpais.github.io/Heartbeat/>, rebuilt from `master` whenever its pages change. The Markdown
 is the source; `make docs-site` builds the site locally into `docs/site/`,
 which is not committed.
 
