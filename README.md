@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/mark-dark.svg">
+    <img src="docs/brand/mark.svg" alt="Atrium logo: a stone arch with a terracotta keystone" width="112">
+  </picture>
+</p>
+
 # Atrium
 
 Atrium is an SRE-focused monitoring platform. It covers deep SQL Server
