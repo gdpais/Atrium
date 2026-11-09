@@ -4,7 +4,9 @@
   points, k6 load, scenario runner) [TODO 16.5]. Updated 2026-10-19: the survey ran and the replica is gone
   (see Context); its DDL and aggregates are what PatientZero uses. Updated
   2026-10-23: the `bad-deploy` and `slow-sql` rows below describe those
-  scenarios as built.
+  scenarios as built. Updated 2026-11-08: phase 4 onboards PatientZero from
+  the inventory file ([ADR 0021](0021-inventory-as-code-and-no-web-ui.md)),
+  not through a UI.
 - Date: 2026-10-18
 
 ## Context

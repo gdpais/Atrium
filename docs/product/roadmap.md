@@ -13,7 +13,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the release, which waits for the owner to create the release app [0.5] |
 | 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `heartbeat-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
-| 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
+| 5 | Production delivery (EKS + Argo CD) | In progress: the platform is chosen ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)); the `heartbeat-deploy` config repository with its CI and Argo CD Application, and TLS on the collector's OTLP exporter and admin endpoints, are built [18]. Left: the **Owner**'s ruleset on `heartbeat-deploy`, the AWS infrastructure (EKS, RDS, ElastiCache, ECR, External Secrets), receivers and the dead-man's switch, the compliance sign-off [9.2] |
 | 6 | Complete application and database product workflows | Not started |
 | 7 | Investigations, alerting and reporting | Not started |
 | 8 | Advanced reliability, HA and security | Not started |
@@ -144,9 +144,9 @@ design in [application observability](../architecture/application-observability.
   `/metrics`; recording rules and SLO burn-rate alerts [3.3]
 - OutSystems overview, errors, latency and request-timeline dashboards [10.4, 3.5]
 - Use configured application/environment identities until API inventory exists
-- Later: request traces, Tempo with synthesized spans from `Request_Key`,
-  built together once something consumes them: the first OTLP trace source or
-  phase 7's investigation timeline [3.5, 3.6]; MuleSoft and
+- Later: synthesized request spans from `Request_Key` into the existing
+  Tempo [3.6], once something consumes them: the first OTLP trace source or
+  phase 7's investigation timeline [3.5]; MuleSoft and
   generic sources [3.4]; OutSystems Cloud and ODC through their OTLP streams,
   straight into the OTel Collector (the OTel gateway was removed:
   [ADR 0009](../architecture/decisions/0009-remove-the-otel-gateway.md))
@@ -185,10 +185,10 @@ screen to its slow requests
 Left before the release: **Owner:** create the release GitHub App, needed since
 2026-10-05 [0.5].
 
-Not in the exit, and done alongside phase 3 before the first production
-deploy: a series budget [2.6], collector
-egress and exposure [2.7], unknown keys in component values [0.4],
-Alertmanager's rollout policy [9.4] and PatientZero's hardening [16.5].
+Not in the exit, and done alongside phase 3: a series budget [2.6],
+collector egress and exposure [2.7], unknown keys in component values [0.4]
+and PatientZero's hardening [16.5]. Left before the first production deploy:
+Alertmanager's rollout policy [9.4].
 
 ## Phase 3 — API / control plane
 
@@ -221,8 +221,9 @@ In order, one pull request each:
   dashboard and deep-link templates for applications and database targets;
   no log-search endpoint until investigations need the query adapters
 
-The pull requests to `heartbeat-deploy` (ADR 0014) wait for that repository
-in phase 5. Investigation, alerting and reporting APIs and their job
+The pull requests to `heartbeat-deploy` (ADR 0014) are built only if
+production needs probe assignments managed by the API, since ADR 0021 moved
+the inventory into that repository [18]. Investigation, alerting and reporting APIs and their job
 contracts move to phase 7 and are built with their workers [4.6–4.8]: nothing
 consumes them before, and their shape depends on the correlation model and
 the evidence design.
@@ -276,7 +277,7 @@ SQL Server must be monitored sooner.
   applications receive Heartbeat's telemetry as OTLP from the Collector
   ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)) [18]
 - `heartbeat-deploy` repository with Argo CD Applications and per-environment
-  values and inventory; optional Argo CD rehearsal on kind
+  values and inventory (built); optional Argo CD rehearsal on kind
 - CI publishes multi-arch images and the chart to ECR through GitHub OIDC
 - EKS infrastructure as code; External Secrets; healthchecks.io dead-man's
   switch; Discord, then Slack, Teams and WhatsApp receivers
@@ -308,7 +309,7 @@ field/metric semantics, cardinality and database load checked.
   [4.8, 7, 14]
 - The rest of PatientZero: timers, extension calls, a fake partner, and the
   blocking, slow-partner, timer-backlog, bad front-end and daylight saving
-  scenarios [16.5]; request traces if they haven't come earlier [3.5, 3.6]
+  scenarios [16.5]; request traces if they haven't come earlier [3.5]
 - See [operator workflows](../architecture/workflows.md)
 
 Exit: deterministic correlation/baseline/report tests; alert

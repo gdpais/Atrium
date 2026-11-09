@@ -1,6 +1,7 @@
 # 0014. Approved probe assignments reach the collector as a pull request to the config repository
 
-- Status: Accepted
+- Status: Accepted; amended 2026-11-04 and narrowed by
+  [ADR 0021](0021-inventory-as-code-and-no-web-ui.md) (below)
 - Date: 2026-10-21. Amended 2026-11-04, when the API side was built [4.5]:
   a target runs at one interval, so it renders to one collector (§2); the
   `none` output renders in the API's pod for `make kind-assignments`, beside

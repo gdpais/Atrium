@@ -13,14 +13,14 @@ installed on monitored database hosts.**
 [product overview](docs/product/overview.md) and the
 [architecture overview](docs/architecture/overview.md). The same docs are
 published as an HTML site at <https://gdpais.github.io/Heartbeat/>, rebuilt from `master`
-on every push; `make docs-site` builds it locally into `docs/site/`.
+whenever its pages change; `make docs-site` builds it locally into `docs/site/`.
 
 ## Status
 
-Phases 0 and 1 are done, phase 2 (OutSystems ingest) waits for its outcome
-demo and release, phase 3 (the API) for its validation, and phase 4
-(inventory as code) is in progress; nothing runs in production yet. See the
-[product overview](docs/product/overview.md#current-status), the
+Phases 0 and 1 are done, phase 2 (OutSystems ingest) waits for its release,
+phases 3 (the API) and 4 (inventory as code) passed their validations, and
+production delivery (phase 5) has started; nothing runs in production yet.
+See the [product overview](docs/product/overview.md#current-status), the
 [roadmap](docs/product/roadmap.md) and [TODO.md](TODO.md).
 
 | Component | Path | Status |
@@ -113,13 +113,8 @@ scaffold directories hold `.gitkeep` files until their service is implemented.
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs `make generate-check`,
-`make test-race`, `make vet`, `make lint`, `make rules-check`, `make docs-site` and
-`make test-integration` on every change; `make test-sqlserver`,
-`make chart-check` with Helm 4 and Helm 3, and `make kind-e2e`, the acceptance
-checks on a fresh kind cluster, run when the change can affect them, and on
-every push to `master`. `ci-ok` is the one required check
-([CONTRIBUTING.md](CONTRIBUTING.md#ci)). `.github/workflows/docs-pages.yml` publishes the
-HTML docs to GitHub Pages from `master`. `release-please.yml` and `release.yml`
-publish tagged releases to GitHub Container Registry
+GitHub Actions runs the checks on every pull request and push to `master`;
+`ci-ok` is the one required check ([CONTRIBUTING.md](CONTRIBUTING.md#ci)).
+`docs-pages.yml` publishes the HTML docs, and `release-please.yml` and
+`release.yml` publish tagged releases to GitHub Container Registry
 ([CONTRIBUTING.md](CONTRIBUTING.md#releases)).

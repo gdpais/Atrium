@@ -1,6 +1,6 @@
 # 0019. Keep the Grafana stack; share telemetry as OTLP from the Collector
 
-- Status: Accepted
+- Status: Accepted; sharing telemetry as OTLP is not built yet [TODO 9.5]
 - Date: 2026-11-02
 
 ## Context

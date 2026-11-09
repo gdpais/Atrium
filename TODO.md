@@ -5,8 +5,8 @@ Single source of truth for delivery order and task status. The
 original plan this list was derived from is
 [archived](docs/archive/2026-05-30-mvp-implementation-plan.md).
 
-Core delivery order: **DB collector → OutSystems ingest → API/control plane → inventory as code**,
-after foundations and schema prerequisites (sections 2–5). Later-service
+Core delivery order: **DB collector → OutSystems ingest → API/control plane → inventory as code**
+(sections 2–5), after foundations and schema prerequisites (sections 0–1). Later-service
 integrations are explicitly identified below; they do not block independent
 stage work, but they do block end-to-end completion of the dependent feature.
 Stage 3 does not wait for stage 2's release: its decisions are recorded
@@ -27,7 +27,7 @@ Alloy coverage check [21] → final Alloy comparison [22].
 - [x] Write product and architecture baseline docs ([docs index](docs/README.md))
 - [x] Design current-runtime and target-architecture diagrams, link them from the README, and verify them against source/configuration
 - [x] Reorganize docs by audience; record key decisions as ADRs; archive superseded plans
-- [x] Reorder delivery: collector → gateway → API → Web; production delivery after the Web UI; Oracle after fallback ingestion and gated by an Alloy coverage check; Alloy comparison last
+- [x] Reorder delivery: collector → gateway → API → Web; production delivery after the Web UI (later changed: the gateway was removed, ADR 0009, and the Web UI replaced by inventory as code, ADR 0021); Oracle after fallback ingestion and gated by an Alloy coverage check; Alloy comparison last
 - [x] Operating model: phase outcomes in the roadmap, owner actions marked **Owner** in this list, scope triage, a reversal log ([how we work](docs/product/operating-model.md))
 - [x] Keep the observability platform replaceable: services emit only OTLP and Prometheus exposition, neutral integrations config, an external-platform values example ([ADR 0011](docs/architecture/decisions/0011-platform-agnostic-telemetry-boundary.md))
 - [x] Freeze subsystem boundaries, responsibilities, and interfaces ([ADR 0013](docs/architecture/decisions/0013-api-design-and-subsystem-boundaries.md))
@@ -68,7 +68,7 @@ Production delivery is section 18.
 
 - [x] Assess the Compose-to-kind migration and choose shared Helm delivery ([ADR 0003](docs/architecture/decisions/0003-helm-on-kind-and-production.md))
 - [x] Decide platform (AWS EKS), deploy mechanism (Argo CD), registry (ECR), secrets (AWS Secrets Manager + ESO), version policy, alert channels incl. WhatsApp, dead-man's switch and Grafana access ([ADR 0005](docs/architecture/decisions/0005-production-delivery-and-operations-defaults.md))
-- [x] Pin tools to the EKS-supported minor (kind node v1.36.4, kubectl 1.35–1.37, Helm 4.2, Go 1.27.1); add `make tools-check`
+- [x] Pin tools to the EKS-supported minor (kind node v1.36.4, kubectl 1.35–1.37, Helm 4.2, Go 1.27.1 at the time; current pins in the `Makefile` and `go.mod`); add `make tools-check`
 - [x] Bump engines to latest stable under Compose first (Prometheus, Grafana, Loki, Alertmanager, otelcol); add Renovate
 - [x] Build the Helm chart and kind workflow; adapt Make and CI; pass the ADR 0003 acceptance criteria (`make chart-check`, `make kind-e2e`; evidence in ADR 0003)
 - [x] Retire the platform Compose definition and the Kustomize bundle
@@ -189,9 +189,7 @@ collector-stage completion prerequisite. Query safety [2.2] and endpoint
 security [2.7] must pass before live validation against a shared target; do not
 defer them to general hardening [15.2].
 
-Remaining work, in order: endpoint security [2.7] → least privilege and query
-safety [2.2] → metric types and self-metrics [2.4, 2.6] → core CPU, cache and
-I/O signals [2.3]. Evidence publication moved to the investigation track [12.4]:
+All of this stage's work is done. Evidence publication moved to the investigation track [12.4]:
 its consumer and storage design live there, and today's evidence is only a row
 count.
 
@@ -236,7 +234,7 @@ count.
 - [x] Read desired runtime collector config from `config/integrations.yaml`
 - [x] Read active target/probe runtime config from YAML/Kubernetes convention
 - [x] Reintroduce API/PostgreSQL-driven probe assignments only after the control-plane workflow exists: approved assignments render to a generated values file, `managedCollectors` [4.5]; on kind `make kind-assignments` deploys it ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
-- [ ] Propose the rendered file as a pull request to `heartbeat-deploy`, with the `proposed` and `failed` states and the drift check against its default branch, once that repository, its CI and the API's GitHub App exist [18] ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md) §3, §7–8)
+- [ ] Propose the rendered file as a pull request to `heartbeat-deploy`, with the `proposed` and `failed` states and the drift check against its default branch, only if production needs assignments managed by the API (ADR 0021), once the API's GitHub App exists [18] ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md) §3, §7–8)
 - [x] Chart key `managedCollectors`, appended to `integrations.collectors`; hand-written collector IDs may not start with `api-` ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [x] Resolve credentials from mounted Secret files, so a new or rotated credential needs no collector restart ([ADR 0002](docs/architecture/decisions/0002-runtime-config-in-yaml.md) follow-up, [ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md))
 - [x] Keep desired state out of PostgreSQL
@@ -287,11 +285,10 @@ Remaining work: the release [0.5]; the outcome demo passed on 2026-11-08 [16.5].
 gaps the PatientZero scenarios found are closed [3.3, 9.1], the scenarios
 workflow has run green every night on `master` since 2026-10-28, and the 48
 hour backfill matched its known answer in that workflow on 2026-11-02; it
-runs after the scenarios from now on [16.5]. Not part of this exit, and done alongside stage 3 before
-the first production deploy [18]: a series
-budget [2.6], collector egress and exposure [2.7], unknown keys in component
-values [0.4], Alertmanager's rollout policy [9.4] and PatientZero's hardening
-[16.5].
+runs after the scenarios from now on [16.5]. Not part of this exit, and done alongside stage 3: a series budget [2.6],
+collector egress and exposure [2.7], unknown keys in component values [0.4]
+and PatientZero's hardening [16.5]. Left before the first production deploy
+[18]: Alertmanager's rollout policy [9.4].
 
 - [x] Validate this stage (2026-11-02): every log-type query against a SQL Server fixture with the `oslog_*` tables ([`SQL Server probes` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/41470669530/job/125363192693): `TestLogQueriesAgainstSQLServer` passes for all eight log types), extraction → OTel Collector → Loki and derived metrics → Prometheus on kind, restarts and outages without gaps, and the SLO scenarios firing the burn-rate alerts ([latest nightly run](https://github.com/gdpais/Heartbeat/actions/runs/41436749000): all 13 scenarios passed, their delivery checks finding in Loki the rows PatientZero committed, once; [`kind end-to-end` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/41470669530/job/125363192389): the Collector restarted during 45-minute and three-hour backlogs, all 6,000 rows of each in Loki once) [16.1–16.2]; Tempo and request traces are not part of this exit [3.6]. The 48 hour backfill and the outcome demo followed (below)
 - [x] Check the 48 hour backfill again on the current export path, in the scenarios workflow (2026-11-02): `scenarios.yml` generates the log, collects it from 48 hours back and checks it after the scenarios, nightly and on the release pull request; the check waits for the collector to catch up (`make patientzero-scale-check SCALE_WAIT=45`) and its per-hour table is in the run's summary. [Run by hand on its branch](https://github.com/gdpais/Heartbeat/actions/runs/41538460130), on the current export path and after the rotation scenario only (the first nightly run is the first after all 14): all 48 hours in Loki in full and matching `expected.json` on users, sessions and error fingerprints, the whole day's 67 fingerprints too, and every panel query ran; the largest, *Users affected* over 47 h, held 2,629 series, 13% of `max_query_series`. The backfill took 20 minutes: 2.5 to generate and measure 8.9 M rows (2.7 GB) on the runner's SQL Server, capped at 2 GB, where no collector query took more than 260 ms, and 16.5 for Loki to catch up [16.5]
@@ -320,7 +317,7 @@ values [0.4], Alertmanager's rollout policy [9.4] and PatientZero's hardening
 - [x] Config: `outsystems_logs` kind in the schema and Go config (`probes` select log types; `scrape_interval` is the poll interval; `lag`, `batch_limit`, `initial_lookback`, `log_timezone`)
 - [x] Extractor: watermarked reads per target and log type, full-batch tie handling, watermark file on a persistent volume, same session settings, deadline, backoff and readiness as the `sqlserver` kind
 - [x] Export OTLP/HTTP logs to the OTel Collector: OutSystems column names as attributes, `Message` body, severity, resource attributes `service.name`, `deployment.environment.name`, `outsystems.log_type`; `error.fingerprint` on error records; watermark moves only after delivery
-- [x] Persistent volume for the collector in the chart; NetworkPolicy egress from the collector to the OTel Collector (none needed: the collector's policy restricts ingress only)
+- [x] Persistent volume for the collector in the chart; NetworkPolicy egress from the collector to the OTel Collector (none needed then: the collector's policy restricted ingress only; since [2.7] its egress policy admits the OTel Collector)
 - [x] Add `outsystems.log_type` to Loki's index labels
 - [x] Extraction self-metrics: rows, lag, export failures, OutSystems log delay
 - [x] Derived metrics from the [catalog](docs/architecture/application-observability.md#derived-metrics), with bounded labels; recording rules, SLO burn-rate alerts and promtool tests; a Go test fails when a rule, dashboard or doc names an OutSystems metric the collector does not export
@@ -459,7 +456,7 @@ Built with the reporting worker [7, 14], not in stage 3.
 
 ### 4.9 Log search / Grafana deep links
 - [x] Implement deep-link generation from YAML templates: `GET /api/v1/dashboards`, `GET /api/v1/applications/{id}/links` and `GET /api/v1/database-targets/{id}/links` render `dashboards.dashboard_templates` and `deep_link_templates` with each entity's variables; the API refuses a file with an unknown variable for links (the collector does not read templates); the chart mounts the `heartbeat-integrations` ConfigMap into the API ([links](docs/reference/metrics-and-endpoints.md#links-into-the-platforms-ui))
-- [x] Implement log-search helper endpoints if needed for UI flows: none yet. The UI's drill-down is a link to Grafana Explore (`logs-explore`); the API searches logs itself only once investigations need the query adapters [6] (ADR 0011 §5)
+- [x] Implement log-search helper endpoints if needed for UI flows: none yet. Drill-down is a link to Grafana Explore (`logs-explore`); the API searches logs itself only once investigations need the query adapters [6] (ADR 0011 §5)
 - [x] Keep Grafana/Loki integration template-driven, not DB-driven: templates and base URL come from `integrations.yaml` only; nothing is stored in PostgreSQL
 
 ### 4.10 Audit output
@@ -487,7 +484,7 @@ onboards PatientZero from it (done) → offline render of assignments (done) →
 in Grafana (done) → a guide (done) → this stage's validation (done).
 
 - [x] Decide how the inventory is managed: as code, with no Web UI ([ADR 0021](docs/architecture/decisions/0021-inventory-as-code-and-no-web-ui.md))
-- [x] Remove the Web UI built in 5.1–5.2: `apps/web`, the API's static handler and CSP, the API image's Node stage, the `web` CI job, Playwright in `kind-e2e`, Node in `tools-check` and Renovate
+- [x] Remove the Web UI built in the former 5.1–5.2 (since renumbered): `apps/web`, the API's static handler and CSP, the API image's Node stage, the `web` CI job, Playwright in `kind-e2e`, Node in `tools-check` and Renovate
 - [x] Validate this stage (2026-11-07): PatientZero's environment, application, OutSystems source, database target and probe assignments applied from the inventory file on kind, audited as `config`, refused by the API's writes, rendered into `managedCollectors` and run by the collector; the inventory listed in Grafana [16.3] ([`kind end-to-end` on `master`](https://github.com/gdpais/Heartbeat/actions/runs/42409324809/job/128516821642), and locally on `2562b69`, 55 checks: `local-dev`, PatientZero and its source managed by the file, created by actor `config` in Loki, a PATCH of `local-dev` 409; the `patientzero` target and its 3 assignments config-managed and approved by the file, a PATCH and a DELETE of the target 409, run by the collector from the same render with their sessions in Prometheus; the info metrics and the *Heartbeat Inventory* dashboard list PatientZero). Custom probe definitions in the file [5.1] are not part of this exit
 
 ### 5.1 Inventory file
@@ -641,7 +638,7 @@ in Grafana (done) → a guide (done) → this stage's validation (done).
 ### 9.4 Alertmanager
 - [x] Provision routing configuration
 - [x] Support grouping/dedupe/silence/delivery
-- [ ] Integrate rendered routes from Heartbeat metadata (needs the API; routing is static today)
+- [ ] Integrate rendered routes from Heartbeat metadata (with the alerting API in phase 7 [4.7, 13.1]; routing is static today)
 - [ ] Alertmanager's StatefulSet keeps `podManagementPolicy: OrderedReady` (its chart has no setting for it), so after a bad config its pod is never replaced and the upgrade waits ([kubernetes#67250](https://github.com/kubernetes/kubernetes/issues/67250))
 
 ### 9.5 OpenTelemetry Collector
@@ -781,9 +778,9 @@ Collector reliability and endpoint security are in sections 2.6–2.7; replica
 ownership and outage testing are in section 19.
 
 ### 15.1 Grafana/Loki productization
-- [ ] validate integration config from YAML
+- [x] validate integration config from YAML [8.2]
 - [ ] validate datasources
-- [ ] support deep links
+- [x] support deep links [4.9]
 - [ ] support permission-aware sharing if needed
 
 ### 15.2 Security and reliability
@@ -809,22 +806,22 @@ ownership and outage testing are in section 19.
 - [ ] baseline calculations
 - [ ] session correlation rules
 - [ ] report rendering
-- [ ] YAML config validation
-- [ ] config hash stability
-- [ ] reconciliation diff logic
+- [x] YAML config validation (`internal/config` tests)
+- [x] config hash stability (`TestConfigVersionStableForEquivalentContent`)
+- [x] reconciliation diff logic (`TestDiffCollectors*`, `TestReconcileWithRollback*` in `internal/config`)
 
 ### 16.2 Integration tests
 - [x] collector -> Prometheus (`make kind-e2e`, against a Docker SQL Server)
-- [ ] OTLP ingest -> normalized logs/metrics
-- [ ] API -> PostgreSQL
+- [x] OTLP ingest -> normalized logs/metrics (OutSystems logs over OTLP to Loki, `make kind-e2e`)
+- [x] API -> PostgreSQL (`make test-integration`: the API's `*_integration_test.go`)
 - [x] alert rules -> Alertmanager routing (`make kind-e2e`: Watchdog reaches Alertmanager)
 - [ ] investigation query -> evidence assembly
 - [x] failed reload keeps previous active config (`make kind-e2e`)
 
 ### 16.3 End-to-end tests
-- [ ] onboard OutSystems telemetry source
-- [ ] see logs in Loki
-- [ ] see metrics in Prometheus/Grafana
+- [x] onboard OutSystems telemetry source (`make kind-e2e`)
+- [x] see logs in Loki (`make kind-e2e`)
+- [x] see metrics in Prometheus/Grafana (`make kind-e2e`)
 - [ ] create investigation through the API [6, 12]
 - [ ] view alert flow end-to-end
 - [ ] generate report end-to-end
@@ -857,7 +854,7 @@ First slice, with phase 2:
 - [x] Scenario runner: scenario files (fault, duration, expected PromQL/LogQL/alert signals), an admin endpoint to start them, and a run journal (JSONL: users, sessions, requests, and each fault with its start and end); in-process `latency` and `errors` faults, `make patientzero-scenario` ([scenarios](tools/patientzero/scenarios/README.md)). Cluster faults (restarts, outages) need the host-side runner the format leaves room for
 - [x] Ingest scenarios: `rotation` (weekly rotation on demand), `log-backlog`, `log-growth`, backfill within Loki's 168h limit, commits held back past the `lag`, and restarts and outages of the db-collector, the OTel Collector, Loki and SQL Server; the collector's clock is never changed; the restarts and outages are cluster faults, applied on the host with the kubeconfig and Docker ([cluster faults](tools/patientzero/scenarios/README.md#cluster-faults)). Done: `rotation`, `log-backlog` (commits late within the `lag`), `late-commits` (held back past it: those rows are lost, as ADR 0008 accepts), `log-growth`, `restarts`, and the `loki-outage`, `otel-outage`, `collector-outage` and `sqlserver-outage`, each checked against the rows PatientZero committed ([delivery checks](tools/patientzero/scenarios/README.md#delivery-checks)); the restarts and outages are applied by `make patientzero-scenario` as the run's host agent. The backfill within Loki's 168h limit is not a scenario (2026-10-25): `make patientzero-scale-collect` and `-check` backfill a 48 h generated log through the same extractor, Collector and Loki, and every hour matches its known answer [10.4]
 - [x] SLO scenarios: `bad-deploy` and `slow-sql` fire the existing burn-rate alerts in Alertmanager, end to end, with the rules' real windows (`make patientzero-scenario NAME=bad-deploy`, `NAME=slow-sql`); new `deploy` and `sql-latency` faults, and PatientZero logs slow SQL as the platform does ([SLO scenarios](tools/patientzero/scenarios/README.md#slo-scenarios))
-- [x] A CI workflow runs every scenario against PatientZero on a fresh kind cluster and checks their signals (`.github/workflows/scenarios.yml`, `make patientzero-scenarios`, in a fixed order): nightly on `master`, by hand, and on the release pull request, where `ci-ok` fails while a scenario fails, so no release is tagged with one. Not in `make kind-e2e`: the thirteen scenarios take about two and a half hours and would gate every pull request on them
+- [x] A CI workflow runs every scenario against PatientZero on a fresh kind cluster and checks their signals (`.github/workflows/scenarios.yml`, `make patientzero-scenarios`, in a fixed order): nightly on `master`, by hand, and on the release pull request, where `ci-ok` fails while a scenario fails, so no release is tagged with one. Not in `make kind-e2e`: the fourteen scenarios take about two and a half hours and would gate every pull request on them
 - [x] The first green nightly run of the scenarios workflow is this stage's validation evidence [3]: [2026-10-28](https://github.com/gdpais/Heartbeat/actions/runs/40667370569) (13 scenarios passed), then green every night to [2026-11-02](https://github.com/gdpais/Heartbeat/actions/runs/41436749000). Each run keeps its journals and `summary.md` as an artifact for 30 days
 - [ ] Replace the hand-run load in the [live demo](docs/guides/live-demo.md) with the scenarios [16.2, 16.3]
 
@@ -900,7 +897,7 @@ Server must be monitored sooner.
 
 - [x] Choose the observability platform: the Grafana stack stays; the ELK review is closed, and other applications receive Heartbeat's telemetry as OTLP from the Collector ([ADR 0019](docs/architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md))
 - [x] `heartbeat-deploy` config repository with Argo CD Applications, per-environment values and inventory; CI that renders each environment, loads it with the Go loader, checks the inventory (`api inventory check`) and fails on a stale assignments render; CODEOWNERS ([gdpais/heartbeat-deploy](https://github.com/gdpais/heartbeat-deploy), private: production's values and inventory, an AppProject and a manual-sync multi-source Application, `scripts/check.sh` against the Heartbeat commit in `HEARTBEAT_REF`, with `db-collector check-config` for the collector's loader)
-- [ ] **Owner**: a ruleset on `heartbeat-deploy`'s `main`: pull request with one CODEOWNERS approval, the `check` status required, no force pushes or deletions. GitHub Free refuses rulesets and branch protection on a private repository (HTTP 403), so this needs GitHub Pro; until then nothing on GitHub enforces the review or the check, and `main` is protected only by working through pull requests
+- [ ] **Owner** (needed since 2026-11-08): a ruleset on `heartbeat-deploy`'s `main`: pull request with one CODEOWNERS approval, the `check` status required, no force pushes or deletions. GitHub Free refuses rulesets and branch protection on a private repository (HTTP 403), so this needs GitHub Pro; until then nothing on GitHub enforces the review or the check, and `main` is protected only by working through pull requests
 - [ ] Only if assignments managed by the API are needed in production: GitHub App for the API on `heartbeat-deploy` only (contents and pull requests: read and write), private key in Secrets Manager through External Secrets, so they open pull requests ([ADR 0014](docs/architecture/decisions/0014-probe-assignments-to-runtime-config.md), narrowed by ADR 0021)
 - [ ] RDS for PostgreSQL and ElastiCache for Valkey in the infrastructure code; production values point the API at them ([ADR 0015](docs/architecture/decisions/0015-postgresql-and-redis-delivery.md))
 - [ ] The release workflow [0.5] also publishes the images and the chart to ECR through GitHub OIDC
@@ -940,7 +937,7 @@ comparison [22].
 - [ ] Before any Oracle code, time-boxed to about half a day: check what Grafana Alloy (and established Oracle exporters) cover for the planned Oracle signals, permissions, TLS and evidence needs. Record the outcome as an ADR: build the custom Oracle collector, adopt Alloy for Oracle, or run the comparison [22] before this section
 - [ ] Define supported Oracle versions, signal coverage, connector/licensing constraints, least-privilege permissions and query budgets
 - [ ] Implement secure connectivity, credential refs/TLS, pooling, bounded queries and Oracle probes with explicit metric units/types/labels and structured evidence
-- [ ] Extend config/schema, API target/probe management and Web onboarding for Oracle
+- [ ] Extend config/schema, API target/probe management and onboarding through the inventory file for Oracle
 - [ ] Add Oracle recording/alert rules, Grafana dashboards and investigation/report integration
 - [ ] Add an isolated non-production Oracle fixture, Helm delivery support and onboarding/operations runbook
 - [ ] Test supported-version queries, permissions, telemetry semantics and database load
