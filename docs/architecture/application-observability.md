@@ -46,11 +46,11 @@ Data path for self-managed OutSystems 11:
 3. Records go to the OTel Collector, then to Loki. Loki indexes only
    `service.name`, `deployment.environment.name` and `outsystems.log_type`
    (`service.namespace` too, which the collector does not set). The records
-   hold personal data, so Loki deletes them after 30 days
-   (`loki.loki.limits_config.retention_period`; the compactor's
-   `delete_request_store` must name the store that holds the chunks:
-   `filesystem` on kind, `s3` in production). Compliance confirms the period
-   before the first production deploy
+   hold personal data, so Loki deletes them after a retention period
+   ([data retention](../reference/configuration.md#data-retention); the
+   compactor's `delete_request_store` must name the store that holds the
+   chunks: `filesystem` on kind, `s3` in production). Compliance confirms
+   the period before the first production deploy
    ([ADR 0012](decisions/0012-personal-data-in-telemetry.md)).
 4. From the same rows the collector updates the
    [derived metrics](#derived-metrics), which Prometheus scrapes from its

@@ -1,6 +1,9 @@
 # 0002. Runtime integration and collector config come from YAML/Kubernetes
 
-- Status: Accepted
+- Status: Accepted. Updated by [ADR 0014](0014-probe-assignments-to-runtime-config.md)
+  (approved probe assignments render to `managedCollectors`) and
+  [ADR 0021](0021-inventory-as-code-and-no-web-ui.md) (the inventory is a
+  file; there is no UI).
 - Date: 2026-06-04 (recorded 2026-09-29)
 
 ## Context

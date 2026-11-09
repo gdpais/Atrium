@@ -54,7 +54,8 @@ Considered and not chosen:
 
 - A release publishes the db-collector image and the chart. The
   `heartbeat/otel-gateway` package on GHCR only serves releases up to
-  `v0.1.0`.
+  `v0.1.0`. (Update: releases also publish the API image,
+  `atrium/api`, since the API was added [TODO 4.1].)
 - Until an environment configures receivers, alerts other than `Watchdog`
   notify no one. This was already true in practice; the default no longer
   hides it.

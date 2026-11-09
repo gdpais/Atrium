@@ -601,6 +601,35 @@ Atrium's own logs and spans still go to the bundled Collector, which
 forwards them with its own exporter's headers
 ([`external-platform.example.yaml`](../../infra/helm/values/external-platform.example.yaml)).
 
+## Data retention
+
+How long each store keeps data, as the chart sets it. This is the one place
+that lists the values; other pages link here.
+
+| Store | What it holds | Default (`values.yaml`) | kind (`kind.yaml`) | Production example | Value key |
+| --- | --- | --- | --- | --- | --- |
+| Loki | OutSystems logs with raw user, session and request IDs and client IPs ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)); the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)); Atrium's own logs | 30 days | 30 days | 30 days | `loki.loki.limits_config.retention_period` (with `compactor.retention_enabled`) |
+| Prometheus | Metrics, including the derived OutSystems metrics | 15 days | 2 days | 30 days | `prometheus.server.retention` |
+| Tempo | Atrium's own traces ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) | 7 days (`168h`) | 7 days | 7 days | `tempo.tempo.retention` |
+| PostgreSQL | Inventory and identity metadata; the audit outbox holds a row only until the OTel Collector accepts it | Until deleted; no retention job | same | managed service's backups | — |
+| Valkey | Login sessions | 8 h idle, 7 days at most | same | same | `ATRIUM_API_SESSION_IDLE_TIMEOUT`, `ATRIUM_API_SESSION_MAX_AGE` ([API variables](#api)) |
+
+Loki deletes logs within about two hours of the compactor's run after they
+pass the period. `make chart-check` fails if a profile that bundles Loki
+turns retention off or changes the period from 30 days. The bundled
+PostgreSQL and Valkey have no backups; production uses managed services
+([ADR 0015](../architecture/decisions/0015-postgresql-and-redis-delivery.md)).
+
+**Not decided yet: the compliance sign-off.** These periods are engineering
+defaults. Before the first production deploy, someone accountable for data
+protection confirms raw identifiers in Loki, Loki's 30-day retention
+(including how long audit records must be kept) and who has Grafana access,
+or asks for hashed identifiers instead
+([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)
+point 4; [TODO 9.2](../../TODO.md#92-loki)). If audit records must outlive
+Loki's period, the Collector also exports them to a SIEM or object storage
+(ADR 0016 point 7).
+
 ## Environment variables
 
 ### DB collector

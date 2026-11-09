@@ -1,8 +1,11 @@
 # 0005. Production delivery and operations defaults
 
 - Status: Accepted. Chart side implemented 2026-10-03 (exact version pins,
-  chart rules below, Watchdog route, `production.example.yaml`); the production
-  infrastructure, config repository and Argo CD are not built yet. The kind
+  chart rules below, Watchdog route, `production.example.yaml`). Update
+  2026-11-08: the config repository `atrium-deploy` exists, with its CI
+  and an Argo CD Application, and also holds each environment's inventory
+  ([ADR 0021](0021-inventory-as-code-and-no-web-ui.md)); the AWS
+  infrastructure and the Argo CD install are not built [TODO 18]. The kind
   profile has no Discord receiver yet.
 - Date: 2026-09-30
 

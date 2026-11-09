@@ -1,6 +1,7 @@
 # 0004. Core technology choices
 
-- Status: Accepted
+- Status: Accepted. Updated by [ADR 0021](0021-inventory-as-code-and-no-web-ui.md):
+  there is no Web UI, so the TypeScript + React row no longer applies.
 - Date: 2026-05-30 (recorded 2026-09-29)
 
 ## Context

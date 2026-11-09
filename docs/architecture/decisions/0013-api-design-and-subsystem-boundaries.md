@@ -1,6 +1,9 @@
 # 0013. API design: stdlib HTTP, spec-first OpenAPI, sqlc, Redis sessions and job streams; frozen boundaries
 
-- Status: Accepted
+- Status: Accepted; built except the job envelopes on Redis Streams (phase 7).
+  Updated by [ADR 0021](0021-inventory-as-code-and-no-web-ui.md): there is
+  no Web UI, so the boundaries' Web UI row and the UI client of the OpenAPI
+  contract no longer apply.
 - Date: 2026-10-21
 
 ## Context

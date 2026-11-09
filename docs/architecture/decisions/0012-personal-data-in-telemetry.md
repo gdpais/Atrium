@@ -50,6 +50,10 @@ What each option costs:
    option 3. Until then raw identifiers live only on kind and in test
    environments with synthetic (PatientZero) or approved data.
 
+   Update 2026-11-09: Loki now deletes logs after 30 days in every profile;
+   the [data retention](../../reference/configuration.md#data-retention)
+   table lists each store's period and what the sign-off still confirms.
+
 ## Consequences
 
 - Investigations and dashboards keep working on the values support and the

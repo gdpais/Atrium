@@ -1,6 +1,8 @@
 # 0017. An OutSystems 11 telemetry source maps an application to its log identity; the extraction collector stays in YAML
 
-- Status: Accepted
+- Status: Accepted. Updated by [ADR 0021](0021-inventory-as-code-and-no-web-ui.md):
+  there is no UI; the revisit trigger below now reads "if installations are
+  onboarded from the inventory file".
 - Date: 2026-10-27
 
 ## Context
