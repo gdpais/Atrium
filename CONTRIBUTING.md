@@ -79,8 +79,9 @@ commit that does not follow the format is left out of the release notes.
 | `build`, `ci`, `chore` | Build, CI, tooling and housekeeping | none |
 
 The scope is the component: `api`, `db-collector`, `patientzero`, `config`,
-`chart`, `rules`, `dashboards`, `kind-e2e`, `docsite`. Mark a breaking change with `!` after the
-scope (`feat(config)!: …`) and explain it in a `BREAKING CHANGE:` footer.
+`chart`, `rules`, `dashboards`, `kind-e2e`, `docsite`. Mark a breaking change
+with `!` after the scope (`feat(config)!: …`) and explain it in a
+`BREAKING CHANGE:` footer.
 
 ## Before opening a pull request
 
@@ -232,8 +233,8 @@ waiting; the first release pull request covers every commit since `v0.1.0`.
      force pushes*, with an empty bypass list, so no one can move or delete
      a tag.
    - `Heartbeat-tag-creation`: *Restrict creations* only, with the release
-     app in the bypass list (*Always allow*). Add it right after the release app
-     exists.
+     app in the bypass list (*Always allow*). Add it right after the release
+     app exists.
 
    A bypass applies to a whole ruleset, so the app gets a ruleset of its
    own: it may create tags but, like everyone else, not move or delete them.

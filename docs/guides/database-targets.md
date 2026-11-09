@@ -147,8 +147,9 @@ collector per target; all of a target's assignments run at one interval.
 On kind, `make kind-assignments` deploys the render, and later
 `make kind-deploy` runs keep it. In production, ADR 0014's pull request to
 `heartbeat-deploy` is built only if production needs assignments managed by
-the API [18]; use the inventory file, or add targets by hand. Provide the credential (step 3) before
-the deploy; an assignment shows `applied` once the collector runs it.
+the API [18]; use the inventory file, or add targets by hand. Provide the
+credential (step 3) before the deploy; an assignment shows `applied` once the
+collector runs it.
 
 ```bash
 make kind-assignments

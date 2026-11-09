@@ -205,8 +205,8 @@ counts as it writes them
 ([delivery checks](scenarios/README.md#delivery-checks)). Faults that act
 on other workloads (`restarts`, `loki-outage`, `otel-outage`,
 `collector-outage`, `sqlserver-outage`, `tempo-outage`) need the kubeconfig
-and Docker, which PatientZero does not have: `make patientzero-scenario` applies them
-when PatientZero asks, as the run's host agent
+and Docker, which PatientZero does not have: `make patientzero-scenario`
+applies them when PatientZero asks, as the run's host agent
 ([cluster faults](scenarios/README.md#cluster-faults)).
 
 ## Production-sized logging database
@@ -432,8 +432,8 @@ the rows back with the collector's own queries from
 It is skipped unless `PATIENTZERO_TEST_SQLSERVER` is a `sqlserver://` URL for a
 login that may create databases. `make test-sqlserver` runs it against a
 disposable SQL Server container as that container's `sa`, and so does CI's
-`SQL Server probes` job, which runs whenever `tools/patientzero` changes outside its
-chart. To run it on its own against the sandbox's `sa`:
+`SQL Server probes` job, which runs whenever `tools/patientzero` changes
+outside its chart. To run it on its own against the sandbox's `sa`:
 
 ```bash
 PATIENTZERO_TEST_SQLSERVER="sqlserver://sa:$(grep '^MSSQL_SA_PASSWORD=' .env.sqlserver-dev | cut -d= -f2-)@127.0.0.1:11433?encrypt=true&TrustServerCertificate=true" \
