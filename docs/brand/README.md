@@ -5,7 +5,7 @@ The logo is a Roman stone arch with a terracotta keystone.
 | File | Use it for |
 |------|------------|
 | `mark.svg`, `mark-dark.svg` | The arch alone, with mortar joints, at 48 px and larger. The root `README.md` uses these. `-dark` is for dark backgrounds. |
-| `logo.svg`, `logo-dark.svg` | The arch with the "Atrium" wordmark. The wordmark is live text (Inter, falling back to Helvetica or Arial), so it renders differently per machine; nothing references these files yet. |
+| `logo.svg`, `logo-dark.svg` | The arch with the "Atrium" wordmark. The wordmark is Inter SemiBold (SIL Open Font License) converted to outlines, so it renders the same everywhere and needs no font. In the 64-unit grid it is set at 36 units with -0.8 tracking, on the base line of the piers. Nothing references these files yet. |
 | `icon.svg` | The arch without joints on a dark rounded tile, for small sizes (favicons, avatars). The joints turn to noise below about 32 px. |
 
 ## Copies to keep in sync
