@@ -202,7 +202,7 @@ eu-west-1 ([sources](#sources)).
 | CloudWatch | about 4 GB | $3.00 |
 | CloudTrail | trail + S3 | $1.00 |
 | End User Messaging Social | 1,000 messages | $5.00 |
-| Data transfer | 10 GB of logs a day crossing zones twice ($0.02/GB) | $15.00 |
+| Data transfer | 300 GB of logs a month crossing zones twice at $0.02/GB ($12), plus internet egress | $15.00 |
 | Site-to-Site VPN | 1 connection | $36.50 |
 | **Total** | | **$544.24** |
 
