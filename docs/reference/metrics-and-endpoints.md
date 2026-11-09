@@ -84,8 +84,11 @@ authenticated wrong method gets 405). Admin responses are `Cache-Control:
 no-store`. With no token configured, both endpoints always answer 401.
 
 **Network access.** In Kubernetes the `db-collector` NetworkPolicy admits only
-Prometheus and the configured operator peers to port 8082
+Prometheus, the configured scrapers and operator peers, and the API (for
+`GET /admin/config`, when `api.enabled`) to port 8082
 ([what the chart deploys](../guides/kubernetes-local.md#what-the-chart-deploys)).
+With `dbCollector.adminTLS` the admin endpoints move to their own HTTPS port,
+which only the operators and the API reach.
 Operators reach the admin endpoints with
 `kubectl -n heartbeat port-forward pod/db-collector-0 8082`, which
 NetworkPolicy does not apply to, or from a listed peer such as a VPN range.
@@ -121,6 +124,10 @@ served beside it.
 | `PATCH /api/v1/probe-definitions/{id}` | session, `admin`; `Origin` | `{"enabled": false}` disables a custom definition, every version of it; `true` enables it again |
 | `GET /api/v1/probe-definitions/{id}/versions` | session, `viewer` | 200 with every version of the definition, the newest first |
 | `POST /api/v1/probe-definitions/{id}/versions` | session, `admin`; `Origin` | Change a custom definition: 201 with the next version |
+| `GET /api/v1/probe-assignments` and `GET …/{id}` | session, `viewer` | Probe assignments, filtered by target or state ([below](#probe-assignments)) |
+| `POST`, `PATCH /{id}` and `DELETE /{id}` on `/api/v1/probe-assignments` | session, `operator`; `Origin` | Create, change and delete them; a new or changed one is a draft |
+| `POST /api/v1/probe-assignments/{id}/approve`, `…/reject` | session, `admin`; `Origin` | Approve a draft, or reject it with a reason |
+| `GET /api/v1/probe-assignments/rendered` | session, `operator` | 200 with the `managedCollectors` values file, as `application/yaml` |
 | `PUT /api/v1/account/password` | session, `viewer`; `Origin` | Change your own password: 204, every session of yours ends and the cookie is cleared ([below](#users-and-roles)) |
 | `GET /api/v1/users`, `GET /api/v1/users/{id}` | session, `admin` | The users, by email (`?status=active` or `disabled`), or one |
 | `POST /api/v1/users`, `PATCH /api/v1/users/{id}` | session, `admin`; `Origin` | Create a user, or change their email, name or status |
@@ -813,10 +820,12 @@ it stops and recreated when it starts, so a reload that changes a collector
 resets its error counters to 0 (a counter reset for `rate()`) and drops the
 series of removed targets and probes.
 
-Per target, the self-observability series are 4 target gauges plus, per
-scheduled probe, 13 histogram series (10 buckets, `+Inf`, sum, count) and 4
-error counters: 157 series for a target with the 9 built-in probes. Probe
-metric series are listed in the table above.
+Per target, the self-observability series are 4 target gauges, 4 connection
+pool series (2 connection gauges and 2 wait counters, unless the target shares
+another target's pool) plus, per scheduled probe, `heartbeat_collector_probe_up`,
+13 histogram series (10 buckets, `+Inf`, sum, count) and 4 error counters:
+170 series for a target with the 9 built-in probes. Probe metric series are
+listed in the table above.
 
 ### Config reloads
 
@@ -847,12 +856,10 @@ on the same `/metrics`, labelled `collector`, `environment`, `target` and
 the log type as the `probe` label: one probe execution reads, delivers and
 acknowledges up to 10 batches.
 
-A batch the OTel Collector has not accepted by the end of the probe
-execution is backpressure, not a failure. Its export carries on in the
-background and the log type reads nothing more until the Collector takes it
-(the chart's Collector takes the next batch only once Loki has the one
-before; see [application observability](../architecture/application-observability.md)).
-Meanwhile `heartbeat_outsystems_export_blocked` is 1, the target stays up
+While a log type waits for the OTel Collector to accept a batch, past the
+probe execution that read it
+([backpressure](../architecture/application-observability.md#scope)),
+`heartbeat_outsystems_export_blocked` is 1, the target stays up
 (`heartbeat_collector_target_up` 1, no backoff, no probe error), and
 `GET /admin/config` shows it as `blocked`, counted in `targets_blocked`,
 with what it waits for. A database the collector cannot read still fails
@@ -975,8 +982,12 @@ So far the audited changes are `api users create-admin`
 ([configuration](configuration.md#api)), logins, logouts and failed logins
 ([sessions](#logging-in-and-sessions)), inventory changes
 ([inventory](#inventory)), telemetry sources
-([telemetry sources](#telemetry-sources)), and users and their roles
-([users and roles](#users-and-roles)). A test makes each audited change and
+([telemetry sources](#telemetry-sources)), database targets
+([database targets](#database-targets)), probe definitions
+([probe definitions](#probe-definitions)), probe assignments
+([probe assignments](#probe-assignments)), the changes the inventory file
+applies, as actor `config` ([inventory file](#inventory-file)), and users and
+their roles ([users and roles](#users-and-roles)). A test makes each audited change and
 fails if a record holds a password, a hash or a session token.
 
 | Metric | Type | Labels | Meaning |

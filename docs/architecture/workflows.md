@@ -28,7 +28,7 @@ All four workflows follow the same pattern:
 | Service | Owns | Status |
 | --- | --- | --- |
 | API / control plane (`apps/api`) | Inventory CRUD, telemetry source and database target onboarding, alert policy and report schedule CRUD, users/roles, investigation APIs, Grafana deep links from YAML templates, audit records. Uses PostgreSQL for durable data and Redis for queues, idempotency keys and cached summaries. | Built for onboarding: login, cookie sessions and roles, users managed by admins [4.2]; environments, applications and components [4.3]; telemetry sources and their observation [4.4]; database targets, probe definitions and assignments rendered to `managedCollectors` [4.5]; deep links [4.9]; audit records through the outbox [4.10]. Investigation, alerting and reporting APIs come with their workers in phase 7 [4.6–4.8] |
-| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | In progress [5]: the API applies the mounted file; the offline render and the Grafana inventory are next |
+| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | Built [5]: the API applies the mounted file; `api inventory check` and `api inventory render` work offline; Grafana lists the inventory (*Heartbeat Inventory*). Left: tokens for machine clients, when the first one needs them [5.3] |
 | Session analyzer (`services/session-analyzer`) | Investigation jobs: correlation across Prometheus, Loki, collector evidence and metadata; anomaly windows; adaptive baseline computation. | Planned |
 | Reporting (`services/reporting`) | Scheduled and on-demand report jobs, rendering, delivery, run metadata. | Planned |
 
@@ -40,10 +40,12 @@ All four workflows follow the same pattern:
    Sources that stream OTLP themselves (OutSystems Cloud, ODC) point straight
    at the Collector, which maps their fields with OTTL
    ([ADR 0009](decisions/0009-remove-the-otel-gateway.md)).
-2. The OpenTelemetry Collector batches and routes with stock processors.
-3. Logs land in Loki through its OTLP endpoint. Loki's `otlp_config` limits
-   index labels to three resource attributes (see the
-   [OTel Collector notes](overview.md#component-details)). Everything else,
+2. The OpenTelemetry Collector routes them with stock processors. Its logs
+   pipeline has no batch processor; the exporter's queue batches instead
+   ([delivery](application-observability.md#scope)).
+3. Logs land in Loki through its OTLP endpoint. Loki's `otlp_config` indexes
+   a few resource attributes as labels (listed in the
+   [component details](overview.md#component-details)). Everything else,
    including user, session and request IDs and client IP, is kept as
    structured metadata, so investigations can filter and correlate on it.
 4. Derived metrics (latency, throughput, errors, availability, saturation) land
@@ -115,8 +117,10 @@ Planned rendering path: API → `infra/helm/heartbeat/files/prometheus/rules/gen
 Prometheus) and API → Alertmanager routes. Who renders `generated/` (the API or
 a build step) is an [open question](overview.md#open-questions).
 
-**Current state:** `infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml` holds hand-written
-rules; `make rules-check` validates them and runs their unit tests. Prometheus
+**Current state:** the hand-written rule files in
+`infra/helm/heartbeat/files/prometheus/rules/`
+([list](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules))
+hold the rules; `make rules-check` validates them and runs their unit tests. Prometheus
 sends alerts to Alertmanager. Alertmanager routes the always-firing `Watchdog`
 alert to a dead-man's switch and everything else to a default receiver with no
 integrations until an environment configures one; see
