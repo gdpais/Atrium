@@ -14,7 +14,7 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `heartbeat-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
 | 5 | Production delivery (EKS + Argo CD) | Not started; decisions recorded |
-| 6 | Complete application and database product workflows | Not started |
+| 6 | Complete application and database product workflows | Triaged 2026-11-09: onboarding, the SQL Server signals and the overview dashboards already shipped in phases 1–4. Left: linking an application to its database targets with an application health dashboard [10.5], query and field checks on kind [10.2, 10.3], a safe reachability check [11.1], error events and per-NUMA page life expectancy [11.2], detail dashboards [11.3]. Runs while phase 5 waits on owner actions |
 | 7 | Investigations, alerting and reporting | Not started |
 | 8 | Advanced reliability, HA and security | Not started |
 | 9 | Fallback file ingestion | Deferred |
@@ -290,6 +290,9 @@ validated in the target environment.
 - OutSystems and SQL Server onboarding, the remaining signal coverage,
   dashboards and drill-down [10, 11]; CPU, cache and I/O arrive in phase 1
   ([SQL Server signal coverage](../architecture/database-observability.md#sql-server-signal-coverage))
+- An application names the database targets it uses, and one dashboard shows
+  an application's health beside its databases' [10.5]; nothing links them
+  today, so this needs an ADR first
 
 Exit: onboarding from the inventory file → ingest/collection → Loki/Prometheus → Grafana, with
 field/metric semantics, cardinality and database load checked.
