@@ -15,4 +15,6 @@ The joint-free arch of `icon.svg` is also inlined twice in
 `tools/docsite/internal/site/assets/page.html`: as the favicon data URI and as
 the header mark (which takes its colours from the theme instead of fixed
 fills). A change to the arch has to be made in all three places, and
-`app-badge.png` exported again from `icon.svg` (square corners, arch at 66%).
+`app-badge.png` exported again from `icon.svg` at 512 px, with two changes:
+no `rx` on the tile (square corners), and the arch group at `scale(.66)`
+instead of `scale(.8)`, centred on the tile.
