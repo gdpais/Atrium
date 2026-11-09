@@ -275,7 +275,12 @@ Service*; delete the old one by hand if you had it.
 `oci://ghcr.io/gdpais/charts/heartbeat` and `ghcr.io/gdpais/heartbeat/*` (0.1.0),
 and later versions as Atrium ([ADR 0022](../architecture/decisions/0022-rename-to-atrium.md)).
 Keep your release name and namespace and upgrade them with the Atrium chart
-above. Do these once, before the first upgrade, in this order:
+above. Releases of 0.1.0 were usually named `heartbeat` in the namespace
+`heartbeat`: in every command of this section and of the upgrade above,
+replace the release name and the namespace `atrium` with yours. Run as
+written, the commands find no release in `atrium` (`has no deployed
+releases`) and leave the 0.1.0 one as it was. Do these once, before the first
+upgrade, in this order:
 
 1. Rename what the chart reads by name. Recreate `heartbeat-runtime` as `atrium-runtime`,
    or set `dbCollector.adminToken.existingSecret: heartbeat-runtime` (0.1.0's name).
