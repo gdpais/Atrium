@@ -281,6 +281,8 @@ SQL Server must be monitored sooner.
 - EKS infrastructure as code; External Secrets; healthchecks.io dead-man's
   switch; Discord, then Slack, Teams and WhatsApp receivers
 - Where the monitored SQL Servers sit relative to the EKS VPC
+- Components, sizing and monthly cost:
+  [AWS infrastructure and cost forecast](../architecture/aws-infrastructure.md)
 
 Exit: production networking, identity, TLS, storage, retention and restore
 validated in the target environment.
