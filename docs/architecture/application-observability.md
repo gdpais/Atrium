@@ -11,8 +11,10 @@ is in [workflows](workflows.md#application-telemetry-ingestion-outsystems-first)
 > 1, 2, 4 and 5) run as the db-collector's `outsystems_logs` kind, switched
 > off by default
 > ([configuration](../reference/configuration.md#outsystems_logs-collectors));
-> the chart ships their recording rules, SLO alerts and dashboards. Loki
-> indexes `outsystems.log_type` as a label (`outsystems_log_type` in LogQL).
+> the chart ships their recording rules, SLO alerts and dashboards.
+> `outsystems.log_type` is one of Loki's index labels
+> (`outsystems_log_type` in LogQL; all of them are in the
+> [component details](overview.md#component-details)).
 > The request timeline from logs is built
 > ([step A](#step-a-request-timeline-from-logs-with-phase-2)); synthesized
 > traces are designed, not built
@@ -250,7 +252,7 @@ left out so a handful of failures cannot page: the availability alerts need
 five requests a minute over the long window, so a fast burn takes at least 5
 failed requests in the hour; the latency alerts need one. Because the
 SLIs go quiet, not red, when extraction stops, `OutSystemsLogExtractionBehind`
-fires when a log type's extraction lag passes 30 minutes, and
+fires when a log type's extraction lag has been above 30 minutes for 10, and
 `OutSystemsLogExportBlocked` sooner, 2 minutes after the OTel Collector stops
 taking batches, as it does while Loki is down. These are
 guardrails; per-application objectives and adaptive baselines come in

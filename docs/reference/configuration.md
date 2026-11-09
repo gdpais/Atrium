@@ -338,15 +338,12 @@ Rules:
 - The watermark of each collector, target and log type is a file under
   `ATRIUM_STATE_DIR` (`outsystems_logs/<collector>.<target>.<log type>.json`).
   It moves only after the OTel Collector accepted the batch, so delivery is at
-  least once. The chart's Collector keeps the batch it accepted on disk (the
-  `otelCollectorQueue` volume), so a Collector restart does not lose it, and
-  accepts the next one only once Loki has taken it
-  ([application observability](../architecture/application-observability.md)).
+  least once. The chart keeps the Collector's queue on the
+  `otelCollectorQueue` volume.
 - A batch the Collector has not accepted by the end of the probe execution
-  is not a failure: its export carries on in the background, retried until
-  the Collector accepts it, and the log type reads nothing more meanwhile.
-  `atrium_outsystems_export_blocked` is 1 and the target stays up
-  ([metrics](metrics-and-endpoints.md#outsystems-log-extraction)). At most
+  is not a failure: the log type waits for it, and its target stays up
+  ([how delivery works](../architecture/application-observability.md#scope);
+  [metrics](metrics-and-endpoints.md#outsystems-log-extraction)). At most
   64 MiB is held in such batches across all log types, counting each
   batch's row data and, once its records are built, twice their encoded size
   (the records and the request body made from them); near
@@ -638,7 +635,10 @@ or, when those are empty, the bundled `postgresql` and `valkey` without TLS
 (`disable` and `false`); any other server gets `verify-full` and TLS unless
 the values turn them off. `ATRIUM_API_SITE_ORIGIN` comes from
 `api.siteOrigin`, and `ATRIUM_API_INVENTORY_PATH` from `api.inventory`
-(the [inventory file](#inventory-file), mounted from its ConfigMap); the
+(the [inventory file](#inventory-file), mounted from its ConfigMap).
+`ATRIUM_API_INTEGRATIONS_PATH` is always
+`/app/config/integrations.yaml`, the collector's file, mounted from the
+`atrium-integrations` ConfigMap; the
 other session settings take their defaults, or `api.extraEnv`. The telemetry variables are set as the collector's. A value
 that cannot work stops startup with an error naming the variable, instead of
 falling back to the default.
@@ -664,6 +664,7 @@ falling back to the default.
 | `ATRIUM_API_COLLECTOR_URL` | unset (observations unknown) | The DB collector's base URL, such as `http://db-collector:8082`, without a path. The API reads its redacted `GET /admin/config`, at most every 15s, to say whether a telemetry source is observed ([telemetry sources](metrics-and-endpoints.md#telemetry-sources)). The chart sets it to the `db-collector` Service while `dbCollector.enabled` is on, `https://db-collector:8443` with `dbCollector.adminTLS`, and the collector's NetworkPolicy admits the API |
 | `ATRIUM_API_COLLECTOR_CA_FILE` | unset (system roots) | PEM certificates that verify an https collector URL, read at start; a missing or empty file stops the API. The chart mounts only the CA of `dbCollector.adminTLS.ca` |
 | `ATRIUM_API_COLLECTOR_ADMIN_TOKEN` | unset | The collector's admin token (its `ATRIUM_ADMIN_TOKEN`), sent as a bearer token. The chart takes it from the collector's Secret, `dbCollector.adminToken`; it is never logged. Without it the collector answers 401, and observations are unknown. Both services read the token at startup, so rotating it means restarting the collector and the API; until both run with the new one, observations are unknown (`refused the API's admin token`) |
+| `ATRIUM_API_INTEGRATIONS_PATH` | unset (no links) | The collector's [`integrations.yaml`](#integrationsyaml). The API renders its links into the platform's UI from its `dashboards` templates ([links](metrics-and-endpoints.md#links-into-the-platforms-ui)). Read at startup and at most every 30 seconds when links are asked for |
 | `ATRIUM_API_INVENTORY_PATH` | unset (no inventory file) | The environment's [inventory file](#inventory-file), applied to PostgreSQL when the API starts and when the file changes, read every 30 seconds ([applying the file](#applying-the-file)). A file that cannot be read or applied is logged and counted; the API starts and stays ready all the same |
 | `ATRIUM_API_SHUTDOWN_DELAY` | `5s` | How long the API keeps serving after `SIGTERM`, with `GET /readyz` answering 503, before it stops accepting connections: time for its Service to stop sending it requests. `0s` to `1m`. The chart's `api.terminationGracePeriodSeconds` (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay |
 | `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `ATRIUM_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |

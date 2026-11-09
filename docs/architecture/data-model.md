@@ -84,6 +84,8 @@ erDiagram
   environments ||--o{ database_targets : contains
   database_targets ||--o{ probe_assignments : probes
   probe_definitions ||--o{ probe_assignments : defines
+  users |o--o{ probe_assignments : creates
+  users |o--o{ probe_assignments : approves
 
   environments ||--o{ investigations : scopes
   applications ||--o{ investigations : subject_of
@@ -129,6 +131,7 @@ erDiagram
     text description
     text status
     jsonb labels
+    text managed_by "api | config"
   }
   applications {
     uuid id PK
@@ -138,6 +141,7 @@ erDiagram
     text owner_team
     text criticality "low | medium | high | critical"
     text status
+    text managed_by "api | config"
   }
   application_components {
     uuid id PK
@@ -146,6 +150,7 @@ erDiagram
     text component_type
     text runtime_name
     jsonb labels
+    text managed_by "api | config"
   }
   telemetry_sources {
     uuid id PK
@@ -154,6 +159,7 @@ erDiagram
     text ingest_mode "otlp | file | api | agentless"
     text status
     jsonb config
+    text managed_by "api | config"
   }
   normalization_rules {
     uuid id PK
@@ -174,6 +180,7 @@ erDiagram
     text status
     text credential_ref
     jsonb labels
+    text managed_by "api | config"
   }
   probe_definitions {
     uuid id PK
@@ -196,6 +203,15 @@ erDiagram
     integer interval_seconds
     boolean enabled
     jsonb config
+    integer timeout_ms "nullable"
+    integer max_rows "nullable"
+    text state "draft | approved | proposed | applied | rejected | failed"
+    text state_detail
+    text pull_request_url "nullable"
+    uuid approved_by FK "nullable"
+    timestamptz approved_at "nullable"
+    uuid created_by FK "nullable"
+    text managed_by "api | config"
   }
   investigations {
     uuid id PK
@@ -371,9 +387,8 @@ What the API keeps true of these rows [4.3]:
   alerts, reports) stays with the environment it happened in. A component's
   environment is its application's, read through the join.
 - `environments.slug` is the collectors' `environment` and the telemetry's
-  `deployment.environment.name` ([ADR 0017](decisions/0017-outsystems-sources-map-application-identity.md)
-  §2): lower-case letters, digits and hyphens, 1 to 63, starting and ending
-  with a letter or a digit, and fixed once created. `platform` and
+  `deployment.environment.name`, fixed once created; its format is in the
+  [API reference](../reference/metrics-and-endpoints.md#inventory). `platform` and
   `component_type` are identifiers (`outsystems_traditional`, `module`):
   lower-case letters, digits and underscores.
 - `labels` are a JSON object of strings, at most 64.
