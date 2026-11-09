@@ -78,9 +78,10 @@ commit that does not follow the format is left out of the release notes.
 | `refactor`, `style` | Code changes with no behavior change | none |
 | `build`, `ci`, `chore` | Build, CI, tooling and housekeeping | none |
 
-The scope is the component: `db-collector`, `config`, `chart`, `rules`,
-`dashboards`, `kind-e2e`, `docsite`. Mark a breaking change with `!` after the
-scope (`feat(config)!: …`) and explain it in a `BREAKING CHANGE:` footer.
+The scope is the component: `api`, `db-collector`, `patientzero`, `config`,
+`chart`, `rules`, `dashboards`, `kind-e2e`, `docsite`. Mark a breaking change
+with `!` after the scope (`feat(config)!: …`) and explain it in a
+`BREAKING CHANGE:` footer.
 
 ## Before opening a pull request
 
@@ -127,7 +128,7 @@ branches as `gone`, ready for `git branch -d`.
 | Job | Runs |
 | --- | --- |
 | `Detect changes` | Always. Lists the paths the pull request changes; [`scripts/ci-changes.sh`](scripts/ci-changes.sh) decides which of the jobs below they need |
-| `test` | Always: generated code is current, Go tests with the race detector, vet, lint (gofmt, staticcheck, shellcheck), Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
+| `test` | Always: generated code is current, Go tests with the race detector, vet, lint (gofmt, staticcheck, shellcheck), reachable known vulnerabilities (govulncheck), Prometheus rules, docs site, PostgreSQL and Valkey integration tests |
 | `SQL Server probes` | When `services/db-collector`, its test scripts or `tools/patientzero` (outside its chart) change; also runs PatientZero's live test |
 | `Helm chart` | When the chart, its values, its tests, or PatientZero's chart or setup script change; lints, renders and checks PatientZero's chart too |
 | `kind end-to-end` | When a service (the db-collector, the API or the migrations it embeds), the chart or the kind setup changes |
@@ -232,8 +233,8 @@ waiting; the first release pull request covers every commit since `v0.1.0`.
      force pushes*, with an empty bypass list, so no one can move or delete
      a tag.
    - `Atrium-tag-creation`: *Restrict creations* only, with the release
-     app in the bypass list (*Always allow*). Add it after the first release
-     is tagged by hand.
+     app in the bypass list (*Always allow*). Add it right after the release
+     app exists.
 
    A bypass applies to a whole ruleset, so the app gets a ruleset of its
    own: it may create tags but, like everyone else, not move or delete them.

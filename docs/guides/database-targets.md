@@ -145,10 +145,11 @@ and have an admin approve each assignment
 The API renders the approved ones into the chart's `managedCollectors`, one
 collector per target; all of a target's assignments run at one interval.
 On kind, `make kind-assignments` deploys the render, and later
-`make kind-deploy` runs keep it. In production the pull request to
-`atrium-deploy` that carries it waits for that repository [18]; until
-then, add production targets by hand. Provide the credential (step 3) before
-the deploy; an assignment shows `applied` once the collector runs it.
+`make kind-deploy` runs keep it. In production, ADR 0014's pull request to
+`atrium-deploy` is built only if production needs assignments managed by
+the API [18]; use the inventory file, or add targets by hand. Provide the
+credential (step 3) before the deploy; an assignment shows `applied` once the
+collector runs it.
 
 ```bash
 make kind-assignments

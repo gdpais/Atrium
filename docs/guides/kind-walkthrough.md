@@ -13,7 +13,7 @@ deploys.
 | Docker Desktop (or Docker Engine on Linux) | any current release; cgroup v2 | `brew install --cask docker` |
 | kind | v0.33.x | `brew install kind` |
 | kubectl | 1.35–1.37 | `brew install kubectl` |
-| Helm | 4.2 or later | `brew install helm` |
+| Helm | 4.3 or later | `brew install helm` |
 | Go | 1.27+ | `brew install go` |
 | jq, openssl, curl | any | `brew install jq` (openssl and curl ship with macOS) |
 
@@ -38,16 +38,17 @@ change.
 ## 2. Start the platform
 
 ```bash
-make chart-deps   # downloads the pinned Prometheus, Grafana, Loki and OTel charts
+make chart-deps   # downloads the pinned Prometheus, Grafana, Loki, Tempo and OTel charts
 make kind-up      # creates the "atrium" cluster, builds and loads images, deploys
 ```
 
 The first `make kind-up` takes several minutes while Docker pulls the node and
-engine images. It ends by listing pods and services; all six pods should be
-`1/1 Running`:
+engine images. It ends by listing pods and services; all ten pods
+should be `Running`, with every container ready:
 
 ```text
-alertmanager-0, db-collector-0, grafana-…, loki-0, otel-collector-0, prometheus-…
+alertmanager-0, api-…, db-collector-0, grafana-…, loki-0, otel-collector-0,
+postgresql-0, prometheus-…, tempo-0, valkey-0
 ```
 
 Check the endpoints:
@@ -159,7 +160,7 @@ starts, so the database is never polled twice.
 ## 8. Try the small profile
 
 ```bash
-PROFILE=minimal make kind-deploy   # collector, Prometheus, Alertmanager, Grafana only
+PROFILE=minimal make kind-deploy   # collector, API, PostgreSQL, Valkey, Prometheus, Alertmanager, Grafana
 make kind-deploy                   # back to the full profile
 ```
 
@@ -174,7 +175,8 @@ SQL Server, runs every check above and more (invalid config, rollouts,
 persistence after pod replacement, an OTel Collector restart during two log
 backlogs of 45 minutes and three hours), prints measurements, and deletes
 what it created. Your `atrium` cluster is untouched. It takes about 10
-minutes and ends with `All kind e2e checks passed`. CI runs the same script on every pull request.
+minutes and ends with `All kind e2e checks passed`. CI runs the same script
+when a change can affect it, and on every push to `master`.
 
 ## 10. Clean up
 
