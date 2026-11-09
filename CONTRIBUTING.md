@@ -221,7 +221,11 @@ waiting; the first release pull request covers every commit since `v0.1.0`.
 
 1. Create a GitHub App (Settings → Developer settings → GitHub Apps → New):
    webhook off; repository permissions *Contents*, *Pull requests* and
-   *Issues*: read and write. Install it on this repository only.
+   *Issues*: read and write. Before installing it, give it the Atrium badge:
+   on the app's page, under *Display information*, upload
+   [`docs/brand/app-badge.png`](docs/brand/app-badge.png) and set *Badge
+   background color* to `1c1b18` (the field appears after the upload). Then
+   install it on this repository only.
 2. In the repository's Settings → Secrets and variables → Actions, add the
    variable `RELEASE_APP_CLIENT_ID` (the app's client ID) and the secret
    `RELEASE_APP_PRIVATE_KEY` (a private key generated on the app's page).
