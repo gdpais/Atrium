@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -436,8 +437,19 @@ func (d *delayedExporter) Export(ctx context.Context, endpoint string, resourceL
 // The calls of one target wait for exports at most half the poll interval in
 // all, so a slow Collector that accepts each batch just within a call cannot
 // use up the cycle and leave the target's last log types unstarted.
+//
+// The wait-budget tests run in a synctest bubble: the exporter's delay, the
+// budget's timer and the elapsed times are on its fake clock, so a slow or
+// loaded machine (-race on CI) cannot push a wait past the budget.
 func TestATargetWaitsAtMostHalfTheInterval(t *testing.T) {
+	synctest.Test(t, testATargetWaitsAtMostHalfTheInterval)
+}
+
+func testATargetWaitsAtMostHalfTheInterval(t *testing.T) {
 	x := newExtraction(t, t.TempDir(), 100)
+	// In a cleanup, so a failed check still ends the delayed export before
+	// the bubble does; a goroutine left blocked would panic the whole run.
+	t.Cleanup(x.settle)
 	x.executor.Exporter = &delayedExporter{delay: 700 * time.Millisecond}
 	x.item.Assignment.IntervalSeconds = 2
 	x.source.insert("a", at(time.Minute))
@@ -448,17 +460,21 @@ func TestATargetWaitsAtMostHalfTheInterval(t *testing.T) {
 	general.Definition.Name = "general"
 	started := time.Now()
 	err := x.runForItem(general, 5*time.Second)
-	if elapsed := time.Since(started); !errors.Is(err, collectors.ErrBlocked) || elapsed > 600*time.Millisecond {
-		t.Fatalf("second log type: %v after %s; want ErrBlocked once the target's 1 s budget is spent", err, elapsed)
+	if elapsed := time.Since(started); !errors.Is(err, collectors.ErrBlocked) || elapsed != 300*time.Millisecond {
+		t.Fatalf("second log type: %v after %s; want ErrBlocked after the 300 ms left of the target's 1 s budget", err, elapsed)
 	}
-	x.settle()
 }
 
 // The wait budget belongs to the target's cycle, which the call of its first
 // log type starts, not to a window that drifts across cycles: a cycle never
 // gets the rest of an earlier window on top of its own.
 func TestTheWaitBudgetFollowsTheCycle(t *testing.T) {
+	synctest.Test(t, testTheWaitBudgetFollowsTheCycle)
+}
+
+func testTheWaitBudgetFollowsTheCycle(t *testing.T) {
 	x := newExtraction(t, t.TempDir(), 100)
+	t.Cleanup(x.settle)
 	x.executor.Exporter = &delayedExporter{delay: 700 * time.Millisecond}
 	x.item.Assignment.IntervalSeconds = 2
 	x.executor.InitCollector(collectorconfig.CollectorRuntimeConfig{
@@ -482,10 +498,9 @@ func TestTheWaitBudgetFollowsTheCycle(t *testing.T) {
 	}
 	started := time.Now()
 	err := x.runForItem(general, 5*time.Second)
-	if elapsed := time.Since(started); !errors.Is(err, collectors.ErrBlocked) || elapsed > 600*time.Millisecond {
-		t.Fatalf("general: %v after %s; want ErrBlocked within what is left of this cycle's 1 s", err, elapsed)
+	if elapsed := time.Since(started); !errors.Is(err, collectors.ErrBlocked) || elapsed != 300*time.Millisecond {
+		t.Fatalf("general: %v after %s; want ErrBlocked after the 300 ms left of this cycle's 1 s", err, elapsed)
 	}
-	x.settle()
 }
 
 // A blocked export says why the Collector does not take it, and an attempt
