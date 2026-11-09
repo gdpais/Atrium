@@ -654,20 +654,25 @@ in Grafana (done) → a guide (done) → this stage's validation (done).
 
 ## 10. Feature track: OutSystems application observability MVP
 
+Triaged 2026-11-09 against what phases 1–4 shipped. Production delivery [18]
+waits on owner actions, so this track and section 11 run meanwhile; what is
+left is the phase 6 outcome: an application owner reads an application's and
+its databases' health together.
+
 ### 10.1 Source onboarding
-- [ ] Add/edit/disable OutSystems telemetry source
-- [ ] Validate required ingest config and labels
-- [ ] Associate source to application
+- [x] Add/edit/disable OutSystems telemetry source: the API's `/api/v1/telemetry-sources` [4.4] and the inventory file, `status: disabled` [5]
+- [x] Validate required ingest config and labels: `config` checked against its type's JSON Schema, by the API and offline by `api inventory check` [4.4, 5.1]
+- [x] Associate source to application: a source belongs to its application for good ([ADR 0017](docs/architecture/decisions/0017-outsystems-sources-map-application-identity.md))
 
 ### 10.2 Normalization contract
-- [ ] Define canonical application event envelope
+- [ ] ~~Define canonical application event envelope~~: superseded (2026-11-09) by the OutSystems field mapping ([application observability](docs/architecture/application-observability.md)); a contract shared across source types waits for the first non-OutSystems source, OTLP from OutSystems Cloud and ODC [3.6]
 - [x] Map OutSystems default logs faithfully first (OutSystems column names as log attributes [3.3])
-- [ ] Validate consistent environment/application/session fields
+- [ ] Check that environment, application and module agree across Loki's records, the derived metrics in Prometheus and the inventory, on kind: one application's names resolve to the same inventory row in each, and a renamed or disabled application is visible as such
 
 ### 10.3 Telemetry wiring
 - [x] Route sample OutSystems telemetry into Loki (`make kind-e2e`: fixture error rows → Loki)
-- [ ] Generate/derive application metrics in Prometheus
-- [ ] Validate Grafana queries against both
+- [x] Generate/derive application metrics in Prometheus: nine derived metrics with a series budget ([derived OutSystems metrics](docs/reference/metrics-and-endpoints.md#derived-outsystems-metrics))
+- [ ] Validate Grafana queries against both: the distinct-count panels are checked against Loki's known answer [10.4]; run every other OutSystems panel's query, Prometheus and Loki, against PatientZero data on kind and fail on an empty or wrong answer
 
 ### 10.4 Dashboards and drill-down
 - [x] Build OutSystems overview dashboard
@@ -676,31 +681,36 @@ in Grafana (done) → a guide (done) → this stage's validation (done).
 - [x] Enable drill-down overview -> latency/errors -> Loki ([dashboards](docs/architecture/application-observability.md#dashboards))
 - [x] Check the active users and sessions panels and the top fingerprints at production cardinality: `make patientzero-scale-collect` and `make patientzero-scale-check` compare Loki with `expected.json`. All 48 hours of a 48 h backlog match; the largest panel, *Users affected* over 47 h, holds 1,977 series, a tenth of `max_query_series` ([results](tools/patientzero/README.md#in-loki))
 
+### 10.5 Application and database together
+- [ ] Decide how an application names the database targets it uses (an inventory field on the application or on the target; one target shared by several applications) and record it in an ADR. Today nothing links them: a target belongs only to its environment
+- [ ] Implement it in the inventory file, its schema and checks, the API and the inventory info metrics [5.3]
+- [ ] An application health dashboard: the OutSystems overview's signals beside its database targets' health, with drill-down to each [10.4, 11.3]
+- [ ] Show it on PatientZero and its database on kind: the phase 6 outcome demo
+
 ---
 
 ## 11. Feature track: SQL Server observability MVP
 
 ### 11.1 Target onboarding
-- [ ] Add/edit/disable SQL Server target
-- [ ] Validate reachability safely
-- [ ] Attach approved probe assignments
+- [x] Add/edit/disable SQL Server target: the API's `/api/v1/database-targets` [4.5] and the inventory file, `status: disabled` [5]
+- [ ] Validate reachability safely: before a new target's probes are applied, check read-only that it answers and that its login holds the permissions the probes need (`VIEW SERVER STATE`, `VIEW ANY DEFINITION`, `VIEW ANY DATABASE`: [database targets](docs/guides/database-targets.md)), and report what is missing, since without `VIEW ANY DEFINITION` the `storage` and `file_io` metrics are silently missing. Today reachability shows only once the collector runs it (`heartbeat_collector_target_up`)
+- [x] Attach approved probe assignments: draft → approved → applied through the API [4.5], or the inventory file rendered to `managedCollectors` [5.2]
 
 ### 11.2 Signal coverage
-- [ ] waits
-- [ ] blocking/locks
-- [ ] sessions/connections
-- [ ] memory pressure
-- [ ] storage pressure
-- [ ] throughput/latency
+- [x] waits (`waits` probe)
+- [x] blocking/locks (`blocking` probe)
+- [x] sessions/connections (`sessions` probe)
+- [x] memory pressure (`memory_pressure` and `buffer_cache` probes)
+- [x] storage pressure (`storage` probe)
+- [x] throughput/latency (`throughput`; I/O latency from `file_io`) ([SQL Server probe metrics](docs/reference/metrics-and-endpoints.md#sql-server-probe-metrics))
 - [ ] error events where available
 - [ ] page life expectancy per NUMA node (`Buffer Node` counters); the `buffer_cache` probe reports only the server-wide `Buffer Manager` value
 - [ ] `blocking_session_id` as a label creates and drops a series for every blocking session: export the blocked count, and the top blockers as evidence [12.4]
 
 ### 11.3 Dashboards
-- [ ] SQL Server overview dashboard
-- [ ] waits/locks dashboard
-- [ ] sessions dashboard
-- [ ] drill-down flows for DB troubleshooting
+- [x] SQL Server overview dashboard (`sqlserver-overview`: waits, blocking, sessions, storage, throughput, CPU, buffer cache, file I/O, probe health)
+- [ ] Waits, blocking and sessions detail behind the overview's panels: one wait type, one blocking chain, one session status over time, with drill-down from the overview (replaces the separate waits/locks and sessions dashboards)
+- [ ] drill-down flows for DB troubleshooting: from a target's overview to its file I/O, waits and blocking, and from an application's dashboard to its databases [10.5]
 
 ---
 
