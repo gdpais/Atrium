@@ -69,6 +69,8 @@ which is not committed.
    traces
 6. [DB collector internals](../services/db-collector/README.md): runtime
    flow, failure isolation, the probe model and how rows become metrics
+7. [AWS infrastructure and cost forecast](architecture/aws-infrastructure.md):
+   the production components on AWS, their sizing and monthly cost (planned)
 
 **Reference (lookup tables)**
 
@@ -89,7 +91,7 @@ which is not committed.
 | --- | --- |
 | [`product/`](product/) | [Overview](product/overview.md), [roadmap](product/roadmap.md), [how we work](product/operating-model.md) |
 | [`guides/`](guides/) | Task-oriented how-tos: running it ([local development](guides/local-development.md), [walkthrough](guides/kind-walkthrough.md), [live demo](guides/live-demo.md), [Kubernetes delivery](guides/kubernetes-local.md)) and operating it ([installing a release](guides/install-from-release.md), [SQL Server targets](guides/database-targets.md), [onboarding by pull request](guides/onboarding-by-pull-request.md)) |
-| [`architecture/`](architecture/) | [Overview](architecture/overview.md), [operator workflows](architecture/workflows.md), [data model](architecture/data-model.md), [database observability](architecture/database-observability.md), [application observability](architecture/application-observability.md) |
+| [`architecture/`](architecture/) | [Overview](architecture/overview.md), [operator workflows](architecture/workflows.md), [data model](architecture/data-model.md), [database observability](architecture/database-observability.md), [application observability](architecture/application-observability.md), [AWS infrastructure and cost forecast](architecture/aws-infrastructure.md) |
 | [`architecture/decisions/`](architecture/decisions/README.md) | Architecture decision records (ADRs), numbered, with their index |
 | [`reference/`](reference/) | Lookup tables for [configuration](reference/configuration.md) and [metrics and endpoints](reference/metrics-and-endpoints.md) |
 | [`archive/`](archive/README.md) | Superseded planning documents, kept for history |
