@@ -164,7 +164,7 @@ Grafana or Prometheus in another namespace (a `namespaceSelector` and a
 source outside the pod subnet to Prometheus, Alertmanager and the Collector,
 as for the collector, so the loopback NodePorts and `make health` keep
 working; Loki has no NodePort and stays limited to its three clients.
-`backendNetworkPolicies.enabled: false` removes the four engine policies.
+`backendNetworkPolicies.enabled: false` removes the five engine policies.
 
 On kind, the API server's service and pod proxy (which `make kind-e2e` uses)
 also comes from the node, so it is not filtered either; in a cluster whose
@@ -244,9 +244,10 @@ and redeploy. In production Argo CD reverts such drift.
 
 ## Production
 
-Production values will live in the `heartbeat-deploy` config repository,
-beside each environment's inventory file, and Argo CD will render the chart
-from them (ADR 0005); neither exists yet (roadmap phase 5).
+Production values live in the private `heartbeat-deploy` repository, beside
+each environment's inventory file, and its Argo CD Application renders the
+chart from them (ADR 0005); no production cluster runs it yet (roadmap
+phase 5).
 [`production.example.yaml`](../../infra/helm/values/production.example.yaml)
 shows the shape (ECR digests, External Secrets, gp3 volumes, S3 for Loki,
 the API on Amazon RDS and ElastiCache over TLS with the RDS CA bundle mounted,

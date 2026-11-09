@@ -14,9 +14,9 @@ the Heartbeat module, chart, images or releases.
 > **Status:** first slice [16.5]: the service, its two databases on the
 > sandbox SQL Server, three entry points, k6 load, and the scenario runner
 > with its run journal, seven in-process and two cluster faults, delivery
-> checks, the SLO scenarios and the ingest scenarios but a backfill. Timers,
-> extension calls, the fake REST partner and the rest of the compressed
-> calendar come later. The logging schema is the collector
+> checks, the SLO scenarios, the ingest scenarios and the 48 hour backfill.
+> Timers, extension calls, the fake REST partner and the rest of the
+> compressed calendar come later. The logging schema is the collector
 > fixtures', the DDL of a surveyed OutSystems 11 logging database.
 
 ## Run it on kind
@@ -204,9 +204,9 @@ check that Loki holds exactly the rows PatientZero committed, which it
 counts as it writes them
 ([delivery checks](scenarios/README.md#delivery-checks)). Faults that act
 on other workloads (`restarts`, `loki-outage`, `otel-outage`,
-`collector-outage`, `sqlserver-outage`) need the kubeconfig and Docker,
-which PatientZero does not have: `make patientzero-scenario` applies them
-when PatientZero asks, as the run's host agent
+`collector-outage`, `sqlserver-outage`, `tempo-outage`) need the kubeconfig
+and Docker, which PatientZero does not have: `make patientzero-scenario`
+applies them when PatientZero asks, as the run's host agent
 ([cluster faults](scenarios/README.md#cluster-faults)).
 
 ## Production-sized logging database
@@ -396,9 +396,7 @@ The image copies the fixtures to `/app/oslog`
 What the survey left open: `mobile_request.Duration` is written in seconds,
 as the OutSystems reference documents it; the surveyed database had no
 mobile request rows to confirm the unit. Every other log's `Duration` is in
-milliseconds. `Error_Id` is text in every log, empty when there is none. The
-real `oslog_Error` view also joins `oslog_Error_Detail` for full stack
-traces; PatientZero's does not.
+milliseconds. `Error_Id` is text in every log, empty when there is none.
 
 ## Configuration
 
@@ -434,8 +432,8 @@ the rows back with the collector's own queries from
 It is skipped unless `PATIENTZERO_TEST_SQLSERVER` is a `sqlserver://` URL for a
 login that may create databases. `make test-sqlserver` runs it against a
 disposable SQL Server container as that container's `sa`, and so does CI's
-`SQL Server probes` job, which runs whenever `tools/patientzero` changes. To
-run it on its own against the sandbox's `sa`:
+`SQL Server probes` job, which runs whenever `tools/patientzero` changes
+outside its chart. To run it on its own against the sandbox's `sa`:
 
 ```bash
 PATIENTZERO_TEST_SQLSERVER="sqlserver://sa:$(grep '^MSSQL_SA_PASSWORD=' .env.sqlserver-dev | cut -d= -f2-)@127.0.0.1:11433?encrypt=true&TrustServerCertificate=true" \
