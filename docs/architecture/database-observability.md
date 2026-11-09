@@ -52,8 +52,10 @@ waits/locks, sessions, storage and regressions. Only
   built-in's query, are managed through
   [`/api/v1/probe-definitions`](../reference/metrics-and-endpoints.md#probe-definitions)
   by admins: each change is a new immutable version, and disabling one
-  disables every version. Until probe assignments are rendered [4.5], a
-  collector still runs what its `probes` list in `integrations.yaml` names.
+  disables every version. Approved probe assignments are rendered into the
+  chart's `managedCollectors`
+  ([ADR 0014](decisions/0014-probe-assignments-to-runtime-config.md));
+  hand-written collectors run what their `probes` list names.
 - Runtime collector grouping, target activation, probe activation, and scaling live in `config/integrations.yaml` and Kubernetes delivery.
 
 ### Probe review checklist

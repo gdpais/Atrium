@@ -114,9 +114,10 @@ dbCollector:
     # outside the cluster apart from pods.
     externalTrafficPolicy: null
   # Ingress NetworkPolicy for the collector's port 8082 (metrics, health and
-  # the admin endpoints). Only the bundled Prometheus (when prometheus.enabled)
-  # and the peers below may connect; everything else, including other pods in
-  # the namespace, is dropped. Kubelet probes and `kubectl port-forward` are
+  # the admin endpoints). Only the bundled Prometheus (when prometheus.enabled),
+  # the API (for GET /admin/config, when api.enabled) and the peers below may
+  # connect; everything else, including other pods in the namespace, is
+  # dropped. Kubelet probes and `kubectl port-forward` are
   # not subject to NetworkPolicy and need no entry. Peers are Kubernetes
   # NetworkPolicyPeer objects (podSelector, namespaceSelector, ipBlock). With
   # no peers at all, all ingress is denied. Needs a CNI that enforces

@@ -28,7 +28,7 @@ dbCollector:
     # Operator access from outside the pod network: on kind that is the
     # developer's host through the loopback-bound NodePort (infra/kind/
     # cluster.yaml) and containers on the Docker kind network. Pods stay
-    # limited to Prometheus. The except range is kind's default pod subnet.
+    # limited to Prometheus and the API. The except range is kind's default pod subnet.
     # The kubelet's probes and the API server's pod proxy (kind-e2e) come
     # from the pod's own node, which NetworkPolicy does not filter.
     #
