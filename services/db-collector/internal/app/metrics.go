@@ -7,8 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 // newRegistry returns the collector's Prometheus registry with Go runtime
@@ -34,10 +34,10 @@ func newRegistry() (*prometheus.Registry, *collectors.ProbeMetrics, error) {
 const (
 	// MetricHTTPRequests counts requests by their response's status code.
 	// Labels: method, route, code.
-	MetricHTTPRequests = "heartbeat_collector_http_requests_total"
+	MetricHTTPRequests = "atrium_collector_http_requests_total"
 	// MetricHTTPRequestDuration is the time from receiving a request to its
 	// handler returning. Labels: method, route.
-	MetricHTTPRequestDuration = "heartbeat_collector_http_request_duration_seconds"
+	MetricHTTPRequestDuration = "atrium_collector_http_request_duration_seconds"
 )
 
 // Config load and reload metrics, maintained by [configMetrics].  The startup
@@ -48,18 +48,18 @@ const (
 	// succeeded and 0 when it was rejected or failed to apply, until the next
 	// successful one.  It is 0 exactly while GET /admin/config shows a
 	// last_reload_err.  No labels.
-	MetricConfigLastReloadSuccessful = "heartbeat_collector_config_last_reload_successful"
+	MetricConfigLastReloadSuccessful = "atrium_collector_config_last_reload_successful"
 	// MetricConfigLastReloadSuccessTimestamp is the Unix time of the last
 	// successful load or reload: when the active config was loaded.  No
 	// labels.
-	MetricConfigLastReloadSuccessTimestamp = "heartbeat_collector_config_last_reload_success_timestamp_seconds"
+	MetricConfigLastReloadSuccessTimestamp = "atrium_collector_config_last_reload_success_timestamp_seconds"
 	// MetricConfigReloads counts loads and reloads by result (see
 	// [reloadResults]).  Labels: result.
-	MetricConfigReloads = "heartbeat_collector_config_reloads_total"
+	MetricConfigReloads = "atrium_collector_config_reloads_total"
 	// MetricConfigInfo is always 1 and names the active config version, the
 	// SHA-256 of the file, in its version label.  It has one series, which
 	// changes only when a reload activates a different file.
-	MetricConfigInfo = "heartbeat_collector_config_info"
+	MetricConfigInfo = "atrium_collector_config_info"
 )
 
 // Values of the result label of [MetricConfigReloads], and of the result
@@ -86,9 +86,9 @@ func reloadResult(err error) string {
 	switch {
 	case err == nil:
 		return reloadOK
-	case errors.Is(err, heartbeatconfig.ErrInvalidCandidate):
+	case errors.Is(err, atriumconfig.ErrInvalidCandidate):
 		return reloadInvalidCandidate
-	case errors.Is(err, heartbeatconfig.ErrReloadBusy):
+	case errors.Is(err, atriumconfig.ErrReloadBusy):
 		return reloadBusy
 	default:
 		return reloadApplyFailed
@@ -107,7 +107,7 @@ type configMetrics struct {
 // newConfigMetrics registers the config metrics in reg, reading the active
 // snapshot from snapshot.  The reload counter starts at 0 for every result,
 // so rate() and increase() see the first failure.
-func newConfigMetrics(reg prometheus.Registerer, snapshot func() heartbeatconfig.Snapshot) (*configMetrics, error) {
+func newConfigMetrics(reg prometheus.Registerer, snapshot func() atriumconfig.Snapshot) (*configMetrics, error) {
 	m := &configMetrics{reloads: prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: MetricConfigReloads,
 		Help: "Config loads and reloads by result (ok, invalid_candidate, apply_failed, busy); the startup load counts as one ok.",
@@ -142,7 +142,7 @@ var (
 
 // snapshotCollector exports the gauges derived from the active snapshot.
 type snapshotCollector struct {
-	snapshot func() heartbeatconfig.Snapshot
+	snapshot func() atriumconfig.Snapshot
 }
 
 // Describe implements [prometheus.Collector].

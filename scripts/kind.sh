@@ -1,5 +1,5 @@
 #!/bin/sh
-# Local kind workflow for Heartbeat (ADR 0003). The Makefile calls this; run
+# Local kind workflow for Atrium (ADR 0003). The Makefile calls this; run
 # `make help` for the targets.
 #
 # Every kubectl and helm call names the kind context explicitly, so this script
@@ -21,30 +21,30 @@
 #
 # Environment (defaults in brackets):
 #   KIND_NODE_IMAGE      node image, pinned in the Makefile (required for cluster)
-#   KIND_CLUSTER         cluster name [heartbeat]
+#   KIND_CLUSTER         cluster name [atrium]
 #   KIND_CONFIG          cluster config; empty for none [infra/kind/cluster.yaml]
 #   PROFILE              full | minimal [full]
 #   EXTRA_VALUES         more values files, space-separated []
-#   HEARTBEAT_NAMESPACE  namespace [heartbeat]
-#   SQLSERVER_CONTAINER  Docker SQL Server container [heartbeat-sqlserver-dev]
+#   ATRIUM_NAMESPACE  namespace [atrium]
+#   SQLSERVER_CONTAINER  Docker SQL Server container [atrium-sqlserver-dev]
 #   SQLSERVER_ENV_FILE   SA password and collector credential file [.env.sqlserver-dev]
 #   SQLSERVER_HOST_PORT  loopback host port for SQL Server; empty for none [11433]
 #   SQLSERVER_MEMORY_LIMIT_MB  SQL Server's memory cap in MB, at least 2048 [2048]
 set -eu
 cd "$(dirname "$0")/.."
 
-CLUSTER=${KIND_CLUSTER:-heartbeat}
+CLUSTER=${KIND_CLUSTER:-atrium}
 KIND_CONFIG=${KIND_CONFIG-infra/kind/cluster.yaml}
 PROFILE=${PROFILE:-full}
 EXTRA_VALUES=${EXTRA_VALUES:-}
-NAMESPACE=${HEARTBEAT_NAMESPACE:-heartbeat}
-SQLSERVER_CONTAINER=${SQLSERVER_CONTAINER:-heartbeat-sqlserver-dev}
+NAMESPACE=${ATRIUM_NAMESPACE:-atrium}
+SQLSERVER_CONTAINER=${SQLSERVER_CONTAINER:-atrium-sqlserver-dev}
 SQLSERVER_ENV_FILE=${SQLSERVER_ENV_FILE:-.env.sqlserver-dev}
 SQLSERVER_HOST_PORT=${SQLSERVER_HOST_PORT-11433}
 SQLSERVER_MEMORY_LIMIT_MB=${SQLSERVER_MEMORY_LIMIT_MB:-2048}
 SQLSERVER_IMAGE=mcr.microsoft.com/mssql/server:2022-latest
-RELEASE=heartbeat
-CHART=infra/helm/heartbeat
+RELEASE=atrium
+CHART=infra/helm/atrium
 VALUES_DIR=infra/helm/values
 STATE_DIR=.tmp/kind/$CLUSTER
 CONTEXT=kind-$CLUSTER
@@ -91,17 +91,17 @@ cmd_images() {
 	: >"$STATE_DIR/images.env.tmp"
 	for entry in $SERVICE_IMAGES; do
 		svc=${entry%%:*}
-		log "building heartbeat/$svc for linux/$arch"
+		log "building atrium/$svc for linux/$arch"
 		# --provenance=false keeps a single-platform image that kind can load.
 		docker build --quiet --platform "linux/$arch" --provenance=false \
-			-t "heartbeat/$svc:build" -f "${entry#*:}" . >/dev/null
-		id=$(docker image inspect -f '{{.Id}}' "heartbeat/$svc:build")
-		built_arch=$(docker image inspect -f '{{.Architecture}}' "heartbeat/$svc:build")
-		[ "$built_arch" = "$arch" ] || die "heartbeat/$svc is $built_arch, node is $arch"
+			-t "atrium/$svc:build" -f "${entry#*:}" . >/dev/null
+		id=$(docker image inspect -f '{{.Id}}' "atrium/$svc:build")
+		built_arch=$(docker image inspect -f '{{.Architecture}}' "atrium/$svc:build")
+		[ "$built_arch" = "$arch" ] || die "atrium/$svc is $built_arch, node is $arch"
 		tag=dev-$(printf '%s' "${id#sha256:}" | cut -c1-12)
-		docker tag "heartbeat/$svc:build" "heartbeat/$svc:$tag"
-		log "loading heartbeat/$svc:$tag into $CLUSTER"
-		kind load docker-image --name "$CLUSTER" "heartbeat/$svc:$tag" >/dev/null
+		docker tag "atrium/$svc:build" "atrium/$svc:$tag"
+		log "loading atrium/$svc:$tag into $CLUSTER"
+		kind load docker-image --name "$CLUSTER" "atrium/$svc:$tag" >/dev/null
 		var=$(printf '%s' "$svc" | tr 'a-z-' 'A-Z_')_TAG
 		printf '%s=%s\n' "$var" "$tag" >>"$STATE_DIR/images.env.tmp"
 	done
@@ -129,7 +129,7 @@ secret_value() {
 # when kubectl fails.
 apply_secret_env() {
 	name=$1
-	env_file=$(mktemp "${TMPDIR:-/tmp}/heartbeat-$name.XXXXXX")
+	env_file=$(mktemp "${TMPDIR:-/tmp}/atrium-$name.XXXXXX")
 	cat >"$env_file"
 	apply_secret "$name" --from-env-file="$env_file" || { rm -f "$env_file"; return 1; }
 	rm -f "$env_file"
@@ -141,24 +141,24 @@ apply_secret_env() {
 # the existing volume. The API's Secret is derived from the other two on
 # every deploy, so the three always agree.
 cmd_api_secrets() {
-	postgres_password=$(secret_value heartbeat-postgresql password) || die "cannot read Secret heartbeat-postgresql"
+	postgres_password=$(secret_value atrium-postgresql password) || die "cannot read Secret atrium-postgresql"
 	if [ -z "$postgres_password" ]; then
 		postgres_password=$(openssl rand -hex 24)
-		printf 'password=%s\n' "$postgres_password" | apply_secret_env heartbeat-postgresql
+		printf 'password=%s\n' "$postgres_password" | apply_secret_env atrium-postgresql
 	fi
-	valkey_password=$(secret_value heartbeat-valkey password) || die "cannot read Secret heartbeat-valkey"
+	valkey_password=$(secret_value atrium-valkey password) || die "cannot read Secret atrium-valkey"
 	if [ -z "$valkey_password" ]; then
 		valkey_password=$(openssl rand -hex 24)
-		printf 'password=%s\n' "$valkey_password" | apply_secret_env heartbeat-valkey
+		printf 'password=%s\n' "$valkey_password" | apply_secret_env atrium-valkey
 	fi
-	printf 'HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES=heartbeat:%s\nHEARTBEAT_CREDENTIAL_SECRET_API_REDIS=default:%s\n' \
-		"$postgres_password" "$valkey_password" | apply_secret_env heartbeat-api-credentials
+	printf 'ATRIUM_CREDENTIAL_SECRET_API_POSTGRES=atrium:%s\nATRIUM_CREDENTIAL_SECRET_API_REDIS=default:%s\n' \
+		"$postgres_password" "$valkey_password" | apply_secret_env atrium-api-credentials
 }
 
 # Local-only Secrets. Production creates these outside the chart (ADR 0005).
 cmd_secrets() {
 	kubectl_ create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl_ apply -f - >/dev/null
-	apply_secret heartbeat-runtime --from-literal=admin-token=local-admin-token
+	apply_secret atrium-runtime --from-literal=admin-token=local-admin-token
 	apply_secret grafana-admin --from-literal=admin-user=admin --from-literal=admin-password=admin
 	cmd_api_secrets
 }
@@ -209,7 +209,7 @@ migrate_collector_policy() {
 	kubectl_ -n "$NAMESPACE" delete statefulset db-collector --cascade=orphan --wait >/dev/null
 }
 
-SANDBOX_HOST=heartbeat-sqlserver-dev
+SANDBOX_HOST=atrium-sqlserver-dev
 
 # kind.yaml's inventory file (api.inventory) declares PatientZero's database
 # target on the sandbox SQL Server, by its default container name. A
@@ -340,12 +340,12 @@ env_value() {
 cmd_sqlserver_up() {
 	[ -f "$SQLSERVER_ENV_FILE" ] || die "$SQLSERVER_ENV_FILE is missing; run make sqlserver-dev-init"
 	password=$(env_value MSSQL_SA_PASSWORD)
-	credential=$(env_value HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV)
-	[ -n "$password" ] && [ -n "$credential" ] || die "$SQLSERVER_ENV_FILE must set MSSQL_SA_PASSWORD and HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV"
+	credential=$(env_value ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV)
+	[ -n "$password" ] && [ -n "$credential" ] || die "$SQLSERVER_ENV_FILE must set MSSQL_SA_PASSWORD and ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV"
 	collector_login=${credential%%:*}
 	if [ "$collector_login" = "$credential" ] || [ -z "$collector_login" ] ||
 		[ "$(printf '%s' "$collector_login" | tr 'A-Z' 'a-z')" = sa ]; then
-		die "HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV in $SQLSERVER_ENV_FILE must be <login>:<password> for a dedicated login, not sa; run make sqlserver-dev-init to add one"
+		die "ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV in $SQLSERVER_ENV_FILE must be <login>:<password> for a dedicated login, not sa; run make sqlserver-dev-init to add one"
 	fi
 	sqlserver_memory_valid
 	cmd_cluster
@@ -378,15 +378,15 @@ cmd_sqlserver_up() {
 		sleep 5
 	done
 	log "granting $collector_login only the documented collector permissions"
-	MSSQL_SA_PASSWORD=$password HEARTBEAT_COLLECTOR_LOGIN=$collector_login HEARTBEAT_COLLECTOR_PASSWORD=${credential#*:} \
+	MSSQL_SA_PASSWORD=$password ATRIUM_COLLECTOR_LOGIN=$collector_login ATRIUM_COLLECTOR_PASSWORD=${credential#*:} \
 		scripts/sqlserver-login.sh "$SQLSERVER_CONTAINER"
 	cmd_secrets
 	# The credential reaches kubectl in a 0600 file, never on its command line.
-	secret_env=$(mktemp "${TMPDIR:-/tmp}/heartbeat-sqlserver-credential.XXXXXX")
+	secret_env=$(mktemp "${TMPDIR:-/tmp}/atrium-sqlserver-credential.XXXXXX")
 	trap 'rm -f "$secret_env"' EXIT
 	trap 'exit 130' INT TERM
-	printf 'HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=%s\n' "$credential" >"$secret_env"
-	apply_secret heartbeat-sqlserver-dev-credentials --from-env-file="$secret_env"
+	printf 'ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=%s\n' "$credential" >"$secret_env"
+	apply_secret atrium-sqlserver-dev-credentials --from-env-file="$secret_env"
 	rm -f "$secret_env"
 	mkdir -p "$STATE_DIR"
 	touch "$STATE_DIR/sqlserver-dev"

@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 
-	collectorconfig "heartbeat/internal/config"
+	collectorconfig "atrium/internal/config"
 )
 
 // startCollector tells the metrics that collector id starts, with a series

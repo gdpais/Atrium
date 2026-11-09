@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/internal/credentials"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/testenv"
+	"atrium/internal/credentials"
 )
 
 func ping(t *testing.T, cfg redis.Config, resolver credentials.Resolver) error {

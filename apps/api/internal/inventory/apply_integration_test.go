@@ -18,13 +18,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/inventory"
 )
 
 var fileCaller = inventory.Caller{
-	Actor:     audit.ConfigActor("/etc/heartbeat/inventory/inventory.yaml", "api-test"),
+	Actor:     audit.ConfigActor("/etc/atrium/inventory/inventory.yaml", "api-test"),
 	RequestID: "inventory-test",
 }
 

@@ -36,7 +36,7 @@ applications on one installation would read the same database twice.
 ## Decision
 
 1. **A source is an identity mapping.** An OutSystems 11 source is
-   `source_type = outsystems`, `ingest_mode = agentless` (Heartbeat reads the
+   `source_type = outsystems`, `ingest_mode = agentless` (Atrium reads the
    logging database; nothing is installed on the platform), with `config`
    holding `application_name`: the OutSystems `Application_Name`, which is the
    `service.name` of its logs and the application label of its derived

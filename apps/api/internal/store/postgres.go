@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"heartbeat/internal/credentials"
+	"atrium/internal/credentials"
 )
 
 // SSLModes are the values [Config.SSLMode] accepts: libpq's, without
@@ -38,7 +38,7 @@ const (
 	// sooner.
 	connectTimeout = 5 * time.Second
 	// applicationName shows in pg_stat_activity.
-	applicationName = "heartbeat-api"
+	applicationName = "atrium-api"
 )
 
 // Config says where the API's PostgreSQL database is and how to log in.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	collectorexport "heartbeat/services/db-collector/internal/export"
+	collectorexport "atrium/services/db-collector/internal/export"
 )
 
 // repoRoot is the repository root relative to this package's directory.
@@ -17,16 +17,16 @@ const repoRoot = "../../../../.."
 // queryFilePatterns are the Prometheus rules and Grafana dashboards that
 // query collector metrics.
 var queryFilePatterns = []string{
-	"infra/helm/heartbeat/files/prometheus/rules/*.yml",
-	"infra/helm/heartbeat/files/prometheus/rules/generated/*.yml",
-	"infra/helm/heartbeat/files/grafana/dashboards/*.json",
+	"infra/helm/atrium/files/prometheus/rules/*.yml",
+	"infra/helm/atrium/files/prometheus/rules/generated/*.yml",
+	"infra/helm/atrium/files/grafana/dashboards/*.json",
 }
 
 // referenceFilePatterns are every file that names collector metrics: the
 // query files, the rule tests, the end-to-end checks, and the docs that list
 // metrics.
 var referenceFilePatterns = append([]string{
-	"infra/helm/heartbeat/files/prometheus/rules/tests/*.yml",
+	"infra/helm/atrium/files/prometheus/rules/tests/*.yml",
 	"scripts/*.sh",
 	"docs/reference/*.md",
 	"docs/architecture/*.md",
@@ -34,7 +34,7 @@ var referenceFilePatterns = append([]string{
 	"services/db-collector/README.md",
 }, queryFilePatterns...)
 
-var metricRef = regexp.MustCompile(`\bheartbeat_sqlserver_[a-z0-9_]+`)
+var metricRef = regexp.MustCompile(`\batrium_sqlserver_[a-z0-9_]+`)
 
 // globFiles returns the files matching patterns under the repository root.
 func globFiles(t *testing.T, patterns []string) []string {
@@ -94,9 +94,9 @@ func TestRulesAndDashboardsReferenceCatalogMetrics(t *testing.T) {
 	}
 }
 
-// queryMetricRef matches every Heartbeat metric a query reads; recording
-// rule names (heartbeat:...) do not match.
-var queryMetricRef = regexp.MustCompile(`\bheartbeat_[a-z0-9_]+`)
+// queryMetricRef matches every Atrium metric a query reads; recording
+// rule names (atrium:...) do not match.
+var queryMetricRef = regexp.MustCompile(`\batrium_[a-z0-9_]+`)
 
 // rateCall matches the end of the text before a metric read through rate(),
 // irate() or increase().
@@ -112,7 +112,7 @@ var labelValuesCall = regexp.MustCompile(`\blabel_values\(\s*$`)
 const rateWindow = 32
 
 // isCumulative reports whether name is a counter or a histogram's cumulative
-// series.  Catalog metrics use their declared type; other Heartbeat metrics
+// series.  Catalog metrics use their declared type; other Atrium metrics
 // (collector self-metrics, gateway counters) follow the naming convention.
 func isCumulative(name string, catalog map[string]Metric) bool {
 	if metric, ok := catalog[name]; ok {
@@ -166,13 +166,13 @@ func TestIsCumulative(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"heartbeat_sqlserver_wait_seconds_total", true},
-		{"heartbeat_sqlserver_sessions", false},
-		{"heartbeat_collector_probe_errors_total", true},
-		{"heartbeat_collector_probe_duration_seconds_bucket", true},
-		{"heartbeat_collector_probe_duration_seconds_count", true},
-		{"heartbeat_collector_target_up", false},
-		{"heartbeat_collector_cycle_duration_seconds", false},
+		{"atrium_sqlserver_wait_seconds_total", true},
+		{"atrium_sqlserver_sessions", false},
+		{"atrium_collector_probe_errors_total", true},
+		{"atrium_collector_probe_duration_seconds_bucket", true},
+		{"atrium_collector_probe_duration_seconds_count", true},
+		{"atrium_collector_target_up", false},
+		{"atrium_collector_cycle_duration_seconds", false},
 	}
 	for _, tt := range tests {
 		if got := isCumulative(tt.name, catalog); got != tt.want {

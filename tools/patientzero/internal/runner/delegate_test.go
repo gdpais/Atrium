@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/cluster"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/internal/signal"
+	"atrium/tools/patientzero/internal/cluster"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/signal"
 )
 
 // agentRunner is a runner with the cluster faults and a delegate, over a

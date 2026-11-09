@@ -18,7 +18,7 @@ Phase 3 lets operators register database targets and assign probes to them
 in the API [4.5]. The DB collector must then run those probes. Constraints:
 
 - The collector reads only `integrations.yaml`, mounted from the
-  `heartbeat-integrations` ConfigMap, and hot-reloads it: file polling every
+  `atrium-integrations` ConfigMap, and hot-reloads it: file polling every
   5 s after the kubelet updates the volume (about a minute; 65 s measured on
   kind), or `POST /admin/config/reload`. An invalid file is rejected and the
   previous config keeps running ([ADR 0002](0002-runtime-config-in-yaml.md),
@@ -26,7 +26,7 @@ in the API [4.5]. The DB collector must then run those probes. Constraints:
 - The chart renders that ConfigMap from the `integrations` values. Values
   files are layered and lists replace, not merge: a second file that sets
   `integrations.collectors` replaces the whole list.
-- Production deploys through Argo CD from the `heartbeat-deploy` config
+- Production deploys through Argo CD from the `atrium-deploy` config
   repository ([ADR 0005](0005-production-delivery-and-operations-defaults.md)),
   which doesn't exist yet. Argo CD reverts changes made to the cluster
   outside git, so an API that writes the ConfigMap would be undone at the
@@ -39,7 +39,7 @@ in the API [4.5]. The DB collector must then run those probes. Constraints:
   an interval per assignment, `probe_definitions` carries a versioned
   `query_template`, and neither table has an approval state.
 - Credentials are references (`env/…`, `kv/…`, `secret/…`). The collector
-  resolves them from `HEARTBEAT_CREDENTIAL_*` variables loaded from one
+  resolves them from `ATRIUM_CREDENTIAL_*` variables loaded from one
   Secret, so a new reference needs a new Secret key and a collector restart.
   A missing one fails only that target's connection.
 
@@ -75,8 +75,8 @@ in the API [4.5]. The DB collector must then run those probes. Constraints:
      before it leaves the API, and starts with a header saying it is
      generated.
 3. **Approval opens a pull request; merging applies it.** In production the
-   API pushes the rendered file to one branch it owns on `heartbeat-deploy`
-   (for example `heartbeat-api/assignments`) and opens, or updates, one pull
+   API pushes the rendered file to one branch it owns on `atrium-deploy`
+   (for example `atrium-api/assignments`) and opens, or updates, one pull
    request against the environment's path. Pending approvals share that one
    pull request, so they never conflict with each other. The description
    lists each assignment, who approved it, and any credential reference new
@@ -172,7 +172,7 @@ Considered and not chosen:
   command.
 - The chart gains `managedCollectors` (schema, render test, the `api-`
   prefix rule). The integrations file format itself doesn't change.
-- To build the GitHub path, the API needs write access to `heartbeat-deploy`:
+- To build the GitHub path, the API needs write access to `atrium-deploy`:
   a GitHub App installed on that repository only, with contents and pull
   requests read and write, its private key in AWS Secrets Manager through
   External Secrets [18]. Not set up now; until then the output target is

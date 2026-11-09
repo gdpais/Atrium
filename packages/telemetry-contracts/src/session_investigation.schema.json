@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/session_investigation.schema.json",
-  "title": "Heartbeat Session Investigation",
+  "$id": "https://atrium.local/schemas/session_investigation.schema.json",
+  "title": "Atrium Session Investigation",
   "type": "object",
   "additionalProperties": false,
   "required": ["application_id", "time_start", "time_end"],

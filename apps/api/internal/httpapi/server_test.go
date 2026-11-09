@@ -63,7 +63,7 @@ func TestReadyz(t *testing.T) {
 		{"no checks", nil, http.StatusOK, `{"status":"ready"}`},
 		{"every check passes", []Check{passing("postgres"), passing("redis")}, http.StatusOK, `{"status":"ready"}`},
 		{"one check fails", []Check{passing("postgres"), failing("redis", "dial tcp 10.0.0.7:6379: connection refused")}, http.StatusServiceUnavailable, `{"status":"not_ready"}`},
-		{"every check fails", []Check{failing("postgres", "password authentication failed for user heartbeat"), failing("redis", "NOAUTH")}, http.StatusServiceUnavailable, `{"status":"not_ready"}`},
+		{"every check fails", []Check{failing("postgres", "password authentication failed for user atrium"), failing("redis", "NOAUTH")}, http.StatusServiceUnavailable, `{"status":"not_ready"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := serve(t, newServer(t, Options{Checks: tc.checks, ReadinessTimeout: time.Second}), http.MethodGet, "/readyz")

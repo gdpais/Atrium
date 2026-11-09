@@ -31,8 +31,8 @@ const (
 	attrServiceName = "service.name"
 	attrEnvironment = "deployment.environment.name"
 	attrLogType     = "outsystems.log_type"
-	attrCollector   = "heartbeat.collector"
-	attrTarget      = "heartbeat.target"
+	attrCollector   = "atrium.collector"
+	attrTarget      = "atrium.target"
 	attrFingerprint = "error.fingerprint"
 	attrTruncated   = "outsystems.truncated"
 	// unknownService is service.name for rows without an application or
@@ -42,7 +42,7 @@ const (
 	// error.fingerprint.
 	errorLogType = "error"
 	// scopeName is the instrumentation scope of every record.
-	scopeName = "heartbeat/db-collector/outsystems_logs"
+	scopeName = "atrium/db-collector/outsystems_logs"
 )
 
 // maxValueBytes caps the body and each string attribute of a record.  Stack
@@ -94,7 +94,7 @@ type recordContext struct {
 //     changes it.
 //   - Resource attributes: service.name (Application_Name, else Espace_Name,
 //     else Module_Name, else "unknown"), deployment.environment.name (when set),
-//     outsystems.log_type, heartbeat.collector and heartbeat.target.
+//     outsystems.log_type, atrium.collector and atrium.target.
 //
 // instants holds each row's Instant as a wall clock, from checkContract.
 func buildLogs(batch Batch, rows [][]any, instants []time.Time, rc recordContext) []*logspb.ResourceLogs {

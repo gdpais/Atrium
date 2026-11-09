@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/inject"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/shop"
-	"heartbeat/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/internal/inject"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/traffic"
 )
 
 // The caller's identity. A load generator sets these to give each virtual
@@ -40,7 +40,7 @@ const (
 	PathAPIOrders  = "/PatientZero_API/rest/Orders/orders"
 )
 
-// Entry point names, as Heartbeat's operation label names them: the screen
+// Entry point names, as Atrium's operation label names them: the screen
 // of a screen row, the endpoint of a mobile request, the action of an
 // exposed API. Scenario faults target entry points by these names.
 const (

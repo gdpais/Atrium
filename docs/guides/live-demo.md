@@ -1,6 +1,6 @@
 # Live Demo: Every Implemented Feature, Stage by Stage
 
-A hands-on tour of what Heartbeat does today, for reviewing the project's
+A hands-on tour of what Atrium does today, for reviewing the project's
 state before starting the next phase. It follows one SQL Server sample from
 the query the collector sends (**extract**), through the probe catalog's
 descriptors (**transform**), to `/metrics`, Prometheus, rules, Grafana and
@@ -40,7 +40,7 @@ the collector's own login, so you see exactly what the collector sees.
 | `hb_admin [JQ ARGS]` | `GET /admin/config` through jq; default: target states |
 | `hb_reload` | `POST /admin/config/reload` |
 | `hb_logs [N]` | Last N collector log lines |
-| `hb_k ARGS` | `kubectl` in the kind cluster's `heartbeat` namespace |
+| `hb_k ARGS` | `kubectl` in the kind cluster's `atrium` namespace |
 
 ```bash
 hb_admin
@@ -62,10 +62,10 @@ go run ./services/db-collector/cmd/probe-catalog
 
 ```text
 PROBE            METRIC                                        TYPE     COLUMN                  SCALE  LABELS
-blocking         heartbeat_sqlserver_blocked_requests          gauge    blocked_count           1      blocking_session_id
+blocking         atrium_sqlserver_blocked_requests          gauge    blocked_count           1      blocking_session_id
 ...
-storage          heartbeat_sqlserver_database_file_size_bytes  gauge    size_pages              8192   database_name,file_name,file_type
-waits            heartbeat_sqlserver_wait_seconds_total        counter  wait_time_ms            0.001  wait_type
+storage          atrium_sqlserver_database_file_size_bytes  gauge    size_pages              8192   database_name,file_name,file_type
+waits            atrium_sqlserver_wait_seconds_total        counter  wait_time_ms            0.001  wait_type
 ```
 
 Print one probe's batch as it goes over the wire, then run it as the
@@ -102,7 +102,7 @@ echo "SELECT SUSER_SNAME() AS login, IS_SRVROLEMEMBER('sysadmin') AS sysadmin" |
 echo "SELECT name FROM sys.databases" | hb_sql
 ```
 
-The first shows `heartbeat_collector|0`. Step 4 creates a database and shows
+The first shows `atrium_collector|0`. Step 4 creates a database and shows
 the login cannot read it.
 
 ## 2. Transform: rows into samples
@@ -120,7 +120,7 @@ hb_metrics 'file_size_bytes\{database_name="master"'
 ```text
 master|master|ROWS|544
 master|mastlog|LOG|256
-heartbeat_sqlserver_database_file_size_bytes{database_name="master",...,file_name="master",file_type="ROWS",...} 4.456448e+06
+atrium_sqlserver_database_file_size_bytes{database_name="master",...,file_name="master",file_type="ROWS",...} 4.456448e+06
 ```
 
 544 pages × 8192 = 4,456,448 bytes. Check the other conversions the same
@@ -128,12 +128,12 @@ way:
 
 | Raw (`hb_probe`) | Exported (`hb_metrics`) | Rule |
 | --- | --- | --- |
-| `memory_pressure`: `total_server_memory_kb` | `heartbeat_sqlserver_total_server_memory_bytes` | × 1024 |
-| `waits`: `wait_time_ms` per `wait_type` | `heartbeat_sqlserver_wait_seconds_total` | × 0.001, counter |
-| `cpu`: `sql_process_percent`, `other_process_percent` = `NULL` | only `heartbeat_sqlserver_cpu_sql_process_ratio` | × 0.01; NULL → no series |
-| `file_io`: `num_of_reads` for `master`/`master` | `heartbeat_sqlserver_database_file_reads_total{database_name="master",file_name="master"}` | as is, counter |
+| `memory_pressure`: `total_server_memory_kb` | `atrium_sqlserver_total_server_memory_bytes` | × 1024 |
+| `waits`: `wait_time_ms` per `wait_type` | `atrium_sqlserver_wait_seconds_total` | × 0.001, counter |
+| `cpu`: `sql_process_percent`, `other_process_percent` = `NULL` | only `atrium_sqlserver_cpu_sql_process_ratio` | × 0.01; NULL → no series |
+| `file_io`: `num_of_reads` for `master`/`master` | `atrium_sqlserver_database_file_reads_total{database_name="master",file_name="master"}` | as is, counter |
 | `throughput`: `batch_requests`, `transactions` (one row) | two counters | one row feeds two descriptors |
-| `blocking`: no rows | no `heartbeat_sqlserver_blocked_requests` series | absent, not 0 |
+| `blocking`: no rows | no `atrium_sqlserver_blocked_requests` series | absent, not 0 |
 
 Gauges move between two reads; counters only go up. Compare values from the
 same moment, because the collector reads every 15s.
@@ -141,24 +141,24 @@ same moment, because the collector reads every 15s.
 ## 3. Load: from `/metrics` to Grafana and Alertmanager
 
 ```bash
-hb_metrics '^heartbeat_sqlserver_' | wc -l                     # probe series: about 160 on a fresh sandbox
-hb_metrics '^heartbeat_collector_target'                        # up, failures, last success, login_sysadmin
-hb_prom 'count by (__name__) ({__name__=~"heartbeat_sqlserver_.*"})'
-hb_prom 'time() - heartbeat_collector_target_last_success_timestamp_seconds'   # data age: under 30s (collection + scrape interval)
-hb_prom 'histogram_quantile(0.95, sum by (probe, le) (rate(heartbeat_collector_probe_duration_seconds_bucket[5m])))'
+hb_metrics '^atrium_sqlserver_' | wc -l                     # probe series: about 160 on a fresh sandbox
+hb_metrics '^atrium_collector_target'                        # up, failures, last success, login_sysadmin
+hb_prom 'count by (__name__) ({__name__=~"atrium_sqlserver_.*"})'
+hb_prom 'time() - atrium_collector_target_last_success_timestamp_seconds'   # data age: under 30s (collection + scrape interval)
+hb_prom 'histogram_quantile(0.95, sum by (probe, le) (rate(atrium_collector_probe_duration_seconds_bucket[5m])))'
 ```
 
 Recording rules and alerts:
 
 ```bash
-hb_prom 'heartbeat:sqlserver_sessions:sum'
-hb_prom 'heartbeat:sqlserver_blocked_requests:sum'   # 0, not empty: the blocking probe is up and nothing is blocked
-hb_prom 'topk(5, heartbeat:sqlserver_wait_seconds:rate5m)'
+hb_prom 'atrium:sqlserver_sessions:sum'
+hb_prom 'atrium:sqlserver_blocked_requests:sum'   # 0, not empty: the blocking probe is up and nothing is blocked
+hb_prom 'topk(5, atrium:sqlserver_wait_seconds:rate5m)'
 curl -s localhost:9090/api/v1/alerts | jq -c '.data.alerts[] | {alertname: .labels.alertname, state}'
 ```
 
 Only `Watchdog` should be firing. Right after the collector pod is replaced,
-`HeartbeatServiceDown` can show `pending` for the old pod's IP for about a
+`AtriumServiceDown` can show `pending` for the old pod's IP for about a
 minute, until Prometheus's DNS discovery drops it, or, while no pod runs, for
 the missing `db-collector` job. A replacement is back well within its 2
 minutes, so it never reaches `firing`.
@@ -171,7 +171,7 @@ same data through Grafana's API:
 ```bash
 G=http://admin:admin@localhost:3001
 curl -s "$G/api/search?type=dash-db" | jq -c '.[] | {uid, title}'
-curl -sG "$G/api/datasources/proxy/uid/prometheus/api/v1/query" --data-urlencode 'query=heartbeat:sqlserver_sessions:sum' | jq -c '.data.result'
+curl -sG "$G/api/datasources/proxy/uid/prometheus/api/v1/query" --data-urlencode 'query=atrium:sqlserver_sessions:sum' | jq -c '.data.result'
 ```
 
 ## 4. Make the database do something
@@ -182,9 +182,9 @@ this is the only way to create load:
 ```bash
 hb_sql_sa <<'SQL'
 SET NOCOUNT ON;
-IF DB_ID(N'heartbeat_demo') IS NULL CREATE DATABASE heartbeat_demo;
+IF DB_ID(N'atrium_demo') IS NULL CREATE DATABASE atrium_demo;
 GO
-USE heartbeat_demo;
+USE atrium_demo;
 IF OBJECT_ID(N'dbo.orders') IS NULL
   CREATE TABLE dbo.orders (id int IDENTITY PRIMARY KEY, customer int NOT NULL, amount decimal(10,2) NOT NULL, note char(500) NOT NULL DEFAULT 'x');
 INSERT dbo.orders (customer, amount)
@@ -192,10 +192,10 @@ SELECT TOP (50000) ABS(CHECKSUM(NEWID())) % 1000, ABS(CHECKSUM(NEWID())) % 10000
 FROM sys.all_objects a CROSS JOIN sys.all_objects b;
 GO
 SQL
-echo "SELECT TOP 1 * FROM heartbeat_demo.dbo.orders" | hb_sql   # Msg 916: the collector cannot read it
+echo "SELECT TOP 1 * FROM atrium_demo.dbo.orders" | hb_sql   # Msg 916: the collector cannot read it
 ```
 
-Within 15s, `hb_metrics 'database_name="heartbeat_demo"'` shows the new files
+Within 15s, `hb_metrics 'database_name="atrium_demo"'` shows the new files
 (size and six I/O counters each). The Throughput, File I/O and Database File
 Size panels move.
 
@@ -203,13 +203,13 @@ Size panels move.
 it:
 
 ```bash
-printf "USE heartbeat_demo; BEGIN TRAN; UPDATE dbo.orders SET amount = amount + 1 WHERE id <= 10; WAITFOR DELAY '00:01:30'; ROLLBACK;\n" | hb_sql_sa >/dev/null &
+printf "USE atrium_demo; BEGIN TRAN; UPDATE dbo.orders SET amount = amount + 1 WHERE id <= 10; WAITFOR DELAY '00:01:30'; ROLLBACK;\n" | hb_sql_sa >/dev/null &
 sleep 2
-for i in 1 2 3; do printf "USE heartbeat_demo; SELECT COUNT(*) FROM dbo.orders WHERE id <= 10;\n" | hb_sql_sa >/dev/null & done
+for i in 1 2 3; do printf "USE atrium_demo; SELECT COUNT(*) FROM dbo.orders WHERE id <= 10;\n" | hb_sql_sa >/dev/null & done
 sleep 30
 hb_probe blocking
 hb_metrics blocked_requests
-hb_prom 'heartbeat:sqlserver_blocked_requests:sum'
+hb_prom 'atrium:sqlserver_blocked_requests:sum'
 ```
 
 You should see a series per blocking session, `blocking_session_id` as a
@@ -217,18 +217,18 @@ label, and a total of 3 in the recording rule and in the Blocked Requests
 panel. While it runs, look at the collector from the server side:
 
 ```bash
-echo "SELECT session_id, login_name, lock_timeout, deadlock_priority FROM sys.dm_exec_sessions WHERE login_name = N'heartbeat_collector'" | hb_sql_sa
+echo "SELECT session_id, login_name, lock_timeout, deadlock_priority FROM sys.dm_exec_sessions WHERE login_name = N'atrium_collector'" | hb_sql_sa
 ```
 
 `lock_timeout` 1000 and `deadlock_priority` -5 confirm the session settings
 from step 1. When the blocker rolls back (`wait` for the jobs), the series
 disappear and the rule falls back to 0. The lock waits show up in
-`heartbeat_sqlserver_wait_seconds_total{wait_type="LCK_M_S"}` only then:
+`atrium_sqlserver_wait_seconds_total{wait_type="LCK_M_S"}` only then:
 SQL Server adds a wait to `sys.dm_os_wait_stats` when it ends.
 
 ```bash
 wait
-hb_prom 'sum by (wait_type) (rate(heartbeat_sqlserver_wait_seconds_total{wait_type=~"LCK.*"}[5m]))'
+hb_prom 'sum by (wait_type) (rate(atrium_sqlserver_wait_seconds_total{wait_type=~"LCK.*"}[5m]))'
 ```
 
 The collector produced **evidence** for the `blocking` and `sessions`
@@ -245,14 +245,14 @@ keeps its age and restart count).
 ### SQL Server stops
 
 ```bash
-docker stop heartbeat-sqlserver-dev
+docker stop atrium-sqlserver-dev
 sleep 25; hb_admin
-hb_prom 'sum by (reason) (increase(heartbeat_collector_probe_errors_total[1m])) > 0'
-docker start heartbeat-sqlserver-dev
+hb_prom 'sum by (reason) (increase(atrium_collector_probe_errors_total[1m])) > 0'
+docker start atrium-sqlserver-dev
 ```
 
 The target becomes `failed` with the driver's error (`lookup
-heartbeat-sqlserver-dev ... no such host`, since a stopped container leaves
+atrium-sqlserver-dev ... no such host`, since a stopped container leaves
 the kind network's DNS). Errors count under `reason="error"` and the probe
 series are cleared, not frozen. It returns to `ok` about 30s after the
 start.
@@ -264,11 +264,11 @@ A paused container accepts nothing and answers nothing, the case the
 exists for.
 
 ```bash
-docker pause heartbeat-sqlserver-dev
+docker pause atrium-sqlserver-dev
 sleep 50; hb_admin
-hb_prom 'sum by (reason) (heartbeat_collector_probe_errors_total{target="sqlserver-dev"}) > 0'
+hb_prom 'sum by (reason) (atrium_collector_probe_errors_total{target="sqlserver-dev"}) > 0'
 hb_logs 30 | grep -E 'abandon|backoff'
-docker unpause heartbeat-sqlserver-dev
+docker unpause atrium-sqlserver-dev
 ```
 
 The first probe times out after 7.5s (half the 15s interval) and is
@@ -292,7 +292,7 @@ The collector's own loader is the second line of defence. Write a broken
 config straight into the ConfigMap, bypassing Helm:
 
 ```bash
-hb_k get configmap heartbeat-integrations -o json > .tmp/integrations-good.json
+hb_k get configmap atrium-integrations -o json > .tmp/integrations-good.json
 jq '.data["integrations.yaml"] = "platform: unsupported\ncollectors: [{id: broken, kind: sqlserver, enabled: true}]\n"' .tmp/integrations-good.json | hb_k replace -f -
 until [ -n "$(hb_admin -r .last_reload_err)" ]; do sleep 3; done   # kubelet syncs the file in up to ~60s
 hb_admin '{version, last_reload_err, status: .readiness.status, target: .readiness.collectors[0].targets[0].state}'
@@ -303,8 +303,8 @@ grafana, generic)`; the version, the
 readiness and the target are unchanged. Monitoring sees the rejection too:
 
 ```bash
-hb_metrics '^heartbeat_collector_config_last_reload_successful'   # 0 until a reload succeeds
-curl -s localhost:9090/api/v1/alerts | jq -c '.data.alerts[] | select(.labels.alertname == "HeartbeatCollectorConfigReloadFailed") | .state'   # pending, firing after 2m
+hb_metrics '^atrium_collector_config_last_reload_successful'   # 0 until a reload succeeds
+curl -s localhost:9090/api/v1/alerts | jq -c '.data.alerts[] | select(.labels.alertname == "AtriumCollectorConfigReloadFailed") | .state'   # pending, firing after 2m
 ```
 
 Restore it as Helm's field manager,
@@ -335,25 +335,25 @@ for i in 1 2 3 4 5 6; do
 done
 ```
 
-The target is `degraded`: `heartbeat_collector_target_up` stays 1 and the
+The target is `degraded`: `atrium_collector_target_up` stays 1 and the
 eight working probes keep collecting, so `exported` follows `live` in every
-cycle. Only `blocking` fails: `heartbeat_collector_probe_up{probe="blocking"}`
+cycle. Only `blocking` fails: `atrium_collector_probe_up{probe="blocking"}`
 is 0, its series are gone, and `/admin/config` lists it under the target's
 `probes`, `failed` on the cycles it runs and `backoff` while it waits out its
 own backoff, with its consecutive failures growing.
-`heartbeat:sqlserver_blocked_requests:sum` and the Blocked Requests panel go
+`atrium:sqlserver_blocked_requests:sum` and the Blocked Requests panel go
 empty (unknown), not 0. Restore with `make kind-deploy` and `hb_reload`.
 
 ### The collector login gains sysadmin
 
 ```bash
-echo "ALTER SERVER ROLE sysadmin ADD MEMBER heartbeat_collector" | hb_sql_sa
+echo "ALTER SERVER ROLE sysadmin ADD MEMBER atrium_collector" | hb_sql_sa
 hb_k rollout restart statefulset/db-collector && hb_k rollout status statefulset/db-collector
 sleep 30
 hb_metrics login_sysadmin                       # 1
 hb_logs 30 | grep sysadmin                      # WARN ... sysadmin-equivalent
-curl -s localhost:9090/api/v1/alerts | jq -c '.data.alerts[] | select(.labels.alertname == "HeartbeatCollectorLoginElevated") | .state'   # pending, firing after 15m
-echo "ALTER SERVER ROLE sysadmin DROP MEMBER heartbeat_collector" | hb_sql_sa
+curl -s localhost:9090/api/v1/alerts | jq -c '.data.alerts[] | select(.labels.alertname == "AtriumCollectorLoginElevated") | .state'   # pending, firing after 15m
+echo "ALTER SERVER ROLE sysadmin DROP MEMBER atrium_collector" | hb_sql_sa
 hb_k rollout restart statefulset/db-collector
 ```
 
@@ -371,7 +371,7 @@ hb_admin '.config.CredentialRefs'                                               
 
 With [PatientZero](../../tools/patientzero/README.md) running
 (`make patientzero-up`), a scenario breaks the application instead of the
-database and checks that Heartbeat sees it:
+database and checks that Atrium sees it:
 
 ```bash
 make patientzero-scenario NAME=checkout-errors   # about 6 minutes
@@ -476,8 +476,8 @@ synthetic alert and find it:
 
 ```bash
 curl -s -X POST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' \
-  -d '[{"labels":{"alertname":"HeartbeatDemoAlert","severity":"info"},"annotations":{"summary":"live demo"}}]'
-curl -s 'localhost:9093/api/v2/alerts?filter=alertname="HeartbeatDemoAlert"' | jq '.[] | {receivers: [.receivers[].name], state: .status.state}'   # default, active
+  -d '[{"labels":{"alertname":"AtriumDemoAlert","severity":"info"},"annotations":{"summary":"live demo"}}]'
+curl -s 'localhost:9093/api/v2/alerts?filter=alertname="AtriumDemoAlert"' | jq '.[] | {receivers: [.receivers[].name], state: .status.state}'   # default, active
 ```
 
 ## 7. What is deployed but not used yet
@@ -487,8 +487,8 @@ These checks come back empty or trivial today, and that is expected:
 | Check | Result | Planned in |
 | --- | --- | --- |
 | Evidence from `blocking` and `sessions` | discarded by the default sink | Phase 7 (TODO §12.4) |
-| `hb_k exec postgresql-0 -- psql -U heartbeat -Atc 'SELECT count(*) FROM investigations'` | `0`: the investigation, alerting and reporting tables wait for their workers | Phase 7 (TODO §4.6–4.8) |
-| `hb_k get configmap heartbeat-prometheus-rules -o jsonpath='{.data.heartbeat-rendered\.rules\.yml}'` | `groups: []`: no rules are rendered from alert policies yet | Phase 7 (TODO §13) |
+| `hb_k exec postgresql-0 -- psql -U atrium -Atc 'SELECT count(*) FROM investigations'` | `0`: the investigation, alerting and reporting tables wait for their workers | Phase 7 (TODO §4.6–4.8) |
+| `hb_k get configmap atrium-prometheus-rules -o jsonpath='{.data.atrium-rendered\.rules\.yml}'` | `groups: []`: no rules are rendered from alert policies yet | Phase 7 (TODO §13) |
 
 The API, its inventory and probe assignments are deployed and used, but this
 page does not walk through them: see
@@ -511,7 +511,7 @@ page does not walk through them: see
 ## Clean up
 
 ```bash
-echo "DROP DATABASE IF EXISTS heartbeat_demo" | hb_sql_sa
+echo "DROP DATABASE IF EXISTS atrium_demo" | hb_sql_sa
 make sqlserver-dev-down   # removes the container and its data
 make kind-down
 ```

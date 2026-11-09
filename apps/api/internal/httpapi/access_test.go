@@ -9,9 +9,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/openapi"
+	api "atrium/apps/api"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/openapi"
 )
 
 // recordingMux records the patterns the generated code registers.

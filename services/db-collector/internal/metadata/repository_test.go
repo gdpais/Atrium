@@ -41,7 +41,7 @@ func TestRepositoryListsScheduledProbes(t *testing.T) {
 		"sqlserver",
 		"sql.prod.local",
 		1433,
-		"Heartbeat",
+		"Atrium",
 		"kv/sql-prod",
 		"assign-1",
 		"probe-1",

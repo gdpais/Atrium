@@ -22,7 +22,7 @@ steps:
     duration: 1m
 signals:
   - name: extraction-keeps-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: behind
     mode: always

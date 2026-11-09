@@ -67,7 +67,7 @@ jobs:
         run: make chart-deps
       # Random SA and collector passwords in the ignored .env.sqlserver-dev;
       # then the kind cluster, the images, SQL Server and the chart.
-      - name: Start SQL Server and Heartbeat on kind
+      - name: Start SQL Server and Atrium on kind
         run: |
           make sqlserver-dev-init
           make sqlserver-dev-up
@@ -107,12 +107,12 @@ jobs:
       - name: Show the cluster
         if: failure()
         run: |
-          kubectl --context kind-heartbeat get pods,statefulsets,deployments,jobs -A -o wide || true
-          kubectl --context kind-heartbeat -n heartbeat logs statefulset/db-collector --tail 200 || true
+          kubectl --context kind-atrium get pods,statefulsets,deployments,jobs -A -o wide || true
+          kubectl --context kind-atrium -n atrium logs statefulset/db-collector --tail 200 || true
           # Prometheus' service discovery: where it resolves names, and the
           # lookups that failed (a failed DNS lookup keeps the old targets).
-          kubectl --context kind-heartbeat -n heartbeat exec deployment/prometheus -c prometheus-server -- cat /etc/resolv.conf || true
-          kubectl --context kind-heartbeat -n heartbeat logs deployment/prometheus -c prometheus-server | grep -i -e dns -e discover | tail -50 || true
+          kubectl --context kind-atrium -n atrium exec deployment/prometheus -c prometheus-server -- cat /etc/resolv.conf || true
+          kubectl --context kind-atrium -n atrium logs deployment/prometheus -c prometheus-server | grep -i -e dns -e discover | tail -50 || true
           docker ps -a || true
       - name: Keep the journals and the summary
         if: always()

@@ -1,0 +1,1111 @@
+# Atrium chart defaults. Environment files in infra/helm/values/ override
+# them: kind.yaml (local and CI), minimal.yaml, sqlserver-dev.yaml and
+# production.example.yaml.
+#
+# Rules this chart follows (ADR 0003, ADR 0005):
+# - One release per namespace. Object names are fixed (db-collector,
+#   prometheus, loki, ...) so in-cluster endpoints match integrations.yaml.
+# - Rendering is deterministic: no random values, no lookups, no hooks. Secrets
+#   are created outside the chart and referenced by name.
+# - The chart does not create its namespace.
+
+# ---------------------------------------------------------------------------
+# Atrium workloads
+# ---------------------------------------------------------------------------
+
+dbCollector:
+  enabled: true
+  # The collector is a singleton: replicas are fixed at 1 until replicas can
+  # share targets safely (ADR 0003). There is deliberately no replicas value.
+  image:
+    # Where the release workflow publishes it (tests/chart_release_test.go).
+    repository: ghcr.io/gdpais/atrium/db-collector
+    # Defaults to the chart appVersion. Production pins a digest instead.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  # Secret holding the bearer token for the admin endpoints (GET /admin/config
+  # and POST /admin/config/reload). Without it both answer 401.
+  adminToken:
+    existingSecret: atrium-runtime
+    key: admin-token
+  # Serve the admin endpoints over HTTPS on their own port, so the admin token
+  # never crosses the network in the clear. Set existingSecret to a
+  # kubernetes.io/tls Secret (tls.crt, tls.key) whose certificate names
+  # db-collector and db-collector.<namespace>.svc, such as one cert-manager
+  # renews: it is read at each TLS handshake, so a renewal needs no restart.
+  # Port 8082 then keeps /metrics and the health endpoints over plain HTTP
+  # (Prometheus, the kubelet) and no longer serves /admin. Empty keeps the
+  # admin endpoints on port 8082.
+  adminTLS:
+    existingSecret: ""
+    port: 8443
+    # Secret with the PEM CA that verifies the certificate, mounted in the API
+    # (key only), which reads GET /admin/config over https. Can be the same
+    # Secret when it holds ca.crt (cert-manager's does). Empty uses the
+    # system roots.
+    ca:
+      existingSecret: ""
+      key: ca.crt
+  # Secret with one ATRIUM_CREDENTIAL_<REF> key per credential_ref,
+  # mounted as files that the collector reads on every connection: a key added
+  # or rotated reaches it within about a minute, without a restart
+  # (docs/reference/configuration.md#credential-resolution). Empty means no
+  # SQL Server credentials are mounted.
+  credentials:
+    existingSecret: ""
+  # How the collector authenticates to, and verifies, the OTLP/HTTP receiver
+  # it sends the OutSystems logs to (integrations opentelemetry.endpoint),
+  # once that is an external Collector or platform over https. The bundled
+  # Collector needs none of it.
+  otlpExporter:
+    # Secret whose keys are header names and values their values, such as
+    # Authorization: Bearer <token>, added to every request. Mounted as files
+    # read at each request, so a rotated key needs no restart. Over an http://
+    # endpoint the collector warns at start (otlp_headers_over_http). Empty
+    # sends none.
+    headers:
+      existingSecret: ""
+    tls:
+      # Secret holding the PEM CA that verifies the receiver instead of the
+      # system roots, under key. Read at start: restart the collector after
+      # changing it. Empty uses the image's system roots.
+      ca:
+        existingSecret: ""
+        key: ca.crt
+      # kubernetes.io/tls Secret (tls.crt, tls.key) for mutual TLS, read at
+      # each TLS handshake, so a renewed certificate (cert-manager) is used
+      # by the next connection. Empty sends no client certificate.
+      clientCert:
+        existingSecret: ""
+  # How often the collector re-reads the mounted integrations.yaml. ConfigMap
+  # updates reach the pod after kubelet propagation (up to about a minute).
+  configWatchInterval: 5s
+  sqlserver:
+    # Trusts any server certificate. Only for throwaway local targets.
+    trustServerCertificate: false
+  # State that must survive a restart, mounted at /var/lib/atrium
+  # (ATRIUM_STATE_DIR): the outsystems_logs watermarks, a few hundred bytes
+  # per collector, target and log type. Without it, or with enabled: false
+  # (an emptyDir), a restarted collector starts each log type over from its
+  # initial_lookback. The claim is db-collector-state; the size can grow
+  # later if the StorageClass allows volume expansion.
+  persistence:
+    enabled: true
+    size: 256Mi
+    # Empty uses the cluster's default StorageClass.
+    storageClassName: ""
+  # Covers the bounded shutdown: HTTP drain 10s + poller stop 20s + 5s, and 3s
+  # to send the service's last logs.
+  terminationGracePeriodSeconds: 45
+  service:
+    # Keep ClusterIP in production. /metrics is unauthenticated and names the
+    # collectors, targets and environments; a NodePort or LoadBalancer Service
+    # makes it reachable from anything that reaches a node, and with
+    # externalTrafficPolicy Cluster the NetworkPolicy then sees the node's
+    # address instead of the client's. kind.yaml uses a NodePort bound to
+    # 127.0.0.1 only.
+    type: ClusterIP
+    port: 8082
+    # Only used when type is NodePort.
+    nodePort: null
+    # Only used when type is NodePort or LoadBalancer. Local keeps the
+    # client's source address, so the NetworkPolicy can tell traffic from
+    # outside the cluster apart from pods.
+    externalTrafficPolicy: null
+  # Ingress NetworkPolicy for the collector's port 8082 (metrics, health and
+  # the admin endpoints). Only the bundled Prometheus (when prometheus.enabled),
+  # the API (for GET /admin/config, when api.enabled) and the peers below may
+  # connect; everything else, including other pods in the namespace, is
+  # dropped. Kubelet probes and `kubectl port-forward` are
+  # not subject to NetworkPolicy and need no entry. Peers are Kubernetes
+  # NetworkPolicyPeer objects (podSelector, namespaceSelector, ipBlock). With
+  # no peers at all, all ingress is denied. Needs a CNI that enforces
+  # NetworkPolicy (kind's kindnet, Amazon VPC CNI with network policy on,
+  # Calico, Cilium); without one it is accepted and has no effect.
+  networkPolicy:
+    enabled: true
+    # Metrics scrapers other than the bundled Prometheus: a shared Prometheus,
+    # or an OpenTelemetry Collector or agent that scrapes /metrics for another
+    # platform (ADR 0011). When it runs in another namespace, put a namespaceSelector
+    # and a podSelector in the same peer (two separate peers would admit the
+    # whole namespace, or matching pods in this one). Peers that are only an
+    # empty podSelector or namespaceSelector (every pod) are rejected.
+    scrapers: []
+    # Operator access from outside the cluster or from tooling pods, such as
+    # an ipBlock for the VPN or bastion range.
+    operators: []
+    # Egress, off by default. On, the collector may connect only to DNS, the
+    # bundled OTel Collector's OTLP/HTTP container port (4318 unless
+    # otelCollector.ports changes it) when otelCollector is on, the monitored
+    # databases on the ports the enabled collectors' targets name (1433
+    # while no target is configured), and extraRules; anything else it
+    # tries, another pod or the internet, times out. NetworkPolicy matches
+    # addresses, not host names, so the databases are given as peers,
+    # usually ipBlock CIDRs: with egress on and a target configured, an
+    # empty targets list fails the install instead of cutting the collector
+    # off its databases. Needs a CNI that enforces egress policy.
+    egress:
+      enabled: false
+      # The monitored SQL Servers and OutSystems logging databases, as
+      # NetworkPolicyPeer objects; an ipBlock for databases outside the
+      # cluster.
+      targets: []
+      # Where the collector resolves names: kube-dns in kube-system on most
+      # clusters (kind, EKS, AKS). Both UDP and TCP 53. Where DNS is not
+      # those pods on port 53, set dns: [] and allow it in extraRules: with
+      # NodeLocal DNSCache, an ipBlock for its address (169.254.20.10/32 by
+      # default) and one for the kube-dns Service IP; on OpenShift, the
+      # openshift-dns pods on port 5353.
+      dns:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      # More NetworkPolicyEgressRule objects (to and ports), such as an OTel
+      # Collector outside the chart or an HTTP proxy.
+      extraRules: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  # Go's soft memory limit (GOMEMLIMIT), such as 200MiB, or "off". Empty sets
+  # it to 80% of resources.limits.memory, or leaves it unset without a limit.
+  goMemLimit: ""
+  extraEnv: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# The API, Atrium's control plane (ADR 0013). An init container runs
+# `api migrate up` before each pod starts, so a new image applies its
+# migrations first; golang-migrate's advisory lock lets replicas start
+# together. Readiness waits for PostgreSQL at the newest migration this image
+# embeds, and for Redis (Valkey). Its liveness never depends on either.
+api:
+  enabled: true
+  image:
+    # Where the release workflow publishes it (tests/chart_release_test.go).
+    repository: ghcr.io/gdpais/atrium/api
+    # Defaults to the chart appVersion. Production pins a digest instead.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # Secret with the API's logins, one ATRIUM_CREDENTIAL_<REF> key each,
+  # "username:password": ATRIUM_CREDENTIAL_SECRET_API_POSTGRES and
+  # ATRIUM_CREDENTIAL_SECRET_API_REDIS. Mounted as files the API reads on
+  # every new connection, so a rotated password needs no restart
+  # (docs/reference/configuration.md#credential-resolution).
+  credentials:
+    existingSecret: atrium-api-credentials
+  postgres:
+    # Empty: the bundled PostgreSQL (postgresql.enabled), on its port and
+    # database, without TLS. Set: an external server such as Amazon RDS, with
+    # sslMode verify-full unless sslMode says otherwise.
+    host: ""
+    port: 5432
+    database: atrium
+    # disable, require, verify-ca or verify-full. Empty: disable for the
+    # bundled PostgreSQL, verify-full for any other host.
+    sslMode: ""
+    # A PEM CA bundle for verify-ca and verify-full, as a path in the
+    # container (mount it with extraVolumes). Empty: the image's system CAs,
+    # which do not include Amazon RDS's.
+    sslRootCert: ""
+  redis:
+    # host:port. Empty: the bundled Valkey (valkey.enabled), without TLS.
+    addr: ""
+    # TLS, verified against the image's system CAs. Empty (null): off for
+    # the bundled Valkey, on for any other address.
+    tls: null
+  # The origin browsers reach the API at, such as
+  # https://atrium.example.com: POST, PUT, PATCH and DELETE need an Origin
+  # header equal to it, logging in included (ADR 0013 §8). Empty refuses
+  # them all, so nobody can log in.
+  siteOrigin: ""
+  # The environment's inventory file (ADR 0021), as text: its environment,
+  # applications, telemetry sources and database targets, applied to
+  # PostgreSQL by the API at start and whenever it changes
+  # (docs/reference/configuration.md#inventory-file). Keep it as its own file
+  # beside the values, checked with `api inventory check -f`, and pass it
+  # with `--set-file api.inventory=inventory.yaml` (Argo CD: fileParameters).
+  # Empty: none, and the inventory changes through the API's endpoints only.
+  inventory: ""
+  # Serving unready 5s (ATRIUM_API_SHUTDOWN_DELAY) while the Service drops
+  # the pod, HTTP drain 10s, the audit drainer's last delete 5s, then 3s to
+  # send the service's last logs. Raise it with the delay.
+  terminationGracePeriodSeconds: 30
+  # A ClusterIP Service. An ingress in front of it serves the site's origin
+  # (siteOrigin) and is added to networkPolicy.peers.
+  service:
+    port: 8081
+  # Ingress NetworkPolicy for the API's port 8081. The bundled Prometheus
+  # (its scrape) and the peers below may connect; other pods are dropped.
+  # Kubelet probes and `kubectl port-forward` are not subject to
+  # NetworkPolicy. Clients of the API (an ingress controller, an automation
+  # client) are added as peers when they exist.
+  networkPolicy:
+    enabled: true
+    peers: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  # Go's soft memory limit (GOMEMLIMIT), such as 200MiB, or "off". Empty sets
+  # it to 80% of resources.limits.memory, or leaves it unset without a limit.
+  goMemLimit: ""
+  # The init container that applies the migrations (`api migrate up`).
+  migrate:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  extraEnv: []
+  # More volumes and mounts for the API container and its init container,
+  # such as a CA bundle for api.postgres.sslRootCert.
+  extraVolumes: []
+  extraVolumeMounts: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# PostgreSQL for the API, on the postgres image (ADR 0015): one replica, data
+# on a claim (postgresql-data), no backups, no replicas and no major-version
+# upgrades. For kind and CI only; production turns it off and points
+# api.postgres at Amazon RDS. On kind, a new major means deleting the claim
+# and migrating again.
+postgresql:
+  enabled: true
+  image:
+    # The major and version of the integration-test fixture
+    # (infra/docker-compose.test.yml), and the newest major Amazon RDS
+    # supports (tests/chart_engines_test.go).
+    repository: postgres
+    tag: "18.6"
+    pullPolicy: IfNotPresent
+  auth:
+    # The superuser the image creates on first start, and owner of the
+    # database. Changing either later changes nothing in an existing database.
+    username: atrium
+    database: atrium
+    # Secret with its password, read once, when the database is created:
+    # a later change needs ALTER ROLE as well.
+    existingSecret: atrium-postgresql
+    passwordKey: password
+  # Server settings, as -c name=value. Sized for kind (ADR 0003's budget).
+  parameters:
+    shared_buffers: 32MB
+    max_connections: "50"
+  persistence:
+    size: 1Gi
+    # Empty uses the cluster's default StorageClass.
+    storageClassName: ""
+  # PostgreSQL's port 5432 admits only the API (and later the workers) and
+  # extraPeers.
+  networkPolicy:
+    enabled: true
+    extraPeers: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Valkey, the Redis server (ADR 0015), on the valkey/valkey image: one
+# replica. Nothing in it is a record (sessions, job delivery, locks): with
+# persistence off, the default, a restart costs a login and a re-enqueue. For
+# kind and CI only; production turns it off and points api.redis at Amazon
+# ElastiCache.
+valkey:
+  enabled: true
+  image:
+    # The version of the API's integration tests (ValkeyImage in
+    # apps/api/internal/testenv/testenv.go; tests/chart_engines_test.go).
+    repository: valkey/valkey
+    tag: "9.1.3"
+    pullPolicy: IfNotPresent
+  auth:
+    # Secret with the default user's password: letters and digits only. Read
+    # at start: a change needs a restart of the valkey pod.
+    existingSecret: atrium-valkey
+    passwordKey: password
+  # Valkey refuses writes past this (noeviction): evicting would drop
+  # sessions or jobs without a word. Below resources.limits.memory.
+  maxmemory: 96mb
+  # An append-only file on a claim (valkey-data), so a restart keeps the
+  # sessions. Off: an emptyDir.
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClassName: ""
+  networkPolicy:
+    enabled: true
+    extraPeers: []
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Atrium's own telemetry (ADR 0018). Metrics are always on /metrics; with
+# the bundled OTel Collector on, the services also send it their logs, on
+# their own port and pipeline (otelCollector.ports.otlp-self). With it off they
+# log to stderr only; an external Collector takes
+# OTEL_EXPORTER_OTLP_LOGS_ENDPOINT through extraEnv.
+telemetry:
+  enabled: true
+  # The environment Atrium itself runs in: deployment.environment.name, a
+  # Loki label, and the environment label of atrium_service_info. Empty
+  # leaves it out.
+  environment: ""
+  # Spans go to the Collector's OTLP port, and on to Tempo.
+  traces:
+    enabled: true
+    # The share of traces kept, decided when a cycle or a request starts: each
+    # cycle or request is a whole trace or none, and only a kept trace's log
+    # lines carry its ID. All by default: a trace is one collection cycle, a few
+    # a minute, and Tempo stores about 80 MB a day of them on kind (ADR 0018).
+    # Lower it per environment once request traffic makes storage matter.
+    sampleRatio: 1
+
+# Pod and container hardening for the Atrium workloads. The images
+# are distroless and run as the nonroot user. fsGroup makes the collector's
+# state volume writable by that user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# The complete integrations.yaml for this environment, rendered into the
+# atrium-integrations ConfigMap. It must pass the integrations schema
+# (values.schema.json embeds packages/config-schema/src/integrations.schema.json)
+# and the Go loader (tests/chart_render_test.go). Lists replace, not merge,
+# when an environment file sets them. Collector ids starting with api- are
+# reserved for managedCollectors below.
+integrations:
+  platform: grafana
+  dashboards:
+    base_url: http://localhost:3001
+    dashboard_templates:
+      sqlserver-overview: /d/sqlserver-overview
+      atrium-service: /d/atrium-service
+      atrium-inventory: /d/atrium-inventory
+      outsystems-overview: /d/outsystems-overview
+    deep_link_templates:
+      logs-explore: /explore?orgId=1&left=${logs_query}
+      outsystems-application: /d/outsystems-overview?orgId=1&var-environment=${environment}&var-application=${application}&from=${from}&to=${to}
+      sqlserver-target: /d/sqlserver-overview?orgId=1&var-environment=${environment}&var-target=${target}&from=${from}&to=${to}
+  logs:
+    base_url: http://localhost:3100
+  alerting:
+    base_url: http://localhost:9093
+  opentelemetry:
+    endpoint: http://otel-collector:4318
+  notification_channels:
+    - id: default-webhook
+      channel_type: webhook
+      target_ref: http://alertmanager:9093/api/v2/alerts
+      credential_ref: env/ATRIUM_WEBHOOK_TOKEN
+      config:
+        timeout: 10s
+  credential_refs:
+    sqlserver-default: env/ATRIUM_SQLSERVER_PASSWORD
+    webhook-default: env/ATRIUM_WEBHOOK_TOKEN
+  collectors:
+    - id: sqlserver-default
+      kind: sqlserver
+      enabled: true
+      credential_ref: kv/sqlserver-default
+      config:
+        environment: local
+        scrape_interval: 30s
+        target_names: []
+        probes:
+          - name: waits
+          - name: blocking
+          - name: sessions
+          - name: memory_pressure
+          - name: storage
+          - name: throughput
+          - name: cpu
+          - name: buffer_cache
+          - name: file_io
+        targets: []
+
+# Collectors the Atrium API renders from approved probe assignments, in a
+# generated values file of its own, passed with the environment's values
+# (ADR 0014). Do not edit that file by hand: the API overwrites it.
+# The chart appends these to integrations.collectors in the rendered
+# integrations.yaml, so the API never touches the hand-written list. Each
+# entry is a sqlserver collector shaped like integrations.collectors, with an
+# id that starts with api- (api-<target id>-<interval>s); hand-written ids may
+# not use that prefix, and an id may appear only once across both lists.
+managedCollectors: []
+
+# Atrium content shipped as ConfigMaps. They are created even when the
+# bundled engines are off, so shared Prometheus and Grafana instances can load
+# them (Grafana's dashboard sidecar finds them by the grafana_dashboard label).
+prometheusRules:
+  enabled: true
+  # AtriumCollectorConfigReloadFailed (warning): the db-collector rejected
+  # or could not apply its last config change and still runs the last good
+  # config. false leaves the alert out of the rules ConfigMap; the
+  # atrium_collector_config_* metrics stay.
+  configReloadAlert:
+    enabled: true
+grafanaDashboards:
+  enabled: true
+
+# Ingress NetworkPolicies for the bundled engines [9.6], one per engine that
+# is on: otel-collector, prometheus, alertmanager, loki and tempo. Only the
+# components that use an engine may connect, on the ports they use; every
+# other pod, in this namespace or another, is dropped:
+#   otel-collector  4318 (OTLP/HTTP) and, while telemetry.enabled, 4319 (their
+#                   own logs) from the db-collector and the API; 8889 (its
+#                   Prometheus exporter) from Prometheus
+#   prometheus      9090 from Grafana (datasource)
+#   alertmanager    9093 from Prometheus (alerts and its scrape)
+#   loki            3100 from the OTel Collector (OTLP), Grafana (datasource)
+#                   and Prometheus (its scrape); gRPC 9095 and memberlist 7946
+#                   from Loki itself
+#   tempo           4318 (OTLP/HTTP) from the OTel Collector; 3200 from Grafana
+#                   (datasource) and Prometheus (its scrape)
+# A component that is off, or a scrape job that is disabled, is not admitted.
+# Grafana gets no policy: whatever serves its UI (an ingress, a load
+# balancer, the operator) must reach it, and its login is the access control
+# (ADR 0012). Kubelet probes and `kubectl port-forward` are not subject to
+# NetworkPolicy; port-forward is how operators reach Loki and the others
+# directly. Like dbCollector.networkPolicy, it needs a CNI that enforces
+# NetworkPolicy.
+backendNetworkPolicies:
+  enabled: true
+  # extraPeers: more NetworkPolicyPeer objects (podSelector,
+  # namespaceSelector, ipBlock) admitted to the engine's ports, such as a
+  # shared Grafana or Prometheus, or operator ranges. For a peer in another
+  # namespace, put the namespaceSelector and the podSelector in one peer (two
+  # peers would admit the whole namespace, or matching pods in this one).
+  # Peers that are only an empty selector are rejected.
+  otelCollector:
+    # Admitted to 4317 and 4318 (OTLP gRPC and HTTP), and 8889 when the
+    # prom-exporter port is on.
+    extraPeers: []
+  prometheus:
+    # Admitted to 9090.
+    extraPeers: []
+  alertmanager:
+    # Admitted to 9093.
+    extraPeers: []
+  loki:
+    # Admitted to 3100 (push, query and metrics).
+    extraPeers: []
+  tempo:
+    # Admitted to 3200 (query and metrics) and 4318 (OTLP/HTTP).
+    extraPeers: []
+
+# ---------------------------------------------------------------------------
+# Third-party engines (pinned dependencies, see Chart.yaml)
+# ---------------------------------------------------------------------------
+
+# The trace store, in single-binary mode (ADR 0018): OTLP from the OTel
+# Collector, queried by Grafana. One replica on a local disk, like Loki on kind;
+# production moves it to S3 (production.example.yaml) with Loki's chunks.
+tempo:
+  # Off, as in minimal.yaml, also needs: prometheus.scrapeConfigs.tempo.enabled
+  # false, or AtriumServiceDown fires for it; grafana.datasources without the
+  # Tempo datasource and the Loki datasource's derivedFields; and, while the OTel
+  # Collector is on, telemetry.traces.enabled false or otlp_http/traces repointed
+  # (external-platform.example.yaml), or its exports fail.
+  enabled: true
+  fullnameOverride: tempo
+  replicas: 1
+  persistence:
+    enabled: true
+    # Seven days of every trace on kind take about 550 MB of it (what the
+    # telemetry costs, in metrics-and-endpoints.md); more targets or a shorter
+    # scrape_interval take more. On S3 it holds only the WAL.
+    size: 2Gi
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  tempo:
+    reportingEnabled: false
+    # Debug traces are worth days, not the months the logs of an audit are.
+    retention: 168h
+    # The chart's other receivers (Jaeger, OTLP gRPC) stay, since its Service
+    # needs them; backendNetworkPolicies admits only 4318 and 3200.
+    extraEnv:
+      # Its soft memory limit, below the container's (ADR 0003's budget).
+      - name: GOMEMLIMIT
+        value: 300MiB
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      # It peaked at 249 MiB on kind keeping every trace, most of it Tempo's own
+      # baseline (what the telemetry costs, in metrics-and-endpoints.md).
+      limits:
+        memory: 384Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
+
+prometheus:
+  enabled: true
+  # Static and DNS service discovery only: no cluster-wide RBAC.
+  rbac:
+    create: false
+  kube-state-metrics:
+    enabled: false
+  prometheus-node-exporter:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  configmapReload:
+    prometheus:
+      # Reload on rule changes too, not only prometheus.yml.
+      extraConfigmapMounts:
+        - name: atrium-rules
+          mountPath: /etc/prometheus-rules
+          configMap: atrium-prometheus-rules
+          readOnly: true
+      extraVolumeDirs:
+        - /etc/prometheus-rules
+  server:
+    fullnameOverride: prometheus
+    retention: 15d
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    # Prometheus -> Alertmanager. Static, so no Kubernetes discovery RBAC.
+    alertmanagers:
+      - static_configs:
+          - targets: ["alertmanager:9093"]
+    extraConfigmapMounts:
+      - name: atrium-rules
+        mountPath: /etc/prometheus-rules
+        configMap: atrium-prometheus-rules
+        readOnly: true
+    persistentVolume:
+      enabled: true
+      size: 8Gi
+    service:
+      type: ClusterIP
+      servicePort: 9090
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  serverFiles:
+    prometheus.yml:
+      rule_files:
+        - /etc/prometheus-rules/*.yml
+  # Keyed by job name so environment files can disable or add single jobs.
+  scrapeConfigs:
+    kubernetes-api-servers: {enabled: false}
+    kubernetes-nodes: {enabled: false}
+    kubernetes-nodes-cadvisor: {enabled: false}
+    kubernetes-service-endpoints: {enabled: false}
+    kubernetes-service-endpoints-slow: {enabled: false}
+    prometheus-pushgateway: {enabled: false}
+    kubernetes-services: {enabled: false}
+    kubernetes-pods: {enabled: false}
+    kubernetes-pods-slow: {enabled: false}
+    # The headless Service publishes the collector even while it is unready, so
+    # an unready collector is still scraped and its failure metrics are kept.
+    db-collector:
+      dns_sd_configs:
+        - names: ["db-collector-headless"]
+          type: A
+          port: 8082
+    # Every API replica, ready or not, like the collector.
+    api:
+      dns_sd_configs:
+        - names: ["api-headless"]
+          type: A
+          port: 8081
+    otel-collector:
+      static_configs:
+        - targets: ["otel-collector:8889"]
+    alertmanager:
+      static_configs:
+        - targets: ["alertmanager:9093"]
+    loki:
+      static_configs:
+        - targets: ["loki:3100"]
+    tempo:
+      static_configs:
+        - targets: ["tempo:3200"]
+
+  alertmanager:
+    enabled: true
+    fullnameOverride: alertmanager
+    persistence:
+      enabled: true
+      size: 1Gi
+    service:
+      type: ClusterIP
+      port: 9093
+    config:
+      global: {}
+      templates: []
+      route:
+        receiver: default
+        group_by: ["alertname", "job", "environment"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        routes:
+          # The Watchdog alert always fires. An external dead-man's switch
+          # notifies when it stops arriving (ADR 0005). Defaults to a receiver
+          # with no integrations; production points it at healthchecks.io.
+          - receiver: deadmans-switch
+            matchers: ['alertname="Watchdog"']
+            group_wait: 0s
+            group_interval: 1m
+            repeat_interval: 1m
+      # Neither receiver has an integration (ADR 0009): alerts stay visible in
+      # Alertmanager and Grafana, and each environment adds its own receivers.
+      receivers:
+        - name: default
+        - name: deadmans-switch
+
+grafana:
+  enabled: true
+  fullnameOverride: grafana
+  # Created outside the chart (ADR 0005); keys admin-user and admin-password.
+  admin:
+    existingSecret: grafana-admin
+  # Dashboards come from ConfigMaps, so Grafana needs no Kubernetes API access.
+  rbac:
+    create: false
+  testFramework:
+    enabled: false
+  # Stateless: dashboards and datasources come from source.
+  persistence:
+    enabled: false
+  service:
+    type: ClusterIP
+    port: 3000
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki:3100
+          jsonData:
+            # From a log line's trace ID to its trace.
+            derivedFields:
+              - name: trace_id
+                matcherType: label
+                matcherRegex: trace_id
+                datasourceUid: tempo
+                url: $${__value.raw}
+                urlDisplayLabel: View trace
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo:3200
+          jsonData:
+            # From a span to the logs of its trace, around its time.
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: -5m
+              spanEndTimeShift: 5m
+              customQuery: true
+              query: '{service_name="$${__span.tags["service.name"]}"} | trace_id="$${__span.traceId}"'
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: atrium
+          orgId: 1
+          folder: Atrium
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /var/lib/grafana/dashboards/atrium
+  dashboardsConfigMaps:
+    atrium: atrium-dashboards
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+    auth.anonymous:
+      enabled: false
+    # Grafana 13 gzips every response, health probes included, with a
+    # parallel writer that allocates buffers per CPU.  A dashboard on a 5 s
+    # refresh churned hundreds of MB a minute, the garbage collector
+    # thrashed and the pod was OOM-killed.  Responses stay in the cluster
+    # or on loopback; an ingress can compress if one is needed.
+    server:
+      enable_gzip: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+loki:
+  enabled: true
+  fullnameOverride: loki
+  deploymentMode: Monolithic
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    # Retention: the logs hold personal data (user, session and request IDs
+    # and client IPs, ADR 0012), so the compactor deletes them after
+    # limits_config.retention_period. Compliance confirms that period before
+    # the first production deploy [9.2].
+    compactor:
+      retention_enabled: true
+      # Where delete requests are kept: the store that holds the chunks
+      # (schemaConfig's object_store).
+      delete_request_store: filesystem
+    limits_config:
+      # Logs older than this are deleted, within about 2 hours
+      # (retention_delete_delay) of the compactor's next run.
+      retention_period: 30d
+      allow_structured_metadata: true
+      max_label_names_per_series: 15
+      max_label_value_length: 256
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+      # Active users and sessions are distinct counts in LogQL
+      # (count(sum by (Session_Id) ...)): one series per session in the
+      # window.  Loki's default of 500 fails the panel once a 5-minute window
+      # holds more sessions; an instant count series is a few hundred bytes.
+      max_query_series: 20000
+      # OTLP label policy: only these resource attributes become index labels.
+      # Everything else, including user, session and request IDs, is kept as
+      # structured metadata, which is queryable but not indexed.
+      otlp_config:
+        resource_attributes:
+          ignore_defaults: true
+          attributes_config:
+            - action: index_label
+              attributes:
+                - service.name
+                - service.namespace
+                - deployment.environment.name
+                # OutSystems 11 log type (error, screen, ...): eight values.
+                - outsystems.log_type
+  # Namespaced RBAC only.
+  rbac:
+    namespaced: true
+  # No rules sidecar: the chart's Loki ruler is not used (alerting rules live
+  # in Prometheus). Its default would render a Role that reads every Secret
+  # and ConfigMap of the namespace, bound to Loki's service account, even
+  # with singleBinary.sidecar off.
+  sidecar:
+    rules:
+      enabled: false
+  # Loki never calls the Kubernetes API: no token in its pod, so a
+  # compromised Loki cannot use one.
+  serviceAccount:
+    automountServiceAccountToken: false
+  singleBinary:
+    replicas: 1
+    sidecar: false
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  gateway:
+    enabled: false
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+  memcached:
+    enabled: false
+  lokiCanary:
+    enabled: false
+  test:
+    enabled: false
+
+# Disk for the OTel Collector's logs export queue (file_storage/export-queue
+# below), so rows the Collector accepted survive a restart: the db-collector
+# has already moved its watermark past them. The claim is
+# otel-collector-queue, mounted through otelCollector.extraVolumes. To run
+# without one (no StorageClass), set enabled: false and make the export-queue
+# volume an emptyDir; the queue then survives a container restart but not a
+# new pod. The queue holds one request, a few MiB; 1Gi is the smallest gp3
+# volume.
+otelCollectorQueue:
+  persistence:
+    enabled: true
+    size: 1Gi
+    # Empty uses the cluster's default StorageClass.
+    storageClassName: ""
+
+otelCollector:
+  enabled: true
+  fullnameOverride: otel-collector
+  # A one-replica StatefulSet, like the db-collector: the replacement pod is
+  # not created until the old one is gone, so two Collectors never open the
+  # export queue at once. A Deployment starts the replacement of an evicted
+  # pod while the old one still runs. The queue is a plain claim, not a
+  # volumeClaimTemplate, which could never change on an existing StatefulSet.
+  # As a StatefulSet the subchart names its ConfigMap otel-collector-statefulset
+  # and labels the pods component: statefulset-collector.
+  mode: statefulset
+  replicaCount: 1
+  image:
+    repository: otel/opentelemetry-collector-contrib
+  command:
+    name: otelcol-contrib
+  # The image runs as user 10001. fsGroup makes the export queue's volume
+  # writable by it (kind's local-path volumes are world-writable anyway).
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  extraVolumes:
+    - name: export-queue
+      persistentVolumeClaim:
+        claimName: otel-collector-queue
+  extraVolumeMounts:
+    - name: export-queue
+      mountPath: /var/lib/otelcol/export-queue
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  ports:
+    jaeger-compact: {enabled: false}
+    jaeger-thrift: {enabled: false}
+    jaeger-grpc: {enabled: false}
+    zipkin: {enabled: false}
+    prom-exporter:
+      enabled: true
+      containerPort: 8889
+      servicePort: 8889
+      protocol: TCP
+    # Atrium's own logs, kept apart from the OutSystems delivery path: see
+    # the logs/self pipeline.
+    otlp-self:
+      enabled: true
+      containerPort: 4319
+      servicePort: 4319
+      protocol: TCP
+  # The complete Collector config, used as is. Not `config`: as a subchart,
+  # Helm drops `null` overrides of the chart's defaults whenever another values
+  # file sets otelCollector keys, which brought back the jaeger, zipkin and
+  # prometheus receivers and a traces pipeline. The chart offers
+  # alternateConfig for this; it is never merged with the defaults.
+  alternateConfig:
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+      # The logs exporter's queue, on the export-queue volume
+      # (otelCollectorQueue). fsync on every write: the db-collector moves its
+      # watermark as soon as a batch is queued, so a node crash must not lose
+      # or corrupt it. It costs a few disk syncs per OTLP request and per
+      # exported batch, a few per second during a backlog.
+      file_storage/export-queue:
+        directory: /var/lib/otelcol/export-queue
+        fsync: true
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+      # Atrium's own logs (ADR 0018).
+      otlp/self:
+        protocols:
+          http:
+            endpoint: ${env:MY_POD_IP}:4319
+    processors:
+      # A percentage of resources.limits.memory.
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      resource:
+        attributes:
+          - key: atrium.source
+            value: otel-collector
+            action: upsert
+      batch: {}
+    exporters:
+      debug: {}
+      prometheus:
+        endpoint: ${env:MY_POD_IP}:8889
+      # Loki's native OTLP ingestion; loki.limits_config.otlp_config decides
+      # which resource attributes become index labels. Named for its role, not
+      # its backend: another platform's values repoint it (ADR 0011), since
+      # alternateConfig is merged and a null override does not remove it.
+      otlp_http/logs:
+        endpoint: http://loki:3100/otlp
+        # Loki rejects for good a row more than half its max_chunk_age (1h)
+        # behind the newest row of its stream. Batches exported in parallel,
+        # or a throttled one retried after later ones, arrive out of order
+        # during a backlog (after an outage, on a first start) and lost rows
+        # the db-collector had already counted delivered. So one consumer
+        # exports the batches in order, and a throttled batch is retried
+        # until Loki takes it. A push larger than Loki's
+        # ingestion_burst_size_mb (6) is never taken, so batches are cut at
+        # 4 MiB.
+        #
+        # The queue holds one request, on disk (file_storage/export-queue).
+        # A queue that holds more loses the order across a restart: it
+        # sends the requests it was sending when it stopped after the rest,
+        # and Loki rejects their rows when it already has rows of the same
+        # stream more than an hour newer (with 64 MiB, 1,297 of 6,000 rows
+        # spanning three hours in the kind test). With one request nothing
+        # queues behind the one being sent, so after a restart it is sent
+        # first. The queue then buffers nothing: block_on_overflow keeps the
+        # next request waiting in the receiver until Loki has taken the one
+        # before, and the db-collector waits for it, its extraction paused
+        # but its target up (atrium_outsystems_export_blocked). The disk
+        # still matters: the request being sent survives a restart, and the
+        # db-collector has already moved its watermark past it.
+        sending_queue:
+          storage: file_storage/export-queue
+          num_consumers: 1
+          sizer: requests
+          queue_size: 1
+          block_on_overflow: true
+          # The batcher only cuts requests at 4 MiB: with one request in
+          # the queue there is nothing to merge, and a min_size (8 KiB by
+          # default) would hold every small request for flush_timeout.
+          batch:
+            flush_timeout: 1s
+            sizer: bytes
+            min_size: 0
+            max_size: 4194304
+        retry_on_failure:
+          max_elapsed_time: 0s
+      # Atrium's own logs, with none of the guarantees above: a queue in
+      # memory, and rows given up on after the default retry time. They are on
+      # stderr too, and they must keep flowing while the OutSystems queue waits.
+      otlp_http/self-logs:
+        endpoint: http://loki:3100/otlp
+        sending_queue:
+          queue_size: 64
+      # Traces may be lost like those logs: they are a sample anyway.
+      otlp_http/traces:
+        endpoint: http://tempo:4318
+        sending_queue:
+          queue_size: 64
+    service:
+      extensions: [health_check, file_storage/export-queue]
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [prometheus, debug]
+        # No batch processor: it answers the receiver before the export, so a
+        # full exporter queue dropped rows the db-collector had been told were
+        # delivered. Without it the receiver answers only once the request is
+        # in the exporter's queue (it waits while the queue is full), and the
+        # exporter's queue batches instead.
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource]
+          exporters: [otlp_http/logs, debug]
+        # Never joins the logs pipeline above: its queue holds one request and
+        # the receiver waits for it, so Atrium's logs would stall during
+        # the very backlog they should explain, and slow its drain (ADR 0018).
+        logs/self:
+          receivers: [otlp/self]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp_http/self-logs]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp_http/traces]
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: ${env:MY_POD_IP}
+                    port: 8888
+        resource:
+          host.name: ${env:OTEL_K8S_NODE_NAME}
+          k8s.namespace.name: ${env:OTEL_K8S_NAMESPACE}
+          k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
+          k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
+          k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
+          k8s.pod.name: ${env:OTEL_K8S_POD_NAME}

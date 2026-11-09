@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/shop"
 )
 
 // Migrate creates the business schema and the logging schema where they do

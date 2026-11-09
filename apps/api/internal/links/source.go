@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/internal/config"
+	"atrium/internal/config"
 )
 
 // DefaultRefresh is how often a Source rereads integrations.yaml, at most:
@@ -18,7 +18,7 @@ const DefaultRefresh = 30 * time.Second
 var ErrUnavailable = errors.New("links: no valid integrations.yaml has been read")
 
 // Source is the integrations config links are rendered from: the file the
-// DB collector reads, mounted from the heartbeat-integrations ConfigMap. It
+// DB collector reads, mounted from the atrium-integrations ConfigMap. It
 // reads the file when first asked and again when asked after Refresh, so it
 // needs no watcher. A file the loader or config.ValidateLinkTemplates
 // refuses never replaces a valid one (config.Manager): the links of the last

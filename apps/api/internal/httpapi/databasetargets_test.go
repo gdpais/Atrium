@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/inventory"
 )
 
 // fakeTargets answers each call with its fields and records the last one.

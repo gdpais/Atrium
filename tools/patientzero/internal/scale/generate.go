@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/logschema"
 )
 
 // Week is how long one cycle table is current.

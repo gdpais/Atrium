@@ -1,10 +1,10 @@
-// Package credentials resolves Heartbeat's credential references into a
+// Package credentials resolves Atrium's credential references into a
 // username and password, the same way in every service.
 //
 // A credential reference, such as "kv/sqlserver-default", is resolved under
 // the name
 //
-//	HEARTBEAT_CREDENTIAL_<REF>
+//	ATRIUM_CREDENTIAL_<REF>
 //
 // where <REF> is the reference upper-cased, with "/", "-" and "." replaced
 // by underscores ([Key]). The value must be a colon-separated
@@ -40,7 +40,7 @@ type Resolver interface {
 type Env struct{}
 
 // Resolve implements [Resolver]. It looks up the environment variable
-// HEARTBEAT_CREDENTIAL_<REF> (see [Key]), which must contain a
+// ATRIUM_CREDENTIAL_<REF> (see [Key]), which must contain a
 // "username:password" pair; an error is returned when the variable is absent
 // or malformed.
 func (Env) Resolve(_ context.Context, ref string) (Credential, error) {
@@ -52,7 +52,7 @@ func (Env) Resolve(_ context.Context, ref string) (Credential, error) {
 }
 
 // Files resolves credentials from files in Dir, one per reference, named
-// like the variable [Env] reads (HEARTBEAT_CREDENTIAL_<REF>) and holding the
+// like the variable [Env] reads (ATRIUM_CREDENTIAL_<REF>) and holding the
 // same "username:password" pair; a trailing line break is ignored. Dir is
 // meant to be a Kubernetes Secret mounted as a directory, whose keys are
 // those names.
@@ -105,10 +105,10 @@ func readFile(dir, name string) (string, error) {
 }
 
 // Key returns the name ref's credential is stored under, as an environment
-// variable or a file: HEARTBEAT_CREDENTIAL_ followed by ref upper-cased,
+// variable or a file: ATRIUM_CREDENTIAL_ followed by ref upper-cased,
 // with "/", "-" and "." replaced by "_".
 func Key(ref string) string {
-	return "HEARTBEAT_CREDENTIAL_" + strings.NewReplacer("/", "_", "-", "_", ".", "_").Replace(strings.ToUpper(ref))
+	return "ATRIUM_CREDENTIAL_" + strings.NewReplacer("/", "_", "-", "_", ".", "_").Replace(strings.ToUpper(ref))
 }
 
 // parse splits a "username:password" value at its first colon. Its error

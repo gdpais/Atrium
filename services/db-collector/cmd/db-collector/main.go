@@ -5,40 +5,40 @@
 //
 // Environment variables:
 //
-//	HEARTBEAT_DB_COLLECTOR_LISTEN_ADDR  HTTP listen address (default ":8082")
-//	HEARTBEAT_INTEGRATIONS_PATH         Path to integrations YAML file
+//	ATRIUM_DB_COLLECTOR_LISTEN_ADDR  HTTP listen address (default ":8082")
+//	ATRIUM_INTEGRATIONS_PATH         Path to integrations YAML file
 //	                                    (default "config/integrations.yaml")
-//	HEARTBEAT_ADMIN_TOKEN               Bearer token for the admin endpoints
+//	ATRIUM_ADMIN_TOKEN               Bearer token for the admin endpoints
 //	                                    (GET /admin/config, POST /admin/config/reload);
 //	                                    unset disables them
-//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE
-//	HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE
+//	ATRIUM_DB_COLLECTOR_ADMIN_TLS_CERT_FILE
+//	ATRIUM_DB_COLLECTOR_ADMIN_TLS_KEY_FILE
 //	                                    PEM certificate and key, both or
 //	                                    neither: the admin endpoints move to
 //	                                    their own HTTPS listener and leave the
 //	                                    listen address (default unset)
-//	HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR
+//	ATRIUM_DB_COLLECTOR_ADMIN_LISTEN_ADDR
 //	                                    HTTPS address of the admin endpoints
 //	                                    (default ":8443")
-//	HEARTBEAT_STATE_DIR                 Writable directory for state that must
+//	ATRIUM_STATE_DIR                 Writable directory for state that must
 //	                                    survive restarts: the outsystems_logs
-//	                                    watermarks (default "/var/lib/heartbeat")
-//	HEARTBEAT_CREDENTIALS_DIR           Directory of HEARTBEAT_CREDENTIAL_<REF>
+//	                                    watermarks (default "/var/lib/atrium")
+//	ATRIUM_CREDENTIALS_DIR           Directory of ATRIUM_CREDENTIAL_<REF>
 //	                                    files, read on every connection; refs
 //	                                    without a file come from the
 //	                                    environment (default unset)
-//	HEARTBEAT_CREDENTIAL_<REF>          Credential for a credential_ref, as
+//	ATRIUM_CREDENTIAL_<REF>          Credential for a credential_ref, as
 //	                                    username:password
-//	HEARTBEAT_OTLP_HEADERS_DIR          Directory of header files the OTLP
+//	ATRIUM_OTLP_HEADERS_DIR          Directory of header files the OTLP
 //	                                    exporter adds to every request to
 //	                                    opentelemetry.endpoint, one per header,
 //	                                    named by the header; read at each
 //	                                    request (default unset)
-//	HEARTBEAT_OTLP_CA_FILE              PEM certificates that verify an https
+//	ATRIUM_OTLP_CA_FILE              PEM certificates that verify an https
 //	                                    opentelemetry.endpoint instead of the
 //	                                    system roots (default unset)
-//	HEARTBEAT_OTLP_CLIENT_CERT_FILE     PEM client certificate and key for
-//	HEARTBEAT_OTLP_CLIENT_KEY_FILE      mutual TLS, both or neither; read at
+//	ATRIUM_OTLP_CLIENT_CERT_FILE     PEM client certificate and key for
+//	ATRIUM_OTLP_CLIENT_KEY_FILE      mutual TLS, both or neither; read at
 //	                                    each TLS handshake (default unset)
 //
 // Its own telemetry reads the variables package telemetry lists.
@@ -59,9 +59,9 @@ import (
 	"syscall"
 	"time"
 
-	"heartbeat/internal/otlp"
-	"heartbeat/internal/telemetry"
-	"heartbeat/services/db-collector/internal/app"
+	"atrium/internal/otlp"
+	"atrium/internal/telemetry"
+	"atrium/services/db-collector/internal/app"
 )
 
 // telemetryFlush bounds sending the last logs when the process stops.
@@ -76,23 +76,23 @@ func main() {
 	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	cfg := app.Config{
-		ListenAddr:                      env("HEARTBEAT_DB_COLLECTOR_LISTEN_ADDR", ":8082"),
-		IntegrationsPath:                env("HEARTBEAT_INTEGRATIONS_PATH", "config/integrations.yaml"),
-		AdminToken:                      os.Getenv("HEARTBEAT_ADMIN_TOKEN"),
-		StateDir:                        env("HEARTBEAT_STATE_DIR", "/var/lib/heartbeat"),
-		CredentialsDir:                  os.Getenv("HEARTBEAT_CREDENTIALS_DIR"),
-		WatchInterval:                   durationEnv("HEARTBEAT_CONFIG_WATCH_INTERVAL", 0),
-		SQLServerTrustServerCertificate: boolEnv("HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE", false),
-		OTLPHeadersDir:                  os.Getenv("HEARTBEAT_OTLP_HEADERS_DIR"),
+		ListenAddr:                      env("ATRIUM_DB_COLLECTOR_LISTEN_ADDR", ":8082"),
+		IntegrationsPath:                env("ATRIUM_INTEGRATIONS_PATH", "config/integrations.yaml"),
+		AdminToken:                      os.Getenv("ATRIUM_ADMIN_TOKEN"),
+		StateDir:                        env("ATRIUM_STATE_DIR", "/var/lib/atrium"),
+		CredentialsDir:                  os.Getenv("ATRIUM_CREDENTIALS_DIR"),
+		WatchInterval:                   durationEnv("ATRIUM_CONFIG_WATCH_INTERVAL", 0),
+		SQLServerTrustServerCertificate: boolEnv("ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE", false),
+		OTLPHeadersDir:                  os.Getenv("ATRIUM_OTLP_HEADERS_DIR"),
 		OTLPTLS: otlp.TLSFiles{
-			CAFile:   os.Getenv("HEARTBEAT_OTLP_CA_FILE"),
-			CertFile: os.Getenv("HEARTBEAT_OTLP_CLIENT_CERT_FILE"),
-			KeyFile:  os.Getenv("HEARTBEAT_OTLP_CLIENT_KEY_FILE"),
+			CAFile:   os.Getenv("ATRIUM_OTLP_CA_FILE"),
+			CertFile: os.Getenv("ATRIUM_OTLP_CLIENT_CERT_FILE"),
+			KeyFile:  os.Getenv("ATRIUM_OTLP_CLIENT_KEY_FILE"),
 		},
 		AdminTLS: app.AdminTLS{
-			ListenAddr: os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"),
-			CertFile:   os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"),
-			KeyFile:    os.Getenv("HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"),
+			ListenAddr: os.Getenv("ATRIUM_DB_COLLECTOR_ADMIN_LISTEN_ADDR"),
+			CertFile:   os.Getenv("ATRIUM_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"),
+			KeyFile:    os.Getenv("ATRIUM_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"),
 		},
 		Logger:    logger,
 		Telemetry: tel,

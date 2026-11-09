@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/internal/testreap"
+	"atrium/internal/testreap"
 )
 
 // A Compose project left behind by a test process that is gone is removed,
@@ -28,7 +28,7 @@ func TestReapRemovesLeftoverComposeProject(t *testing.T) {
 	}
 	s := &postgresStack{
 		Root: root, Compose: filepath.Join(root, "infra/docker-compose.test.yml"),
-		Project: "heartbeat-test-" + hex.EncodeToString(id[:]),
+		Project: "atrium-test-" + hex.EncodeToString(id[:]),
 	}
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

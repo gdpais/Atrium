@@ -4,12 +4,12 @@
 # (`type: [T, "null"]`, `oneOf` enums): oapi-codegen's 3.1 support is new.
 openapi: 3.1.0
 info:
-  title: Heartbeat API
+  title: Atrium API
   # The contract's major version, the /api/v1 prefix of the resource
   # operations. Changes within it are additive; a breaking change is v2.
   version: v1
   description: |
-    Heartbeat's control plane. The resource operations live under
+    Atrium's control plane. The resource operations live under
     `/api/v1`; the health endpoints stay outside it. `GET /metrics`
     (Prometheus exposition) is served beside this contract and not described
     here.
@@ -81,7 +81,7 @@ tags:
       Links into the observability platform's UI (TODO 4.9), rendered from
       the templates of `dashboards` in `integrations.yaml`, never stored:
       the API reads the file the DB collector reads, the
-      `heartbeat-integrations` ConfigMap, and rereads it at most every 30
+      `atrium-integrations` ConfigMap, and rereads it at most every 30
       seconds. A template names variables (`${environment}`,
       `${application}`, `${target}`, `${logs_query}`, `${from}`, `${to}`),
       and is rendered for every entity that has them all: an application
@@ -176,7 +176,7 @@ paths:
           description: Logged in.
           headers:
             Set-Cookie:
-              description: The session cookie, `__Host-heartbeat_session`, HttpOnly, Secure, SameSite=Lax, Path=/.
+              description: The session cookie, `__Host-atrium_session`, HttpOnly, Secure, SameSite=Lax, Path=/.
               required: true
               schema:
                 type: string
@@ -1335,7 +1335,7 @@ paths:
         be one read-only `SELECT`, checked as the db-collector checks it when
         it loads its configuration, and `overrides` must name an enabled
         built-in probe of the same engine. Review the query with the
-        [probe review checklist](https://gdpais.github.io/Heartbeat/architecture/database-observability.html#probe-review-checklist)
+        [probe review checklist](https://gdpais.github.io/Atrium/architecture/database-observability.html#probe-review-checklist)
         before it runs on a shared or production target.
       requestBody:
         required: true
@@ -1885,7 +1885,7 @@ components:
     session:
       type: apiKey
       in: cookie
-      name: __Host-heartbeat_session
+      name: __Host-atrium_session
       description: |
         The cookie `POST /api/v1/session` sets. Its value is a random 256-bit
         ID; the API keeps only its SHA-256 hash, in Redis. A session ends
@@ -2103,7 +2103,7 @@ components:
       description: |
         The environment as the collectors and the telemetry name it: each
         collector's `environment` setting, the `environment` label of
-        Heartbeat's metrics and the `deployment.environment.name` of logs
+        Atrium's metrics and the `deployment.environment.name` of logs
         (ADR 0017 §2). Lower-case letters, digits and hyphens, 1 to 63,
         starting and ending with a letter or a digit, so that it works as a
         label value, in a URL and as a Kubernetes name. Unique, and fixed
@@ -2353,7 +2353,7 @@ components:
       enum: [outsystems]
     IngestMode:
       type: string
-      description: "How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`."
+      description: "How its telemetry arrives: `agentless`, read from the platform by an Atrium collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`."
       enum: [otlp, file, api, agentless]
     SourceConfig:
       type: object
@@ -2374,7 +2374,7 @@ components:
       properties:
         status:
           type: string
-          description: "`observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself)."
+          description: "`observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Atrium collector reads this kind of source (an `otlp` source sends its telemetry itself)."
           enum: [observed, not_observed, unknown, not_applicable]
         collectors:
           type: array
@@ -2496,10 +2496,10 @@ components:
         the credential: `kv/`, `secret/` or `env/` and a name of lower-case
         letters, digits and `-`, at most 200, so that each key has one
         spelling. The collector reads the
-        `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+        `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of
         its mounted credentials Secret, the reference upper-cased with `/`,
         `-` and `.` as `_` (`env/finance-prod` is
-        `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+        `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`).
       pattern: "^(kv|secret|env)/[a-z0-9][a-z0-9-]{0,199}$"
       examples: [env/finance-prod]
     DatabaseTarget:

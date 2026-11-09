@@ -1,4 +1,4 @@
-// Heartbeat docs site behaviour: mobile drawer, collapsible menus, colour
+// Atrium docs site behaviour: mobile drawer, collapsible menus, colour
 // theme, on-this-page highlighting, the search dialog, search highlights and
 // Mermaid diagrams. Generated into docs/site/assets by make docs-site.
 (function () {
@@ -62,7 +62,7 @@
   // Groups open and close from their heading, and the choice is remembered.
   // The group holding the current page always opens. Child lists (the ADRs)
   // start closed unless the current page is one of them.
-  var NAV_KEY = "heartbeat-docs-nav";
+  var NAV_KEY = "atrium-docs-nav";
   function setupNav() {
     var sidebar = document.getElementById("sidebar");
     if (!sidebar) return;
@@ -108,7 +108,7 @@
   // ------------------------------------------------------------------ theme
   // Automatic (follow the system), light or dark; the inline script in the
   // page head applies a stored choice before first paint.
-  var THEME_KEY = "heartbeat-docs-theme";
+  var THEME_KEY = "atrium-docs-theme";
   var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
   function isDark() {
     var t = docEl.getAttribute("data-theme");
@@ -132,7 +132,7 @@
       if (mode === "auto") docEl.removeAttribute("data-theme"); else docEl.setAttribute("data-theme", mode);
       save(THEME_KEY, mode === "auto" ? null : mode);
       show(mode);
-      window.dispatchEvent(new Event("heartbeat-theme"));
+      window.dispatchEvent(new Event("atrium-theme"));
     });
   }
 
@@ -245,7 +245,7 @@
       var s = document.createElement("script");
       s.src = root + (document.body.getAttribute("data-search-index") || "assets/search-index.js");
       s.onload = function () {
-        var index = window.HEARTBEAT_SEARCH || { pages: [], sections: [] };
+        var index = window.ATRIUM_SEARCH || { pages: [], sections: [] };
         pages = index.pages.map(function (p) { p._t = norm(p.t); return p; });
         data = index.sections.map(function (s) {
           var page = pages[s.p];
@@ -750,7 +750,7 @@
     }
     renderAll();
     if (darkQuery.addEventListener) darkQuery.addEventListener("change", renderAll);
-    window.addEventListener("heartbeat-theme", renderAll);
+    window.addEventListener("atrium-theme", renderAll);
   }
 
   // Wide diagrams are shrunk to fit the column; the expand button shows one

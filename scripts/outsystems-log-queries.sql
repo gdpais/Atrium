@@ -1,6 +1,6 @@
 -- Investigation queries for an OutSystems 11 logging database: what the SRE
 -- team runs by hand against the oslog_* views, with the same vocabulary as
--- Heartbeat's extracted logs (standard columns of
+-- Atrium's extracted logs (standard columns of
 -- services/db-collector/internal/probes/outsystems/queries/README.md).
 --
 -- Read-only; run in the logging database with a login that has SELECT on

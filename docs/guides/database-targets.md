@@ -46,19 +46,19 @@ your own name and a strong password):
 
 ```sql
 USE master;  -- server permissions are granted from master
-CREATE LOGIN heartbeat_collector WITH PASSWORD = N'<password>';
-GRANT VIEW SERVER STATE TO heartbeat_collector;
-GRANT VIEW ANY DEFINITION TO heartbeat_collector;
+CREATE LOGIN atrium_collector WITH PASSWORD = N'<password>';
+GRANT VIEW SERVER STATE TO atrium_collector;
+GRANT VIEW ANY DEFINITION TO atrium_collector;
 
 -- Check: both columns must be 0.
-EXECUTE AS LOGIN = N'heartbeat_collector';
+EXECUTE AS LOGIN = N'atrium_collector';
 SELECT IS_SRVROLEMEMBER(N'sysadmin') AS is_sysadmin,
        HAS_PERMS_BY_NAME(NULL, NULL, N'CONTROL SERVER') AS has_control_server;
 REVERT;
 
 -- Only when the target's database_name is not master: a user there, with no roles.
 USE FinanceDB;
-CREATE USER heartbeat_collector FOR LOGIN heartbeat_collector;
+CREATE USER atrium_collector FOR LOGIN atrium_collector;
 ```
 
 [`scripts/sqlserver-login.sh`](../../scripts/sqlserver-login.sh) creates the
@@ -67,12 +67,12 @@ sysadmin-equivalent.
 
 If the login is sysadmin-equivalent anyway (a member of `sysadmin`, or
 holding `CONTROL SERVER`), the collector logs a warning (with the target and
-`credential_ref`) and exports `heartbeat_collector_target_login_sysadmin` as
+`credential_ref`) and exports `atrium_collector_target_login_sysadmin` as
 `1` ([metrics reference](../reference/metrics-and-endpoints.md#collector-self-observability)).
 It checks when it first connects to the target and about every 10 minutes
 after, so a change to the login's rights shows up within that time. If SQL
 Server cannot tell, the collector logs that once per check and exports no
-value. The `HeartbeatCollectorLoginElevated` alert fires when the metric has
+value. The `AtriumCollectorLoginElevated` alert fires when the metric has
 been `1` for 15 minutes.
 
 ### Certificates
@@ -86,7 +86,7 @@ SQL Server's default self-signed certificate, or
 supported yet: the chart has no setting to add one to the collector.
 
 The chart value `dbCollector.sqlserver.trustServerCertificate: true` (the
-variable `HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE`) turns
+variable `ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE`) turns
 verification off. It is for the local dev container only: it applies to every
 target, and the collector logs a warning at startup and lists it in
 `GET /admin/config`.
@@ -105,7 +105,7 @@ the [configuration reference](../reference/configuration.md#outsystems_logs-coll
 ### What the collector runs on the server
 
 - At most 2 sessions per target, with the application name
-  `HeartbeatDBCollector`.
+  `AtriumDBCollector`.
 - When it first connects to a target, and about every 10 minutes after, one
   `SELECT IS_SRVROLEMEMBER('sysadmin'), HAS_PERMS_BY_NAME(NULL, NULL,
   'CONTROL SERVER')`. It needs no extra permission.
@@ -146,7 +146,7 @@ The API renders the approved ones into the chart's `managedCollectors`, one
 collector per target; all of a target's assignments run at one interval.
 On kind, `make kind-assignments` deploys the render, and later
 `make kind-deploy` runs keep it. In production, ADR 0014's pull request to
-`heartbeat-deploy` is built only if production needs assignments managed by
+`atrium-deploy` is built only if production needs assignments managed by
 the API [18]; use the inventory file, or add targets by hand. Provide the
 credential (step 3) before the deploy; an assignment shows `applied` once the
 collector runs it.
@@ -206,7 +206,7 @@ its series after the reload.
 ## 3. Provide the credential
 
 `credential_ref: env/finance-prod` is read from the key
-`HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`, with the value `username:password`
+`ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`, with the value `username:password`
 ([resolution rules](../reference/configuration.md#credential-resolution)).
 Keep values out of version control.
 
@@ -218,7 +218,7 @@ restart. The kubelet updates the files within about a minute.
 
 | Where the collector runs | How the Secret is created |
 | --- | --- |
-| kind | `kubectl -n heartbeat create secret generic <name> --from-literal=HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD=<user>:<password>` |
+| kind | `kubectl -n atrium create secret generic <name> --from-literal=ATRIUM_CREDENTIAL_ENV_FINANCE_PROD=<user>:<password>` |
 | kind SQL Server sandbox | Already wired: `make sqlserver-dev-up` creates it from the ignored `.env.sqlserver-dev` |
 | Production | An External Secrets Operator `ExternalSecret` from AWS Secrets Manager (ADR 0005) |
 
@@ -228,7 +228,7 @@ restart. The kubelet updates the files within about a minute.
 | --- | --- |
 | kind | Put the values in a file and run `EXTRA_VALUES=<file> make kind-deploy`; for probe assignments, approved through the API or by the inventory file, `make kind-assignments`. |
 | Installed from a release | Put the values in a file and run `helm upgrade` with it and all your other values files ([installing a release](install-from-release.md#5-add-a-sql-server-target)). |
-| Production | Commit the values to the `heartbeat-deploy` repository; Argo CD syncs them. |
+| Production | Commit the values to the `atrium-deploy` repository; Argo CD syncs them. |
 
 Helm rejects values that fail the integrations schema before anything changes.
 A config-only change does not restart the collector: the ConfigMap reaches the
@@ -246,13 +246,13 @@ does not mean the collector did: it also checks host names, credential
 references, intervals and probe names.
 
 ```bash
-curl -s http://localhost:8082/metrics | grep '^heartbeat_collector_config_'
+curl -s http://localhost:8082/metrics | grep '^atrium_collector_config_'
 ```
 
-`heartbeat_collector_config_last_reload_successful` should be `1`, and
-`heartbeat_collector_config_info` should show a new `version`. At `0` the
+`atrium_collector_config_last_reload_successful` should be `1`, and
+`atrium_collector_config_info` should show a new `version`. At `0` the
 change was rejected and the last good config still runs, and after 2
-minutes Prometheus fires `HeartbeatCollectorConfigReloadFailed`, so a
+minutes Prometheus fires `AtriumCollectorConfigReloadFailed`, so a
 rejection shows in alerting even when nobody runs this check
 ([config reload metrics](../reference/metrics-and-endpoints.md#config-reloads)).
 The reason is `last_reload_err` in `GET /admin/config` and in the pod log; fix
@@ -262,13 +262,13 @@ Then check the target:
 
 ```bash
 # The header goes to curl on stdin, so the token stays off its command line.
-printf 'Authorization: Bearer %s\n' "$HEARTBEAT_ADMIN_TOKEN" | curl -s -H @- http://localhost:8082/admin/config |
+printf 'Authorization: Bearer %s\n' "$ATRIUM_ADMIN_TOKEN" | curl -s -H @- http://localhost:8082/admin/config |
   jq '.readiness.collectors[].targets[] | select(.name == "finance-prod")'   # state, and the driver error if it fails
-curl -s http://localhost:8082/metrics | grep 'heartbeat_collector_target_up{.*target="finance-prod"'
+curl -s http://localhost:8082/metrics | grep 'atrium_collector_target_up{.*target="finance-prod"'
 ```
 
-`heartbeat_collector_target_up` should be `1`, and
-`heartbeat_sqlserver_*` series should appear with `target="finance-prod"`. In
+`atrium_collector_target_up` should be `1`, and
+`atrium_sqlserver_*` series should appear with `target="finance-prod"`. In
 Grafana, open the *SQL Server overview* dashboard and select the target.
 
 If the target stays down, the target's `error` above shows the driver's

@@ -6,20 +6,20 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/store"
 )
 
 // Outbox metrics (ADR 0016 §4).
 const (
 	// MetricOutboxRows is the number of records waiting in the outbox, read
 	// at each scrape. Every replica reports the same table.
-	MetricOutboxRows = "heartbeat_api_audit_outbox_rows"
+	MetricOutboxRows = "atrium_api_audit_outbox_rows"
 	// MetricOutboxOldestAge is the age of the oldest waiting record in
 	// seconds, 0 when there is none, read at each scrape.
-	MetricOutboxOldestAge = "heartbeat_api_audit_outbox_oldest_age_seconds"
+	MetricOutboxOldestAge = "atrium_api_audit_outbox_oldest_age_seconds"
 	// MetricRecordsDelivered counts the records this replica delivered: the
 	// OTel Collector accepted them and they left the outbox.
-	MetricRecordsDelivered = "heartbeat_api_audit_records_delivered_total"
+	MetricRecordsDelivered = "atrium_api_audit_records_delivered_total"
 )
 
 // statsTimeout bounds the query a scrape runs.

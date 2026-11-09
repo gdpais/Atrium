@@ -19,9 +19,9 @@ import (
 
 	mssql "github.com/microsoft/go-mssqldb"
 
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/shop"
 )
 
 // queriesDir holds the queries the db-collector's outsystems_logs collector
@@ -46,7 +46,7 @@ func TestLiveSQLServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 { // safe to run again
-		if err := Migrate(ctx, business, logging, types, "heartbeat_oslog_reader"); err != nil {
+		if err := Migrate(ctx, business, logging, types, "atrium_oslog_reader"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -275,7 +275,7 @@ func TestLiveSlowSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Migrate(ctx, business, logging, types, "heartbeat_oslog_reader"); err != nil {
+	if err := Migrate(ctx, business, logging, types, "atrium_oslog_reader"); err != nil {
 		t.Fatal(err)
 	}
 	root, err := sql.Open("sqlserver", admin)
@@ -370,7 +370,7 @@ func TestLiveRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Migrate(ctx, business, logging, types, "heartbeat_oslog_reader"); err != nil {
+	if err := Migrate(ctx, business, logging, types, "atrium_oslog_reader"); err != nil {
 		t.Fatal(err)
 	}
 	schema := oslog.NewSchema(types)

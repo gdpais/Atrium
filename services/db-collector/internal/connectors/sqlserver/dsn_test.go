@@ -6,7 +6,7 @@ import (
 
 	"github.com/microsoft/go-mssqldb/msdsn"
 
-	collectorconfig "heartbeat/internal/config"
+	collectorconfig "atrium/internal/config"
 )
 
 // The driver must parse the DSN into the intended timeouts; a misspelt

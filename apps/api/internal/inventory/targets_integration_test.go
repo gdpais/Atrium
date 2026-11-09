@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/inventory"
 )
 
 func (f fixture) target(t *testing.T, env uuid.UUID, name string) inventory.DatabaseTarget {

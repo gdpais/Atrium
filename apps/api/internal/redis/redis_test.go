@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/internal/credentials"
+	"atrium/internal/credentials/credentialstest"
 )
 
 func TestConfigValidate(t *testing.T) {
-	for _, addr := range []string{"valkey:6379", "10.0.0.7:6379", "[::1]:6380", "master.heartbeat.abc123.euw1.cache.amazonaws.com:6379"} {
+	for _, addr := range []string{"valkey:6379", "10.0.0.7:6379", "[::1]:6380", "master.atrium.abc123.euw1.cache.amazonaws.com:6379"} {
 		if err := (Config{Addr: addr, CredentialRef: "secret/api-redis"}).Validate(); err != nil {
 			t.Errorf("Validate(%q) = %v", addr, err)
 		}
@@ -65,14 +65,14 @@ func TestNewSetsTLS(t *testing.T) {
 func TestCredentialsProviderReadsTheCredentialEveryTime(t *testing.T) {
 	dir := t.TempDir()
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_SECRET_API_REDIS": "default:first\n",
+		"ATRIUM_CREDENTIAL_SECRET_API_REDIS": "default:first\n",
 	})
 	provider := credentialsProvider(credentials.Files{Dir: dir}, "secret/api-redis")
 	if user, password, err := provider(context.Background()); err != nil || user != "default" || password != "first" {
 		t.Fatalf("provider = %q, %q, %v", user, password, err)
 	}
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_SECRET_API_REDIS": ":token-only\n",
+		"ATRIUM_CREDENTIAL_SECRET_API_REDIS": ":token-only\n",
 	})
 	if user, password, err := provider(context.Background()); err != nil || user != "" || password != "token-only" {
 		t.Fatalf("after rotation: provider = %q, %q, %v", user, password, err)
@@ -93,7 +93,7 @@ func TestPingFailsWhileRedisIsDown(t *testing.T) {
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("HEARTBEAT_CREDENTIAL_SECRET_API_REDIS", "default:unused")
+	t.Setenv("ATRIUM_CREDENTIAL_SECRET_API_REDIS", "default:unused")
 	client, err := New(Config{Addr: addr, CredentialRef: "secret/api-redis"}, credentials.Env{})
 	if err != nil {
 		t.Fatal(err)

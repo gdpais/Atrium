@@ -3,7 +3,7 @@
 // Package testenv starts disposable PostgreSQL and Valkey containers for the
 // API's integration tests (make test-integration).
 //
-// Each container has a random name (heartbeat-api-test-<id>), a random
+// Each container has a random name (atrium-api-test-<id>), a random
 // password, tmpfs storage and one port published on 127.0.0.1 only, at a
 // random host port; it is removed when the test ends. Nothing here touches a
 // developer database, the kind cluster or another test's containers.
@@ -33,10 +33,10 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/testreap"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/credentials"
+	"atrium/internal/testreap"
 )
 
 // ValkeyImage is the Valkey server the tests run: the newest major Amazon
@@ -92,20 +92,20 @@ func Postgres(t *testing.T) (Container, store.Config) {
 	t.Helper()
 	password := randomHex(t)
 	c := start(t, postgresImage(t), "5432/tcp",
-		[]string{"POSTGRES_USER=heartbeat", "POSTGRES_DB=heartbeat", "POSTGRES_PASSWORD=" + password},
+		[]string{"POSTGRES_USER=atrium", "POSTGRES_DB=atrium", "POSTGRES_PASSWORD=" + password},
 		// postgres 18's data directory is under /var/lib/postgresql.
 		"--tmpfs", "/var/lib/postgresql",
 		"-e", "POSTGRES_USER", "-e", "POSTGRES_DB", "-e", "POSTGRES_PASSWORD",
 		// Over TCP: the entrypoint's temporary server during initdb
 		// listens on the Unix socket only.
-		"--health-cmd", "pg_isready -h 127.0.0.1 -U heartbeat -d heartbeat",
+		"--health-cmd", "pg_isready -h 127.0.0.1 -U atrium -d atrium",
 		"--health-interval", "1s", "--health-timeout", "5s", "--health-retries", "90",
 	)
-	c.Credential = credentials.Credential{Username: "heartbeat", Password: password}
+	c.Credential = credentials.Credential{Username: "atrium", Password: password}
 	waitHealthy(t, c.Name)
 	host, port := splitAddr(t, c.Addr)
 	return c, store.Config{
-		Host: host, Port: port, Database: "heartbeat", SSLMode: "disable", CredentialRef: PostgresRef,
+		Host: host, Port: port, Database: "atrium", SSLMode: "disable", CredentialRef: PostgresRef,
 	}
 }
 
@@ -162,7 +162,7 @@ func ValkeyClient(t *testing.T) (Container, *goredis.Client) {
 func start(t *testing.T, image, port string, env []string, args ...string) Container {
 	t.Helper()
 	testreap.ReapOnce(t)
-	name := "heartbeat-api-test-" + randomHex(t)[:12]
+	name := "atrium-api-test-" + randomHex(t)[:12]
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()

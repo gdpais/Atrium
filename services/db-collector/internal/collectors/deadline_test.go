@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // testAbandonGrace keeps abandonment fast in tests.

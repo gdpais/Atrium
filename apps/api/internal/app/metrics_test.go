@@ -12,8 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"heartbeat/apps/api/internal/httpapi"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/httpapi"
+	"atrium/internal/telemetry"
 )
 
 func TestRequestMetricsLabelRequestsByRoute(t *testing.T) {
@@ -42,17 +42,17 @@ func TestRequestMetricsLabelRequestsByRoute(t *testing.T) {
 	}
 
 	want := `
-# HELP heartbeat_api_http_requests_total HTTP requests served, by method, route and status code.
-# TYPE heartbeat_api_http_requests_total counter
-heartbeat_api_http_requests_total{code="200",method="GET",route="/healthz"} 2
-heartbeat_api_http_requests_total{code="200",method="HEAD",route="/healthz"} 1
-heartbeat_api_http_requests_total{code="503",method="GET",route="/readyz"} 1
-heartbeat_api_http_requests_total{code="405",method="POST",route="unmatched"} 1
-heartbeat_api_http_requests_total{code="200",method="GET",route="/metrics"} 1
-heartbeat_api_http_requests_total{code="404",method="GET",route="unmatched"} 1
-heartbeat_api_http_requests_total{code="307",method="GET",route="unmatched"} 1
-heartbeat_api_http_requests_total{code="405",method="other",route="unmatched"} 1
-heartbeat_api_http_requests_total{code="404",method="other",route="unmatched"} 1
+# HELP atrium_api_http_requests_total HTTP requests served, by method, route and status code.
+# TYPE atrium_api_http_requests_total counter
+atrium_api_http_requests_total{code="200",method="GET",route="/healthz"} 2
+atrium_api_http_requests_total{code="200",method="HEAD",route="/healthz"} 1
+atrium_api_http_requests_total{code="503",method="GET",route="/readyz"} 1
+atrium_api_http_requests_total{code="405",method="POST",route="unmatched"} 1
+atrium_api_http_requests_total{code="200",method="GET",route="/metrics"} 1
+atrium_api_http_requests_total{code="404",method="GET",route="unmatched"} 1
+atrium_api_http_requests_total{code="307",method="GET",route="unmatched"} 1
+atrium_api_http_requests_total{code="405",method="other",route="unmatched"} 1
+atrium_api_http_requests_total{code="404",method="other",route="unmatched"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricHTTPRequests); err != nil {
 		t.Fatal(err)

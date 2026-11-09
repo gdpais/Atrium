@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/store"
 )
 
 // snapshotCollector emits a fixed snapshot, as Collect would.
@@ -28,9 +28,9 @@ func TestInfoSeriesWithTheSameLabelsAreSentOnce(t *testing.T) {
 		truncated:    map[string]bool{},
 	}})
 	want := `
-# HELP heartbeat_api_inventory_source_info A telemetry source of the inventory, and whether the collector observes it; always 1.
-# TYPE heartbeat_api_inventory_source_info gauge
-heartbeat_api_inventory_source_info{application="Claims",application_name="Claims",environment="prod",ingest_mode="agentless",managed_by="api",observation="observed",source_type="outsystems",status="disabled"} 1
+# HELP atrium_api_inventory_source_info A telemetry source of the inventory, and whether the collector observes it; always 1.
+# TYPE atrium_api_inventory_source_info gauge
+atrium_api_inventory_source_info{application="Claims",application_name="Claims",environment="prod",ingest_mode="agentless",managed_by="api",observation="observed",source_type="outsystems",status="disabled"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricSourceInfo); err != nil {
 		t.Fatal(err)
@@ -49,9 +49,9 @@ func TestInfoSeriesWithAnInvalidLabelAreLeftOut(t *testing.T) {
 		truncated: map[string]bool{},
 	}})
 	want := `
-# HELP heartbeat_api_inventory_environment_info An environment of the inventory; always 1.
-# TYPE heartbeat_api_inventory_environment_info gauge
-heartbeat_api_inventory_environment_info{environment="prod",managed_by="config",status="active",type="production"} 1
+# HELP atrium_api_inventory_environment_info An environment of the inventory; always 1.
+# TYPE atrium_api_inventory_environment_info gauge
+atrium_api_inventory_environment_info{environment="prod",managed_by="config",status="active",type="production"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricEnvironmentInfo); err != nil {
 		t.Fatal(err)

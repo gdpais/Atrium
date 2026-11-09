@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/services/db-collector/internal/probes/sqlserver"
+	"atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // Builtins lists every probe of the SQL Server catalog once, as the catalog

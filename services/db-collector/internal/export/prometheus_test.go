@@ -44,10 +44,10 @@ func TestExporterRecordsSamples(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	exporter := NewPrometheusExporter(reg)
 	labels := map[string]string{"environment": "prod", "target": "core-db", "wait_type": "LCK_M_X"}
-	if err := exporter.Record([]Sample{{Metric: "heartbeat_sqlserver_wait_seconds_total", Type: Counter, Value: 42, Labels: labels}}); err != nil {
+	if err := exporter.Record([]Sample{{Metric: "atrium_sqlserver_wait_seconds_total", Type: Counter, Value: 42, Labels: labels}}); err != nil {
 		t.Fatalf("Record: %v", err)
 	}
-	if value, ok := gathered(t, reg, "heartbeat_sqlserver_wait_seconds_total", labels); !ok || value != 42 {
+	if value, ok := gathered(t, reg, "atrium_sqlserver_wait_seconds_total", labels); !ok || value != 42 {
 		t.Fatalf("unexpected metric value: %v %v", value, ok)
 	}
 }
@@ -62,18 +62,18 @@ func TestExporterExposesMetricType(t *testing.T) {
 	}{
 		{
 			name:   "zero type is a gauge",
-			sample: Sample{Metric: "heartbeat_test_sessions", Help: "Sessions.", Value: 3, Labels: map[string]string{"target": "db"}},
-			want: `# HELP heartbeat_test_sessions Sessions.
-# TYPE heartbeat_test_sessions gauge
-heartbeat_test_sessions{target="db"} 3
+			sample: Sample{Metric: "atrium_test_sessions", Help: "Sessions.", Value: 3, Labels: map[string]string{"target": "db"}},
+			want: `# HELP atrium_test_sessions Sessions.
+# TYPE atrium_test_sessions gauge
+atrium_test_sessions{target="db"} 3
 `,
 		},
 		{
 			name:   "counter",
-			sample: Sample{Metric: "heartbeat_test_wait_seconds_total", Help: "Wait time.", Type: Counter, Value: 1.5, Labels: map[string]string{"target": "db"}},
-			want: `# HELP heartbeat_test_wait_seconds_total Wait time.
-# TYPE heartbeat_test_wait_seconds_total counter
-heartbeat_test_wait_seconds_total{target="db"} 1.5
+			sample: Sample{Metric: "atrium_test_wait_seconds_total", Help: "Wait time.", Type: Counter, Value: 1.5, Labels: map[string]string{"target": "db"}},
+			want: `# HELP atrium_test_wait_seconds_total Wait time.
+# TYPE atrium_test_wait_seconds_total counter
+atrium_test_wait_seconds_total{target="db"} 1.5
 `,
 		},
 	}
@@ -101,7 +101,7 @@ func TestCounterDropAfterSourceRestartIsExported(t *testing.T) {
 	scope := Scope{Collector: "c", Target: "db", Probe: "waits"}
 	labels := map[string]string{"target": "db", "wait_type": "LCK_M_S"}
 	for _, value := range []float64{100, 160, 5} {
-		sample := Sample{Metric: "heartbeat_test_wait_seconds_total", Type: Counter, Value: value, Labels: labels}
+		sample := Sample{Metric: "atrium_test_wait_seconds_total", Type: Counter, Value: value, Labels: labels}
 		if err := exporter.RecordScope(scope, []Sample{sample}); err != nil {
 			t.Fatalf("RecordScope(%v): %v", value, err)
 		}
@@ -112,7 +112,7 @@ func TestCounterDropAfterSourceRestartIsExported(t *testing.T) {
 }
 
 func TestExporterRejectsInvalidSamples(t *testing.T) {
-	valid := Sample{Metric: "heartbeat_test_total", Type: Counter, Value: 1, Labels: map[string]string{"target": "db"}}
+	valid := Sample{Metric: "atrium_test_total", Type: Counter, Value: 1, Labels: map[string]string{"target": "db"}}
 	tests := []struct {
 		name    string
 		sample  Sample
@@ -124,12 +124,12 @@ func TestExporterRejectsInvalidSamples(t *testing.T) {
 		{"missing label", Sample{Metric: valid.Metric, Type: Counter, Value: 1, Labels: map[string]string{}}, "label set changed"},
 		{"renamed label", Sample{Metric: valid.Metric, Type: Counter, Value: 1, Labels: map[string]string{"instance": "db"}}, "label set changed"},
 		{"invalid UTF-8 label value", Sample{Metric: valid.Metric, Type: Counter, Value: 1, Labels: map[string]string{"target": "db\xff"}}, "not valid UTF-8"},
-		{"name registered by another collector", Sample{Metric: "heartbeat_test_conflict", Value: 1}, "register gauge heartbeat_test_conflict"},
+		{"name registered by another collector", Sample{Metric: "atrium_test_conflict", Value: 1}, "register gauge atrium_test_conflict"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
-			reg.MustRegister(prometheus.NewCounter(prometheus.CounterOpts{Name: "heartbeat_test_conflict", Help: "Registered elsewhere."}))
+			reg.MustRegister(prometheus.NewCounter(prometheus.CounterOpts{Name: "atrium_test_conflict", Help: "Registered elsewhere."}))
 			exporter := NewPrometheusExporter(reg)
 			scope := Scope{Collector: "c", Target: "db", Probe: "p"}
 			err := exporter.RecordScope(scope, []Sample{valid, tt.sample})
@@ -198,7 +198,7 @@ func waitSamples(n int) []Sample {
 	samples := make([]Sample, n)
 	for i := range samples {
 		samples[i] = Sample{
-			Metric: "heartbeat_test_wait_seconds_total",
+			Metric: "atrium_test_wait_seconds_total",
 			Type:   Counter,
 			Value:  float64(i),
 			Labels: map[string]string{"environment": "prod", "target": "db", "wait_type": fmt.Sprintf("WAIT_%d", i)},
@@ -250,7 +250,7 @@ func BenchmarkGather(b *testing.B) {
 // GaugeVec, the lower bound for comparison with BenchmarkGather.
 func BenchmarkGatherGaugeVecBaseline(b *testing.B) {
 	reg := prometheus.NewRegistry()
-	vec := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "heartbeat_test_wait_seconds_total", Help: "Wait time."}, []string{"environment", "target", "wait_type"})
+	vec := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "atrium_test_wait_seconds_total", Help: "Wait time."}, []string{"environment", "target", "wait_type"})
 	reg.MustRegister(vec)
 	for i := range gatherBenchTargets {
 		for j := range gatherBenchWaits {

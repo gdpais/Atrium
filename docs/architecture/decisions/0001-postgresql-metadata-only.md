@@ -5,7 +5,7 @@
 
 ## Context
 
-Heartbeat handles high-volume telemetry (metrics, logs, session evidence) and a
+Atrium handles high-volume telemetry (metrics, logs, session evidence) and a
 comparatively small amount of product state: inventory, policies, schedules,
 investigation requests and results. Putting both in one relational database
 would make PostgreSQL a bottleneck, duplicate data that Prometheus and Loki

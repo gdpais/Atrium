@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	heartbeatconfig "heartbeat/internal/config"
+	atriumconfig "atrium/internal/config"
 )
 
 func TestDefaultCatalogEmbedsEveryQueryFile(t *testing.T) {
@@ -88,28 +88,28 @@ func TestCatalogRejectsInvalidFileNames(t *testing.T) {
 
 func TestValidateRejectsUnknownLogTypes(t *testing.T) {
 	catalog := DefaultCatalog()
-	collector := func(kind string, enabled bool, collectorProbe, targetProbe string) heartbeatconfig.CollectorRuntimeConfig {
-		c := heartbeatconfig.CollectorRuntimeConfig{ID: "c", Kind: kind, Enabled: enabled}
+	collector := func(kind string, enabled bool, collectorProbe, targetProbe string) atriumconfig.CollectorRuntimeConfig {
+		c := atriumconfig.CollectorRuntimeConfig{ID: "c", Kind: kind, Enabled: enabled}
 		if collectorProbe != "" {
-			c.Probes = []heartbeatconfig.ProbeRuntimeConfig{{Name: collectorProbe}}
+			c.Probes = []atriumconfig.ProbeRuntimeConfig{{Name: collectorProbe}}
 		}
-		c.Targets = []heartbeatconfig.TargetRuntimeConfig{{Name: "t", Probes: []heartbeatconfig.ProbeRuntimeConfig{{Name: targetProbe}}}}
+		c.Targets = []atriumconfig.TargetRuntimeConfig{{Name: "t", Probes: []atriumconfig.ProbeRuntimeConfig{{Name: targetProbe}}}}
 		return c
 	}
 	tests := []struct {
 		name      string
-		collector heartbeatconfig.CollectorRuntimeConfig
+		collector atriumconfig.CollectorRuntimeConfig
 		wantErr   bool
 	}{
-		{"known log type", collector(heartbeatconfig.KindOutSystemsLogs, true, "error", "error"), false},
-		{"unknown on the target", collector(heartbeatconfig.KindOutSystemsLogs, true, "", "screen_typo"), true},
-		{"unknown on the collector", collector(heartbeatconfig.KindOutSystemsLogs, true, "screen_typo", "error"), true},
-		{"disabled collectors too", collector(heartbeatconfig.KindOutSystemsLogs, false, "", "screen_typo"), true},
-		{"SQL Server probes are not log types", collector(heartbeatconfig.KindSQLServer, true, "waits", "waits"), false},
+		{"known log type", collector(atriumconfig.KindOutSystemsLogs, true, "error", "error"), false},
+		{"unknown on the target", collector(atriumconfig.KindOutSystemsLogs, true, "", "screen_typo"), true},
+		{"unknown on the collector", collector(atriumconfig.KindOutSystemsLogs, true, "screen_typo", "error"), true},
+		{"disabled collectors too", collector(atriumconfig.KindOutSystemsLogs, false, "", "screen_typo"), true},
+		{"SQL Server probes are not log types", collector(atriumconfig.KindSQLServer, true, "waits", "waits"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := catalog.Validate(heartbeatconfig.RuntimeConfig{Collectors: []heartbeatconfig.CollectorRuntimeConfig{tt.collector}})
+			err := catalog.Validate(atriumconfig.RuntimeConfig{Collectors: []atriumconfig.CollectorRuntimeConfig{tt.collector}})
 			if tt.wantErr != (err != nil) {
 				t.Fatalf("wantErr %v, got %v", tt.wantErr, err)
 			}
@@ -126,7 +126,7 @@ func TestQueriesAreOneReadOnlySelect(t *testing.T) {
 	catalog := DefaultCatalog()
 	for _, name := range catalog.Names() {
 		query, _ := catalog.Get(name)
-		if err := heartbeatconfig.ValidateReadOnlySelect(query.SQL); err != nil {
+		if err := atriumconfig.ValidateReadOnlySelect(query.SQL); err != nil {
 			t.Errorf("%s.sql must be one read-only SELECT: it %v", name, err)
 		}
 	}

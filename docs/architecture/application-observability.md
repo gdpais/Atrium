@@ -1,6 +1,6 @@
 # Application Observability Architecture
 
-How Heartbeat observes OutSystems applications: where their telemetry comes
+How Atrium observes OutSystems applications: where their telemetry comes
 from, which fields matter, the metrics derived from it and how requests are
 correlated across logs. The decision behind the ingest path is
 [ADR 0008](decisions/0008-outsystems-11-log-extraction.md); the operator flow
@@ -93,7 +93,7 @@ Data path for self-managed OutSystems 11:
    and while Loki is down it takes none. The collector waits for it without
    treating it as a failure: the export runs in the background, outside the
    probe deadline, and is retried until the Collector accepts it; meanwhile
-   the log type reads nothing more, and `heartbeat_outsystems_export_blocked`
+   the log type reads nothing more, and `atrium_outsystems_export_blocked`
    is 1 (`OutSystemsLogExportBlocked` fires after 2 minutes). The target stays up and does not back off, so it resumes as soon
    as the Collector accepts the batch. The rows were read and the query
    closed before the export started, so nothing is held on the logging
@@ -123,7 +123,7 @@ larger queue would have held it.
 The extractor and the [request correlation](#request-traces) look these
 columns up by name. Other columns pass through unchanged.
 
-| Column | Meaning | In Heartbeat |
+| Column | Meaning | In Atrium |
 | --- | --- | --- |
 | `Instant` | When the screen request or timer **started** (`screen`, `cyclic_job`), when the integration or mobile request **completed** (`integration`, `mobile_request`), or when the row was logged (`error`, `general`, `extension`, `request_event`), in the platform servers' time zone | Record timestamp; watermark. Start-stamped types need their own `lag` |
 | `Application_Name`, `Espace_Name` | Owning application and module | `service.name` (application); `Espace_Name` attribute and metric label |
@@ -183,14 +183,14 @@ timer) and `integration` rows of exposed APIs (the API action).
 
 | Metric | Type | Labels | What it answers |
 | --- | --- | --- | --- |
-| `heartbeat_outsystems_operation_duration_seconds` | histogram | `module`, `log_type`, `outcome` | Latency percentiles and SLOs per module for entry points |
-| `heartbeat_outsystems_operations_total` | counter | `module`, `log_type`, `operation`, `outcome` | Throughput and error rate per screen, server call, exposed API or timer |
-| `heartbeat_outsystems_operation_seconds_total` | counter | `module`, `log_type`, `operation` | Mean latency per operation (with the counter above); finds the slow screen inside a slow module |
-| `heartbeat_outsystems_integration_duration_seconds` | histogram | `direction` (consume/expose), `type` (REST/SOAP), `outcome` | External dependency latency; a slow partner shows here first |
-| `heartbeat_outsystems_errors_total` | counter | `module` | Error rate by module, from the error log |
-| `heartbeat_outsystems_slow_events_total` | counter | `module`, `kind` (sql/extension) | Slow SQL (`SLOWSQL`) and slow extension (`SLOWEXTENSION`) rows the platform writes to the general log |
-| `heartbeat_outsystems_timer_delay_seconds` | histogram | `operation` | How late timers start against `Should_Have_Run_At`: scheduler saturation |
-| `heartbeat_outsystems_screen_state_bytes` | histogram | `module`, `kind` (session/viewstate) | Traditional web pages whose state size makes them slow or loads front-end memory |
+| `atrium_outsystems_operation_duration_seconds` | histogram | `module`, `log_type`, `outcome` | Latency percentiles and SLOs per module for entry points |
+| `atrium_outsystems_operations_total` | counter | `module`, `log_type`, `operation`, `outcome` | Throughput and error rate per screen, server call, exposed API or timer |
+| `atrium_outsystems_operation_seconds_total` | counter | `module`, `log_type`, `operation` | Mean latency per operation (with the counter above); finds the slow screen inside a slow module |
+| `atrium_outsystems_integration_duration_seconds` | histogram | `direction` (consume/expose), `type` (REST/SOAP), `outcome` | External dependency latency; a slow partner shows here first |
+| `atrium_outsystems_errors_total` | counter | `module` | Error rate by module, from the error log |
+| `atrium_outsystems_slow_events_total` | counter | `module`, `kind` (sql/extension) | Slow SQL (`SLOWSQL`) and slow extension (`SLOWEXTENSION`) rows the platform writes to the general log |
+| `atrium_outsystems_timer_delay_seconds` | histogram | `operation` | How late timers start against `Should_Have_Run_At`: scheduler saturation |
+| `atrium_outsystems_screen_state_bytes` | histogram | `module`, `kind` (session/viewstate) | Traditional web pages whose state size makes them slow or loads front-end memory |
 
 `outcome` is `error` when the row has an `Error_Id` or a severity of `ERROR` or
 above, otherwise `success`; both series exist from an entry point's first
@@ -202,10 +202,10 @@ include the SLO thresholds (0.1, 0.25, 0.5, 1, 2, 3, 5, 10, 30, 60 s).
 
 | Metric or source | What it answers |
 | --- | --- |
-| `heartbeat_outsystems_front_end_operations_total{front_end, outcome}` | Load balance and error skew per front-end server: one bad node |
-| `heartbeat_outsystems_late_rows_total{log_type}`: rows the recount found committed after the extraction had read past their `Instant` | Whether the platform's log service falls behind by more than the lag; those rows are not in Loki and the metrics undercount ([ADR 0008](decisions/0008-outsystems-11-log-extraction.md)) |
-| `heartbeat_outsystems_log_delay_seconds{log_type}`: now minus the newest `Instant` read, while rows arrive | How fresh extraction is: about the lag plus the poll interval. It cannot show the log service falling behind, since a row is read only once it is older than the lag; the late-row counter does |
-| `heartbeat_outsystems_extract_lag_seconds`, `heartbeat_outsystems_extract_rows_total`, `heartbeat_outsystems_export_failures_total`, `heartbeat_outsystems_duplicate_rows_total`, `heartbeat_outsystems_recount_failures_total`, plus the collector's probe duration, target and freshness metrics | Health of Heartbeat's own extraction |
+| `atrium_outsystems_front_end_operations_total{front_end, outcome}` | Load balance and error skew per front-end server: one bad node |
+| `atrium_outsystems_late_rows_total{log_type}`: rows the recount found committed after the extraction had read past their `Instant` | Whether the platform's log service falls behind by more than the lag; those rows are not in Loki and the metrics undercount ([ADR 0008](decisions/0008-outsystems-11-log-extraction.md)) |
+| `atrium_outsystems_log_delay_seconds{log_type}`: now minus the newest `Instant` read, while rows arrive | How fresh extraction is: about the lag plus the poll interval. It cannot show the log service falling behind, since a row is read only once it is older than the lag; the late-row counter does |
+| `atrium_outsystems_extract_lag_seconds`, `atrium_outsystems_extract_rows_total`, `atrium_outsystems_export_failures_total`, `atrium_outsystems_duplicate_rows_total`, `atrium_outsystems_recount_failures_total`, plus the collector's probe duration, target and freshness metrics | Health of Atrium's own extraction |
 | The `sqlserver` collector kind on the logging and platform databases | Waits, blocking, storage growth and I/O of the databases OutSystems depends on; the log database's growth and the platform database's blocking are common OutSystems incidents |
 | Front-end Windows/IIS hosts | Not collected: it needs an agent on the platform servers (for example `windows_exporter`). Optional, the operator's decision |
 
@@ -214,8 +214,8 @@ include the SLO thresholds (0.1, 0.25, 0.5, 1, 2, 3, 5, 10, 30, 60 s).
 | Source | What it answers |
 | --- | --- |
 | Distinct `User_Id` and `Session_Id` per application over 5m and 1h, from Loki | How many people use each application now. Daily and monthly actives come from Loki in reports (phase 7) |
-| `heartbeat_outsystems_operations_total` by `operation` | Feature and screen usage: what people actually use |
-| `heartbeat_outsystems_integration_duration_seconds_count` by `direction` and `type`; per endpoint from Loki | Business transaction volume with partner systems |
+| `atrium_outsystems_operations_total` by `operation` | Feature and screen usage: what people actually use |
+| `atrium_outsystems_integration_duration_seconds_count` by `direction` and `type`; per endpoint from Loki | Business transaction volume with partner systems |
 | `Tenant_Id` (Loki, reports) | Usage per tenant, where apps are multi-tenant; not a metric label unless the tenant count is small |
 
 ### Not built, on purpose
@@ -234,15 +234,15 @@ include the SLO thresholds (0.1, 0.25, 0.5, 1, 2, 3, 5, 10, 30, 60 s).
 ### SLOs and alerts
 
 Recording rules in
-[`heartbeat.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml)
+[`atrium.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium.rules.yml)
 turn the metrics into SLIs per environment and application, over
 user-facing requests (screens, Reactive server calls and exposed APIs;
 timers are left out):
 
 - Availability: the share of requests with `outcome="success"`
-  (`heartbeat:outsystems_request_errors:ratio_rate<window>`).
+  (`atrium:outsystems_request_errors:ratio_rate<window>`).
 - Latency: the share of requests answered within 2 s, from the histogram's
-  `le="2"` bucket (`heartbeat:outsystems_request_slow:ratio_rate<window>`).
+  `le="2"` bucket (`atrium:outsystems_request_slow:ratio_rate<window>`).
 
 Alerts use multiwindow burn rates against static default objectives, 99.9%
 available (a 0.1% error budget) and 99% within 2 s over 30 days: fast burn
@@ -260,16 +260,16 @@ phase 7.
 
 ### Dashboards
 
-Four dashboards in Grafana's **Heartbeat** folder read these metrics and the
+Four dashboards in Grafana's **Atrium** folder read these metrics and the
 log records
-([`files/grafana/dashboards/`](../../infra/helm/heartbeat/files/grafana/dashboards/)).
+([`files/grafana/dashboards/`](../../infra/helm/atrium/files/grafana/dashboards/)).
 Each one filters by environment and application. A header link opens the
 others with the same filters and time range, and another opens the SQL Server
 Overview for the same time.
 
 | Dashboard | What it answers | From |
 | --- | --- | --- |
-| *OutSystems Overview* (`outsystems-overview`) | Are users served well right now: requests, failed and slow shares against the objectives, p95, error-budget burn, active users and sessions, extraction lag; then the busiest operations, front-end skew, integrations, slow SQL, timers and Heartbeat's own extraction | Metrics; users and sessions from Loki |
+| *OutSystems Overview* (`outsystems-overview`) | Are users served well right now: requests, failed and slow shares against the objectives, p95, error-budget burn, active users and sessions, extraction lag; then the busiest operations, front-end skew, integrations, slow SQL, timers and Atrium's own extraction | Metrics; users and sessions from Loki |
 | *OutSystems Errors* (`outsystems-errors`) | What fails, where and for whom: errors by module and front-end, failed operations, the top fingerprints, users affected, and the error log | Metrics and Loki |
 | *OutSystems Latency* (`outsystems-latency`) | Where time goes: percentiles and the duration distribution, slowest operations by mean, p95 by module, integrations, screen state size, and the requests over 2 s | Metrics and Loki |
 | *OutSystems Request Timeline* (`outsystems-request`) | Everything one request logged, by `Request_Key`; the requests of a user or session; how many rows of each log type carry a `Request_Key` ([step A](#step-a-request-timeline-from-logs-with-phase-2)) | Loki |
@@ -294,7 +294,7 @@ OutSystems 11 logs carry no trace ID to join them by. The result is traces
 that are hard to map to the platform's own concepts.
 
 OutSystems already ties its own logs together: every row a request writes
-carries the same `Request_Key`, across log types and modules. Heartbeat can
+carries the same `Request_Key`, across log types and modules. Atrium can
 build request timelines from that key, in OutSystems terms, without any agent.
 
 ### Step A: request timeline from logs (with phase 2)
@@ -330,8 +330,8 @@ The extractor turns rows into spans as well as log records:
 | Span links | Calls from one OutSystems app to another one's exposed API, matched by endpoint and time; marked as inferred |
 
 The OTel Collector's `spanmetrics` connector can then produce the same RED
-metrics from spans, and Tempo, the store Heartbeat's own traces already use
-([ADR 0018](decisions/0018-heartbeats-own-telemetry.md)), shows waterfalls with
+metrics from spans, and Tempo, the store Atrium's own traces already use
+([ADR 0018](decisions/0018-atriums-own-telemetry.md)), shows waterfalls with
 links to the logs and the SQL Server dashboards for the same time. Step B is not
 part of phase 2's exit.
 

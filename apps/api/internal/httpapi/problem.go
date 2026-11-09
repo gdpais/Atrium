@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/openapi"
 )
 
 // problem is an RFC 9457 problem whose status says what went wrong.

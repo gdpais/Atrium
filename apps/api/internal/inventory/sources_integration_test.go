@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/inventory"
 )
 
 // watching is an Observer whose collector extracts the environments it

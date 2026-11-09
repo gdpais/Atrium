@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 // A delivery check may count rows as far back as scenario.MaxDeliveryReach;

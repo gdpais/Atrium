@@ -361,9 +361,9 @@ func TestRegisterExposesServiceInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `
-# HELP heartbeat_service_info Always 1: the service, version, revision and environment that are running.
-# TYPE heartbeat_service_info gauge
-heartbeat_service_info{environment="test",revision="` + tel.Identity.Revision + `",service="svc",version="dev"} 1
+# HELP atrium_service_info Always 1: the service, version, revision and environment that are running.
+# TYPE atrium_service_info gauge
+atrium_service_info{environment="test",revision="` + tel.Identity.Revision + `",service="svc",version="dev"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricServiceInfo); err != nil {
 		t.Error(err)

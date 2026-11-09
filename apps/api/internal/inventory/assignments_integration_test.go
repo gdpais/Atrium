@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/probedefs"
-	"heartbeat/apps/api/internal/testenv"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/testenv"
 )
 
 var admin = inventory.Caller{

@@ -33,10 +33,10 @@ func TestPoolMetricsFollowTheHandles(t *testing.T) {
 	defer conn.Close()
 
 	want := `
-# HELP heartbeat_collector_db_connections Connections to a monitored database by state (in_use, idle).
-# TYPE heartbeat_collector_db_connections gauge
-heartbeat_collector_db_connections{environment="prod",state="idle",target="a"} 0
-heartbeat_collector_db_connections{environment="prod",state="in_use",target="a"} 1
+# HELP atrium_collector_db_connections Connections to a monitored database by state (in_use, idle).
+# TYPE atrium_collector_db_connections gauge
+atrium_collector_db_connections{environment="prod",state="idle",target="a"} 0
+atrium_collector_db_connections{environment="prod",state="in_use",target="a"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricConnections); err != nil {
 		t.Error(err)

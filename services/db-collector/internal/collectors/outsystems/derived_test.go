@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // derivedRun feeds rows of one log type to a fresh Metrics.

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/store"
 )
 
 // Telemetry is what an entity's telemetry carries to say it is the

@@ -18,7 +18,7 @@ import (
 	"slices"
 	"strings"
 
-	heartbeatconfig "heartbeat/internal/config"
+	atriumconfig "atrium/internal/config"
 )
 
 //go:embed queries/*.sql
@@ -86,10 +86,10 @@ func (c Catalog) Names() []string {
 // Validate rejects an outsystems_logs collector, enabled or not, that selects
 // a log type the catalog does not have.  A query_template override replaces
 // the query of a log type; it cannot add one.  The db-collector registers it
-// with [heartbeatconfig.WithValidator].
-func (c Catalog) Validate(cfg heartbeatconfig.RuntimeConfig) error {
+// with [atriumconfig.WithValidator].
+func (c Catalog) Validate(cfg atriumconfig.RuntimeConfig) error {
 	for _, collector := range cfg.Collectors {
-		if collector.Kind != heartbeatconfig.KindOutSystemsLogs {
+		if collector.Kind != atriumconfig.KindOutSystemsLogs {
 			continue
 		}
 		probes := slices.Clone(collector.Probes)

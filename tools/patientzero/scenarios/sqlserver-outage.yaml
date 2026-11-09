@@ -21,13 +21,13 @@ steps:
     duration: 3m
 signals:
   - name: targets-down
-    promql: max(heartbeat_collector_target_up{target=~"sqlserver-dev|patientzero-log"})
+    promql: max(atrium_collector_target_up{target=~"sqlserver-dev|patientzero-log"})
     condition: "== 0"
     step: down
     within: 2m
   # A failed target backs off, up to a few minutes, before it tries again.
   - name: targets-back
-    promql: min(heartbeat_collector_target_up{target=~"sqlserver-dev|patientzero-log"})
+    promql: min(atrium_collector_target_up{target=~"sqlserver-dev|patientzero-log"})
     condition: "== 1"
     step: down
     from: end

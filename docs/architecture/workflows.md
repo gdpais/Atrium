@@ -28,7 +28,7 @@ All four workflows follow the same pattern:
 | Service | Owns | Status |
 | --- | --- | --- |
 | API / control plane (`apps/api`) | Inventory CRUD, telemetry source and database target onboarding, alert policy and report schedule CRUD, users/roles, investigation APIs, Grafana deep links from YAML templates, audit records. Uses PostgreSQL for durable data and Redis for queues, idempotency keys and cached summaries. | Built for onboarding: login, cookie sessions and roles, users managed by admins [4.2]; environments, applications and components [4.3]; telemetry sources and their observation [4.4]; database targets, probe definitions and assignments rendered to `managedCollectors` [4.5]; deep links [4.9]; audit records through the outbox [4.10]. Investigation, alerting and reporting APIs come with their workers in phase 7 [4.6–4.8] |
-| Inventory as code (`heartbeat-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | Built [5]: the API applies the mounted file; `api inventory check` and `api inventory render` work offline; Grafana lists the inventory (*Heartbeat Inventory*). Left: tokens for machine clients, when the first one needs them [5.3] |
+| Inventory as code (`atrium-deploy`) | Environments, applications, components, telemetry sources, database targets and probe assignments in one YAML file per environment, reviewed as pull requests and applied by the API; Grafana lists the inventory ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)). Replaces the Web UI. | Built [5]: the API applies the mounted file; `api inventory check` and `api inventory render` work offline; Grafana lists the inventory (*Atrium Inventory*). Left: tokens for machine clients, when the first one needs them [5.3] |
 | Session analyzer (`services/session-analyzer`) | Investigation jobs: correlation across Prometheus, Loki, collector evidence and metadata; anomaly windows; adaptive baseline computation. | Planned |
 | Reporting (`services/reporting`) | Scheduled and on-demand report jobs, rendering, delivery, run metadata. | Planned |
 
@@ -113,12 +113,12 @@ Validate which OutSystems fields are reliably present early.
 - **Grafana links** in alert evidence are generated from YAML URL templates,
   not database tables.
 
-Planned rendering path: API → `infra/helm/heartbeat/files/prometheus/rules/generated/` (loaded by
+Planned rendering path: API → `infra/helm/atrium/files/prometheus/rules/generated/` (loaded by
 Prometheus) and API → Alertmanager routes. Who renders `generated/` (the API or
 a build step) is an [open question](overview.md#open-questions).
 
 **Current state:** the hand-written rule files in
-`infra/helm/heartbeat/files/prometheus/rules/`
+`infra/helm/atrium/files/prometheus/rules/`
 ([list](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules))
 hold the rules; `make rules-check` validates them and runs their unit tests. Prometheus
 sends alerts to Alertmanager. Alertmanager routes the always-firing `Watchdog`
@@ -156,4 +156,4 @@ that rolls back leaves no record; while the Collector is down, changes still com
 records wait. Secrets never enter audit records. Records are searched in
 Grafana; a SIEM is added as a Collector exporter. Collector reload results
 and collector add, remove and change decisions stay in the collector's logs
-and its `heartbeat_collector_config_*` metrics.
+and its `atrium_collector_config_*` metrics.

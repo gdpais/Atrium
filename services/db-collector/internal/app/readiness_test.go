@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 func TestEvaluateReadiness(t *testing.T) {
@@ -29,7 +29,7 @@ func TestEvaluateReadiness(t *testing.T) {
 		name        string
 		initialized bool
 		warm        bool
-		snapshot    heartbeatconfig.Snapshot
+		snapshot    atriumconfig.Snapshot
 		state       collectorState
 		wantReady   bool
 		wantReason  string
@@ -41,8 +41,8 @@ func TestEvaluateReadiness(t *testing.T) {
 		{name: "stale since start", initialized: true, warm: true, state: running(now.Add(-13*time.Second), time.Time{}), wantReason: "is stale"},
 		{name: "stale since last cycle", initialized: true, warm: true, state: running(now.Add(-time.Hour), now.Add(-13*time.Second)), wantReason: "is stale"},
 		{name: "target failures stay ready", initialized: true, warm: true, state: running(now.Add(-time.Minute), now, failedTarget), wantReady: true},
-		{name: "rejected candidate stays ready", initialized: true, warm: true, snapshot: heartbeatconfig.Snapshot{LastReloadErr: "parse runtime config: bad yaml"}, state: running(now.Add(-time.Minute), now), wantReady: true},
-		{name: "diverged runtime", initialized: true, warm: true, snapshot: heartbeatconfig.Snapshot{RuntimeDiverged: true}, state: running(now.Add(-time.Minute), now), wantReason: "rollback failed"},
+		{name: "rejected candidate stays ready", initialized: true, warm: true, snapshot: atriumconfig.Snapshot{LastReloadErr: "parse runtime config: bad yaml"}, state: running(now.Add(-time.Minute), now), wantReady: true},
+		{name: "diverged runtime", initialized: true, warm: true, snapshot: atriumconfig.Snapshot{RuntimeDiverged: true}, state: running(now.Add(-time.Minute), now), wantReason: "rollback failed"},
 		{name: "backing off after crash", initialized: true, warm: true, state: collectorState{Collector: cfg, Phase: phaseBackingOff, Crashes: 1}, wantReason: "poller is backing_off"},
 		{name: "failed", initialized: true, warm: true, state: collectorState{Collector: cfg, Phase: phaseFailed, Crashes: 5}, wantReason: "poller is failed"},
 		{name: "draining is not judged", initialized: true, state: collectorState{Collector: cfg, Phase: phaseDraining, Started: now.Add(-time.Hour)}, wantReady: true},
@@ -91,7 +91,7 @@ func TestReadyzServesOnlyStatusAndDiagnosticsNeedTheToken(t *testing.T) {
 	if c.TargetsTotal != 1 || c.TargetsFailed != 1 || c.Targets[0].State != "failed" || c.Targets[0].ConsecutiveFailures != 3 || c.Targets[0].NextAttempt == nil {
 		t.Fatalf("target details missing: %+v", c)
 	}
-	if !strings.Contains(c.Targets[0].Error, "login failed for user 'heartbeat_svc' on sql.example.internal:1433") {
+	if !strings.Contains(c.Targets[0].Error, "login failed for user 'atrium_svc' on sql.example.internal:1433") {
 		t.Fatalf("raw driver error missing from authenticated diagnostics: %q", c.Targets[0].Error)
 	}
 	if c.LastCycleFinished == nil || c.CycleAgeSeconds == nil || !c.Ready || c.Phase != phaseRunning {
@@ -138,7 +138,7 @@ func TestEvaluateReadinessAddsErrorTextOnlyWhenAsked(t *testing.T) {
 	state := collectorState{
 		Collector: collectorConfig("sql-a", "prod"), Phase: phaseRunning, Started: now, HasCycle: true,
 		LastCycle: collectors.CycleResult{CollectorID: "sql-a", Finished: now, Targets: []collectors.TargetResult{
-			{Target: "core-db", State: collectors.TargetFailed, Err: errors.New("login failed for user 'heartbeat_svc'")},
+			{Target: "core-db", State: collectors.TargetFailed, Err: errors.New("login failed for user 'atrium_svc'")},
 		}},
 	}
 	for _, withErrors := range []bool{false, true} {

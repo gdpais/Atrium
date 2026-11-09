@@ -1,4 +1,4 @@
-// Package configschema holds the JSON Schemas of Heartbeat's configuration,
+// Package configschema holds the JSON Schemas of Atrium's configuration,
 // src/*.schema.json, for the code that checks configuration at run time.
 //
 // So far that is the config of each telemetry source type, which the API
@@ -32,10 +32,10 @@ var integrations []byte
 var inventory []byte
 
 // integrationsID is the integrations schema's $id.
-const integrationsID = "https://heartbeat.local/schemas/integrations.schema.json"
+const integrationsID = "https://atrium.local/schemas/integrations.schema.json"
 
 // inventoryID is the inventory schema's $id.
-const inventoryID = "https://heartbeat.local/schemas/inventory.schema.json"
+const inventoryID = "https://atrium.local/schemas/inventory.schema.json"
 
 const sourcesDir = "src/telemetry-sources"
 

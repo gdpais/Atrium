@@ -15,22 +15,22 @@ import (
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 
-	"heartbeat/internal/telemetry"
+	"atrium/internal/telemetry"
 )
 
 // What a delivered record carries (ADR 0016 §3).
 const (
 	// ServiceName is the service.name resource attribute of every record:
-	// in Loki, {service_name="heartbeat-api"}.
-	ServiceName = "heartbeat-api"
+	// in Loki, {service_name="atrium-api"}.
+	ServiceName = "atrium-api"
 	// EventName is the event.name attribute of every record.
-	EventName = "heartbeat.audit"
+	EventName = "atrium.audit"
 	// AttributeRecordID holds the record's id: OpenTelemetry's attribute for
 	// an ID that marks records with the same value as duplicates.
 	AttributeRecordID = "log.record.uid"
 	// OTLPClient is the client label of the delivery's OTLP metrics.
 	OTLPClient = "audit"
-	scopeName  = "heartbeat/api/audit"
+	scopeName  = "atrium/api/audit"
 )
 
 // Drainer defaults.
@@ -202,7 +202,7 @@ func logRecord(row Row, observed uint64) *logspb.LogRecord {
 	return record
 }
 
-// Resource is the records' resource: service.name heartbeat-api, and the
+// Resource is the records' resource: service.name atrium-api, and the
 // replica's version, instance and environment from identity.
 func Resource(identity telemetry.Identity) *resourcepb.Resource {
 	resource := &resourcepb.Resource{}

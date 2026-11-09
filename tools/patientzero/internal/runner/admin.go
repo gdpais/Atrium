@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"heartbeat/tools/patientzero/internal/journal"
+	"atrium/tools/patientzero/internal/journal"
 )
 
 // adminAuth authorizes the admin endpoints with the bearer token from

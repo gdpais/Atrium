@@ -27,19 +27,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/internal/otlp"
-	"heartbeat/internal/telemetry"
-	"heartbeat/services/db-collector/internal/collectors"
-	"heartbeat/services/db-collector/internal/collectors/outsystems"
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	atriumconfig "atrium/internal/config"
+	"atrium/internal/otlp"
+	"atrium/internal/telemetry"
+	"atrium/services/db-collector/internal/collectors"
+	"atrium/services/db-collector/internal/collectors/outsystems"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectorexport "atrium/services/db-collector/internal/export"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // collectorKinds are the collector kinds this service runs.
-var collectorKinds = []string{heartbeatconfig.KindSQLServer, heartbeatconfig.KindOutSystemsLogs}
+var collectorKinds = []string{atriumconfig.KindSQLServer, atriumconfig.KindOutSystemsLogs}
 
 // outSystemsStateDir is the subdirectory of Config.StateDir that holds the
 // outsystems_logs watermarks.
@@ -124,7 +124,7 @@ type timeouts struct {
 func defaultTimeouts() timeouts {
 	return timeouts{
 		reload:       30 * time.Second,
-		rollback:     heartbeatconfig.DefaultRollbackTimeout,
+		rollback:     atriumconfig.DefaultRollbackTimeout,
 		httpShutdown: 10 * time.Second,
 		pollerStop:   20 * time.Second,
 		background:   5 * time.Second,
@@ -202,8 +202,8 @@ func newRunDeps(cfg Config) (runDeps, error) {
 	logs := outsystems.NewExecutor(outsystems.SQLServerSource{Manager: manager},
 		outsystems.NewStore(filepath.Join(cfg.StateDir, outSystemsStateDir)), logsClient, logMetrics, logger)
 	executor := collectors.EngineExecutor{
-		heartbeatconfig.KindSQLServer:      collectors.NewSQLExecutor(manager),
-		heartbeatconfig.KindOutSystemsLogs: logs,
+		atriumconfig.KindSQLServer:      collectors.NewSQLExecutor(manager),
+		atriumconfig.KindOutSystemsLogs: logs,
 	}
 	runner := collectors.NewRunner(executor, exporter, collectors.LoggingEvidenceSink{}).WithLogger(logger).WithProbeMetrics(probeMetrics)
 	return runDeps{
@@ -233,17 +233,17 @@ func newRunDeps(cfg Config) (runDeps, error) {
 // db-collector applies, at startup and on each reload: the loader's own,
 // then the names of the SQL Server probes and OutSystems log types, which
 // only the embedded catalogs know.
-func newConfigManager(path string) (*heartbeatconfig.Manager, error) {
-	return heartbeatconfig.NewManager(path,
-		heartbeatconfig.WithValidator(catalogsqlserver.DefaultCatalog().Validate),
-		heartbeatconfig.WithValidator(catalogoutsystems.DefaultCatalog().Validate))
+func newConfigManager(path string) (*atriumconfig.Manager, error) {
+	return atriumconfig.NewManager(path,
+		atriumconfig.WithValidator(catalogsqlserver.DefaultCatalog().Validate),
+		atriumconfig.WithValidator(catalogoutsystems.DefaultCatalog().Validate))
 }
 
 // runDeps are the collaborators of run, injectable for tests.
 type runDeps struct {
 	cfg           Config
 	logger        *slog.Logger
-	configManager *heartbeatconfig.Manager
+	configManager *atriumconfig.Manager
 	// configMetrics, when set, counts every reload; Run has already counted
 	// the startup load.
 	configMetrics *configMetrics
@@ -341,7 +341,7 @@ func run(ctx context.Context, deps runDeps) error {
 // service holds the state shared by HTTP handlers, reload triggers, and
 // shutdown.
 type service struct {
-	configManager *heartbeatconfig.Manager
+	configManager *atriumconfig.Manager
 	lifecycle     *pollerLifecycle
 	logger        *slog.Logger
 	auth          adminAuth
@@ -365,7 +365,7 @@ type service struct {
 }
 
 // newService builds a service with the given collaborators.
-func newService(configManager *heartbeatconfig.Manager, lifecycle *pollerLifecycle, logger *slog.Logger, adminToken string, t timeouts) *service {
+func newService(configManager *atriumconfig.Manager, lifecycle *pollerLifecycle, logger *slog.Logger, adminToken string, t timeouts) *service {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
@@ -383,10 +383,10 @@ func newService(configManager *heartbeatconfig.Manager, lifecycle *pollerLifecyc
 // initialReconcile starts every enabled collector from the active snapshot.
 func (s *service) initialReconcile(ctx context.Context) error {
 	snapshot := s.configManager.Snapshot()
-	diff := heartbeatconfig.DiffCollectors(heartbeatconfig.RuntimeConfig{}, snapshot.Config, collectorKinds...)
+	diff := atriumconfig.DiffCollectors(atriumconfig.RuntimeConfig{}, snapshot.Config, collectorKinds...)
 	reconcileCtx, cancel := context.WithTimeout(ctx, s.timeouts.reload)
 	defer cancel()
-	if err := heartbeatconfig.ReconcileWithRollback(reconcileCtx, s.lifecycle, diff, s.timeouts.rollback); err != nil {
+	if err := atriumconfig.ReconcileWithRollback(reconcileCtx, s.lifecycle, diff, s.timeouts.rollback); err != nil {
 		s.logger.Error("initial collector reconcile failed", "error", err)
 		return err
 	}
@@ -539,7 +539,7 @@ func (s *service) handleReload(w http.ResponseWriter, r *http.Request) {
 
 // rollbackSucceeded reports whether err carries a successful rollback.
 func rollbackSucceeded(err error) bool {
-	var reconcileErr *heartbeatconfig.ReconcileError
+	var reconcileErr *atriumconfig.ReconcileError
 	return errors.As(err, &reconcileErr) && reconcileErr.RolledBack()
 }
 
@@ -620,13 +620,13 @@ func (s *service) reload(parent context.Context, trigger string) (reloadSummary,
 	s.logger.Info("config reload started", "trigger", trigger, "timeout", s.timeouts.reload.String())
 
 	var summary reloadSummary
-	snapshot, err := s.configManager.ReloadApplyingContext(ctx, func(_, next heartbeatconfig.RuntimeConfig) error {
+	snapshot, err := s.configManager.ReloadApplyingContext(ctx, func(_, next atriumconfig.RuntimeConfig) error {
 		diff, restarted := s.planReload(next)
 		summary = reloadSummary{Added: len(diff.Added), Updated: len(diff.Updated) - len(restarted), Removed: len(diff.Removed), Unchanged: len(diff.Unchanged), Restarted: len(restarted)}
 		if len(restarted) > 0 {
 			s.logger.Info("config reload restarting collectors that are not running", "trigger", trigger, "collectors", restarted)
 		}
-		return heartbeatconfig.ReconcileWithRollback(ctx, s.lifecycle, diff, s.timeouts.rollback)
+		return atriumconfig.ReconcileWithRollback(ctx, s.lifecycle, diff, s.timeouts.rollback)
 	})
 	s.configMetrics.observe(err)
 	attrs := []any{
@@ -637,7 +637,7 @@ func (s *service) reload(parent context.Context, trigger string) (reloadSummary,
 	switch {
 	case err == nil:
 		s.logger.Info("config reload applied", attrs...)
-	case errors.Is(err, heartbeatconfig.ErrReloadApply):
+	case errors.Is(err, atriumconfig.ErrReloadApply):
 		rolledBack := rollbackSucceeded(err)
 		attrs = append(attrs, "error", err, "rolled_back", rolledBack)
 		if rolledBack {
@@ -655,10 +655,10 @@ func (s *service) reload(parent context.Context, trigger string) (reloadSummary,
 // next, so a reload after a failed rollback converges on next rather than on
 // the stale snapshot. Unchanged collectors that are not running are moved to
 // Updated so they are restarted; their IDs are returned.
-func (s *service) planReload(next heartbeatconfig.RuntimeConfig) (heartbeatconfig.CollectorDiff, []string) {
-	running := heartbeatconfig.RuntimeConfig{Collectors: s.lifecycle.configs()}
-	diff := heartbeatconfig.DiffCollectors(running, next, collectorKinds...)
-	nextByID := map[string]heartbeatconfig.CollectorRuntimeConfig{}
+func (s *service) planReload(next atriumconfig.RuntimeConfig) (atriumconfig.CollectorDiff, []string) {
+	running := atriumconfig.RuntimeConfig{Collectors: s.lifecycle.configs()}
+	diff := atriumconfig.DiffCollectors(running, next, collectorKinds...)
+	nextByID := map[string]atriumconfig.CollectorRuntimeConfig{}
 	for _, collector := range next.EnabledCollectors(collectorKinds...) {
 		nextByID[collector.ID] = collector
 	}
@@ -792,7 +792,7 @@ type probeReport struct {
 // readiness evaluates readiness now against snapshot, latches warm-up, and
 // logs transitions. withErrors adds raw target error text, for the
 // authenticated endpoints only.
-func (s *service) readiness(snapshot heartbeatconfig.Snapshot, withErrors bool) readinessReport {
+func (s *service) readiness(snapshot atriumconfig.Snapshot, withErrors bool) readinessReport {
 	report, allCycled := evaluateReadiness(readinessInput{
 		initialized: s.initialized.Load(),
 		warm:        s.warm.Load(),
@@ -829,7 +829,7 @@ func (s *service) logReadinessTransition(report readinessReport) {
 type readinessInput struct {
 	initialized bool
 	warm        bool
-	snapshot    heartbeatconfig.Snapshot
+	snapshot    atriumconfig.Snapshot
 	collectors  []collectorState
 	grace       time.Duration
 	now         time.Time

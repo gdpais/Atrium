@@ -6,7 +6,7 @@ import (
 )
 
 func TestCertificateTrustRequiresExplicitOptIn(t *testing.T) {
-	const key = "HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE"
+	const key = "ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE"
 	for _, tc := range []struct {
 		value string
 		want  bool

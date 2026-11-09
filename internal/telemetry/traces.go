@@ -28,7 +28,7 @@ const EnvTracesEndpoint = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 
 // MetricTraceExportErrors counts the errors the tracing SDK reported, mostly
 // batches of spans it could not send. No labels.
-const MetricTraceExportErrors = "heartbeat_telemetry_trace_errors_total"
+const MetricTraceExportErrors = "atrium_telemetry_trace_errors_total"
 
 // Tracer returns the tracer of an instrumentation scope. Before [Start] sets up
 // tracing, and without it, its spans do nothing.

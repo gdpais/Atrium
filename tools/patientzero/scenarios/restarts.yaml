@@ -8,7 +8,7 @@ description: >-
   Collector sends the request its queue kept on disk first, and while Loki
   is away the collector waits instead of failing. Loki ends with every row
   PatientZero committed, once, and no restart is long enough to alert:
-  neither HeartbeatServiceDown nor OutSystemsLogExportBlocked fires.
+  neither AtriumServiceDown nor OutSystemsLogExportBlocked fires.
 load: steady
 steps:
   - name: before
@@ -31,11 +31,11 @@ steps:
   - name: after
     duration: 1m
 signals:
-  # Both alerts need 2 minutes (for: 2m): HeartbeatServiceDown of up == 0,
+  # Both alerts need 2 minutes (for: 2m): AtriumServiceDown of up == 0,
   # or of no up series for the db-collector, and OutSystemsLogExportBlocked
   # of a blocked export. Each restart is back within one.
   - name: no-service-down
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     state: resolved
     step: before
     mode: always

@@ -8,7 +8,7 @@
 [ADR 0004](0004-core-technology-choices.md) chose Prometheus, Loki, Grafana
 and Alertmanager, and the chart bundles them. The organization standardizes
 new observability work on the ELK stack in Elastic Cloud, so the platform
-Heartbeat's data lands in may change. The project has no budget for one yet:
+Atrium's data lands in may change. The project has no budget for one yet:
 it runs on kind, with about $100 of AWS credit for later.
 
 What was found on 2026-10-18 and 2026-10-19 (list prices; check them again
@@ -27,7 +27,7 @@ before deciding):
 - Elastic Cloud accepts OTLP directly (the managed OTLP endpoint, generally
   available on Serverless and on Hosted from 9.0), like most platforms.
 
-Heartbeat's code was already close to neutral: the db-collector exposes
+Atrium's code was already close to neutral: the db-collector exposes
 Prometheus metrics and sends logs as OTLP to the OpenTelemetry Collector, and
 only the Collector and the chart name a backend. The coupling was the
 integrations config, which required `grafana`, `loki` and `alertmanager`
@@ -39,7 +39,7 @@ nothing used, and chart names that assumed Prometheus.
 Keep the Grafana stack as the bundled platform, and keep everything else
 independent of it:
 
-1. **Heartbeat's services emit only open formats.** OTLP to the OpenTelemetry
+1. **Atrium's services emit only open formats.** OTLP to the OpenTelemetry
    Collector, and Prometheus exposition on `/metrics`. They never write to a
    platform's own API.
 2. **The Collector and the chart are the only places that name a platform.**
@@ -49,14 +49,14 @@ independent of it:
    Exporters are named for their role (`otlp_http/logs`), so such a file
    repoints them.
 3. **The integrations config is neutral.** `platform` (`grafana`, or
-   `generic` for a platform Heartbeat has nothing for) with `dashboards`,
+   `generic` for a platform Atrium has nothing for) with `dashboards`,
    `logs` and `alerting`, each the platform's UI or query API. No push
    endpoints. `dbCollector.networkPolicy.prometheus` becomes `scrapers`.
 4. **Content is per platform.** Dashboards, recording and alert rules, label
    or index policy, and deep-link templates are written for one platform.
    The catalog of what to measure and alert on stays neutral
    ([derived metrics](../application-observability.md#derived-metrics));
-   Heartbeat ships content for Grafana only, until another platform is
+   Atrium ships content for Grafana only, until another platform is
    chosen.
 5. **Future readers go through adapters.** The API's deep links, the session
    analyzer and reports will query logs and metrics through an interface,

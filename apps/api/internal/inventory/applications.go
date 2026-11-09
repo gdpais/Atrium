@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
 )
 
 // Application is an application as the API shows it, and as its audit

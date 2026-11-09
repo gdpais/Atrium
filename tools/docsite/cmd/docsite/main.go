@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 
-	"heartbeat/tools/docsite/internal/site"
+	"atrium/tools/docsite/internal/site"
 )
 
 func main() {

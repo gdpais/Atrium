@@ -69,7 +69,7 @@ func TestBuildLogsMapsRowsToRecords(t *testing.T) {
 		services = append(services, resource["service.name"].(string))
 		want := map[string]any{
 			"service.name": resource["service.name"], "deployment.environment.name": "prod", "outsystems.log_type": "error",
-			"heartbeat.collector": "oslogs", "heartbeat.target": "logging-db",
+			"atrium.collector": "oslogs", "atrium.target": "logging-db",
 		}
 		if len(resource) != len(want) {
 			t.Errorf("resource attributes %v, want %v", resource, want)

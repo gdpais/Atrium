@@ -11,11 +11,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/apps/api/internal/users"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/testenv"
+	"atrium/apps/api/internal/users"
 )
 
 const secret = "correct horse battery staple, admin"

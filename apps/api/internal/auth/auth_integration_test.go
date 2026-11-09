@@ -24,12 +24,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	goredis "github.com/redis/go-redis/v9"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/testenv"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/testenv"
 )
 
 // cheap are argon2id parameters fast enough for the tests that are not
@@ -129,7 +129,7 @@ func (f *fixture) records(t *testing.T, action string) []audit.Record {
 // sessionKeys returns the Redis keys of every session.
 func (f *fixture) sessionKeys(t *testing.T) []string {
 	t.Helper()
-	keys, err := f.redis.Keys(context.Background(), "heartbeat:session:*").Result()
+	keys, err := f.redis.Keys(context.Background(), "atrium:session:*").Result()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func keyOf(t *testing.T, token string) string {
 		t.Fatalf("token %q: want 256 bits, base64url-encoded without padding (%v)", token, err)
 	}
 	sum := sha256.Sum256(raw)
-	return "heartbeat:session:" + hex.EncodeToString(sum[:])
+	return "atrium:session:" + hex.EncodeToString(sum[:])
 }
 
 // null reports a record's before or after that holds no state.
@@ -204,7 +204,7 @@ func TestLoginStartsAnAuditedSession(t *testing.T) {
 		t.Fatalf("record's after %s", r.After)
 	}
 	encoded, _ := json.Marshal(r)
-	audittest.NoSecrets(t, encoded, secret, token, f.hash(t, userID), strings.TrimPrefix(keyOf(t, token), "heartbeat:session:"))
+	audittest.NoSecrets(t, encoded, secret, token, f.hash(t, userID), strings.TrimPrefix(keyOf(t, token), "atrium:session:"))
 	if got := testutil.ToFloat64(f.attempts.WithLabelValues("succeeded")); got != 1 {
 		t.Fatalf("succeeded logins = %v, want 1", got)
 	}
@@ -292,7 +292,7 @@ func TestLoginRefusesRequestsItCannotCheck(t *testing.T) {
 	if n := len(f.records(t, audit.ActionLoginFailed)); n != 0 {
 		t.Fatalf("%d failed-login records for requests that were never checked", n)
 	}
-	if keys, _ := f.redis.Keys(ctx, "heartbeat:login-failures:*").Result(); len(keys) != 0 {
+	if keys, _ := f.redis.Keys(ctx, "atrium:login-failures:*").Result(); len(keys) != 0 {
 		t.Fatalf("requests that were never checked counted against the limits: %v", keys)
 	}
 }
@@ -459,7 +459,7 @@ func TestAuthenticateFollowsTheUser(t *testing.T) {
 	if keys := f.sessionKeys(t); len(keys) != 0 {
 		t.Fatalf("the disabled user's session is still in Redis: %v", keys)
 	}
-	if members, _ := f.redis.SMembers(ctx, "heartbeat:user-sessions:"+userID).Result(); len(members) != 0 {
+	if members, _ := f.redis.SMembers(ctx, "atrium:user-sessions:"+userID).Result(); len(members) != 0 {
 		t.Fatalf("the disabled user's session is still listed: %v", members)
 	}
 
@@ -559,7 +559,7 @@ func TestLoginDeletesTheSessionWhenTheCommitFails(t *testing.T) {
 	if keys := f.sessionKeys(t); len(keys) != 0 {
 		t.Fatalf("the session outlived its failed commit: %v", keys)
 	}
-	if members, _ := f.redis.SMembers(ctx, "heartbeat:user-sessions:"+userID).Result(); len(members) != 0 {
+	if members, _ := f.redis.SMembers(ctx, "atrium:user-sessions:"+userID).Result(); len(members) != 0 {
 		t.Fatalf("the user still lists the session: %v", members)
 	}
 	if n := len(f.records(t, audit.ActionLogin)); n != 0 {
@@ -701,7 +701,7 @@ func TestSessions(t *testing.T) {
 			t.Fatalf("Redis holds the token under %s", k)
 		}
 	}
-	if members, _ := client.SMembers(ctx, "heartbeat:user-sessions:user-1").Result(); !slices.Equal(members, []string{strings.TrimPrefix(key, "heartbeat:session:")}) {
+	if members, _ := client.SMembers(ctx, "atrium:user-sessions:user-1").Result(); !slices.Equal(members, []string{strings.TrimPrefix(key, "atrium:session:")}) {
 		t.Fatalf("user-1's sessions %v", members)
 	}
 
@@ -767,7 +767,7 @@ func TestSessions(t *testing.T) {
 			t.Fatalf("session %d after DeleteUser(user-2): %v", i, err)
 		}
 	}
-	if n, _ := client.Exists(ctx, "heartbeat:user-sessions:user-2").Result(); n != 0 {
+	if n, _ := client.Exists(ctx, "atrium:user-sessions:user-2").Result(); n != 0 {
 		t.Fatal("user-2 still lists sessions")
 	}
 }
@@ -808,7 +808,7 @@ func TestLimits(t *testing.T) {
 	}
 	addressCount := func(block string) int {
 		t.Helper()
-		n, err := client.Get(ctx, "heartbeat:login-failures:address:"+block).Int()
+		n, err := client.Get(ctx, "atrium:login-failures:address:"+block).Int()
 		if err != nil && !errors.Is(err, goredis.Nil) {
 			t.Fatal(err)
 		}
@@ -851,7 +851,7 @@ func TestLimits(t *testing.T) {
 	if err := limits.Unchecked(ctx, "gone@example.com", netip.MustParseAddr("192.0.2.6")); err != nil {
 		t.Fatal(err)
 	}
-	if ttl, _ := client.PTTL(ctx, "heartbeat:login-failures:address:192.0.2.6").Result(); ttl <= 0 || ttl > auth.FailureWindow {
+	if ttl, _ := client.PTTL(ctx, "atrium:login-failures:address:192.0.2.6").Result(); ttl <= 0 || ttl > auth.FailureWindow {
 		t.Fatalf("a count taken back after it expired has TTL %s, want up to %s", ttl, auth.FailureWindow)
 	}
 
@@ -886,7 +886,7 @@ func TestLimits(t *testing.T) {
 
 	// The window starts at the first failure: later ones do not extend it.
 	counted("192.0.2.9", "d@example.com")
-	keys, _ := client.Keys(ctx, "heartbeat:login-failures:address:192.0.2.9").Result()
+	keys, _ := client.Keys(ctx, "atrium:login-failures:address:192.0.2.9").Result()
 	if len(keys) != 1 {
 		t.Fatalf("address keys %v", keys)
 	}
@@ -1060,7 +1060,7 @@ func TestLoginLosesToAConcurrentChange(t *testing.T) {
 			if !errors.Is(got.err, auth.ErrInvalidCredentials) || got.token != "" {
 				t.Fatalf("Login racing the change = %q, %v; want ErrInvalidCredentials", got.token, got.err)
 			}
-			if members, _ := f.redis.SMembers(ctx, "heartbeat:user-sessions:"+userID).Result(); len(members) != 0 {
+			if members, _ := f.redis.SMembers(ctx, "atrium:user-sessions:"+userID).Result(); len(members) != 0 {
 				t.Fatalf("the login started a session: %v", members)
 			}
 			failed := f.records(t, audit.ActionLoginFailed)

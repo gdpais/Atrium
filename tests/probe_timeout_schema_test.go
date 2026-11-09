@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"heartbeat/internal/config"
+	"atrium/internal/config"
 )
 
 // The schema's timeout_ms maximum must match the limit the services enforce,

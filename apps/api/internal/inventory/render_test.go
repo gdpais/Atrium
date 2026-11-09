@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/inventory"
 )
 
 // The ID of a target the file creates depends only on the environment's

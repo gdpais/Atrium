@@ -3,7 +3,7 @@ version: 1
 name: checkout-errors
 description: >-
   Half of the Reactive checkout's PlaceOrder calls fail for three minutes,
-  each with an error row under its Request_Key. Heartbeat's derived error
+  each with an error row under its Request_Key. Atrium's derived error
   ratio for the PlaceOrder operation rises, the injected errors reach Loki
   in PatientZero's error log, and the ratio falls back once the fault ends.
 load: steady
@@ -23,8 +23,8 @@ signals:
   # product), so the ratio is read against thresholds well clear of that.
   - name: error-ratio-rises
     promql: >-
-      sum(rate(heartbeat_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder",outcome="error"}[1m]))
-      / sum(rate(heartbeat_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder"}[1m]))
+      sum(rate(atrium_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder",outcome="error"}[1m]))
+      / sum(rate(atrium_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder"}[1m]))
     condition: "> 0.3"
     step: errors
     within: 4m
@@ -37,8 +37,8 @@ signals:
     within: 4m
   - name: error-ratio-recovers
     promql: >-
-      sum(rate(heartbeat_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder",outcome="error"}[1m]))
-      / sum(rate(heartbeat_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder"}[1m]))
+      sum(rate(atrium_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder",outcome="error"}[1m]))
+      / sum(rate(atrium_outsystems_operations_total{application="PatientZero",log_type="mobile_request",operation="PlaceOrder"}[1m]))
     condition: "< 0.2"
     step: errors
     from: end

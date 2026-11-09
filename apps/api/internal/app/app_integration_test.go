@@ -17,15 +17,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/httpapi"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/apps/api/internal/users"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/httpapi"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/testenv"
+	"atrium/apps/api/internal/users"
+	"atrium/internal/credentials"
+	"atrium/internal/credentials/credentialstest"
 )
 
 // The API against real PostgreSQL and Valkey, with its credentials in a
@@ -272,9 +272,9 @@ func TestRunLogsInAndOut(t *testing.T) {
 
 	_, metrics := get(t, base+"/metrics")
 	for _, line := range []string{
-		`heartbeat_api_login_attempts_total{outcome="succeeded"} 1`,
-		`heartbeat_api_login_attempts_total{outcome="failed"} 1`,
-		`heartbeat_api_login_attempts_total{outcome="rate_limited"} 0`,
+		`atrium_api_login_attempts_total{outcome="succeeded"} 1`,
+		`atrium_api_login_attempts_total{outcome="failed"} 1`,
+		`atrium_api_login_attempts_total{outcome="rate_limited"} 0`,
 	} {
 		if !strings.Contains(metrics, line+"\n") {
 			t.Errorf("/metrics lacks %q", line)
@@ -288,7 +288,7 @@ func TestRunLogsInAndOut(t *testing.T) {
 }
 
 // site is the origin the API under test serves.
-const site = "https://heartbeat.example.com"
+const site = "https://atrium.example.com"
 
 // api is the API, run against its own PostgreSQL and Valkey, with site
 // as its origin.

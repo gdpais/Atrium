@@ -13,7 +13,7 @@
 #   hb_admin [JQ ARGS] GET /admin/config through jq (default: target states)
 #   hb_reload         POST /admin/config/reload
 #   hb_logs [N]       last N (default 20) collector log lines, compacted
-#   hb_k ARGS         kubectl in the kind cluster's heartbeat namespace
+#   hb_k ARGS         kubectl in the kind cluster's atrium namespace
 #
 # Defaults match make kind-up and make sqlserver-dev-up; override with
 # HB_COLLECTOR, HB_PROMETHEUS, HB_ADMIN_TOKEN, HB_SQL_CONTAINER, HB_ENV_FILE
@@ -23,9 +23,9 @@
 HB_COLLECTOR=${HB_COLLECTOR:-http://localhost:8082}
 HB_PROMETHEUS=${HB_PROMETHEUS:-http://localhost:9090}
 HB_ADMIN_TOKEN=${HB_ADMIN_TOKEN:-local-admin-token}
-HB_SQL_CONTAINER=${HB_SQL_CONTAINER:-heartbeat-sqlserver-dev}
+HB_SQL_CONTAINER=${HB_SQL_CONTAINER:-atrium-sqlserver-dev}
 HB_ENV_FILE=${HB_ENV_FILE:-.env.sqlserver-dev}
-HB_CONTEXT=${HB_CONTEXT:-kind-heartbeat}
+HB_CONTEXT=${HB_CONTEXT:-kind-atrium}
 
 _hb_env() { grep "^$1=" "$HB_ENV_FILE" | head -n 1 | cut -d= -f2-; }
 
@@ -42,7 +42,7 @@ _hb_sqlcmd() {
 # shellcheck disable=SC2119,SC2120 # callers may pass sqlcmd options; hb_probe passes none
 hb_sql() {
 	local cred
-	cred=$(_hb_env HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV)
+	cred=$(_hb_env ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV)
 	[ -n "$cred" ] || { echo "hb_sql: no collector credential in $HB_ENV_FILE" >&2; return 1; }
 	_hb_sqlcmd "${cred%%:*}" "${cred#*:}" "$@"
 }
@@ -77,8 +77,8 @@ hb_reload() {
 }
 
 hb_logs() {
-	kubectl --context "$HB_CONTEXT" -n heartbeat logs db-collector-0 --tail "${1:-20}" |
+	kubectl --context "$HB_CONTEXT" -n atrium logs db-collector-0 --tail "${1:-20}" |
 		jq -c 'del(.time) | with_entries(select(.value != null))' 2>/dev/null
 }
 
-hb_k() { kubectl --context "$HB_CONTEXT" -n heartbeat "$@"; }
+hb_k() { kubectl --context "$HB_CONTEXT" -n atrium "$@"; }

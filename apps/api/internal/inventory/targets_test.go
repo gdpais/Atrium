@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
-	"heartbeat/internal/config"
-	"heartbeat/internal/credentials"
+	api "atrium/apps/api"
+	"atrium/internal/config"
+	"atrium/internal/credentials"
 )
 
 func validTarget() NewDatabaseTarget {
@@ -92,7 +92,7 @@ func TestCredentialRef(t *testing.T) {
 		"", "finance-prod", "vault/finance", "env/", "env/-finance", "env/" + strings.Repeat("a", 201),
 		// Other spellings of keys a reference above has: they would reach
 		// its credential while looking like another reference.
-		"env/Finance-Prod", "env/finance.prod", "env/finance_prod", "env/HEARTBEAT_SQLSERVER", "secret/api.postgres",
+		"env/Finance-Prod", "env/finance.prod", "env/finance_prod", "env/ATRIUM_SQLSERVER", "secret/api.postgres",
 		"env/finance prod", "env/finance/prod", "env/sa:not-a-secret", "sa:not-a-secret", "env/sa@sql01",
 		urlWithCredential("vault.internal/finance"), " env/finance-prod", "env/finance-prod\n", "env/finançe",
 	} {

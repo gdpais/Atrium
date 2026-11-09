@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const dashboardDir = "infra/helm/heartbeat/files/grafana/dashboards"
+const dashboardDir = "infra/helm/atrium/files/grafana/dashboards"
 
 type dashboardTarget struct {
 	Datasource struct {
@@ -57,7 +57,7 @@ type dashboard struct {
 // provisions.
 func grafanaDatasources(t *testing.T) map[string]string {
 	t.Helper()
-	content, err := os.ReadFile(filepath.Join(repoRoot(t), "infra/helm/heartbeat/values.yaml"))
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), "infra/helm/atrium/values.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestDashboardsAreConsistent(t *testing.T) {
 // removed without its link fails here.
 func TestInventoryDashboardLinksAreTheLinkTemplates(t *testing.T) {
 	root := repoRoot(t)
-	content, err := os.ReadFile(filepath.Join(root, "infra/helm/heartbeat/values.yaml"))
+	content, err := os.ReadFile(filepath.Join(root, "infra/helm/atrium/values.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,11 +204,11 @@ func TestInventoryDashboardLinksAreTheLinkTemplates(t *testing.T) {
 	if len(templates) == 0 {
 		t.Fatal("no integrations.dashboards.deep_link_templates in values.yaml")
 	}
-	if got := values.Integrations.Dashboards.DashboardTemplates["heartbeat-inventory"]; got != "/d/heartbeat-inventory" {
-		t.Errorf("dashboard_templates lists heartbeat-inventory as %q, want /d/heartbeat-inventory", got)
+	if got := values.Integrations.Dashboards.DashboardTemplates["atrium-inventory"]; got != "/d/atrium-inventory" {
+		t.Errorf("dashboard_templates lists atrium-inventory as %q, want /d/atrium-inventory", got)
 	}
 
-	raw, err := os.ReadFile(filepath.Join(root, dashboardDir, "heartbeat-inventory.json"))
+	raw, err := os.ReadFile(filepath.Join(root, dashboardDir, "atrium-inventory.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

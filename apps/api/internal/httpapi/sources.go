@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/openapi"
 )
 
 func sourceOut(src inventory.Source) openapi.TelemetrySource {

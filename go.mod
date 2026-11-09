@@ -1,4 +1,4 @@
-module heartbeat
+module atrium
 
 go 1.27.3
 

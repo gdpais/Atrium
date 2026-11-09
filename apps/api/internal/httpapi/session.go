@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/openapi"
 )
 
 // errNoAuth is a session operation on a Server built without auth.

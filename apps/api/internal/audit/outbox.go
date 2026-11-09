@@ -9,11 +9,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/telemetry"
 )
 
-var tracer = telemetry.Tracer("heartbeat/api/audit")
+var tracer = telemetry.Tracer("atrium/api/audit")
 
 // finishTimeout bounds deleting delivered rows and committing, which go on
 // after a shutdown has begun: records the Collector took are not sent again.

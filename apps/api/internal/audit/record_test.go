@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/store"
 )
 
 // recorder is a store.DBTX that keeps the arguments of each Exec.
@@ -128,14 +128,14 @@ func TestWriteRecordsAUserActorAndAConfigVersion(t *testing.T) {
 func TestWriteRecordsTheInventoryFileAsActor(t *testing.T) {
 	db := &recorder{}
 	change := validChange()
-	change.Actor = audit.ConfigActor("/etc/heartbeat/inventory/inventory.yaml", "api-7d9f-xk2p")
+	change.Actor = audit.ConfigActor("/etc/atrium/inventory/inventory.yaml", "api-7d9f-xk2p")
 	change.ConfigVersion = "sha256:9c1e"
 	if _, err := audit.Write(context.Background(), store.New(db), change); err != nil {
 		t.Fatal(err)
 	}
 	encoded := db.execs[0][1].([]byte)
 	audittest.Validate(t, encoded)
-	if !strings.Contains(string(encoded), `"actor":{"type":"config","host":"api-7d9f-xk2p","file":"/etc/heartbeat/inventory/inventory.yaml"}`) {
+	if !strings.Contains(string(encoded), `"actor":{"type":"config","host":"api-7d9f-xk2p","file":"/etc/atrium/inventory/inventory.yaml"}`) {
 		t.Fatalf("record's actor: %s", encoded)
 	}
 }

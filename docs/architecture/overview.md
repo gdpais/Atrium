@@ -1,7 +1,7 @@
-# Heartbeat Architecture Overview
+# Atrium Architecture Overview
 
-Heartbeat collects telemetry from a separate monitoring environment. SQL Server
-hosts run no Heartbeat agents. Metrics, logs and traces belong in Prometheus,
+Atrium collects telemetry from a separate monitoring environment. SQL Server
+hosts run no Atrium agents. Metrics, logs and traces belong in Prometheus,
 Loki and Tempo; PostgreSQL holds the durable metadata of the control plane,
 the API.
 
@@ -22,7 +22,7 @@ the API.
 ## Current runtime
 
 This diagram reflects the checked-in services and the Helm chart
-([`infra/helm/heartbeat`](../../infra/helm/heartbeat)), as deployed on kind and
+([`infra/helm/atrium`](../../infra/helm/atrium)), as deployed on kind and
 in CI. Production on EKS runs the same chart with production values; it is
 not built yet ([roadmap](../product/roadmap.md), phase 5).
 
@@ -48,13 +48,13 @@ API with PostgreSQL and Valkey. They are in the table below, which is current.
 
 | Component | Endpoints | Notes |
 | --- | --- | --- |
-| DB collector | `:8082` — `/metrics`, `/healthz`, `/readyz`, `/admin/config`, `POST /admin/config/reload` | Reload also on SIGHUP, and on file change when `HEARTBEAT_CONFIG_WATCH_INTERVAL` is set. Credentials resolved from `HEARTBEAT_CREDENTIAL_*`. |
+| DB collector | `:8082` — `/metrics`, `/healthz`, `/readyz`, `/admin/config`, `POST /admin/config/reload` | Reload also on SIGHUP, and on file change when `ATRIUM_CONFIG_WATCH_INTERVAL` is set. Credentials resolved from `ATRIUM_CREDENTIAL_*`. |
 | API | `:8081` — `/metrics`, `/healthz`, `/readyz`, `/api/v1/…` | The control plane ([ADR 0013](decisions/0013-api-design-and-subsystem-boundaries.md)): login and roles, the inventory, telemetry sources, database targets, probe definitions and assignments (rendered to the chart's `managedCollectors`), deep links into Grafana and audit records. It applies the environment's inventory file when the chart mounts one ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)), and lists the inventory as [info metrics](../reference/metrics-and-endpoints.md#inventory-info-metrics) for Grafana. An init container applies `db/migrations` first, and readiness waits for PostgreSQL at the newest of them and for Redis. Its own logs and spans go to the OTel Collector like the collector's. |
 | PostgreSQL / Valkey | `:5432` / `:6379` | The API's metadata store and Redis, as small one-replica StatefulSets for kind and CI; production uses Amazon RDS and ElastiCache ([ADR 0015](decisions/0015-postgresql-and-redis-delivery.md)). |
-| OTel Collector | OTLP `:4317` gRPC / `:4318` HTTP; Heartbeat's own logs `:4319` HTTP; Prometheus export `:8889`; health `:13133` | Exports logs to Loki's OTLP endpoint and traces to Tempo. Loki indexes only `service.name`, `service.namespace`, `deployment.environment.name` and `outsystems.log_type` as labels; every other attribute, including user, session and request IDs and client IP, is kept as structured metadata. |
+| OTel Collector | OTLP `:4317` gRPC / `:4318` HTTP; Atrium's own logs `:4319` HTTP; Prometheus export `:8889`; health `:13133` | Exports logs to Loki's OTLP endpoint and traces to Tempo. Loki indexes only `service.name`, `service.namespace`, `deployment.environment.name` and `outsystems.log_type` as labels; every other attribute, including user, session and request IDs and client IP, is kept as structured metadata. |
 | Prometheus | `:9090` | 15s scrape. The chart's rule files ([list](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules)) and `generated/` (no rules yet). Sends alerts to Alertmanager. |
 | Alertmanager | `:9093` | `default` and `deadmans-switch` receivers with no integrations on kind ([ADR 0009](decisions/0009-remove-the-otel-gateway.md)); the always-firing `Watchdog` alert routes to `deadmans-switch`. The production example adds chat receivers and healthchecks.io. |
-| Loki / Tempo / Grafana | `:3100` / `:3200` / `:3000` | Tempo keeps traces for 7 days ([ADR 0018](decisions/0018-heartbeats-own-telemetry.md)). Grafana is provisioned with Prometheus (default), Loki and Tempo data sources and the Heartbeat dashboards. |
+| Loki / Tempo / Grafana | `:3100` / `:3200` / `:3000` | Tempo keeps traces for 7 days ([ADR 0018](decisions/0018-atriums-own-telemetry.md)). Grafana is provisioned with Prometheus (default), Loki and Tempo data sources and the Atrium dashboards. |
 
 Inside the cluster each component accepts connections only from the components
 that use it, on the ports above, through ingress NetworkPolicies. Grafana is
@@ -77,7 +77,7 @@ The dashed groups are the planes described in [Core systems](#core-systems).
 An existing store does not imply that its planned consumers are implemented.
 The control plane is partly built: the API serves the inventory and Redis
 holds its login sessions, while job queues wait for the analysis workers
-(phase 7). The configuration repository (`heartbeat-deploy`) and Argo CD come
+(phase 7). The configuration repository (`atrium-deploy`) and Argo CD come
 with production delivery (phase 5); until then the chart mounts the
 inventory file directly.
 
@@ -122,9 +122,9 @@ The current runtime diagram was checked against the chart and a kind
 deployment on 2026-10-03 (`make kind-e2e`); what the chart added since and the
 diagram does not draw is listed under it.
 
-- [Chart values](../../infra/helm/heartbeat/values.yaml): Prometheus scrape jobs
+- [Chart values](../../infra/helm/atrium/values.yaml): Prometheus scrape jobs
   and alerting, OTel pipelines, Alertmanager routes, Grafana data sources;
-  [Heartbeat templates](../../infra/helm/heartbeat/templates/).
+  [Atrium templates](../../infra/helm/atrium/templates/).
 - [DB collector wiring](../../services/db-collector/internal/app/app.go),
   and [probe runner and evidence sink](../../services/db-collector/internal/collectors/runner.go).
 - [API wiring](../../apps/api/internal/app/app.go) and its contract,
@@ -135,7 +135,7 @@ diagram does not draw is listed under it.
 
 ## Core systems
 
-Heartbeat is organized into four planes, the same four groups as the
+Atrium is organized into four planes, the same four groups as the
 [target platform](#target-platform) diagram.
 
 | Plane | Components | Status | Details |
@@ -143,7 +143,7 @@ Heartbeat is organized into four planes, the same four groups as the
 | Telemetry | Collection (DB collector, OpenTelemetry Collector), storage and evaluation (Prometheus, Loki, Tempo), alert routing (Alertmanager) | Implemented, including OutSystems derived metrics and SLO alerts | [Current runtime](#current-runtime), [database observability](database-observability.md), [metrics and endpoints](../reference/metrics-and-endpoints.md) |
 | Analysis jobs | Session analyzer (correlation, adaptive baselines), reporting, report storage | Planned | [Operator workflows](workflows.md) |
 | Control plane | Go API, PostgreSQL (durable metadata), Redis (queues, locks, retries), YAML/Kubernetes config | Implemented: schema, config manager, and the API with login and roles, inventory, sources, targets, probe assignments, deep links and audit, deployed with PostgreSQL and Valkey; the API applies the inventory file. Planned: job queues and the investigation, alerting and reporting APIs (phase 7) | [Data model](data-model.md), [configuration](../reference/configuration.md), [decisions](decisions/README.md) |
-| Presentation | Grafana dashboards, and the API's deep links into them; no Web UI: the inventory is code ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)) | Grafana, deep links and the inventory dashboard (*Heartbeat Inventory*) implemented | [Operator workflows](workflows.md) |
+| Presentation | Grafana dashboards, and the API's deep links into them; no Web UI: the inventory is code ([ADR 0021](decisions/0021-inventory-as-code-and-no-web-ui.md)) | Grafana, deep links and the inventory dashboard (*Atrium Inventory*) implemented | [Operator workflows](workflows.md) |
 
 ## Architectural guardrails
 

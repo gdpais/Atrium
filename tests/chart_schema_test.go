@@ -15,7 +15,7 @@ import (
 func TestChartValuesSchemaEmbedsIntegrationsSchema(t *testing.T) {
 	root := repoRoot(t)
 	source := mustReadJSONSchema(t, filepath.Join(root, "packages/config-schema/src/integrations.schema.json"))
-	chart := mustReadJSONSchema(t, filepath.Join(root, "infra/helm/heartbeat/values.schema.json"))
+	chart := mustReadJSONSchema(t, filepath.Join(root, "infra/helm/atrium/values.schema.json"))
 
 	delete(source, "$schema")
 	properties, _ := chart["properties"].(map[string]any)
@@ -24,7 +24,7 @@ func TestChartValuesSchemaEmbedsIntegrationsSchema(t *testing.T) {
 		t.Fatal("values.schema.json has no properties.integrations")
 	}
 	if !reflect.DeepEqual(source, embedded) {
-		t.Fatal("infra/helm/heartbeat/values.schema.json properties.integrations differs from " +
+		t.Fatal("infra/helm/atrium/values.schema.json properties.integrations differs from " +
 			"packages/config-schema/src/integrations.schema.json (minus $schema); copy the schema across")
 	}
 }
@@ -37,7 +37,7 @@ func TestChartValuesSchemaEmbedsIntegrationsSchema(t *testing.T) {
 func TestChartValuesSchemaManagedCollectorsReuseCollectorSchema(t *testing.T) {
 	root := repoRoot(t)
 	source := mustReadJSONSchema(t, filepath.Join(root, "packages/config-schema/src/integrations.schema.json"))
-	chart := mustReadJSONSchema(t, filepath.Join(root, "infra/helm/heartbeat/values.schema.json"))
+	chart := mustReadJSONSchema(t, filepath.Join(root, "infra/helm/atrium/values.schema.json"))
 
 	properties, _ := chart["properties"].(map[string]any)
 	managed, _ := properties["managedCollectors"].(map[string]any)
@@ -67,7 +67,7 @@ func TestChartValuesSchemaManagedCollectorsReuseCollectorSchema(t *testing.T) {
 // two branches can leave behind, silently drops all but one of them.
 func TestChartValuesSchemaListsTopLevelKeys(t *testing.T) {
 	root := repoRoot(t)
-	schemaPath := filepath.Join(root, "infra/helm/heartbeat/values.schema.json")
+	schemaPath := filepath.Join(root, "infra/helm/atrium/values.schema.json")
 	schema := mustReadJSONSchema(t, schemaPath)
 	if schema["additionalProperties"] != false {
 		t.Fatal("values.schema.json must set additionalProperties: false at the top level")
@@ -78,7 +78,7 @@ func TestChartValuesSchemaListsTopLevelKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files = append(files, filepath.Join(root, "infra/helm/heartbeat/values.yaml"))
+	files = append(files, filepath.Join(root, "infra/helm/atrium/values.yaml"))
 	for _, file := range files {
 		var values map[string]any
 		readYAML(t, file, &values)

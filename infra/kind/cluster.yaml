@@ -1,4 +1,4 @@
-# Local kind cluster for Heartbeat. scripts/kind.sh creates it with the node
+# Local kind cluster for Atrium. scripts/kind.sh creates it with the node
 # image pinned in the Makefile (KIND_NODE_IMAGE).
 #
 # Host ports are the ones the Compose stack used, bound to 127.0.0.1 only,

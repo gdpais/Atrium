@@ -2,7 +2,7 @@
 
 ## Scope
 - SQL Server is the first DB engine in scope.
-- Oracle is the intended future monitored engine; PostgreSQL is Heartbeat's metadata store, not a monitoring target in the current scope.
+- Oracle is the intended future monitored engine; PostgreSQL is Atrium's metadata store, not a monitoring target in the current scope.
 - PostgreSQL stores target metadata, probe definitions and probe assignments for the control plane (the API and the inventory file).
 - The collector never reads PostgreSQL: its desired state is YAML, into which the API renders approved probe assignments ([ADR 0014](decisions/0014-probe-assignments-to-runtime-config.md)).
 
@@ -14,16 +14,16 @@ emits today. Metric names and labels are listed in the
 
 | Signal | Status | Current probe / metric |
 | --- | --- | --- |
-| Wait statistics | Collected | `waits` → `heartbeat_sqlserver_wait_seconds_total` (counter) |
-| Blocking and locks | Collected (blocked requests) | `blocking` → `heartbeat_sqlserver_blocked_requests` |
-| Sessions and connections | Collected | `sessions` → `heartbeat_sqlserver_sessions` |
-| Memory pressure | Collected | `memory_pressure` → `heartbeat_sqlserver_total_server_memory_bytes` |
-| Database size / file size | Collected | `storage` → `heartbeat_sqlserver_database_file_size_bytes` |
-| Throughput counters (batch requests, transactions) | Collected | `throughput` → `heartbeat_sqlserver_batch_requests_total`, `heartbeat_sqlserver_transactions_total` (counters) |
-| Instance availability | Partial | `heartbeat_collector_target_up` (collector reachability) |
-| CPU utilisation | Collected (one-minute granularity; other processes on Windows only) | `cpu` → `heartbeat_sqlserver_cpu_sql_process_ratio`, `heartbeat_sqlserver_cpu_other_process_ratio` |
-| Buffer/cache hit ratio, page life expectancy | Collected | `buffer_cache` → `heartbeat_sqlserver_buffer_cache_hit_ratio`, `heartbeat_sqlserver_page_life_expectancy_seconds` |
-| Physical reads/writes, I/O, IOPS, I/O latency | Collected per database file | `file_io` → reads, writes, bytes and I/O stall seconds per file, e.g. `heartbeat_sqlserver_database_file_reads_total` (counters) |
+| Wait statistics | Collected | `waits` → `atrium_sqlserver_wait_seconds_total` (counter) |
+| Blocking and locks | Collected (blocked requests) | `blocking` → `atrium_sqlserver_blocked_requests` |
+| Sessions and connections | Collected | `sessions` → `atrium_sqlserver_sessions` |
+| Memory pressure | Collected | `memory_pressure` → `atrium_sqlserver_total_server_memory_bytes` |
+| Database size / file size | Collected | `storage` → `atrium_sqlserver_database_file_size_bytes` |
+| Throughput counters (batch requests, transactions) | Collected | `throughput` → `atrium_sqlserver_batch_requests_total`, `atrium_sqlserver_transactions_total` (counters) |
+| Instance availability | Partial | `atrium_collector_target_up` (collector reachability) |
+| CPU utilisation | Collected (one-minute granularity; other processes on Windows only) | `cpu` → `atrium_sqlserver_cpu_sql_process_ratio`, `atrium_sqlserver_cpu_other_process_ratio` |
+| Buffer/cache hit ratio, page life expectancy | Collected | `buffer_cache` → `atrium_sqlserver_buffer_cache_hit_ratio`, `atrium_sqlserver_page_life_expectancy_seconds` |
+| Physical reads/writes, I/O, IOPS, I/O latency | Collected per database file | `file_io` → reads, writes, bytes and I/O stall seconds per file, e.g. `atrium_sqlserver_database_file_reads_total` (counters) |
 | Logical reads (page lookups) | Planned | — |
 | Query latency | Planned | — |
 | Rollbacks, user transactions | Planned | — |
@@ -34,7 +34,7 @@ emits today. Metric names and labels are listed in the
 Output expectations: stable metric names; labels for environment, target,
 database, instance and, where safe, application; dashboards for overview,
 waits/locks, sessions, storage and regressions. Only
-`infra/helm/heartbeat/files/grafana/dashboards/sqlserver-overview.json` exists so far.
+`infra/helm/atrium/files/grafana/dashboards/sqlserver-overview.json` exists so far.
 
 ## Safety rules
 - Credentials are referenced by `credential_ref` only.
@@ -201,7 +201,7 @@ possible. Compare:
 - Signal coverage across waits, blocking, sessions, memory, storage, and
   throughput; units, counter/gauge semantics, labels, and cardinality.
 - Custom query support, structured investigation evidence, and integration with
-  Heartbeat's target/probe configuration and operator workflows.
+  Atrium's target/probe configuration and operator workflows.
 - Database overhead, collector CPU/memory, connection limits, query timeouts,
   least privilege, credentials, and TLS behavior.
 - Reload behavior, error isolation, retries, target ownership/takeover, freshness,

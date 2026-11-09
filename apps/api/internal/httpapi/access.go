@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/apps/api/internal/auth"
+	"atrium/apps/api/internal/auth"
 )
 
 // securityScheme is the spec's one security scheme, the session cookie.

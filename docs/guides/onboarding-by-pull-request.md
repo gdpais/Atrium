@@ -15,7 +15,7 @@ them all. This guide is the workflow around the file.
 | --- | --- |
 | kind | `api.inventory` in [`infra/helm/values/kind.yaml`](../../infra/helm/values/kind.yaml), applied by `make kind-deploy` |
 | Installed from a release | A file of its own, passed with `helm upgrade … --set-file api.inventory=inventory.yaml` |
-| Production | `environments/<env>/inventory.yaml` in the private [`heartbeat-deploy`](https://github.com/gdpais/heartbeat-deploy) repository. Its `scripts/render.sh` writes the file as `inventory-values.yaml` (`api.inventory`) beside the render below, and Argo CD passes both as values files |
+| Production | `environments/<env>/inventory.yaml` in the private [`atrium-deploy`](https://github.com/gdpais/atrium-deploy) repository. Its `scripts/render.sh` writes the file as `inventory-values.yaml` (`api.inventory`) beside the render below, and Argo CD passes both as values files |
 
 ## 1. Prepare what the file refers to
 
@@ -73,10 +73,10 @@ so:
 ## 3. Check and render
 
 Run the same commands the configuration repository's CI runs. In
-`heartbeat-deploy`, `scripts/render.sh` rewrites the renders and
+`atrium-deploy`, `scripts/render.sh` rewrites the renders and
 `scripts/check.sh` runs every check, the collector's `db-collector
-check-config` on the rendered chart included; both take `HEARTBEAT_DIR`, a
-Heartbeat checkout at the commit in `HEARTBEAT_REF`. From a Heartbeat checkout:
+check-config` on the rendered chart included; both take `ATRIUM_DIR`, a
+Atrium checkout at the commit in `ATRIUM_REF`. From an Atrium checkout:
 
 ```bash
 go run ./apps/api/cmd/api inventory check -f inventory.yaml
@@ -108,7 +108,7 @@ revision. Reviewers check:
 | --- | --- |
 | kind | `make kind-deploy`; for the target's probes, `make kind-assignments` |
 | Installed from a release | `helm upgrade` with `--set-file api.inventory=inventory.yaml`, `-f managed-collectors.yaml` after your other values files |
-| Production | Merge in `heartbeat-deploy`; Argo CD syncs the file and the render (by hand until the first production deploy is validated [18]) |
+| Production | Merge in `atrium-deploy`; Argo CD syncs the file and the render (by hand until the first production deploy is validated [18]) |
 
 The API rereads the file every 30 seconds and applies a changed one in one
 transaction. A file it refuses, because it fails validation or names a row
@@ -118,9 +118,9 @@ the API manages, changes nothing: the last applied inventory stays.
 
 ```bash
 # The file applied: changed or unchanged, never invalid or error.
-curl -s localhost:8081/metrics | grep '^heartbeat_api_inventory_applies_total'
+curl -s localhost:8081/metrics | grep '^atrium_api_inventory_applies_total'
 # The rows, with who manages them (config for the file's).
-curl -s localhost:8081/metrics | grep -E '^heartbeat_api_inventory_(application|source|database_target)_info'
+curl -s localhost:8081/metrics | grep -E '^atrium_api_inventory_(application|source|database_target)_info'
 # The probes, applied once the collector runs them.
 curl -sS -b cookies 'localhost:8081/api/v1/probe-assignments?state=applied' | jq '.items[] | {id, collector_id}'
 ```
@@ -135,10 +135,10 @@ Each change is audited in Loki with actor type `config`, the file's path and
 its revision:
 
 ```logql
-{service_name="heartbeat-api"} | event_name="heartbeat.audit" | json | config_version=~"sha256:.+"
+{service_name="atrium-api"} | event_name="atrium.audit" | json | config_version=~"sha256:.+"
 ```
 
-When `heartbeat_api_inventory_applies_total{result="invalid"}` grows, the
+When `atrium_api_inventory_applies_total{result="invalid"}` grows, the
 API's log names each problem; fix the file in a new pull request. The
 collector's own checks are in
 [onboarding SQL Server targets, step 5](database-targets.md#5-verify).

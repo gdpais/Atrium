@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/gdpais/Heartbeat/tools/patientzero/scenarios/scenario.schema.json",
+  "$id": "https://github.com/gdpais/Atrium/tools/patientzero/scenarios/scenario.schema.json",
   "title": "PatientZero scenario",
   "description": "One fault scenario: the steps it runs, the fault of each step, and the signals it must produce. PatientZero validates every file at startup (internal/scenario); this schema is for editors and reviews. Format: tools/patientzero/scenarios/README.md.",
   "type": "object",
@@ -40,7 +40,7 @@
       "type": "array",
       "items": { "enum": ["OrderList", "PlaceOrder", "GetOrders"] },
       "uniqueItems": true,
-      "description": "Entry points by Heartbeat's operation label; empty or absent for all."
+      "description": "Entry points by Atrium's operation label; empty or absent for all."
     },
     "module": {
       "enum": ["PatientZero_API", "PatientZero_App", "PatientZero_Web"],
@@ -175,7 +175,7 @@
                 "additionalProperties": false,
                 "required": ["workload"],
                 "properties": {
-                  "workload": { "enum": ["db-collector", "loki", "otel-collector", "sqlserver", "tempo"], "description": "The Heartbeat StatefulSet of that name, or SQL Server's container. A cluster fault: the host agent of the run applies it." }
+                  "workload": { "enum": ["db-collector", "loki", "otel-collector", "sqlserver", "tempo"], "description": "The Atrium StatefulSet of that name, or SQL Server's container. A cluster fault: the host agent of the run applies it." }
                 }
               }
             },
@@ -226,7 +226,7 @@
             "from_step": { "$ref": "#/$defs/name", "description": "The step whose start opens the rows' window; the first step by default." },
             "to_step": { "$ref": "#/$defs/name", "description": "The step whose end closes the rows' window; the last step by default." },
             "lost_after": { "$ref": "#/$defs/duration", "description": "Rows a commit-delay fault held back longer than this must be missing from Loki: committed past the collector's lag, they are never read. Without it every row must be there." },
-            "late_rows": { "type": "string", "pattern": "^[a-zA-Z_:][a-zA-Z0-9_:]*(\\{[^{}]*\\})?$", "description": "A Prometheus counter selector without log_type, such as heartbeat_outsystems_late_rows_total{collector=\"patientzero\"}: per log type, it must have grown by exactly the rows lost, from the start of from_step to the evaluation. Needs lost_after." }
+            "late_rows": { "type": "string", "pattern": "^[a-zA-Z_:][a-zA-Z0-9_:]*(\\{[^{}]*\\})?$", "description": "A Prometheus counter selector without log_type, such as atrium_outsystems_late_rows_total{collector=\"patientzero\"}: per log type, it must have grown by exactly the rows lost, from the start of from_step to the evaluation. Needs lost_after." }
           }
         },
         "labels": {

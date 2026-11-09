@@ -1,0 +1,612 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "count(count by (target) (atrium_sqlserver_sessions{environment=~\"$environment\",target=~\"$target\"}))",
+          "refId": "A"
+        }
+      ],
+      "title": "Targets Reporting",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "sum(atrium_sqlserver_blocked_requests{environment=~\"$environment\",target=~\"$target\"}) or sum(atrium_collector_probe_up{environment=~\"$environment\",target=~\"$target\",probe=\"blocking\"} == 1) * 0",
+          "refId": "A"
+        }
+      ],
+      "description": "Requests currently waiting on another session. The probe exports nothing while nothing is blocked, so this shows 0 when the blocking probe of at least one selected target succeeded in its last execution, and No data when none did (unknown, not zero).",
+      "title": "Blocked Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (atrium_sqlserver_sessions{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Sessions By Status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (wait_type) (rate(atrium_sqlserver_wait_seconds_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])))",
+          "legendFormat": "{{wait_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Wait Types (seconds waited per second)",
+      "type": "timeseries",
+      "description": "Seconds spent waiting per second, by wait type, summed over the selected targets: 2 means on average two tasks were waiting on that type. Read from the cumulative wait counter with rate(), so SQL Server restarts and cleared wait statistics do not show as drops."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target, database_name) (atrium_sqlserver_database_file_size_bytes{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{target}} {{database_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Database File Size",
+      "type": "timeseries",
+      "description": "Allocated size of each database (data and log files) per target. sys.master_files reports tempdb at its configured startup size, not its current size."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(atrium_sqlserver_batch_requests_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "Batch requests",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(atrium_sqlserver_transactions_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "Transactions",
+          "refId": "B"
+        }
+      ],
+      "title": "Throughput (per second)",
+      "type": "timeseries",
+      "description": "Batch requests and transactions per second, summed over the selected targets. Read from cumulative counters with rate(), so SQL Server restarts do not show as drops."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target) (atrium_sqlserver_cpu_sql_process_ratio{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{environment}}/{{target}} SQL Server",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (environment, target) (atrium_sqlserver_cpu_other_process_ratio{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{environment}}/{{target}} other processes",
+          "refId": "B"
+        }
+      ],
+      "title": "CPU Utilisation",
+      "type": "timeseries",
+      "description": "Share of the host's CPU used by SQL Server and by other processes, per target, from the scheduler monitor ring buffer. SQL Server writes one record a minute, so values step once a minute and show the average of the previous minute. Other processes are shown for Windows hosts only: SQL Server on Linux does not report idle time."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 22
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target) (atrium_sqlserver_page_life_expectancy_seconds{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{environment}}/{{target}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Page Life Expectancy",
+      "type": "timeseries",
+      "description": "Seconds a data page is expected to stay in the buffer pool. Judge it against the target's own baseline and buffer pool size: a sustained drop means pages are evicted faster, usually from memory pressure or large scans."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 22
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target) (atrium_sqlserver_buffer_cache_hit_ratio{environment=~\"$environment\",target=~\"$target\"})",
+          "legendFormat": "{{environment}}/{{target}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Buffer Cache Hit Ratio",
+      "type": "timeseries",
+      "description": "Share of page requests served from memory without a disk read. Healthy OLTP servers sit close to 100%, so read it with page life expectancy and file reads: it rarely drops even under memory pressure."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "iops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 30
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target) (rate(atrium_sqlserver_database_file_reads_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "{{environment}}/{{target}} reads",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (environment, target) (rate(atrium_sqlserver_database_file_writes_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "{{environment}}/{{target}} writes",
+          "refId": "B"
+        }
+      ],
+      "title": "File I/O Operations (per second)",
+      "type": "timeseries",
+      "description": "Read and write operations per second on all database files of each target, from sys.dm_io_virtual_file_stats. Break down by database_name or file_name in Explore."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 30
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target) (rate(atrium_sqlserver_database_file_read_bytes_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "{{environment}}/{{target}} read",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (environment, target) (rate(atrium_sqlserver_database_file_written_bytes_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval]))",
+          "legendFormat": "{{environment}}/{{target}} written",
+          "refId": "B"
+        }
+      ],
+      "title": "File I/O Throughput",
+      "type": "timeseries",
+      "description": "Bytes read from and written to all database files of each target, per second."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 30
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (environment, target, file_type) (rate(atrium_sqlserver_database_file_read_stall_seconds_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])) / (sum by (environment, target, file_type) (rate(atrium_sqlserver_database_file_reads_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{environment}}/{{target}} {{file_type}} read",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (environment, target, file_type) (rate(atrium_sqlserver_database_file_write_stall_seconds_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])) / (sum by (environment, target, file_type) (rate(atrium_sqlserver_database_file_writes_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{environment}}/{{target}} {{file_type}} write",
+          "refId": "B"
+        }
+      ],
+      "title": "File I/O Latency (average per operation)",
+      "type": "timeseries",
+      "description": "Average time SQL Server waited per read or write, by file type (ROWS data files, LOG transaction log): I/O stall time divided by operations over the same window. No point is drawn while a file type had no operations, instead of dividing by zero."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 38
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (probe, le) (rate(atrium_collector_probe_duration_seconds_bucket{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])))",
+          "legendFormat": "{{probe}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Probe Duration (p95)",
+      "type": "timeseries",
+      "description": "95th percentile probe query duration, by probe, over the selected targets. Includes failed and timed-out probes; probes that never started are not measured."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 38
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (probe, reason) (rate(atrium_collector_probe_errors_total{environment=~\"$environment\",target=~\"$target\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{probe}} {{reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Probe Errors (per minute)",
+      "type": "timeseries",
+      "description": "Failed probe executions per minute, by probe and reason (timeout, error, not_started, panic). Targets skipped during backoff run no probes and are not counted; see the target up and consecutive failures series."
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "atrium",
+    "sqlserver"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "options": [],
+        "query": "label_values(atrium_sqlserver_sessions, environment)",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Target",
+        "multi": false,
+        "name": "target",
+        "options": [],
+        "query": "label_values(atrium_sqlserver_sessions{environment=~\"$environment\"}, target)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "SQL Server Overview",
+  "uid": "sqlserver-overview",
+  "version": 1
+}

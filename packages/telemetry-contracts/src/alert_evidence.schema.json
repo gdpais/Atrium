@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/alert_evidence.schema.json",
-  "title": "Heartbeat Alert Evidence",
+  "$id": "https://atrium.local/schemas/alert_evidence.schema.json",
+  "title": "Atrium Alert Evidence",
   "type": "object",
   "additionalProperties": false,
   "required": ["source_type", "title", "url"],

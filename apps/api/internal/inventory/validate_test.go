@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
+	api "atrium/apps/api"
 )
 
 // The slug is the environment's name in the collectors' config and in

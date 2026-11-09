@@ -1,0 +1,1553 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Atrium chart values",
+  "description": "Validates the embedded integrations.yaml and the collectors the Atrium API renders into managedCollectors, the db-collector and backend NetworkPolicies, the db-collector state volume settings, and the OTel Collector export queue volume. properties.integrations is a copy of packages/config-schema/src/integrations.schema.json (without $schema); tests/chart_schema_test.go fails when they differ. Unknown top-level keys are rejected, so a misspelt value such as dbColector fails instead of being ignored; every key values.yaml sets must be listed here (tests/chart_schema_test.go).",
+  "type": "object",
+  "required": [
+    "integrations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "dbCollector": {
+      "type": "object",
+      "description": "The db-collector. Unknown keys are rejected, so a misspelt key fails the install instead of being ignored.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "description": "An image digest, sha256: and 64 hex digits, without the @; set, it replaces the tag.",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "adminToken": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Secret holding the bearer token for the admin endpoints.",
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            }
+          }
+        },
+        "adminTLS": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "kubernetes.io/tls Secret that moves the admin endpoints to their own HTTPS port; empty keeps them on 8082.",
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "not": {
+                "const": 8082
+              }
+            },
+            "ca": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret with the PEM CA the API verifies the admin certificate with; empty uses the system roots.",
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Secret with a ATRIUM_CREDENTIAL_<REF> key per credential_ref, mounted as files the collector reads on every connection; empty mounts none.",
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            }
+          }
+        },
+        "otlpExporter": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Headers and TLS for the OTLP/HTTP receiver of the OutSystems logs (opentelemetry.endpoint).",
+          "properties": {
+            "headers": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Secret whose keys are header names, added to every request; empty sends none.",
+              "properties": {
+                "existingSecret": {
+                  "type": "string"
+                }
+              }
+            },
+            "tls": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ca": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "Secret with the PEM CA that verifies the receiver; empty uses the system roots.",
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "clientCert": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "kubernetes.io/tls Secret (tls.crt, tls.key) for mutual TLS; empty sends no client certificate.",
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "configWatchInterval": {
+          "type": "string",
+          "description": "How often the collector re-reads integrations.yaml (Go duration)."
+        },
+        "sqlserver": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "trustServerCertificate": {
+              "type": "boolean"
+            }
+          }
+        },
+        "persistence": {
+          "description": "State volume for the outsystems_logs watermarks, mounted at /var/lib/atrium. Disabled means an emptyDir.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "size"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClassName": {
+              "type": "string"
+            }
+          }
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "ClusterIP",
+                "NodePort",
+                "LoadBalancer"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "nodePort": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "externalTrafficPolicy": {
+              "enum": [
+                null,
+                "Cluster",
+                "Local"
+              ]
+            }
+          }
+        },
+        "networkPolicy": {
+          "description": "Ingress NetworkPolicy for the collector's port 8082. The bundled Prometheus is allowed when prometheus.enabled; scrapers (other metrics scrapers) and operators add NetworkPolicyPeer objects.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "scrapers",
+            "operators"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "scrapers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            },
+            "operators": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            },
+            "egress": {
+              "description": "Egress NetworkPolicy for the collector, off by default: DNS, the bundled OTel Collector, the monitored databases (targets) and extraRules only.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/networkPolicyPeer"
+                  }
+                },
+                "dns": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/networkPolicyPeer"
+                  }
+                },
+                "extraRules": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "to"
+                    ],
+                    "properties": {
+                      "to": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "$ref": "#/$defs/networkPolicyPeer"
+                        }
+                      },
+                      "ports": {
+                        "description": "NetworkPolicyPort objects; a rule without ports allows every port to its peers.",
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "minProperties": 1,
+                          "properties": {
+                            "protocol": {
+                              "type": "string",
+                              "enum": [
+                                "TCP",
+                                "UDP",
+                                "SCTP"
+                              ]
+                            },
+                            "port": {
+                              "oneOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 65535
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              ]
+                            },
+                            "endPort": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 65535
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Kubernetes ResourceRequirements.",
+          "properties": {
+            "requests": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            },
+            "claims": {
+              "type": "array"
+            }
+          }
+        },
+        "goMemLimit": {
+          "description": "GOMEMLIMIT for the collector, such as 200MiB, or off. Empty means 80% of resources.limits.memory.",
+          "type": "string",
+          "pattern": "^$|^off$|^[0-9]+(B|KiB|MiB|GiB|TiB)?$"
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "podAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "description": "The API (ADR 0013), with the init container that migrates. Unknown keys are rejected.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "description": "An image digest, sha256: and 64 hex digits, without the @; set, it replaces the tag.",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Secret with ATRIUM_CREDENTIAL_SECRET_API_POSTGRES and ATRIUM_CREDENTIAL_SECRET_API_REDIS (username:password), mounted as files the API reads on every connection; empty mounts none.",
+          "properties": {
+            "existingSecret": {
+              "type": "string"
+            }
+          }
+        },
+        "postgres": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Where the API's PostgreSQL is. An empty host is the bundled postgresql.",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "A host name or IP address, without a port, scheme or credentials.",
+              "pattern": "^[^/:@?# \\t]*$"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "database": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sslMode": {
+              "enum": [
+                "",
+                "disable",
+                "require",
+                "verify-ca",
+                "verify-full"
+              ],
+              "description": "Empty: disable for the bundled PostgreSQL, verify-full otherwise."
+            },
+            "sslRootCert": {
+              "type": "string",
+              "description": "Path of a PEM CA bundle in the container, for verify-ca and verify-full."
+            }
+          }
+        },
+        "redis": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Where the API's Redis (Valkey) is. An empty addr is the bundled valkey.",
+          "properties": {
+            "addr": {
+              "type": "string",
+              "description": "host:port, such as master.atrium.abc123.euw1.cache.amazonaws.com:6379.",
+              "pattern": "^$|^[^/ ]+:[0-9]{1,5}$"
+            },
+            "tls": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Null: off for the bundled Valkey, on otherwise."
+            }
+          }
+        },
+        "inventory": {
+          "type": "string",
+          "description": "The environment's inventory file (ADR 0021) as text, such as --set-file api.inventory=inventory.yaml; the API applies it to PostgreSQL and checks it as `api inventory check` does. Empty: none."
+        },
+        "siteOrigin": {
+          "type": "string",
+          "description": "The origin browsers reach the API at, scheme and host without a path, such as https://atrium.example.com; unsafe methods need an Origin header equal to it. Empty refuses them all.",
+          "pattern": "^$|^https?://[^/?#@ ]+/?$"
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The api Service, ClusterIP; an ingress in front of it serves siteOrigin.",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "peers"
+          ],
+          "description": "Ingress NetworkPolicy for the API's port 8081: the bundled Prometheus while it scrapes the api job, and peers.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "peers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Kubernetes ResourceRequirements.",
+          "properties": {
+            "requests": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            },
+            "claims": {
+              "type": "array"
+            }
+          }
+        },
+        "goMemLimit": {
+          "description": "GOMEMLIMIT for the API, such as 200MiB, or off. Empty means 80% of resources.limits.memory.",
+          "type": "string",
+          "pattern": "^$|^off$|^[0-9]+(B|KiB|MiB|GiB|TiB)?$"
+        },
+        "migrate": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The init container that runs api migrate up.",
+          "properties": {
+            "resources": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Kubernetes ResourceRequirements.",
+              "properties": {
+                "requests": {
+                  "type": "object"
+                },
+                "limits": {
+                  "type": "object"
+                },
+                "claims": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "extraEnv": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "extraVolumes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "extraVolumeMounts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "podAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "The bundled PostgreSQL for kind and CI (ADR 0015). Unknown keys are rejected.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "tag"
+          ],
+          "description": "The postgres image; its tag matches the integration-test fixture.",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "username",
+            "database",
+            "existingSecret",
+            "passwordKey"
+          ],
+          "description": "The role and database the image creates on first start, and the Secret with the role's password.",
+          "properties": {
+            "username": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_]*$"
+            },
+            "database": {
+              "type": "string",
+              "pattern": "^[a-z_][a-z0-9_]*$"
+            },
+            "existingSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "passwordKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Server settings, passed as -c name=value.",
+          "propertyNames": {
+            "pattern": "^[a-z_.]+$"
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "size"
+          ],
+          "description": "The postgresql-data claim.",
+          "properties": {
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClassName": {
+              "type": "string"
+            }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "extraPeers"
+          ],
+          "description": "Ingress NetworkPolicy for port 5432: the API and extraPeers.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Kubernetes ResourceRequirements.",
+          "properties": {
+            "requests": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            },
+            "claims": {
+              "type": "array"
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        }
+      }
+    },
+    "valkey": {
+      "type": "object",
+      "description": "The bundled Valkey (Redis) for kind and CI (ADR 0015). Unknown keys are rejected.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "tag"
+          ],
+          "description": "The valkey/valkey image; its tag matches the API's integration tests.",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "existingSecret",
+            "passwordKey"
+          ],
+          "description": "Secret with the default user's password, letters and digits only.",
+          "properties": {
+            "existingSecret": {
+              "type": "string",
+              "minLength": 1
+            },
+            "passwordKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "maxmemory": {
+          "type": "string",
+          "pattern": "^[0-9]+([kmg]b?)?$",
+          "description": "Valkey's maxmemory, such as 96mb; writes past it fail (noeviction)."
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "size"
+          ],
+          "description": "An append-only file on the valkey-data claim. Disabled means an emptyDir of this size.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClassName": {
+              "type": "string"
+            }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "extraPeers"
+          ],
+          "description": "Ingress NetworkPolicy for port 6379: the API and extraPeers.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Kubernetes ResourceRequirements.",
+          "properties": {
+            "requests": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            },
+            "claims": {
+              "type": "array"
+            }
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object"
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Send the services' own logs to the bundled OTel Collector, when it is on."
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]*$",
+          "description": "The environment Atrium itself runs in (deployment.environment.name). Empty leaves it out."
+        },
+        "traces": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Send the services' spans to the bundled OTel Collector, when it is on."
+            },
+            "sampleRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "The share of traces kept."
+            }
+          }
+        }
+      }
+    },
+    "backendNetworkPolicies": {
+      "description": "Ingress NetworkPolicies for the bundled OTel Collector, Prometheus, Alertmanager and Loki. Each admits the bundled components that use the engine, on their ports, plus its extraPeers (NetworkPolicyPeer objects).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "otelCollector",
+        "prometheus",
+        "alertmanager",
+        "loki"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "otelCollector": {
+          "description": "Admitted to the OTLP ports 4317 and 4318, and to 8889 when the prom-exporter port is on.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "prometheus": {
+          "description": "Admitted to 9090.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "alertmanager": {
+          "description": "Admitted to 9093.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "loki": {
+          "description": "Admitted to 3100.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        },
+        "tempo": {
+          "description": "Admitted to 3200 and 4318.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extraPeers"
+          ],
+          "properties": {
+            "extraPeers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/networkPolicyPeer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "otelCollectorQueue": {
+      "type": "object",
+      "properties": {
+        "persistence": {
+          "description": "Volume for the OTel Collector's logs export queue, the otel-collector-queue claim. Disabled means the export-queue volume in otelCollector.extraVolumes is an emptyDir.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "size"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1
+            },
+            "storageClassName": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A Kubernetes v1 PodSecurityContext for the Atrium workloads. Its fields are listed, so a misspelt one, such as runAsNonroot, fails instead of leaving the pod without it.",
+      "properties": {
+        "appArmorProfile": {},
+        "fsGroup": {},
+        "fsGroupChangePolicy": {},
+        "runAsGroup": {},
+        "runAsNonRoot": {},
+        "runAsUser": {},
+        "seLinuxChangePolicy": {},
+        "seLinuxOptions": {},
+        "seccompProfile": {},
+        "supplementalGroups": {},
+        "supplementalGroupsPolicy": {},
+        "sysctls": {},
+        "windowsOptions": {}
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A Kubernetes v1 SecurityContext for the Atrium containers, its fields listed as for podSecurityContext.",
+      "properties": {
+        "allowPrivilegeEscalation": {},
+        "appArmorProfile": {},
+        "capabilities": {},
+        "privileged": {},
+        "procMount": {},
+        "readOnlyRootFilesystem": {},
+        "runAsGroup": {},
+        "runAsNonRoot": {},
+        "runAsUser": {},
+        "seLinuxOptions": {},
+        "seccompProfile": {},
+        "windowsOptions": {}
+      }
+    },
+    "prometheusRules": {
+      "description": "Atrium's Prometheus rule files, in the atrium-prometheus-rules ConfigMap.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "configReloadAlert": {
+          "description": "The AtriumCollectorConfigReloadFailed alert: the db-collector rejected or could not apply its last config change. Disabled leaves its rule file out of the ConfigMap.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "grafanaDashboards": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "global": {
+      "description": "Helm's global values, passed to every subchart.",
+      "type": "object"
+    },
+    "prometheus": {
+      "description": "Values of the prometheus subchart (Prometheus and Alertmanager), checked by its own schema.",
+      "type": "object"
+    },
+    "grafana": {
+      "description": "Values of the grafana subchart.",
+      "type": "object"
+    },
+    "loki": {
+      "description": "Values of the loki subchart, checked by its own schema.",
+      "type": "object"
+    },
+    "tempo": {
+      "description": "Values of the tempo subchart.",
+      "type": "object"
+    },
+    "otelCollector": {
+      "description": "Values of the opentelemetry-collector subchart (alias otelCollector), checked by its own schema.",
+      "type": "object"
+    },
+    "integrations": {
+      "$id": "https://atrium.local/schemas/integrations.schema.json",
+      "title": "Atrium Integrations Config",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collectors"
+      ],
+      "properties": {
+        "platform": {
+          "description": "Observability platform that stores and shows Atrium's telemetry (ADR 0011). Atrium only writes OTLP to opentelemetry.endpoint and Prometheus exposition on /metrics; grafana selects Grafana dashboard and deep-link syntax and, later, the API's query adapters; generic is any other platform, for which dashboards, logs and alerting stay empty.",
+          "type": "string",
+          "enum": [
+            "grafana",
+            "generic"
+          ],
+          "default": "grafana"
+        },
+        "dashboards": {
+          "description": "The platform's UI (Grafana): base URL and dashboard and deep-link templates.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "dashboard_templates": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "deep_link_templates": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "logs": {
+          "description": "The platform's log query API (Loki). Atrium never writes logs here; they go through opentelemetry.endpoint.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "alerting": {
+          "description": "The platform's alert API (Alertmanager).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "opentelemetry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "endpoint"
+          ],
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "notification_channels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "channel_type",
+              "target_ref"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "channel_type": {
+                "type": "string"
+              },
+              "target_ref": {
+                "type": "string"
+              },
+              "credential_ref": {
+                "type": "string"
+              },
+              "config": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "credential_refs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "collectors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "enabled"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "credential_ref": {
+                "type": "string"
+              },
+              "config": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "environment": {
+                    "type": "string"
+                  },
+                  "scrape_interval": {
+                    "type": "string",
+                    "description": "How often the collector runs a cycle (Go duration, default 30s). For outsystems_logs it is the poll interval."
+                  },
+                  "lag": {
+                    "type": "string",
+                    "description": "outsystems_logs only: how far behind now a read stops (Go duration, default 60s)."
+                  },
+                  "batch_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50000,
+                    "description": "outsystems_logs only: most rows one log-type query returns (default 5000)."
+                  },
+                  "initial_lookback": {
+                    "type": "string",
+                    "description": "outsystems_logs only: where a log type without a watermark starts, back from now (Go duration, default 15m)."
+                  },
+                  "log_timezone": {
+                    "type": "string",
+                    "description": "outsystems_logs only: IANA time zone the Instant column is stored in (default UTC)."
+                  },
+                  "recount_window": {
+                    "type": "string",
+                    "description": "outsystems_logs only: how far behind its watermark each log type recounts its rows, once a minute, to find rows committed past the lag (0s off, or whole minutes from 2m to 1h; default 10m)."
+                  },
+                  "max_derived_series": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "description": "outsystems_logs only: the most series the derived OutSystems metrics may hold for this collector, counted as Prometheus stores them (a histogram's buckets, sum and count each); past it, rows that need a new series are dropped from the derived metrics and counted in atrium_outsystems_derived_series_overflow_total (default 50000)."
+                  },
+                  "target_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "probes": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/probe"
+                    }
+                  },
+                  "targets": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/target"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "$defs": {
+        "probe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "query_template": {
+              "type": "string"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25000
+            },
+            "max_rows": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000,
+              "description": "sqlserver only: the most rows the probe may return before it fails; default 10000."
+            },
+            "lag": {
+              "type": "string",
+              "description": "outsystems_logs only: this log type's lag, replacing the collector's (Go duration). A screen or cyclic_job row is written when the operation ends but Instant is its start, so set it above the longest screen request or timer."
+            }
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "host",
+            "port"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "environment": {
+              "type": "string"
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "database_name": {
+              "type": "string"
+            },
+            "credential_ref": {
+              "type": "string"
+            },
+            "probes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/probe"
+              }
+            }
+          }
+        }
+      }
+    },
+    "managedCollectors": {
+      "description": "Collectors the Atrium API renders from approved probe assignments into one generated values file (ADR 0014). The chart appends them to integrations.collectors in the rendered integrations.yaml, so hand-written collectors stay in the environment's own values. Each is a collector as in integrations.collectors, of kind sqlserver, with an id that starts with api-. An id may appear only once across both lists; the chart's templates check that, which a schema cannot.",
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "https://atrium.local/schemas/integrations.schema.json#/properties/collectors/items"
+          },
+          {
+            "properties": {
+              "id": {
+                "pattern": "^api-"
+              },
+              "kind": {
+                "const": "sqlserver"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "The api- collector id prefix is reserved for managedCollectors (ADR 0014): a hand-written collector in integrations.collectors may not use it. Leading whitespace does not hide the prefix, since the collector trims ids. This sits outside properties.integrations, which must stay an exact copy of the integrations schema: the rendered integrations.yaml holds the api- collectors too.",
+      "properties": {
+        "integrations": {
+          "properties": {
+            "collectors": {
+              "items": {
+                "properties": {
+                  "id": {
+                    "not": {
+                      "pattern": "^\\s*api-"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "networkPolicyPeer": {
+      "description": "A Kubernetes NetworkPolicyPeer: a podSelector, a namespaceSelector (or both), or an ipBlock. An empty peer, or one that is only an empty selector (every pod in the namespace or every namespace), is rejected.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "podSelector": {
+          "$ref": "#/$defs/labelSelector"
+        },
+        "namespaceSelector": {
+          "$ref": "#/$defs/labelSelector"
+        },
+        "ipBlock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cidr"
+          ],
+          "properties": {
+            "cidr": {
+              "type": "string",
+              "minLength": 1
+            },
+            "except": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "podSelector"
+            ],
+            "maxProperties": 1,
+            "properties": {
+              "podSelector": {
+                "maxProperties": 0
+              }
+            }
+          },
+          {
+            "required": [
+              "namespaceSelector"
+            ],
+            "maxProperties": 1,
+            "properties": {
+              "namespaceSelector": {
+                "maxProperties": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    "labelSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        },
+        "matchExpressions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "operator"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "operator": {
+                "enum": [
+                  "In",
+                  "NotIn",
+                  "Exists",
+                  "DoesNotExist"
+                ]
+              },
+              "values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "minItems": 1
+        }
+      },
+      "description": "A label selector. matchLabels and matchExpressions must not be empty when present, so an empty selector is always written {}."
+    }
+  }
+}

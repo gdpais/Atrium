@@ -13,7 +13,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"heartbeat/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit"
 )
 
 // Session lifetimes (ADR 0013 §8): a session ends after IdleTimeout without
@@ -31,8 +31,8 @@ const touchInterval = time.Minute
 // Redis key prefixes. A session's key ends in the SHA-256 of its token, so
 // Redis never holds a token, and a user's index lists those hashes.
 const (
-	sessionKeyPrefix = "heartbeat:session:"
-	userKeyPrefix    = "heartbeat:user-sessions:"
+	sessionKeyPrefix = "atrium:session:"
+	userKeyPrefix    = "atrium:user-sessions:"
 )
 
 // tokenBytes is the size of a session token: 256 random bits.

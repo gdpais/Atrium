@@ -1,0 +1,261 @@
+groups:
+  - name: atrium-bootstrap
+    rules:
+      - record: atrium:up:count
+        expr: count(up)
+      - record: atrium:service_up:ratio
+        expr: avg by (job) (up)
+
+  - name: atrium-sqlserver-recording
+    rules:
+      # Wait seconds per second by wait type. The counter is SQL Server's
+      # cumulative wait time; rate() treats its drop when SQL Server restarts
+      # or wait statistics are cleared as a counter reset.
+      - record: atrium:sqlserver_wait_seconds:rate5m
+        expr: sum by (environment, target, wait_type) (rate(atrium_sqlserver_wait_seconds_total[5m]))
+      # The blocking probe exports nothing while nothing is blocked; record 0
+      # for targets whose blocking probe succeeded in its last execution so
+      # absence means "unknown", also when only that probe fails.
+      - record: atrium:sqlserver_blocked_requests:sum
+        expr: sum by (environment, target) (atrium_sqlserver_blocked_requests) or max by (environment, target) (atrium_collector_probe_up{probe="blocking"} == 1) * 0
+      - record: atrium:sqlserver_sessions:sum
+        expr: sum by (environment, target) (atrium_sqlserver_sessions)
+
+  - name: atrium-outsystems-recording
+    rules:
+      # Entry points per second: screens, Reactive server calls, timers and
+      # exposed APIs. The collector counts rows as it extracts them, so these
+      # trail real time by the extraction lag plus the poll interval.
+      - record: atrium:outsystems_operations:rate5m
+        expr: sum by (environment, application, log_type, outcome) (rate(atrium_outsystems_operations_total[5m]))
+      - record: atrium:outsystems_errors:rate5m
+        expr: sum by (environment, application, module) (rate(atrium_outsystems_errors_total[5m]))
+      - record: atrium:outsystems_request_duration_seconds:p95_5m
+        expr: histogram_quantile(0.95, sum by (environment, application, le) (rate(atrium_outsystems_operation_duration_seconds_bucket{log_type=~"screen|mobile_request|integration"}[5m])))
+      - record: atrium:outsystems_integration_duration_seconds:p95_5m
+        expr: histogram_quantile(0.95, sum by (environment, application, direction, type, le) (rate(atrium_outsystems_integration_duration_seconds_bucket[5m])))
+
+  # SLIs per application over user-facing requests: screens, Reactive server
+  # calls and exposed APIs (timers are left out). Availability is the share
+  # of requests without an error; latency the share answered within 2 s, a
+  # bucket of the request histogram (le="2", or "2.0" once Prometheus 3
+  # normalizes it at scrape time). The error series exists at 0 from a
+  # request's first row, so an application without errors reads 0, not
+  # nothing; one without requests reads nothing.
+  - name: atrium-outsystems-slo
+    rules:
+      - record: atrium:outsystems_request_errors:ratio_rate5m
+        expr: >-
+          sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration",outcome="error"}[5m]))
+          / sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[5m]))
+      - record: atrium:outsystems_request_slow:ratio_rate5m
+        expr: >-
+          1 - sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_bucket{log_type=~"screen|mobile_request|integration",le=~"2(\\.0)?"}[5m]))
+          / sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_count{log_type=~"screen|mobile_request|integration"}[5m]))
+      - record: atrium:outsystems_request_errors:ratio_rate30m
+        expr: >-
+          sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration",outcome="error"}[30m]))
+          / sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[30m]))
+      - record: atrium:outsystems_request_slow:ratio_rate30m
+        expr: >-
+          1 - sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_bucket{log_type=~"screen|mobile_request|integration",le=~"2(\\.0)?"}[30m]))
+          / sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_count{log_type=~"screen|mobile_request|integration"}[30m]))
+      - record: atrium:outsystems_request_errors:ratio_rate1h
+        expr: >-
+          sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration",outcome="error"}[1h]))
+          / sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[1h]))
+      - record: atrium:outsystems_request_slow:ratio_rate1h
+        expr: >-
+          1 - sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_bucket{log_type=~"screen|mobile_request|integration",le=~"2(\\.0)?"}[1h]))
+          / sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_count{log_type=~"screen|mobile_request|integration"}[1h]))
+      - record: atrium:outsystems_request_errors:ratio_rate6h
+        expr: >-
+          sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration",outcome="error"}[6h]))
+          / sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[6h]))
+      - record: atrium:outsystems_request_slow:ratio_rate6h
+        expr: >-
+          1 - sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_bucket{log_type=~"screen|mobile_request|integration",le=~"2(\\.0)?"}[6h]))
+          / sum by (environment, application) (rate(atrium_outsystems_operation_duration_seconds_count{log_type=~"screen|mobile_request|integration"}[6h]))
+      - record: atrium:outsystems_requests:rate1h
+        expr: sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[1h]))
+      - record: atrium:outsystems_requests:rate6h
+        expr: sum by (environment, application) (rate(atrium_outsystems_operations_total{log_type=~"screen|mobile_request|integration"}[6h]))
+
+  - name: atrium-outsystems-alerts
+    rules:
+      # Multiwindow burn rates (Google SRE workbook) against static default
+      # objectives: 99.9% of requests without an error and 99% within 2 s,
+      # over 30 days. Fast burn (14.4x: 2% of the budget in an hour) pages;
+      # slow burn (6x: 5% in six hours) is a ticket. Low-traffic applications
+      # are left out, so a handful of failures cannot page: the error alerts
+      # need five requests a minute over the long window (a fast burn then
+      # takes at least 5 failed requests in the hour), the latency alerts one
+      # (at least 9 slow requests). Adaptive baselines replace these
+      # guardrails in phase 7.
+      - alert: OutSystemsErrorBudgetBurnFast
+        expr: >-
+          atrium:outsystems_request_errors:ratio_rate1h > (14.4 * 0.001)
+          and atrium:outsystems_request_errors:ratio_rate5m > (14.4 * 0.001)
+          and atrium:outsystems_requests:rate1h > 5/60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.environment }}/{{ $labels.application }} is burning its error budget fast"
+          description: "{{ $value | humanizePercentage }} of requests failed over the last hour, more than 14.4 times the 0.1% budget."
+      - alert: OutSystemsErrorBudgetBurnSlow
+        expr: >-
+          atrium:outsystems_request_errors:ratio_rate6h > (6 * 0.001)
+          and atrium:outsystems_request_errors:ratio_rate30m > (6 * 0.001)
+          and atrium:outsystems_requests:rate6h > 5/60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.environment }}/{{ $labels.application }} is burning its error budget"
+          description: "{{ $value | humanizePercentage }} of requests failed over the last 6 hours, more than 6 times the 0.1% budget."
+      - alert: OutSystemsLatencyBudgetBurnFast
+        expr: >-
+          atrium:outsystems_request_slow:ratio_rate1h > (14.4 * 0.01)
+          and atrium:outsystems_request_slow:ratio_rate5m > (14.4 * 0.01)
+          and atrium:outsystems_requests:rate1h > 1/60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.environment }}/{{ $labels.application }} is slow"
+          description: "{{ $value | humanizePercentage }} of requests took more than 2 s over the last hour, more than 14.4 times the 1% budget."
+      - alert: OutSystemsLatencyBudgetBurnSlow
+        expr: >-
+          atrium:outsystems_request_slow:ratio_rate6h > (6 * 0.01)
+          and atrium:outsystems_request_slow:ratio_rate30m > (6 * 0.01)
+          and atrium:outsystems_requests:rate6h > 1/60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.environment }}/{{ $labels.application }} is getting slower"
+          description: "{{ $value | humanizePercentage }} of requests took more than 2 s over the last 6 hours, more than 6 times the 1% budget."
+      # The SLO alerts above go quiet, not red, when extraction stops: no rows,
+      # no ratio. Half an hour is well past any log type's lag plus the poll
+      # interval.
+      - alert: OutSystemsLogExtractionBehind
+        expr: atrium_outsystems_extract_lag_seconds > 1800
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems {{ $labels.log_type }} logs of {{ $labels.environment }}/{{ $labels.target }} are {{ $value | humanizeDuration }} behind"
+          description: "The {{ $labels.collector }} collector has not extracted {{ $labels.log_type }} rows for more than 30 minutes. Logs, derived metrics and the OutSystems SLO alerts for this target are stale. Check the collector's probe errors and OTLP export failures, and atrium_outsystems_export_blocked: at 1 the OTel Collector holds the rows back, usually because Loki is down or slow."
+      # The OTel Collector holds the batch it was given, so the log types
+      # read nothing more: 1 from the first minute Loki or the Collector stops
+      # taking rows, while the lag above takes 40 minutes to alert. One alert
+      # per target, as every log type of it waits on the same Collector. A
+      # restart of Loki or the Collector is back well within the 2 minutes
+      # (PatientZero's restarts scenario).
+      - alert: OutSystemsLogExportBlocked
+        expr: max by (collector, environment, target) (atrium_outsystems_export_blocked) == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems log export of {{ $labels.environment }}/{{ $labels.target }} is blocked"
+          description: "The {{ $labels.collector }} collector has waited more than 2 minutes for the OTel Collector to accept a batch of logs, and reads nothing more until it does: logs, derived metrics and the OutSystems SLO alerts for this target go stale. Nothing is lost while the rows are still in the logging database's views (the current and the previous week). Usually Loki is down or slow; AtriumServiceDown says whether Loki or the OTel Collector is down, and GET /admin/config shows what each log type waits for."
+      # The recount (ADR 0008) found rows the log service committed later
+      # than the lag: the watermark had passed them, so they are not in Loki
+      # and the derived metrics and SLOs undercount. No for: they are lost.
+      - alert: OutSystemsLateLogRows
+        expr: sum by (collector, environment, target, log_type) (increase(atrium_outsystems_late_rows_total[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems {{ $labels.log_type }} log rows of {{ $labels.environment }}/{{ $labels.target }} were committed too late to be read"
+          description: "The {{ $labels.collector }} collector's recount found about {{ $value | printf \"%.0f\" }} {{ $labels.log_type }} rows in the last 15 minutes that the log service committed after the collector had read past their Instant, later than the lag. They are not in Loki, and the derived metrics and SLOs undercount them. Raise this log type's lag (probes[].lag) above how late the log service commits; late commits usually mean it is behind."
+      # The extraction counted rows delivered more often than the logging
+      # database holds them: it read them twice, which it never should (the
+      # watermark moves only past rows sent), or they were deleted after they
+      # were sent. A batch sent again after the Collector took it is not
+      # counted: delivery is at least once (ADR 0008).
+      - alert: OutSystemsDuplicateLogRows
+        expr: sum by (collector, environment, target, log_type) (increase(atrium_outsystems_duplicate_rows_total[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems {{ $labels.log_type }} log rows of {{ $labels.environment }}/{{ $labels.target }} were delivered more often than the logging database holds them"
+          description: "The {{ $labels.collector }} collector's recount found about {{ $value | printf \"%.0f\" }} {{ $labels.log_type }} rows in the last 15 minutes that it delivered more often than the logging database holds them. Either the extraction read them twice, a defect: Loki holds them twice and the derived metrics count them twice; report it with the collector's log, which names the minutes. Or rows were deleted from the logging database after they were sent."
+      # The collector's derived series reached max_derived_series: rows that
+      # need a new series (a new application, module, operation or
+      # front-end) are left out of that metric, so dashboards and SLOs miss
+      # them, while series that exist keep counting. No for: every dropped
+      # row is lost from the metrics. It keeps firing while such rows arrive,
+      # until the budget is raised (the collector restarts with it).
+      - alert: OutSystemsDerivedSeriesOverflow
+        expr: sum by (collector) (increase(atrium_outsystems_derived_series_overflow_total[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "The {{ $labels.collector }} collector's derived OutSystems metrics are full"
+          description: "The {{ $labels.collector }} collector dropped about {{ $value | printf \"%.0f\" }} updates of its derived metrics in the last 15 minutes: the rows needed new series and it already holds its max_derived_series (atrium_outsystems_derived_series). Series that exist keep counting, but new applications, modules, operations or front-ends are missing from the derived metrics, the OutSystems dashboards and the SLO alerts. The metric label of the overflow counter says which metric it is; raise max_derived_series if the collector's memory allows (about 690 bytes a series)."
+      # Most recounts of the last 15 minutes failed: late and duplicate rows
+      # go uncounted. A ratio, since how many recounts run depends on the
+      # poll interval (one a minute at most), over three or more, so one
+      # failure just after a start is not most of them.
+      - alert: OutSystemsLogRecountFailing
+        expr: >-
+          sum by (collector, environment, target, log_type) (increase(atrium_outsystems_recount_failures_total[15m]))
+          / sum by (collector, environment, target, log_type) (increase(atrium_outsystems_recounts_total[15m])) > 0.5
+          and sum by (collector, environment, target, log_type) (increase(atrium_outsystems_recounts_total[15m])) >= 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "OutSystems {{ $labels.log_type }} log recount of {{ $labels.environment }}/{{ $labels.target }} is failing"
+          description: "Most recounts of the {{ $labels.collector }} collector's {{ $labels.log_type }} rows failed in the last 15 minutes, so rows committed past the lag, or sent twice, are not counted. The reason is in the collector's log (\"outsystems_logs recount failed\"); extraction itself goes on."
+
+  - name: atrium-alerts
+    rules:
+      # Always firing. Alertmanager routes it to an external dead-man's switch,
+      # which notifies when it stops arriving: that means the Prometheus ->
+      # Alertmanager -> notification path is broken (ADR 0005).
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Atrium alerting pipeline is alive"
+          description: "Always firing. If the dead-man's switch stops receiving it, Atrium alerting is down."
+      # Loki and the OTel Collector are static targets, so down they report
+      # up == 0. The db-collector and the API are found through DNS and
+      # usually have no target at all while their pods are gone:
+      # atrium-collector-missing.rules.yml and atrium-api-missing.rules.yml
+      # cover that.
+      - alert: AtriumServiceDown
+        expr: up{job=~"db-collector|api|otel-collector|loki|tempo"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Atrium service {{ $labels.job }} is down"
+          description: "Prometheus has not scraped {{ $labels.job }} successfully for at least 2 minutes."
+      # A row Loki discards is lost: the db-collector has already moved its
+      # watermark past it. The OTel Collector retries a rate-limited push, so
+      # that reason is left out. too_far_behind comes from batches sent out
+      # of order: several export consumers, or a queue of more than one
+      # request across a Collector restart (values.yaml, otlp_http/logs).
+      - alert: LokiDiscardingLogs
+        expr: sum by (reason) (increase(loki_discarded_samples_total{reason!="rate_limited"}[10m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki is discarding log rows ({{ $labels.reason }})"
+          description: "Loki discarded log rows in the last 10 minutes for {{ $labels.reason }}; they are not in Loki and will not be sent again. too_far_behind means rows arrived more than an hour behind their stream: check that the OTel Collector's logs exporter keeps one consumer and a queue of one request, which keep its batches in order, across restarts too."
+      # The collector should never log in with more than VIEW SERVER STATE and
+      # VIEW ANY DEFINITION. The flag is rechecked about every 10 minutes, so
+      # 15m keeps a single stale check from firing it.
+      - alert: AtriumCollectorLoginElevated
+        expr: atrium_collector_target_login_sysadmin == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "db-collector logs in to {{ $labels.environment }}/{{ $labels.target }} as a sysadmin-equivalent login"
+          description: "The collector login for {{ $labels.target }} is a member of sysadmin or holds CONTROL SERVER. Give it only VIEW SERVER STATE and VIEW ANY DEFINITION."

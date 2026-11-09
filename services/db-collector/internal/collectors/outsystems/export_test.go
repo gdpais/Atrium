@@ -15,10 +15,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/otlp"
-	"heartbeat/services/db-collector/internal/collectors"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/otlp"
+	"atrium/services/db-collector/internal/collectors"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // gatedExporter is an OTel Collector that holds every export until it is

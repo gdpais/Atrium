@@ -1,6 +1,6 @@
 # How We Work
 
-How Heartbeat is planned and delivered: what everyone agrees on, what the
+How Atrium is planned and delivered: what everyone agrees on, what the
 team (people and agents) decides alone, how scope and reversals are handled,
 and what the [board scorecard](#measures) watches. Branching, commits, checks
 and releases are in [CONTRIBUTING.md](../../CONTRIBUTING.md); delivery order
@@ -17,7 +17,7 @@ shown, not when its checklist is ticked.
   phase's. If it serves neither, it does not go in.
 - Each phase ends with a **demo of the outcome** on real-shaped data
   ([test data](#test-data)): the user, the question they ask, and what
-  Heartbeat answers. The demo is the phase's exit check, ahead of the release.
+  Atrium answers. The demo is the phase's exit check, ahead of the release.
 - Build a component in the same slice as its first caller. A part with no
   user and no caller waits.
 - When two items compete, the one that moves the current outcome wins over
@@ -78,7 +78,7 @@ Two kinds of data, for different questions:
 
 | | PatientZero ([ADR 0010](../architecture/decisions/0010-patientzero-test-application.md)) | Replica of a real logging database |
 | --- | --- | --- |
-| Answers | Does Heartbeat produce the right signal when this fault happens? | Is what Heartbeat shows useful on a real application's data? |
+| Answers | Does Atrium produce the right signal when this fault happens? | Is what Atrium shows useful on a real application's data? |
 | Data | Synthetic, shaped by the replica's survey; the answer is known | Real: one week of a real installation's screens, integrations, slow SQL and users |
 | Live | Yes: load, faults, rotation, restarts | No: the one surveyed was a stale extract (`oslog_all`) with the native log tables empty, deleted after the survey |
 | Use for | Fault scenarios, regressions, nightly CI | Today: its schema and traffic profile only ([ADR 0010](../architecture/decisions/0010-patientzero-test-application.md)). Outcome demos on its rows need a decision first |
@@ -109,7 +109,7 @@ Each one is logged here when its pull request merges, with its cause:
 | 2026-10-10 | Per-job required checks replaced by `ci-ok` ([ADR 0007](../architecture/decisions/0007-change-based-ci-with-one-required-check.md)) | 2026-10-05 | Wrong assumption | One ruleset change | Try a CI rule on a scenario pull request before requiring it |
 | 2026-10-18 | OTel gateway service removed ([ADR 0009](../architecture/decisions/0009-remove-the-otel-gateway.md)) | 2026-06-13 | Built ahead of need | ~770 lines; planned as the next stage on 2026-10-04 | Build a component with its first caller |
 | 2026-10-19 | Integrations config renamed to be platform-neutral; push endpoints dropped ([ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) | 2026-06-13 | Late information | A breaking config change | Ask which platforms the organization uses before naming one in a contract |
-| 2026-11-02 | Traces sampled at 10% by default replaced by keeping every trace ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) | 2026-11-02 | Wrong assumption | One default, the ADR and its docs | Set a sampling or retention limit from a measured volume, not a convention |
+| 2026-11-02 | Traces sampled at 10% by default replaced by keeping every trace ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) | 2026-11-02 | Wrong assumption | One default, the ADR and its docs | Set a sampling or retention limit from a measured volume, not a convention |
 | 2026-11-04 | Web UI removed; the inventory becomes code, applied by the API ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md), superseding [ADR 0020](../architecture/decisions/0020-web-ui-served-by-the-api.md)) | 2026-11-04 | Late information | ~2,800 hand-written lines in 11 commits, plus Node, npm and Playwright in CI | Before choosing an interface, ask who makes the change and how the request reaches them |
 
 The board scorecard counts reversals per month by cause.

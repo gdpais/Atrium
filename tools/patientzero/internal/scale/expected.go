@@ -6,7 +6,7 @@ import (
 )
 
 // Expected are the known answers about a generated log, for checking what
-// Heartbeat shows against it: the dashboards' active users and sessions (a
+// Atrium shows against it: the dashboards' active users and sessions (a
 // distinct count in Loki), error rows, and error kinds (one fingerprint
 // each) first seen. Users and sessions count where a request started; rows
 // and errors where they were logged (Instant). Times are UTC.

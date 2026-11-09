@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/openapi"
-	"heartbeat/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/openapi"
+	"atrium/apps/api/internal/probedefs"
 )
 
 // ProbeDefinitions reads and changes probe definitions: *probedefs.Service.

@@ -11,7 +11,7 @@ them until a service uses them, and the only PostgreSQL is the disposable
 `postgres:17` integration-test fixture in `infra/docker-compose.test.yml`.
 Constraints:
 
-- What Heartbeat deploys goes through the chart; what it tests against stays
+- What Atrium deploys goes through the chart; what it tests against stays
   a Docker fixture. Third-party engines are namespaced, with no CRDs, and each
   can be turned off ([ADR 0003](0003-helm-on-kind-and-production.md)).
 - Argo CD renders the chart: no `randAlphaNum` or `lookup`, and Secrets are
@@ -49,7 +49,7 @@ What was checked on 2026-10-21:
 
 ## Decision
 
-1. **Two small templates in the Heartbeat chart**, `postgresql` and `valkey`,
+1. **Two small templates in the Atrium chart**, `postgresql` and `valkey`,
    on the projects' own images (`postgres`, `valkey/valkey`). Each is a
    one-replica StatefulSet with a ClusterIP Service, a readiness probe
    (`pg_isready`, `valkey-cli ping`), resources, a non-root security
@@ -93,7 +93,7 @@ Considered and not chosen:
 - **The `redis` image.** Redis 8's licenses need a legal review in a large
   company, and ElastiCache wouldn't run the same server.
 - **PostgreSQL and Valkey as Docker containers beside kind**, like the SQL
-  Server sandbox. They are part of what Heartbeat deploys, not something it
+  Server sandbox. They are part of what Atrium deploys, not something it
   tests against (ADR 0003).
 
 ## Consequences

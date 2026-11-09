@@ -11,7 +11,7 @@ import (
 
 	mssql "github.com/microsoft/go-mssqldb"
 
-	"heartbeat/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/logschema"
 )
 
 // DatabasePrefix starts the name of every database this package creates or
@@ -73,7 +73,7 @@ func Create(ctx context.Context, master *sql.DB, name string) error {
 
 // Schema creates the logging schema in db (ten cycle tables per log type,
 // the error detail tables, the two views each) and the reader role with
-// SELECT on the views. A readerLogin, such as the Heartbeat collector's,
+// SELECT on the views. A readerLogin, such as the Atrium collector's,
 // becomes a member of the role, so a collector can read the database as it
 // reads PatientZero's.
 func Schema(ctx context.Context, db *sql.DB, types []logschema.LogType, reader, readerLogin string) error {

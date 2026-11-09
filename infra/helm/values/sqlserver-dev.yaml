@@ -9,9 +9,9 @@
 
 dbCollector:
   # Created by scripts/kind.sh from .env.sqlserver-dev; holds
-  # HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=heartbeat_collector:<password>.
+  # ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=atrium_collector:<password>.
   credentials:
-    existingSecret: heartbeat-sqlserver-dev-credentials
+    existingSecret: atrium-sqlserver-dev-credentials
   sqlserver:
     trustServerCertificate: true
 
@@ -40,7 +40,7 @@ integrations:
         targets:
           - name: sqlserver-dev
             environment: local-dev
-            host: heartbeat-sqlserver-dev
+            host: atrium-sqlserver-dev
             port: 1433
             database_name: master
             credential_ref: env/sqlserver-dev

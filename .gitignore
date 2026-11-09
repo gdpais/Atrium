@@ -18,7 +18,7 @@ docs/reviews/
 docs/site/
 
 # Chart dependencies: fetched by `make chart-deps` from the versions in Chart.lock
-infra/helm/heartbeat/charts/
+infra/helm/atrium/charts/
 
 # Claude Code: per-session worktrees and personal settings
 .claude/worktrees/

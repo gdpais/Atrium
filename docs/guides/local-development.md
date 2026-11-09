@@ -1,6 +1,6 @@
 # Local Development
 
-How to run Heartbeat: the Heartbeat stack on a local kind cluster, the DB
+How to run Atrium: the Atrium stack on a local kind cluster, the DB
 collector pointed at a throwaway SQL Server, and the tests. This is the only
 page you need to run the app. Two optional guides build on it:
 
@@ -71,7 +71,7 @@ How the chart, images and cluster fit together, and how to debug them:
 | --- | --- |
 | Go code in a service, or a migration | `make kind-images kind-deploy`; the API's pod applies new migrations before it starts |
 | Chart templates or values | `make kind-deploy` |
-| Prometheus rules or dashboards (`infra/helm/heartbeat/files/`) | `make kind-deploy` (rules reload in place; run `make rules-check` first) |
+| Prometheus rules or dashboards (`infra/helm/atrium/files/`) | `make kind-deploy` (rules reload in place; run `make rules-check` first) |
 | The API's contract (`apps/api/openapi.yaml`) | `make generate`, and commit the regenerated code with it ([below](#change-the-api-contract)) |
 | An API query (`apps/api/internal/store/queries/`) or a migration (`db/migrations/`) | `make generate`, and commit the regenerated code with it ([below](#change-a-query-or-a-migration)) |
 
@@ -81,17 +81,17 @@ rebuilds first when the Go sources changed since the last build, for example
 after a pull ([Images](kubernetes-local.md#images)).
 
 The loop has a memory budget: the full profile holds at most 2.5 GiB of RAM
-in the kind node. To check it, watch `docker stats heartbeat-control-plane`
+in the kind node. To check it, watch `docker stats atrium-control-plane`
 (`<cluster>-control-plane` for another `KIND_CLUSTER`), take the peak over
 30 minutes of `make patientzero-load`, and subtract PatientZero and its k6
-Job, which run in the same node (`docker exec heartbeat-control-plane crictl
+Job, which run in the same node (`docker exec atrium-control-plane crictl
 stats --label io.kubernetes.pod.namespace=patientzero`). A second cluster,
 such as `make kind-e2e`, fits next to a sandbox that has run for hours only
 while the profile stays near today's 1.85 GiB (2026-11-02, with Tempo
 ([what the telemetry costs](../reference/metrics-and-endpoints.md#what-the-telemetry-costs))
 and the API, PostgreSQL and Valkey); at the budget it does not fit in a
 7.6 GiB Docker host. Run it in CI, or
-`docker restart heartbeat-sqlserver-dev` first: that frees the sandbox's
+`docker restart atrium-sqlserver-dev` first: that frees the sandbox's
 memory and keeps its databases. A change that would exceed the budget is
 trimmed first, or asks for a new one
 ([ADR 0003](../architecture/decisions/0003-helm-on-kind-and-production.md)).
@@ -116,19 +116,19 @@ make sqlserver-dev-down     # remove the container and its data; redeploy withou
 | Script that creates the collector login | `scripts/sqlserver-login.sh` | yes |
 | Values pointing the collector at the container | `infra/helm/values/sqlserver-dev.yaml` | yes |
 
-The container is named `heartbeat-sqlserver-dev`, uses `MSSQL_PID=Developer`,
+The container is named `atrium-sqlserver-dev`, uses `MSSQL_PID=Developer`,
 publishes 1433 only on `127.0.0.1:11433`, runs the AMD64 image (emulated on
 ARM hosts) and must pass a SQL health check before deploying. Its memory is
 capped at 2048 MB (`SQLSERVER_MEMORY_LIMIT_MB`, at least 2048, SQL Server's
 minimum); uncapped, SQL Server sizes itself to 80% of the Docker VM, and on an
 8 GB Docker host a PatientZero load flood or a second kind cluster got it
 killed. A container keeps the cap it was created with: `make sqlserver-dev-up`
-warns when it differs, and `docker rm -f heartbeat-sqlserver-dev` followed by
+warns when it differs, and `docker rm -f atrium-sqlserver-dev` followed by
 `make sqlserver-dev-up` recreates it with the new one, keeping its databases,
-which are on the `heartbeat-sqlserver-dev-data` volume. `make test-sqlserver`
+which are on the `atrium-sqlserver-dev-data` volume. `make test-sqlserver`
 caps its disposable container the same way. Once started,
 later `make kind-deploy` runs keep the target until `make sqlserver-dev-down`.
-The collector logs in as `heartbeat_collector`, which `make sqlserver-dev-up`
+The collector logs in as `atrium_collector`, which `make sqlserver-dev-up`
 creates with only the
 [documented grants](database-targets.md#collector-login-permissions); `sa` is
 used only to set the container up. An `.env.sqlserver-dev` from before this
@@ -143,7 +143,7 @@ certificate.
 ### PatientZero
 
 [PatientZero](../../tools/patientzero/README.md), the synthetic OutSystems
-application Heartbeat is tested against, runs next to the chart and writes
+application Atrium is tested against, runs next to the chart and writes
 into its own two databases on the sandbox; the collector reads its logging
 database.
 
@@ -176,14 +176,14 @@ affect them ([CONTRIBUTING.md](../../CONTRIBUTING.md#ci)).
 minimal, SQL Server sandbox, production example) and fails if rendering is not
 deterministic, an object is cluster-scoped or a Helm hook, the rendered
 `integrations.yaml` fails the Go loader, the collector is not a single replica
-with a writable state volume at `HEARTBEAT_STATE_DIR` and a read-only root
+with a writable state volume at `ATRIUM_STATE_DIR` and a read-only root
 filesystem, a one-replica StatefulSet is not `Parallel`, a misspelt top-level
 value or a misspelt key inside a component (`dbCollector.enabeld`,
 `podSecurityContext.runAsNonroot`) renders, the notes `helm install` prints
 miss a required Secret, or Prometheus, Alertmanager or Grafana points at a
 Service the profile does not deploy.
 
-`make kind-e2e` creates its own cluster (`heartbeat-e2e-<id>`, private
+`make kind-e2e` creates its own cluster (`atrium-e2e-<id>`, private
 kubeconfig, no host ports) and SQL Server container, so it runs next to your
 dev cluster without touching it, and removes only what it created. It checks
 the ADR 0003 acceptance criteria: every workload ready; the running collector
@@ -208,14 +208,14 @@ It takes about 10 minutes.
 Integration tests never touch your developer stack:
 
 - Each test in `tests/` uses `infra/docker-compose.test.yml` (a disposable
-  PostgreSQL fixture, not the platform) under a random `heartbeat-test-<id>`
+  PostgreSQL fixture, not the platform) under a random `atrium-test-<id>`
   project, with no published ports and tmpfs storage.
 - Only `db/migrations` is bind-mounted, read-only.
 - `COMPOSE_*` overrides and dotenv files are ignored; your selected Docker
   daemon is kept.
 - The API's tests (`apps/api`) connect from the test process, so each starts
   its own containers with `docker run` instead: a random
-  `heartbeat-api-test-<id>` name, a random password passed through the
+  `atrium-api-test-<id>` name, a random password passed through the
   environment, tmpfs storage, and one port published on 127.0.0.1 at a
   random port. PostgreSQL is the fixture's image, so both kinds of test run
   the same major.
@@ -228,8 +228,8 @@ behind. This happens when a parallel test panics, the process is killed, or
 it times out. The next integration test run removes them by itself:
 
 - Every test container and Compose project is labelled with the host name
-  and process ID of the test process that started it (`heartbeat.test.host`,
-  `heartbeat.test.pid`).
+  and process ID of the test process that started it (`atrium.test.host`,
+  `atrium.test.pid`).
 - The first container each test process starts removes the labelled
   containers of this host whose process is gone, with their Compose networks
   (`internal/testreap`). Paused containers are included.
@@ -239,11 +239,11 @@ it times out. The next integration test run removes them by itself:
 
 To clean up without running the tests, wait until no test is running (the
 list includes the containers of running tests), list what is left with
-`docker ps -a --filter label=heartbeat.test.pid` and remove a container with
+`docker ps -a --filter label=atrium.test.pid` and remove a container with
 `docker rm -fv`. Containers from before these labels, or from a host that
 cannot report its name, have no label to go by: find them with
-`docker ps -a --filter name=heartbeat-api-test-` and `docker compose ls`, and
-remove only the `heartbeat-test-<id>` project using the test Compose file.
+`docker ps -a --filter name=atrium-api-test-` and `docker compose ls`, and
+remove only the `atrium-test-<id>` project using the test Compose file.
 
 ## Build images
 
@@ -253,8 +253,8 @@ Docker's selected target platform; the build stage runs natively and cross-compi
 emulation is needed.
 
 ```bash
-docker build --platform linux/arm64 -t heartbeat/db-collector:dev -f services/db-collector/Dockerfile .
-docker build --platform linux/amd64 -t heartbeat/db-collector:amd64 -f services/db-collector/Dockerfile .
+docker build --platform linux/arm64 -t atrium/db-collector:dev -f services/db-collector/Dockerfile .
+docker build --platform linux/amd64 -t atrium/db-collector:amd64 -f services/db-collector/Dockerfile .
 ```
 
 BuildKit supplies `TARGETOS` and `TARGETARCH`; do not override them
@@ -268,7 +268,7 @@ Released images are built by CI, not by hand: see
 
 Edit the `integrations` values and run `make kind-deploy`; for probe
 assignments, run `make kind-assignments`, which renders them in the API's
-pod into `.tmp/kind/heartbeat/managed-collectors.yaml` and deploys with it
+pod into `.tmp/kind/atrium/managed-collectors.yaml` and deploys with it
 (later `make kind-deploy` runs keep it; delete the file to drop them). The
 render holds the assignments approved through the API and those of kind's
 inventory file (`api.inventory` in `kind.yaml`): PatientZero's database
@@ -284,7 +284,7 @@ collector polls the file every 5s. To apply it sooner:
 curl -X POST -H "Authorization: Bearer local-admin-token" http://localhost:8082/admin/config/reload
 ```
 
-`local-admin-token` is the kind-only value of the `heartbeat-runtime` Secret.
+`local-admin-token` is the kind-only value of the `atrium-runtime` Secret.
 Credentials need no restart either: the collector reads the mounted
 credentials Secret on every connection, and the kubelet updates it within
 about a minute. See the [configuration reference](../reference/configuration.md#credential-resolution).
@@ -298,13 +298,13 @@ through `kubectl port-forward`, which its NetworkPolicy does not filter, and
 the database through `kubectl exec`:
 
 ```bash
-kubectl --context kind-heartbeat -n heartbeat logs deployment/api -c migrate   # the migrations applied
-kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &
+kubectl --context kind-atrium -n atrium logs deployment/api -c migrate   # the migrations applied
+kubectl --context kind-atrium -n atrium port-forward svc/api 8081 &
 curl localhost:8081/readyz                                                      # {"status":"ready"}
-kubectl --context kind-heartbeat -n heartbeat exec -it postgresql-0 -- psql -U heartbeat
-# The first admin; its audit record reaches Loki as {service_name="heartbeat-api"}
+kubectl --context kind-atrium -n atrium exec -it postgresql-0 -- psql -U atrium
+# The first admin; its audit record reaches Loki as {service_name="atrium-api"}
 (umask 077; openssl rand -hex 16 >admin-password)
-kubectl --context kind-heartbeat -n heartbeat exec -i deployment/api -c api -- \
+kubectl --context kind-atrium -n atrium exec -i deployment/api -c api -- \
   /app/api users create-admin --email admin@example.com <admin-password
 ```
 
@@ -328,17 +328,17 @@ only, stay clear of a local PostgreSQL or Redis:
 
 ```bash
 export DEV_PASSWORD=$(openssl rand -hex 16)
-POSTGRES_PASSWORD=$DEV_PASSWORD docker run -d --name heartbeat-api-dev-postgres \
-  -p 127.0.0.1:55432:5432 -e POSTGRES_USER=heartbeat -e POSTGRES_DB=heartbeat -e POSTGRES_PASSWORD postgres:18.6
-VALKEY_EXTRA_FLAGS="--requirepass $DEV_PASSWORD" docker run -d --name heartbeat-api-dev-valkey \
+POSTGRES_PASSWORD=$DEV_PASSWORD docker run -d --name atrium-api-dev-postgres \
+  -p 127.0.0.1:55432:5432 -e POSTGRES_USER=atrium -e POSTGRES_DB=atrium -e POSTGRES_PASSWORD postgres:18.6
+VALKEY_EXTRA_FLAGS="--requirepass $DEV_PASSWORD" docker run -d --name atrium-api-dev-valkey \
   -p 127.0.0.1:56379:6379 -e VALKEY_EXTRA_FLAGS valkey/valkey:9.1.3
-until docker exec heartbeat-api-dev-postgres pg_isready -qh 127.0.0.1; do sleep 1; done
+until docker exec atrium-api-dev-postgres pg_isready -qh 127.0.0.1; do sleep 1; done
 
-export HEARTBEAT_API_POSTGRES_HOST=127.0.0.1 HEARTBEAT_API_POSTGRES_PORT=55432 \
-  HEARTBEAT_API_POSTGRES_SSLMODE=disable \
-  HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES="heartbeat:$DEV_PASSWORD" \
-  HEARTBEAT_API_REDIS_ADDR=127.0.0.1:56379 HEARTBEAT_API_REDIS_TLS=false \
-  HEARTBEAT_CREDENTIAL_SECRET_API_REDIS="default:$DEV_PASSWORD"
+export ATRIUM_API_POSTGRES_HOST=127.0.0.1 ATRIUM_API_POSTGRES_PORT=55432 \
+  ATRIUM_API_POSTGRES_SSLMODE=disable \
+  ATRIUM_CREDENTIAL_SECRET_API_POSTGRES="atrium:$DEV_PASSWORD" \
+  ATRIUM_API_REDIS_ADDR=127.0.0.1:56379 ATRIUM_API_REDIS_TLS=false \
+  ATRIUM_CREDENTIAL_SECRET_API_REDIS="default:$DEV_PASSWORD"
 
 go run ./apps/api/cmd/api migrate up   # apply db/migrations
 go run ./apps/api/cmd/api              # serve on :8081
@@ -348,13 +348,13 @@ curl localhost:8081/readyz             # {"status":"ready"}
 printf '%s\n' "$DEV_PASSWORD" | go run ./apps/api/cmd/api users create-admin --email admin@example.com
 ```
 
-Without `HEARTBEAT_API_AUDIT_ENDPOINT` the audit records stay in the outbox,
-where `docker exec heartbeat-api-dev-postgres psql -U heartbeat -c 'select record from audit_outbox'`
+Without `ATRIUM_API_AUDIT_ENDPOINT` the audit records stay in the outbox,
+where `docker exec atrium-api-dev-postgres psql -U atrium -c 'select record from audit_outbox'`
 shows them. To see them delivered, point it at an OTLP/HTTP logs receiver,
-such as `kubectl --context kind-heartbeat -n heartbeat port-forward svc/otel-collector 4318` on kind, with
-`HEARTBEAT_API_AUDIT_ENDPOINT=http://127.0.0.1:4318`.
+such as `kubectl --context kind-atrium -n atrium port-forward svc/otel-collector 4318` on kind, with
+`ATRIUM_API_AUDIT_ENDPOINT=http://127.0.0.1:4318`.
 
-The defaults expect TLS on both (`verify-full` and `HEARTBEAT_API_REDIS_TLS=true`),
+The defaults expect TLS on both (`verify-full` and `ATRIUM_API_REDIS_TLS=true`),
 which local containers don't have, hence the two overrides. The API starts
 without either dependency: `/readyz` answers 503 and the log's
 `readiness changed` line says which check fails and why, for example
@@ -362,7 +362,7 @@ without either dependency: `/readyz` answers 503 and the log's
 [configuration reference](../reference/configuration.md#api); the endpoints
 are in the [endpoints reference](../reference/metrics-and-endpoints.md#api-8081).
 Remove the containers with
-`docker rm -fv heartbeat-api-dev-postgres heartbeat-api-dev-valkey`.
+`docker rm -fv atrium-api-dev-postgres atrium-api-dev-valkey`.
 
 ## Change the API contract
 
@@ -434,6 +434,6 @@ back with `update schema_migrations set version = <previous>, dirty = false`
 | Image pulls fail with `429 Too Many Requests` | Docker Hub's anonymous rate limit. `docker login`, wait, and rerun |
 | SQL Server never becomes healthy on Apple silicon | Rosetta emulation is off in Docker Desktop, or Docker has too little memory |
 | `make sqlserver-dev-up` says the credential must be a dedicated login, not `sa` | `.env.sqlserver-dev` predates the least-privilege login. Run `make sqlserver-dev-init` (it adds the login and keeps the SA password), then `make sqlserver-dev-up` again |
-| `helm upgrade` fails with `resource StatefulSet/heartbeat/db-collector not ready ... 1 pods have failed` | The collector is crash-looping on the image or config just deployed; `kubectl --context kind-heartbeat -n heartbeat logs db-collector-0` says why. Fix it and rerun `make kind-deploy`: the StatefulSet replaces the broken pod (`podManagementPolicy: Parallel`) |
+| `helm upgrade` fails with `resource StatefulSet/atrium/db-collector not ready ... 1 pods have failed` | The collector is crash-looping on the image or config just deployed; `kubectl --context kind-atrium -n atrium logs db-collector-0` says why. Fix it and rerun `make kind-deploy`: the StatefulSet replaces the broken pod (`podManagementPolicy: Parallel`) |
 | `make kind-deploy` prints `recreating StatefulSet db-collector with podManagementPolicy Parallel` | Once, on a cluster deployed before the chart moved to `Parallel`, which cannot change in place: it deletes the StatefulSet with `--cascade=orphan` and the deploy creates it again. The pod keeps running until the new StatefulSet replaces it, which it does only if the deploy changes the pod template (after a `kubectl rollout restart` it does) |
 | `helm upgrade` fails with a field-manager conflict | Something was edited by hand with `kubectl`. See [Kubernetes delivery](kubernetes-local.md#working-with-it) |

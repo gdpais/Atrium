@@ -1,6 +1,6 @@
 # Data Model
 
-PostgreSQL is Heartbeat's durable system of record for **product metadata**:
+PostgreSQL is Atrium's durable system of record for **product metadata**:
 inventory, monitored-target metadata, investigation requests and results,
 alert and report metadata. It is not a telemetry store.
 
@@ -372,7 +372,7 @@ Nothing reads a row after delivery; audit records are searched in Loki.
 | `applications` | Business system operators care about. Belongs to one environment. | *Claims Portal* (`platform = outsystems_traditional`, `criticality = high`) |
 | `application_components` | A part of an application: *what part of the app it is*, not where it runs. | OutSystems module `ClaimsWeb`, screen flow `Login`, worker `auth-worker` |
 | `telemetry_sources` | A configured feed of telemetry for one application: which logs and metrics are its own. No `environment_id`: it is derived through the application. For OutSystems 11, the extraction collector itself stays in YAML ([ADR 0017](decisions/0017-outsystems-sources-map-application-identity.md)). | `source_type = outsystems`, `ingest_mode = agentless`, `config = {"application_name":"Claims"}` |
-| `normalization_rules` | Versioned mappings from source-specific fields to Heartbeat's normalized fields. Scoped by source type and version, not environment. | `outsystems` / `default-log-v1`: `{"session_field":"SessionId","user_field":"UserId"}` |
+| `normalization_rules` | Versioned mappings from source-specific fields to Atrium's normalized fields. Scoped by source type and version, not environment. | `outsystems` / `default-log-v1`: `{"session_field":"SessionId","user_field":"UserId"}` |
 
 OutSystems Traditional and Reactive are represented through
 `applications.platform`, `application_components.component_type` and, where

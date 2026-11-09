@@ -19,10 +19,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // noopExecutor is a ProbeExecutor whose probes succeed with no samples.
@@ -40,15 +40,15 @@ func TestNewRegistryExposesRuntimeProcessAndProbeMetrics(t *testing.T) {
 		t.Fatalf("newRegistry: %v", err)
 	}
 	runner := collectors.NewRunner(noopExecutor{}, collectorexport.NewPrometheusExporter(registry), nil).WithProbeMetrics(probeMetrics)
-	collector := heartbeatconfig.CollectorRuntimeConfig{
+	collector := atriumconfig.CollectorRuntimeConfig{
 		ID:             "sql-a",
 		Kind:           "sqlserver",
 		Enabled:        true,
 		ScrapeInterval: time.Minute,
-		Targets: []heartbeatconfig.TargetRuntimeConfig{{
+		Targets: []atriumconfig.TargetRuntimeConfig{{
 			Name:            "db",
 			EnvironmentSlug: "prod",
-			Probes:          []heartbeatconfig.ProbeRuntimeConfig{{Name: "waits"}},
+			Probes:          []atriumconfig.ProbeRuntimeConfig{{Name: "waits"}},
 		}},
 	}
 	if _, err := runner.RunOnce(context.Background(), collector); err != nil {
@@ -143,7 +143,7 @@ func gatherConfigState(t *testing.T, registry *prometheus.Registry) configState 
 
 // wantConfigState fails unless the metrics show the snapshot's version and
 // load time, successful, and the given reload counts (every other result 0).
-func wantConfigState(t *testing.T, registry *prometheus.Registry, snapshot heartbeatconfig.Snapshot, successful float64, reloads map[string]float64) {
+func wantConfigState(t *testing.T, registry *prometheus.Registry, snapshot atriumconfig.Snapshot, successful float64, reloads map[string]float64) {
 	t.Helper()
 	got := gatherConfigState(t, registry)
 	if got.successful != successful {
@@ -180,7 +180,7 @@ func TestConfigMetricsFollowEveryReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = svc.reload(context.Background(), "test")
-	if !errors.Is(err, heartbeatconfig.ErrInvalidCandidate) || !strings.Contains(err.Error(), `unknown SQL Server probe "wiats"; probes: blocking,`) {
+	if !errors.Is(err, atriumconfig.ErrInvalidCandidate) || !strings.Contains(err.Error(), `unknown SQL Server probe "wiats"; probes: blocking,`) {
 		t.Fatalf("reload with a misspelled probe = %v, want an invalid candidate naming the probes", err)
 	}
 	// The last good config keeps running, and the metrics say so.
@@ -197,7 +197,7 @@ func TestConfigMetricsFollowEveryReload(t *testing.T) {
 	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = manager.ReloadApplying(func(heartbeatconfig.RuntimeConfig, heartbeatconfig.RuntimeConfig) error {
+		_, _ = manager.ReloadApplying(func(atriumconfig.RuntimeConfig, atriumconfig.RuntimeConfig) error {
 			close(entered)
 			<-release
 			return nil
@@ -205,7 +205,7 @@ func TestConfigMetricsFollowEveryReload(t *testing.T) {
 	}()
 	<-entered
 	_, err = svc.reload(context.Background(), "test")
-	if !errors.Is(err, heartbeatconfig.ErrReloadBusy) {
+	if !errors.Is(err, atriumconfig.ErrReloadBusy) {
 		t.Fatalf("reload while another holds the lock = %v, want busy", err)
 	}
 	wantConfigState(t, registry, started, 0, map[string]float64{reloadOK: 1, reloadInvalidCandidate: 1, reloadBusy: 1})
@@ -340,15 +340,15 @@ func TestRunExportsConfigMetrics(t *testing.T) {
 }
 
 func TestReloadResult(t *testing.T) {
-	rolledBack := &heartbeatconfig.ReconcileError{Err: errors.New("update collector sql-a: deadline")}
+	rolledBack := &atriumconfig.ReconcileError{Err: errors.New("update collector sql-a: deadline")}
 	tests := []struct {
 		err  error
 		want string
 	}{
 		{nil, reloadOK},
-		{fmt.Errorf("%w: %v", heartbeatconfig.ErrInvalidCandidate, errors.New("bad host")), reloadInvalidCandidate},
-		{fmt.Errorf("%w: %w", heartbeatconfig.ErrReloadBusy, context.DeadlineExceeded), reloadBusy},
-		{fmt.Errorf("%w: %w", heartbeatconfig.ErrReloadApply, rolledBack), reloadApplyFailed},
+		{fmt.Errorf("%w: %v", atriumconfig.ErrInvalidCandidate, errors.New("bad host")), reloadInvalidCandidate},
+		{fmt.Errorf("%w: %w", atriumconfig.ErrReloadBusy, context.DeadlineExceeded), reloadBusy},
+		{fmt.Errorf("%w: %w", atriumconfig.ErrReloadApply, rolledBack), reloadApplyFailed},
 	}
 	for _, tt := range tests {
 		if got := reloadResult(tt.err); got != tt.want {

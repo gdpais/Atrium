@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const blockedMetric = "heartbeat_sqlserver_blocked_requests"
+const blockedMetric = "atrium_sqlserver_blocked_requests"
 
 func blocked(target, session string, value float64) Sample {
 	return Sample{
@@ -223,9 +223,9 @@ func TestRecordScopeReportsDuplicateSeries(t *testing.T) {
 // every drop would read as a reset to rate().  Gauges may be shared.
 func TestCounterSeriesHaveASingleOwner(t *testing.T) {
 	sample := func(metricType MetricType, value float64) Sample {
-		name := "heartbeat_test_gauge"
+		name := "atrium_test_gauge"
 		if metricType == Counter {
-			name = "heartbeat_test_total"
+			name = "atrium_test_total"
 		}
 		return Sample{Metric: name, Type: metricType, Value: value, Labels: map[string]string{"environment": "prod", "target": "core-db"}}
 	}
@@ -275,7 +275,7 @@ func TestCounterSeriesHaveASingleOwner(t *testing.T) {
 		if err := exporter.RecordScope(second, []Sample{sample(Counter, 7)}); err != nil {
 			t.Fatalf("RecordScope(second) after the owner left: %v", err)
 		}
-		if value, ok := gathered(t, reg, "heartbeat_test_total", sample(Counter, 0).Labels); !ok || value != 7 {
+		if value, ok := gathered(t, reg, "atrium_test_total", sample(Counter, 0).Labels); !ok || value != 7 {
 			t.Fatalf("exported %v %v, want 7", value, ok)
 		}
 	})

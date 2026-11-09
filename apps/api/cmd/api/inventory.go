@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/inventory"
 )
 
 // errInvalidInventory is an inventory file `api inventory check` found

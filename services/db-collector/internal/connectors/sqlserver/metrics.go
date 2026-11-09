@@ -12,11 +12,11 @@ import (
 const (
 	// MetricConnections is a target's connections by state: in_use or idle.
 	// It also has the label state.
-	MetricConnections = "heartbeat_collector_db_connections"
+	MetricConnections = "atrium_collector_db_connections"
 	// MetricConnectionWaits counts the waits for a free connection.
-	MetricConnectionWaits = "heartbeat_collector_db_connection_waits_total"
+	MetricConnectionWaits = "atrium_collector_db_connection_waits_total"
 	// MetricConnectionWaitSeconds is the time spent in those waits.
-	MetricConnectionWaitSeconds = "heartbeat_collector_db_connection_wait_seconds_total"
+	MetricConnectionWaitSeconds = "atrium_collector_db_connection_wait_seconds_total"
 )
 
 var (

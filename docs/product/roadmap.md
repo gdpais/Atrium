@@ -1,6 +1,6 @@
-# Heartbeat Roadmap
+# Atrium Roadmap
 
-The single phase plan for Heartbeat. It summarizes [TODO.md](../../TODO.md),
+The single phase plan for Atrium. It summarizes [TODO.md](../../TODO.md),
 which is the source of truth for delivery order and task status (TODO section
 numbers in brackets). The core order is **DB collector → OutSystems ingest →
 API/control plane → inventory as code**; each phase is tested as it is delivered, using the
@@ -11,9 +11,9 @@ shared validation inventory [16] throughout rather than as a final stage.
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
 | 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `heartbeat-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `atrium-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
-| 5 | Production delivery (EKS + Argo CD) | In progress: the platform is chosen ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)); the `heartbeat-deploy` config repository with its CI and Argo CD Application, and TLS on the collector's OTLP exporter and admin endpoints, are built [18]. Left: the **Owner**'s ruleset on `heartbeat-deploy`, the AWS infrastructure (EKS, RDS, ElastiCache, ECR, External Secrets), receivers and the dead-man's switch, Alertmanager's rollout policy [9.4], the compliance sign-off [9.2] |
+| 5 | Production delivery (EKS + Argo CD) | In progress: the platform is chosen ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)); the `atrium-deploy` config repository with its CI and Argo CD Application, and TLS on the collector's OTLP exporter and admin endpoints, are built [18]. Left: the **Owner**'s ruleset on `atrium-deploy`, the AWS infrastructure (EKS, RDS, ElastiCache, ECR, External Secrets), receivers and the dead-man's switch, Alertmanager's rollout policy [9.4], the compliance sign-off [9.2] |
 | 6 | Complete application and database product workflows | Triaged 2026-11-09: onboarding, the SQL Server signals and the overview dashboards already shipped in phases 1–4. Left: linking an application to its database targets with an application health dashboard [10.5], query and field checks on kind [10.2, 10.3], a safe reachability check [11.1], error events and per-NUMA page life expectancy [11.2], detail dashboards [11.3]. Runs while phase 5 waits on owner actions |
 | 7 | Investigations, alerting and reporting | Not started |
 | 8 | Advanced reliability, HA and security | Not started |
@@ -34,17 +34,17 @@ in a demo on real-shaped data, not when its checklist is ticked
 | 2 | SRE | See an OutSystems application's health, errors and latency, with its logs, in Grafana, and be alerted when its objective burns |
 | 3 | Operator | Onboard an application, a SQL Server target and its probes through the API, without editing YAML, with every change audited |
 | 4 | Operator | Do the same by a pull request to the environment's inventory file, and see the inventory in Grafana |
-| 5 | SRE, on-call | Run Heartbeat on EKS against production databases, with alerts reaching on-call |
+| 5 | SRE, on-call | Run Atrium on EKS against production databases, with alerts reaching on-call |
 | 6 | Application owner | Read an application's and its databases' health together, end to end |
 | 7 | SRE | Ask what happened to a user, session or request in a time window and get correlated evidence; get low-noise alerts and a weekly report |
 | 8 | SRE | Lose a collector or a node without a data gap beyond the agreed objective |
-| 9 | Operator | Load exported logs where Heartbeat cannot reach the database |
+| 9 | Operator | Load exported logs where Atrium cannot reach the database |
 | 10 | DBA | See Oracle as they see SQL Server |
 | 11 | Owner | Decide, on evidence, whether to keep the custom collector or adopt Alloy |
 
 ## Test application: PatientZero
 
-Heartbeat only reads, so the phases are tested against **PatientZero**, a
+Atrium only reads, so the phases are tested against **PatientZero**, a
 synthetic application that behaves like an OutSystems 11 application
 ([ADR 0010](../architecture/decisions/0010-patientzero-test-application.md)) [16.5].
 Each request runs real SQL against its business database on the sandbox SQL
@@ -160,7 +160,7 @@ release: the release GitHub App is created then, and release-please cuts the
 release from the commits since `v0.1.0` [0.5].
 
 Done for the exit: the signal gaps the outage scenarios found (an alert when
-the log export is blocked, `HeartbeatServiceDown` for a missing db-collector
+the log export is blocked, `AtriumServiceDown` for a missing db-collector
 or Loki, a late-row counter for rows committed past the `lag`, and the log
 delay metric described as extraction freshness) [3.3, 9.1], and a CI workflow
 that runs every scenario on kind nightly, by hand and on the release pull
@@ -174,7 +174,7 @@ Prometheus on kind, restarts and outages without gaps, and the SLO scenarios
 firing the burn-rate alerts. The first green nightly run was on 2026-10-28.
 The 48 hour backfill matched its known answer in Loki on the current export
 path in the scenarios workflow on 2026-11-02
-([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130): all 48 hours in full, users, sessions and error fingerprints
+([run](https://github.com/gdpais/Atrium/actions/runs/41538460130): all 48 hours in full, users, sessions and error fingerprints
 exact), and runs after the scenarios from now on [16.5].
 
 The outcome demo passed on 2026-11-08, on kind at `13312e0`: from the burn-rate
@@ -217,11 +217,11 @@ In order, one pull request each:
   from mounted Secret files, so a new target needs no restart [4.3–4.5, 2.5]
   (done)
 - Grafana deep links from the integrations templates [4.9] (done): the API
-  reads the collector's `heartbeat-integrations` ConfigMap and renders
+  reads the collector's `atrium-integrations` ConfigMap and renders
   dashboard and deep-link templates for applications and database targets;
   no log-search endpoint until investigations need the query adapters
 
-The pull requests to `heartbeat-deploy` (ADR 0014) are built only if
+The pull requests to `atrium-deploy` (ADR 0014) are built only if
 production needs probe assignments managed by the API, since ADR 0021 moved
 the inventory into that repository [18]. Investigation, alerting and reporting APIs and their job
 contracts move to phase 7 and are built with their workers [4.6–4.8]: nothing
@@ -269,14 +269,14 @@ by the collector, its rows refused to API writes and listed in Grafana.
 The chart already runs on kind and in CI; this phase takes it to production with
 the defaults in
 [ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md) [18].
-It comes after the inventory as code, since `heartbeat-deploy` holds each
+It comes after the inventory as code, since `atrium-deploy` holds each
 environment's inventory beside its values; pull it forward if a production
 SQL Server must be monitored sooner.
 
 - The observability platform is chosen: the Grafana stack stays, and other
-  applications receive Heartbeat's telemetry as OTLP from the Collector
+  applications receive Atrium's telemetry as OTLP from the Collector
   ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)) [18]
-- `heartbeat-deploy` repository with Argo CD Applications and per-environment
+- `atrium-deploy` repository with Argo CD Applications and per-environment
   values and inventory (built); optional Argo CD rehearsal on kind
 - CI publishes multi-arch images and the chart to ECR through GitHub OIDC
 - EKS infrastructure as code; External Secrets; healthchecks.io dead-man's

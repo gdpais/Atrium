@@ -18,15 +18,15 @@ if [ -n "${E2E_CLUSTER:-}" ]; then
 	CLUSTER=$E2E_CLUSTER
 	own_cluster=false
 else
-	CLUSTER=heartbeat-e2e-$run_id
+	CLUSTER=atrium-e2e-$run_id
 	own_cluster=true
 fi
-NAMESPACE=heartbeat
+NAMESPACE=atrium
 CONTEXT=kind-$CLUSTER
 SQL_CONTAINER=$CLUSTER-sqlserver
 WORK=$(mktemp -d)
 
-export KIND_CLUSTER=$CLUSTER HEARTBEAT_NAMESPACE=$NAMESPACE
+export KIND_CLUSTER=$CLUSTER ATRIUM_NAMESPACE=$NAMESPACE
 export SQLSERVER_CONTAINER=$SQL_CONTAINER SQLSERVER_ENV_FILE=$WORK/sqlserver.env
 # No host port: the test target is reachable only on the kind network.
 export SQLSERVER_HOST_PORT=
@@ -102,7 +102,7 @@ admin_forward() {
 	admin_port=$(sed -n 's/^Forwarding from 127\.0\.0\.1:\([0-9]*\) .*/\1/p' "$WORK/port-forward.log" | head -n 1)
 	(
 		umask 077
-		k -n "$NAMESPACE" get secret heartbeat-runtime -o json |
+		k -n "$NAMESPACE" get secret atrium-runtime -o json |
 			jq -r '"Authorization: Bearer " + (.data["admin-token"] | @base64d)' >"$WORK/admin-header"
 	)
 }
@@ -137,23 +137,23 @@ wait_for() {
 collector_pod_uid() { k -n "$NAMESPACE" get pod db-collector-0 -o jsonpath='{.metadata.uid}'; }
 collector_restarts() { k -n "$NAMESPACE" get pod db-collector-0 -o jsonpath='{.status.containerStatuses[0].restartCount}'; }
 config_version() { admin_config | jq -r '.version // empty'; }
-target_up() { [ "$(prom_value "heartbeat_collector_target_up{target=\"$1\"}")" = "$2" ]; }
+target_up() { [ "$(prom_value "atrium_collector_target_up{target=\"$1\"}")" = "$2" ]; }
 version_changed_from() { [ "$(config_version)" != "$1" ]; }
 reload_error_is_set() { admin_config | jq -e '.last_reload_err != ""'; }
 reload_error_is_clear() { admin_config | jq -e '.last_reload_err == ""'; }
 # The last reload's result as Prometheus scraped it (1 ok, 0 failed), and
 # whether its alert is pending or firing.
-reload_successful_is() { value_is 'heartbeat_collector_config_last_reload_successful{job="db-collector"}' "$1"; }
+reload_successful_is() { value_is 'atrium_collector_config_last_reload_successful{job="db-collector"}' "$1"; }
 reload_alert_active() {
-	svc_get prometheus:9090 /api/v1/alerts | jq -e 'any(.data.alerts[]; .labels.alertname == "HeartbeatCollectorConfigReloadFailed")'
+	svc_get prometheus:9090 /api/v1/alerts | jq -e 'any(.data.alerts[]; .labels.alertname == "AtriumCollectorConfigReloadFailed")'
 }
 reload_alert_gone() {
-	svc_get prometheus:9090 /api/v1/alerts | jq -e 'all(.data.alerts[]; .labels.alertname != "HeartbeatCollectorConfigReloadFailed")'
+	svc_get prometheus:9090 /api/v1/alerts | jq -e 'all(.data.alerts[]; .labels.alertname != "AtriumCollectorConfigReloadFailed")'
 }
-rejected_reloads() { prom_value 'sum(heartbeat_collector_config_reloads_total{result="invalid_candidate"})'; }
+rejected_reloads() { prom_value 'sum(atrium_collector_config_reloads_total{result="invalid_candidate"})'; }
 rejected_reloads_above() { now=$(rejected_reloads); [ -n "$now" ] && gt "$now" "$1"; }
 watchdog_active() { svc_get alertmanager:9093 /api/v2/alerts | jq -e 'any(.[]; .labels.alertname == "Watchdog")'; }
-last_success() { prom_value "heartbeat_collector_target_last_success_timestamp_seconds{target=\"$1\"}"; }
+last_success() { prom_value "atrium_collector_target_last_success_timestamp_seconds{target=\"$1\"}"; }
 # gt <a> <b>: numeric a > b, for decimals too.
 gt() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a > b) }'; }
 success_after() { now=$(last_success "$1"); [ -n "$now" ] && gt "$now" "$2"; }
@@ -206,7 +206,7 @@ urldecode() {
 loki_count_is() { [ "$(loki_count "$1")" = "$2" ]; }
 value_is() { [ "$(prom_value "$1")" = "$2" ]; }
 target_fresh() {
-	age=$(prom_value "time() - heartbeat_collector_target_last_success_timestamp_seconds{target=\"$1\"}")
+	age=$(prom_value "time() - atrium_collector_target_last_success_timestamp_seconds{target=\"$1\"}")
 	[ -n "$age" ] && [ "$(printf '%.0f' "$age")" -lt 60 ]
 }
 loki_query() { svc_get loki:3100 "/loki/api/v1/query_range?since=15m&limit=10&query=$(printf '%s' "$1" | jq -sRr @uri)"; }
@@ -254,7 +254,7 @@ otel_replacement_ready() {
 # PostgreSQL as the database's owner, over the pod's Unix socket.
 api_pod() { k -n "$NAMESPACE" get pod -l app.kubernetes.io/name=api -o jsonpath='{.items[0].metadata.name}'; }
 api_ready_is() { [ "$(k -n "$NAMESPACE" get pod "$(api_pod)" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')" = "$1" ]; }
-psql_() { k -n "$NAMESPACE" exec postgresql-0 -- psql -U heartbeat -d heartbeat -Atc "$1"; }
+psql_() { k -n "$NAMESPACE" exec postgresql-0 -- psql -U atrium -d atrium -Atc "$1"; }
 schema_version() { psql_ "SELECT version || CASE WHEN dirty THEN ' (dirty)' ELSE '' END FROM schema_migrations"; }
 schema_version_is() { [ "$(schema_version)" = "$1" ]; }
 outbox_empty() { [ "$(psql_ 'SELECT count(*) FROM audit_outbox')" = 0 ]; }
@@ -279,12 +279,12 @@ password="E2e-$(openssl rand -hex 16)"
 umask 077
 # sa is for setup and the session sampler below; the collector logs in as a
 # least-privilege login that kind.sh sqlserver-up creates.
-printf 'MSSQL_SA_PASSWORD=%s\nHEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=heartbeat_collector:%s\n' \
+printf 'MSSQL_SA_PASSWORD=%s\nATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=atrium_collector:%s\n' \
 	"$password" "E2e-$(openssl rand -hex 16)" >"$SQLSERVER_ENV_FILE"
 umask 022
 # Points the collector at this run's container, plus a second target that can
 # never connect, to show that one failed target does not stop the others.
-sed -e "s/host: heartbeat-sqlserver-dev/host: $SQL_CONTAINER/" infra/helm/values/sqlserver-dev.yaml >"$WORK/e2e.yaml"
+sed -e "s/host: atrium-sqlserver-dev/host: $SQL_CONTAINER/" infra/helm/values/sqlserver-dev.yaml >"$WORK/e2e.yaml"
 cat >>"$WORK/e2e.yaml" <<EOF
           - name: unreachable
             environment: local-dev
@@ -323,12 +323,12 @@ step "the running collector is the image just built"
 arch=$(docker exec "$CLUSTER-control-plane" uname -m)
 running=$(k -n "$NAMESPACE" get pod db-collector-0 -o jsonpath='{.status.containerStatuses[0].image}')
 case "$running" in
-*"heartbeat/db-collector:$DB_COLLECTOR_TAG") pass "db-collector runs $DB_COLLECTOR_TAG (content-derived tag, node arch $arch)" ;;
+*"atrium/db-collector:$DB_COLLECTOR_TAG") pass "db-collector runs $DB_COLLECTOR_TAG (content-derived tag, node arch $arch)" ;;
 *) fail "db-collector runs $running, expected tag $DB_COLLECTOR_TAG" ;;
 esac
 for image in $(k -n "$NAMESPACE" get pod "$(api_pod)" -o jsonpath='{.status.containerStatuses[0].image} {.status.initContainerStatuses[0].image}'); do
 	case "$image" in
-	*"heartbeat/api:$API_TAG") ;;
+	*"atrium/api:$API_TAG") ;;
 	*) fail "the API or its migrate init container runs $image, expected tag $API_TAG" ;;
 	esac
 done
@@ -371,50 +371,50 @@ pass "on schema $((newest - 1)) the API left its Service and came back at $newes
 step "SQL Server target is collected and visible"
 wait_for 180 "target up in Prometheus" target_up sqlserver-dev 1
 wait_for 60 "fresh last success" target_fresh sqlserver-dev
-sessions=$(prom_value "sum(heartbeat_sqlserver_sessions{target=\"sqlserver-dev\"})")
-[ -n "$sessions" ] || fail "no heartbeat_sqlserver_sessions for sqlserver-dev"
+sessions=$(prom_value "sum(atrium_sqlserver_sessions{target=\"sqlserver-dev\"})")
+[ -n "$sessions" ] || fail "no atrium_sqlserver_sessions for sqlserver-dev"
 pass "probe metrics present (sessions=$sessions)"
-sysadmin=$(prom_value "heartbeat_collector_target_login_sysadmin{target=\"sqlserver-dev\"}")
-[ "$sysadmin" = 0 ] || fail "heartbeat_collector_target_login_sysadmin for sqlserver-dev is '$sysadmin', expected 0"
+sysadmin=$(prom_value "atrium_collector_target_login_sysadmin{target=\"sqlserver-dev\"}")
+[ "$sysadmin" = 0 ] || fail "atrium_collector_target_login_sysadmin for sqlserver-dev is '$sysadmin', expected 0"
 pass "the collector logs in without sysadmin (least-privilege login)"
 # Cumulative SQL Server values are scraped as counters, so rate() applies.
-for metric in heartbeat_sqlserver_wait_seconds_total heartbeat_sqlserver_batch_requests_total heartbeat_sqlserver_transactions_total; do
+for metric in atrium_sqlserver_wait_seconds_total atrium_sqlserver_batch_requests_total atrium_sqlserver_transactions_total; do
 	type=$(metric_type "$metric")
 	[ "$type" = counter ] || fail "$metric has type [$type], expected counter"
 done
 pass "waits and throughput exported as counters"
 # One server-wide series per throughput counter (issue #4).
-for metric in heartbeat_sqlserver_batch_requests_total heartbeat_sqlserver_transactions_total; do
+for metric in atrium_sqlserver_batch_requests_total atrium_sqlserver_transactions_total; do
 	count=$(prom_value "count($metric{target=\"sqlserver-dev\"})")
 	[ "$count" = 1 ] || fail "$metric has [$count] series for sqlserver-dev, expected 1"
 done
-wait_for 120 "batch request rate" has_value "rate(heartbeat_sqlserver_batch_requests_total{target=\"sqlserver-dev\"}[1m])"
+wait_for 120 "batch request rate" has_value "rate(atrium_sqlserver_batch_requests_total{target=\"sqlserver-dev\"}[1m])"
 pass "one series per throughput counter, and rate() returns a value"
 # Core CPU, buffer cache and file I/O signals. The scheduler monitor writes its
 # first CPU record about a minute after SQL Server starts.
-wait_for 180 "CPU utilisation" has_value "heartbeat_sqlserver_cpu_sql_process_ratio{target=\"sqlserver-dev\"}"
-for metric in heartbeat_sqlserver_page_life_expectancy_seconds heartbeat_sqlserver_buffer_cache_hit_ratio; do
+wait_for 180 "CPU utilisation" has_value "atrium_sqlserver_cpu_sql_process_ratio{target=\"sqlserver-dev\"}"
+for metric in atrium_sqlserver_page_life_expectancy_seconds atrium_sqlserver_buffer_cache_hit_ratio; do
 	[ -n "$(prom_value "$metric{target=\"sqlserver-dev\"}")" ] || fail "no $metric for sqlserver-dev"
 done
-type=$(metric_type heartbeat_sqlserver_database_file_reads_total)
-[ "$type" = counter ] || fail "heartbeat_sqlserver_database_file_reads_total has type [$type], expected counter"
-files=$(prom_value 'count(heartbeat_sqlserver_database_file_reads_total{target="sqlserver-dev"})')
-wait_for 120 "file read rate" has_value "rate(heartbeat_sqlserver_database_file_reads_total{target=\"sqlserver-dev\"}[1m])"
+type=$(metric_type atrium_sqlserver_database_file_reads_total)
+[ "$type" = counter ] || fail "atrium_sqlserver_database_file_reads_total has type [$type], expected counter"
+files=$(prom_value 'count(atrium_sqlserver_database_file_reads_total{target="sqlserver-dev"})')
+wait_for 120 "file read rate" has_value "rate(atrium_sqlserver_database_file_reads_total{target=\"sqlserver-dev\"}[1m])"
 pass "cpu, buffer_cache and file_io series present ($files database files)"
 # Self-observability: Go runtime and process metrics, probe durations, and
 # error counters created at 0 for every scheduled probe (4 reasons each).
 for query in 'go_goroutines{job="db-collector"}' 'process_resident_memory_bytes{job="db-collector"}' \
-	'heartbeat_collector_probe_duration_seconds_count{target="sqlserver-dev"}'; do
+	'atrium_collector_probe_duration_seconds_count{target="sqlserver-dev"}'; do
 	[ -n "$(prom_value "$query")" ] || fail "no $query"
 done
-probes=$(prom_value 'count(heartbeat_collector_probe_duration_seconds_count{target="sqlserver-dev"})')
-errors=$(prom_value 'count(heartbeat_collector_probe_errors_total{target="sqlserver-dev"})')
+probes=$(prom_value 'count(atrium_collector_probe_duration_seconds_count{target="sqlserver-dev"})')
+errors=$(prom_value 'count(atrium_collector_probe_errors_total{target="sqlserver-dev"})')
 [ -n "$probes" ] && [ "$errors" = "$((probes * 4))" ] ||
 	fail "probe error counters: [$errors] series for [$probes] probes, expected 4 per probe"
 pass "collector self-metrics present ($probes probes timed, $errors error counters)"
 svc_get grafana:3000 /api/dashboards/uid/sqlserver-overview | jq -e '.dashboard.uid == "sqlserver-overview"' >/dev/null ||
 	fail "Grafana has no sqlserver-overview dashboard"
-seen=$(svc_get grafana:3000 "/api/datasources/proxy/uid/prometheus/api/v1/query?query=heartbeat_collector_target_up" |
+seen=$(svc_get grafana:3000 "/api/datasources/proxy/uid/prometheus/api/v1/query?query=atrium_collector_target_up" |
 	jq -r '[.data.result[].metric.target] | sort | join(",")')
 case ",$seen," in
 *,sqlserver-dev,*) pass "Grafana's Prometheus datasource returns the target ($seen)" ;;
@@ -426,7 +426,7 @@ wait_for 120 "unreachable target reported down" target_up unreachable 0
 target_up sqlserver-dev 1 || fail "healthy target stopped when another failed"
 pass "unreachable target down, sqlserver-dev still up"
 wait_for 60 "probe errors counted for the unreachable target" has_value \
-	'sum(heartbeat_collector_probe_errors_total{target="unreachable"}) > 0'
+	'sum(atrium_collector_probe_errors_total{target="unreachable"}) > 0'
 pass "probe errors counted for the unreachable target"
 
 step "Prometheus alerts reach Alertmanager (Watchdog)"
@@ -490,12 +490,12 @@ step "OutSystems logs are extracted to Loki (outsystems_logs)"
 # The fixture oslog_Error cycle tables and views in their own database,
 # readable by the collector's login through SELECT on the two views only, with
 # rows from a few minutes ago.
-oslog_login=$(sed -n 's/^HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=\([^:]*\):.*/\1/p' "$SQLSERVER_ENV_FILE")
+oslog_login=$(sed -n 's/^ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=\([^:]*\):.*/\1/p' "$SQLSERVER_ENV_FILE")
 # The surveyed schema has no defaults for Id and the other NOT NULL columns,
 # so the rows name them all. They go into oslog_Error_3, the cycle table the
 # oslog_Error view reads, as the platform writes them.
 fixture_output=$({
-	printf 'CREATE DATABASE heartbeat_oslog_e2e;\nGO\nUSE heartbeat_oslog_e2e;\nGO\n'
+	printf 'CREATE DATABASE atrium_oslog_e2e;\nGO\nUSE atrium_oslog_e2e;\nGO\n'
 	cat services/db-collector/internal/collectors/outsystems/testdata/oslog/error.sql
 	printf '\nGO\nCREATE USER [%s] FOR LOGIN [%s];\nGRANT SELECT ON dbo.oslog_Error TO [%s];\nGRANT SELECT ON dbo.oslog_Error_Previous TO [%s];\n' "$oslog_login" "$oslog_login" "$oslog_login" "$oslog_login"
 	printf '%s\n' "INSERT INTO dbo.oslog_Error_3 (Id, Instant, Session_Id, User_Id, Espace_Id, Tenant_Id, Message, Module_Name, Server, Espace_Name, Request_Key) VALUES" \
@@ -520,30 +520,30 @@ cat >>"$WORK/e2e-oslogs.yaml" <<EOF
           - name: logging-db
             host: $SQL_CONTAINER
             port: 1433
-            database_name: heartbeat_oslog_e2e
+            database_name: atrium_oslog_e2e
             credential_ref: env/sqlserver-dev
 EOF
 EXTRA_VALUES="$WORK/e2e-oslogs.yaml $base_values" scripts/kind.sh deploy >/dev/null
 # kubelet propagates the ConfigMap, then the collector hot-reloads it.
-wait_for 240 "3 rows extracted" value_is 'sum(heartbeat_outsystems_extract_rows_total{collector="oslogs-e2e"})' 3
+wait_for 240 "3 rows extracted" value_is 'sum(atrium_outsystems_extract_rows_total{collector="oslogs-e2e"})' 3
 wait_for 120 "3 log lines in Loki" loki_count_is '{service_name="E2eShop"}' 3
 loki_count_is '{service_name="E2eShop"} | Request_Key="e2e-2"' 1 ||
 	fail "Loki has no line with the Request_Key attribute e2e-2 as structured metadata"
 loki_count_is '{service_name="E2eShop", outsystems_log_type="error"}' 3 ||
 	fail "the OutSystems rows are not indexed under the label outsystems_log_type=\"error\""
 target_up logging-db 1 || fail "the logging-db target is not up"
-[ -n "$(prom_value 'heartbeat_outsystems_extract_lag_seconds{collector="oslogs-e2e"}')" ] ||
-	fail "no heartbeat_outsystems_extract_lag_seconds for oslogs-e2e"
+[ -n "$(prom_value 'atrium_outsystems_extract_lag_seconds{collector="oslogs-e2e"}')" ] ||
+	fail "no atrium_outsystems_extract_lag_seconds for oslogs-e2e"
 pass "3 OutSystems error rows in Loki as {service_name=\"E2eShop\", outsystems_log_type=\"error\"}, attributes as structured metadata"
 
 # ----------------------------------------------------------------------------
-step "Heartbeat's own logs and traces reach Loki and Tempo, linked by trace ID"
-own_logs='{service_namespace="heartbeat",service_name="db-collector",deployment_environment_name="local"}'
+step "Atrium's own logs and traces reach Loki and Tempo, linked by trace ID"
+own_logs='{service_namespace="atrium",service_name="db-collector",deployment_environment_name="local"}'
 wait_for 120 "the collector's own logs in Loki" log_found "$own_logs"
-[ "$(prom_value 'sum(heartbeat_telemetry_log_records_total{outcome="exported"}) > 0' | cut -c1)" != "" ] ||
+[ "$(prom_value 'sum(atrium_telemetry_log_records_total{outcome="exported"}) > 0' | cut -c1)" != "" ] ||
 	fail "the collector counts no exported log records"
-[ "$(prom_value 'heartbeat_service_info{service="db-collector",environment="local"}')" = 1 ] ||
-	fail "no heartbeat_service_info for the db-collector"
+[ "$(prom_value 'atrium_service_info{service="db-collector",environment="local"}')" = 1 ] ||
+	fail "no atrium_service_info for the db-collector"
 # A cycle's trace, from the target that always fails: its warnings carry the
 # trace ID, which leads to the trace.
 traced_warning() { loki_query "$own_logs | trace_id!=\"\" | detected_level=\"warn\"" | jq -r '[.data.result[].stream.trace_id] | first // empty'; }
@@ -553,15 +553,15 @@ trace_has_cycle() {
 		jq -e '[.batches[].scopeSpans[].spans[].name] | contains(["collector.cycle", "collector.target", "collector.probe"])'
 }
 wait_for 180 "a warning's trace ID leads to its collection cycle in Tempo" trace_has_cycle
-pass "own logs in Loki under service_namespace=heartbeat; trace $trace_id holds the cycle, target and probe spans"
+pass "own logs in Loki under service_namespace=atrium; trace $trace_id holds the cycle, target and probe spans"
 # The API's, wired the same way (ADR 0018).
-api_logs='{service_namespace="heartbeat",service_name="api",deployment_environment_name="local"}'
+api_logs='{service_namespace="atrium",service_name="api",deployment_environment_name="local"}'
 wait_for 120 "the API's own logs in Loki" log_found "$api_logs |= \"readiness changed\""
 wait_for 60 "Prometheus scrapes the API" value_is 'up{job="api"}' 1
-[ "$(prom_value 'heartbeat_service_info{service="api",environment="local"}')" = 1 ] ||
-	fail "no heartbeat_service_info for the API"
-[ -n "$(prom_value 'sum(heartbeat_api_http_requests_total{route="/readyz"})')" ] ||
-	fail "no heartbeat_api_http_requests_total for the API's readiness probes"
+[ "$(prom_value 'atrium_service_info{service="api",environment="local"}')" = 1 ] ||
+	fail "no atrium_service_info for the API"
+[ -n "$(prom_value 'sum(atrium_api_http_requests_total{route="/readyz"})')" ] ||
+	fail "no atrium_api_http_requests_total for the API's readiness probes"
 # Health and readiness requests are not traced, so a request for a path no
 # route serves makes the trace. From Prometheus, the one pod the API's
 # NetworkPolicy admits; the 404 is expected.
@@ -576,8 +576,8 @@ step "an audit record reaches Loki through the Collector's logs pipeline"
 # input of `kubectl exec -i`, never on a command line. It stays in a file for
 # the login step below. The command logs its audit record's id; the API's
 # drainer sends the record to the Collector's 4318, the pipeline whose queue
-# is on disk (ADR 0016), and Loki keeps it under service_name heartbeat-api,
-# outside Heartbeat's own logs.
+# is on disk (ADR 0016), and Loki keeps it under service_name atrium-api,
+# outside Atrium's own logs.
 admin_email=kind-e2e-admin@example.com
 admin_password=$WORK/admin-password
 (
@@ -589,12 +589,12 @@ created=$(k -n "$NAMESPACE" exec -i "$(api_pod)" -c api -- \
 	fail "api users create-admin failed: $created"
 record_id=$(printf '%s\n' "$created" | sed -n 's/.*"audit_record_id":"\([^"]*\)".*/\1/p' | head -n 1)
 [ -n "$record_id" ] || fail "api users create-admin logged no audit_record_id: $created"
-audit_query="{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" | log_record_uid=\"$record_id\""
+audit_query="{service_name=\"atrium-api\"} | event_name=\"atrium.audit\" | log_record_uid=\"$record_id\""
 wait_for 120 "audit record $record_id in Loki" log_found "$audit_query"
 loki_query "$audit_query" | jq -e '[.data.result[].values[][1] | fromjson | select(.entity_type == "user" and .action == "create")] | length > 0' >/dev/null ||
 	fail "the audit record in Loki is not the user's creation: $(loki_query "$audit_query" | jq -c '.data.result[0].values[0][1]')"
 wait_for 60 "the audit outbox empty" outbox_empty
-pass "audit record $record_id (user create) in Loki under service_name=heartbeat-api; the outbox is empty"
+pass "audit record $record_id (user create) in Loki under service_name=atrium-api; the outbox is empty"
 
 # ----------------------------------------------------------------------------
 step "the admin logs in, reads the session and logs out, from the site's origin"
@@ -603,8 +603,8 @@ step "the admin logs in, reads the session and logs out, from the site's origin"
 # must come from (api.siteOrigin); one from elsewhere is refused before the
 # password is checked. The password and the session cookie stay in files,
 # never on a command line.
-site=$(k -n "$NAMESPACE" get deployment api -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="HEARTBEAT_API_SITE_ORIGIN")].value}')
-[ -n "$site" ] || fail "the API has no HEARTBEAT_API_SITE_ORIGIN, so nobody can log in"
+site=$(k -n "$NAMESPACE" get deployment api -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="ATRIUM_API_SITE_ORIGIN")].value}')
+[ -n "$site" ] || fail "the API has no ATRIUM_API_SITE_ORIGIN, so nobody can log in"
 kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward "pod/$(api_pod)" :8081 >"$WORK/api-forward.log" 2>&1 &
 port_forward_pid=$!
 wait_for 30 "port-forward to the API" grep -q '^Forwarding from 127.0.0.1:' "$WORK/api-forward.log"
@@ -625,11 +625,11 @@ code=$(api_call POST /api/v1/session -H 'Origin: https://elsewhere.example' -H '
 [ "$code" = 403 ] || fail "a login from another origin returned $code, want 403"
 code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site" -H 'Content-Type: application/json' --data "@$WORK/login.json")
 [ "$code" = 201 ] || fail "the admin's login returned $code: $(cat "$WORK/api-body")"
-grep -qiE '^set-cookie: __Host-heartbeat_session=[^;]+; Path=/; Max-Age=[0-9]+; HttpOnly; Secure; SameSite=Lax' "$WORK/login-headers" ||
+grep -qiE '^set-cookie: __Host-atrium_session=[^;]+; Path=/; Max-Age=[0-9]+; HttpOnly; Secure; SameSite=Lax' "$WORK/login-headers" ||
 	fail "the session cookie is not __Host-, HttpOnly, Secure and SameSite=Lax: $(grep -i '^set-cookie:' "$WORK/login-headers" | sed 's/=[^;]*;/=<token>;/')"
 (
 	umask 077
-	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-atrium_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
 )
 code=$(api_call GET /api/v1/session -H "@$WORK/session-header")
 [ "$code" = 200 ] || fail "GET /api/v1/session with the cookie returned $code: $(cat "$WORK/api-body")"
@@ -643,7 +643,7 @@ code=$(api_call GET /api/v1/session -H "@$WORK/session-header")
 kill "$port_forward_pid" 2>/dev/null || true
 port_forward_pid=
 # The login and the logout reach Loki as audit records of the session.
-session_query="{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$session_id\""
+session_query="{service_name=\"atrium-api\"} | event_name=\"atrium.audit\" |= \"$session_id\""
 session_audited() {
 	loki_query "$session_query" | jq -e --arg id "$session_id" \
 		'[.data.result[].values[][1] | fromjson | select(.entity_type == "session" and .entity_id == $id) | .action] | sort == ["login", "logout"]'
@@ -669,7 +669,7 @@ code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site"
 [ "$code" = 201 ] || fail "the admin's second login returned $code: $(cat "$WORK/api-body")"
 (
 	umask 077
-	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-atrium_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
 )
 # api_post <path> <json>: the status; the created entity is in $WORK/api-body.
 api_post() { api_call POST "$1" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data "$2"; }
@@ -714,12 +714,12 @@ wait_for 60 "kind's inventory file applied: local-dev, PatientZero and its sourc
 # Prometheus has scraped the API since it applied the file, and it counted
 # no invalid file or failed apply.
 wait_for 60 "the API's inventory applies scraped, none invalid or failed" \
-	value_is 'sum(heartbeat_api_inventory_applies_total{result=~"invalid|error"}) + 0 * sum(heartbeat_api_inventory_applied_timestamp_seconds)' 0
+	value_is 'sum(atrium_api_inventory_applies_total{result=~"invalid|error"}) + 0 * sum(atrium_api_inventory_applied_timestamp_seconds)' 0
 local_dev=$(environment_id local-dev)
 code=$(api_call PATCH "/api/v1/environments/$local_dev" -H "@$WORK/session-header" -H "Origin: $site" -H 'Content-Type: application/json' --data '{"description": "changed by kind-e2e"}')
 [ "$code" = 409 ] || fail "changing local-dev through the API returned $code, want 409: the inventory file manages it: $(cat "$WORK/api-body")"
 inventory_audited() {
-	loki_query '{service_name="heartbeat-api"} | event_name="heartbeat.audit" |= "local-dev"' | jq -e \
+	loki_query '{service_name="atrium-api"} | event_name="atrium.audit" |= "local-dev"' | jq -e \
 		'any(.data.result[].values[][1] | fromjson; .entity_type == "environment" and .action == "create" and .actor.type == "config" and (.config_version | startswith("sha256:")))'
 }
 wait_for 120 "local-dev's creation by the inventory file in Loki" inventory_audited
@@ -742,18 +742,18 @@ observation_is "$unwatched_source" not_observed '[]' ||
 # PatientZero managed by config, the API's sources with their observation.
 inventory_listed() {
 	value_is 'count(max without (instance) (
-		heartbeat_api_inventory_application_info{environment="local-dev",application="PatientZero",managed_by="config",status="active"}
-		or heartbeat_api_inventory_source_info{environment="local-dev",application_name="E2eShop",managed_by="api",observation="observed"}
-		or heartbeat_api_inventory_source_info{environment="e2e-unwatched",application_name="E2eNobodyReads",observation="not_observed"}
+		atrium_api_inventory_application_info{environment="local-dev",application="PatientZero",managed_by="config",status="active"}
+		or atrium_api_inventory_source_info{environment="local-dev",application_name="E2eShop",managed_by="api",observation="observed"}
+		or atrium_api_inventory_source_info{environment="e2e-unwatched",application_name="E2eNobodyReads",observation="not_observed"}
 	))' 3
 }
 wait_for 60 "the inventory in the API's info metrics, scraped" inventory_listed
-svc_get api:8081 /metrics | grep -E '^heartbeat_api_inventory_[a-z_]+_info[{]' | sed 's/^/      /'
+svc_get api:8081 /metrics | grep -E '^atrium_api_inventory_[a-z_]+_info[{]' | sed 's/^/      /'
 pass "the inventory's info metrics list PatientZero (config) and the API's sources with their observation"
 # The inventory dashboard [5.3], as Grafana provisioned it: its sources
 # table's own query, for every environment, lists the three sources.
-svc_get grafana:3000 /api/dashboards/uid/heartbeat-inventory >"$WORK/inventory-dashboard.json" ||
-	fail "Grafana has no heartbeat-inventory dashboard"
+svc_get grafana:3000 /api/dashboards/uid/atrium-inventory >"$WORK/inventory-dashboard.json" ||
+	fail "Grafana has no atrium-inventory dashboard"
 sources_query=$(jq -r '.dashboard.panels[] | select(.type == "table" and .title == "Telemetry sources") | .targets[] | select(.refId == "A") | .expr' \
 	"$WORK/inventory-dashboard.json" | sed 's/\$environment/.*/g')
 [ -n "$sources_query" ] || fail "the inventory dashboard has no Telemetry sources query"
@@ -768,7 +768,7 @@ pass "Grafana's inventory dashboard lists PatientZero, E2eShop and E2eNobodyRead
 # logs-explore link opens Explore on the Loki selector that finds the 3
 # fixture rows extracted above; its dashboards and a target's exist in
 # Grafana. The links' base URL is the ConfigMap's dashboards.base_url.
-base_url=$(k -n "$NAMESPACE" get configmap heartbeat-integrations -o jsonpath='{.data.integrations\.yaml}' |
+base_url=$(k -n "$NAMESPACE" get configmap atrium-integrations -o jsonpath='{.data.integrations\.yaml}' |
 	awk '/^dashboards:/ { d = 1; next } d && /^  base_url:/ { print $2; exit }')
 [ -n "$base_url" ] || fail "the integrations ConfigMap has no dashboards.base_url"
 [ "$(api_call GET "/api/v1/telemetry-sources/$observed_source" -H "@$WORK/session-header")" = 200 ] ||
@@ -807,7 +807,7 @@ code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $s
 kill "$port_forward_pid" 2>/dev/null || true
 port_forward_pid=
 source_audited() {
-	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$observed_source\"" | jq -e --arg id "$observed_source" \
+	loki_query "{service_name=\"atrium-api\"} | event_name=\"atrium.audit\" |= \"$observed_source\"" | jq -e --arg id "$observed_source" \
 		'[.data.result[].values[][1] | fromjson | select(.entity_type == "telemetry_source" and .entity_id == $id) | .action] == ["create"]'
 }
 wait_for 120 "the source's audit record in Loki" source_audited
@@ -836,7 +836,7 @@ code=$(api_call POST /api/v1/session -D "$WORK/login-headers" -H "Origin: $site"
 [ "$code" = 201 ] || fail "the admin's third login returned $code: $(cat "$WORK/api-body")"
 (
 	umask 077
-	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-heartbeat_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
+	sed -n 's/^[Ss]et-[Cc]ookie: \(__Host-atrium_session=[^;]*\);.*/Cookie: \1/p' "$WORK/login-headers" >"$WORK/session-header"
 )
 code=$(api_call GET /api/v1/environments -H "@$WORK/session-header")
 [ "$code" = 200 ] || fail "listing environments returned $code"
@@ -890,9 +890,9 @@ EXTRA_VALUES="$WORK/e2e-oslogs.yaml $base_values" scripts/kind.sh assignments >/
 # What kind deployed is what the API serves.
 cmp -s "$WORK/rendered-api.yaml" ".tmp/kind/$CLUSTER/managed-collectors.yaml" ||
 	fail "the file kind.sh deployed differs from GET /api/v1/probe-assignments/rendered"
-wait_for 180 "sessions of target e2e-assigned" has_value "sum(heartbeat_sqlserver_sessions{target=\"e2e-assigned\"})"
-wait_for 120 "sessions of target patientzero" has_value "sum(heartbeat_sqlserver_sessions{target=\"patientzero\"})"
-target_up patientzero 1 || fail "the patientzero target is not up: $(prom 'heartbeat_collector_target_up{target="patientzero"}')"
+wait_for 180 "sessions of target e2e-assigned" has_value "sum(atrium_sqlserver_sessions{target=\"e2e-assigned\"})"
+wait_for 120 "sessions of target patientzero" has_value "sum(atrium_sqlserver_sessions{target=\"patientzero\"})"
+target_up patientzero 1 || fail "the patientzero target is not up: $(prom 'atrium_collector_target_up{target="patientzero"}')"
 assignment_is() {
 	[ "$(api_call GET "/api/v1/probe-assignments/$assignment" -H "@$WORK/session-header")" = 200 ] &&
 		jq -e --arg state "$1" '.state == $state' "$WORK/api-body" >/dev/null
@@ -906,12 +906,12 @@ code=$(api_call DELETE /api/v1/session -H "@$WORK/session-header" -H "Origin: $s
 kill "$port_forward_pid" 2>/dev/null || true
 port_forward_pid=
 assignment_audited() {
-	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$assignment\"" | jq -e --arg id "$assignment" \
+	loki_query "{service_name=\"atrium-api\"} | event_name=\"atrium.audit\" |= \"$assignment\"" | jq -e --arg id "$assignment" \
 		'[.data.result[].values[][1] | fromjson | select(.entity_type == "probe_assignment" and .entity_id == $id) | .action] | sort == ["apply", "approve", "create"]'
 }
 wait_for 120 "the assignment's create, approve and apply records in Loki" assignment_audited
 file_target_audited() {
-	loki_query "{service_name=\"heartbeat-api\"} | event_name=\"heartbeat.audit\" |= \"$file_target\"" | jq -e --arg id "$file_target" \
+	loki_query "{service_name=\"atrium-api\"} | event_name=\"atrium.audit\" |= \"$file_target\"" | jq -e --arg id "$file_target" \
 		'any(.data.result[].values[][1] | fromjson; .entity_type == "database_target" and .entity_id == $id and .action == "create" and .actor.type == "config")'
 }
 wait_for 120 "the patientzero target's creation by the inventory file in Loki" file_target_audited
@@ -989,7 +989,7 @@ k -n "$NAMESPACE" run np-probe --image="$prom_image" --restart=Never --labels=ap
 	http://grafana:3000/api/health >/dev/null
 # shellcheck disable=SC2046,SC2086 # $blocked is a list of words
 k -n "$other_ns" run np-probe --image="$prom_image" --restart=Never \
-	--labels=app.kubernetes.io/name=grafana,app.kubernetes.io/instance=heartbeat \
+	--labels=app.kubernetes.io/name=grafana,app.kubernetes.io/instance=atrium \
 	--command -- sh -c "$probe_script" sh $(printf '%s\n' $blocked | sed "s|^\([^:]*\):|http://\1.$NAMESPACE:|") \
 	"http://grafana.$NAMESPACE:3000/api/health" >/dev/null
 wait_for 180 "probe pod finished" pod_done np-probe
@@ -1058,9 +1058,9 @@ wait_for 180 "new config version active" version_changed_from "$version_before"
 [ "$(collector_pod_uid)" = "$uid_before" ] || fail "collector pod was replaced by a config change"
 version_new=$(config_version)
 # One info series: the new version replaces the old one.
-wait_for 60 "new version in Prometheus" value_is "heartbeat_collector_config_info{version=\"$version_new\"}" 1
-value_is 'count(heartbeat_collector_config_info{job="db-collector"})' 1 ||
-	fail "Prometheus has more than one heartbeat_collector_config_info series after a reload"
+wait_for 60 "new version in Prometheus" value_is "atrium_collector_config_info{version=\"$version_new\"}" 1
+value_is 'count(atrium_collector_config_info{job="db-collector"})' 1 ||
+	fail "Prometheus has more than one atrium_collector_config_info series after a reload"
 pass "config $version_before -> $version_new, same pod, and Prometheus shows only the new version"
 
 step "an invalid ConfigMap update is rejected while collection continues, and monitoring shows it"
@@ -1070,7 +1070,7 @@ rejected_before=$(rejected_reloads)
 # A misspelled probe name (usability finding F4): Helm's values schema lets it
 # through, the collector rejects it. Written straight to the ConfigMap, which
 # is restored the same way.
-k -n "$NAMESPACE" get configmap heartbeat-integrations -o json >"$WORK/integrations-good.json"
+k -n "$NAMESPACE" get configmap atrium-integrations -o json >"$WORK/integrations-good.json"
 jq -e '.data["integrations.yaml"] | contains("- name: waits")' "$WORK/integrations-good.json" >/dev/null ||
 	fail "no waits probe to misspell in the ConfigMap"
 jq '.data["integrations.yaml"] |= sub("- name: waits"; "- name: wiats")' "$WORK/integrations-good.json" >"$WORK/integrations-typo.json"
@@ -1088,9 +1088,9 @@ wait_for 60 "failed reload in Prometheus" reload_successful_is 0
 # scrape can land between the two.
 wait_for 60 "rejected reload counted" rejected_reloads_above "${rejected_before:-0}"
 rejected_after=$(rejected_reloads)
-value_is "heartbeat_collector_config_info{version=\"$version_good\"}" 1 ||
+value_is "atrium_collector_config_info{version=\"$version_good\"}" 1 ||
 	fail "Prometheus does not show the kept version $version_good"
-wait_for 60 "HeartbeatCollectorConfigReloadFailed pending or firing" reload_alert_active
+wait_for 60 "AtriumCollectorConfigReloadFailed pending or firing" reload_alert_active
 pass "the rejection shows in Prometheus: last_reload_successful 0, $rejected_after rejected, version $version_good, alert active"
 # Restore as Helm's field manager: Helm 4 upgrades with server-side apply and
 # would otherwise conflict with the out-of-band edit.
@@ -1098,7 +1098,7 @@ jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)' 
 	k apply --server-side --field-manager=helm --force-conflicts -f - >/dev/null
 wait_for 180 "reload error cleared" reload_error_is_clear
 wait_for 60 "successful reload in Prometheus" reload_successful_is 1
-wait_for 60 "HeartbeatCollectorConfigReloadFailed resolved" reload_alert_gone
+wait_for 60 "AtriumCollectorConfigReloadFailed resolved" reload_alert_gone
 pass "the restored config reloads: last_reload_successful 1, alert gone"
 admin_unforward
 
@@ -1123,14 +1123,14 @@ step "a changed credential in the Secret is used without a restart"
 # retry backoff, which doubles from the scrape interval with each failed cycle.
 credential_secret() {
 	# The credential reaches kubectl in a 0600 file, never on its command line.
-	(umask 077 && printf 'HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=%s\n' "$1" >"$WORK/credential.env")
-	k -n "$NAMESPACE" create secret generic heartbeat-sqlserver-dev-credentials \
+	(umask 077 && printf 'ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=%s\n' "$1" >"$WORK/credential.env")
+	k -n "$NAMESPACE" create secret generic atrium-sqlserver-dev-credentials \
 		--from-env-file="$WORK/credential.env" --dry-run=client -o yaml | k apply -f - >/dev/null
 	rm -f "$WORK/credential.env"
 }
 restarts_before=$(collector_restarts)
 uid_before=$(collector_pod_uid)
-credential=$(sed -n 's/^HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV=//p' "$SQLSERVER_ENV_FILE")
+credential=$(sed -n 's/^ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV=//p' "$SQLSERVER_ENV_FILE")
 credential_secret "${credential%%:*}:Wrong-$(openssl rand -hex 16)"
 wait_for 180 "wrong password takes the target down" target_up sqlserver-dev 0
 credential_secret "$credential"
@@ -1154,7 +1154,7 @@ sample_concurrency() {
 		pods=$(k -n "$NAMESPACE" get pods -l app.kubernetes.io/name=db-collector -o json |
 			jq '[.items[] | select(.status.containerStatuses[0].state.running != null)] | length')
 		sql=$(SQLCMDPASSWORD=$password docker exec -e SQLCMDPASSWORD "$SQL_CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
-			-S localhost -U sa -C -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE program_name = 'HeartbeatDBCollector' AND database_id = DB_ID(N'master')" 2>/dev/null | tr -dc '0-9')
+			-S localhost -U sa -C -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE program_name = 'AtriumDBCollector' AND database_id = DB_ID(N'master')" 2>/dev/null | tr -dc '0-9')
 		[ "${pods:-0}" -gt "$max_pods" ] && max_pods=$pods
 		[ "${sql:-0}" -gt "$max_sql" ] && max_sql=$sql
 		printf '%s %s\n' "$max_pods" "$max_sql" >"$WORK/concurrency"
@@ -1187,13 +1187,13 @@ step "a deploy replaces a collector pod that never became Ready"
 # OrderedReady policy the StatefulSet would wait for the broken pod forever
 # (kubernetes/kubernetes#67250) and the deploy would time out; with Parallel
 # the controller replaces it.
-helm --kube-context "$CONTEXT" -n "$NAMESPACE" upgrade heartbeat infra/helm/heartbeat \
+helm --kube-context "$CONTEXT" -n "$NAMESPACE" upgrade atrium infra/helm/atrium \
 	--reuse-values --set dbCollector.image.tag=missing >/dev/null
 wait_for 120 "collector pod stuck on a missing image" collector_waiting_on ErrImageNeverPull
 start=$(date +%s)
 EXTRA_VALUES="$WORK/e2e-reload.yaml $base_values" scripts/kind.sh deploy >/dev/null
 case "$(collector_image)" in
-*"heartbeat/db-collector:$DB_COLLECTOR_TAG") ;;
+*"atrium/db-collector:$DB_COLLECTOR_TAG") ;;
 *) fail "db-collector runs $(collector_image) after the corrected deploy, expected tag $DB_COLLECTOR_TAG" ;;
 esac
 pass "the corrected deploy replaced the stuck pod in $(($(date +%s) - start))s, with no manual pod delete"
@@ -1264,7 +1264,7 @@ step "a Collector restart during a log backlog loses no rows"
 # restart sends a request out of order, as a queue of more than one request
 # does (values.yaml, otlp_http/logs). With the chart's one-request queue the
 # db-collector waits for the Collector instead: its targets stay up and
-# heartbeat_outsystems_export_blocked is 1.
+# atrium_outsystems_export_blocked is 1.
 backlog_rows=6000
 backlogs="45m:2700 3h:10800"
 cp "$WORK/e2e.yaml" "$WORK/e2e-backlog.yaml"
@@ -1285,7 +1285,7 @@ for backlog in $backlogs; do
           - name: backlog-db-$name
             host: $SQL_CONTAINER
             port: 1433
-            database_name: heartbeat_oslog_backlog_$name
+            database_name: atrium_oslog_backlog_$name
             credential_ref: env/sqlserver-dev
 EOF
 done
@@ -1300,7 +1300,7 @@ for backlog in $backlogs; do
 	# each backlog is several 4 MiB requests, and both together fit in the
 	# 64 MiB queue earlier charts had (to show what that queue loses).
 	fixture_output=$({
-		printf 'CREATE DATABASE heartbeat_oslog_backlog_%s;\nGO\nUSE heartbeat_oslog_backlog_%s;\nGO\n' "$name" "$name"
+		printf 'CREATE DATABASE atrium_oslog_backlog_%s;\nGO\nUSE atrium_oslog_backlog_%s;\nGO\n' "$name" "$name"
 		cat services/db-collector/internal/collectors/outsystems/testdata/oslog/error.sql
 		printf '\nGO\n'
 		cat <<EOF
@@ -1324,8 +1324,8 @@ EOF
 		/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b 2>&1) ||
 		fail "loading the $name backlog fixture failed: $fixture_output"
 done
-backlog_read() { prom_value "sum(heartbeat_outsystems_extract_rows_total{collector=\"oslogs-backlog-$1\"})"; }
-backlog_blocked() { value_is "max(heartbeat_outsystems_export_blocked{collector=\"oslogs-backlog-$1\"})" 1; }
+backlog_read() { prom_value "sum(atrium_outsystems_extract_rows_total{collector=\"oslogs-backlog-$1\"})"; }
+backlog_blocked() { value_is "max(atrium_outsystems_export_blocked{collector=\"oslogs-backlog-$1\"})" 1; }
 # Settled when the Collector took every row (a queue that holds them all) or
 # when the db-collector waits for it on both backlogs (the one-request queue).
 backlog_settled() {
@@ -1347,8 +1347,8 @@ for backlog in $backlogs; do
 		target_up "backlog-db-$name" 1 || fail "the backlog-db-$name target is down while it waits for the Collector"
 	fi
 	printf '      %s backlog: %s rows delivered with Loki down; export blocked: %s; target up: %s\n' "$name" "$read_before" \
-		"$(prom_value "max(heartbeat_outsystems_export_blocked{collector=\"oslogs-backlog-$name\"})")" \
-		"$(prom_value "heartbeat_collector_target_up{target=\"backlog-db-$name\"}")"
+		"$(prom_value "max(atrium_outsystems_export_blocked{collector=\"oslogs-backlog-$name\"})")" \
+		"$(prom_value "atrium_collector_target_up{target=\"backlog-db-$name\"}")"
 done
 queued_before=$(otel_queue_size)
 uid_before=$(otel_pod_uid)
@@ -1376,7 +1376,7 @@ delivery_state() {
 	for backlog in $backlogs; do
 		name=${backlog%%:*} span_s=${backlog#*:}
 		printf '%s_read=%s %s_blocked=%s %s_loki=%s ' "$name" "$(backlog_read "$name")" \
-			"$name" "$(prom_value "max(heartbeat_outsystems_export_blocked{collector=\"oslogs-backlog-$name\"}) or vector(0)")" \
+			"$name" "$(prom_value "max(atrium_outsystems_export_blocked{collector=\"oslogs-backlog-$name\"}) or vector(0)")" \
 			"$name" "$(loki_value "$(total_query "$name" "$span_s")")"
 	done
 	otel_logs_state

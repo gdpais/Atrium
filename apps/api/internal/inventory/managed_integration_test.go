@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/inventory"
 )
 
 // manage hands a row to the inventory file, as its reconciler will.

@@ -33,12 +33,12 @@ signals:
   # time by default); about 100 MB of rows always makes it grow at least once.
   - name: log-database-grows
     promql: >-
-      sum(delta(heartbeat_sqlserver_database_file_size_bytes{database_name="patientzero_log",file_type="ROWS"}[5m]))
+      sum(delta(atrium_sqlserver_database_file_size_bytes{database_name="patientzero_log",file_type="ROWS"}[5m]))
     condition: "> 0"
     step: verbose
     within: 6m
   - name: extraction-keeps-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: verbose
     mode: always

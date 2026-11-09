@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/shop"
 )
 
 // fixtureDir is the db-collector's oslog fixtures, the one place the logging

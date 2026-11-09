@@ -12,9 +12,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	collectorconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 var (
@@ -57,7 +57,7 @@ func TestACycleIsOneTrace(t *testing.T) {
 	for _, span := range exporter.GetSpans() {
 		key := span.Name
 		for _, attr := range span.Attributes {
-			if attr.Key == "heartbeat.probe" {
+			if attr.Key == "atrium.probe" {
 				key += "/" + attr.Value.AsString()
 			}
 		}

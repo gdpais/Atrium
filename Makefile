@@ -29,13 +29,13 @@ OAPI_CODEGEN_VERSION := v2.8.2
 SQLC_VERSION := v1.31.1
 TOOLS_DIR ?= .tmp/bin
 HELM ?= helm
-CHART_DIR := infra/helm/heartbeat
+CHART_DIR := infra/helm/atrium
 # full: every component. minimal: collector, Prometheus, Alertmanager, Grafana.
 PROFILE ?= full
 # promtool comes from the same image as the Prometheus server.
 PROMETHEUS_IMAGE := prom/prometheus:v3.15.1
 # The HTML docs link source files (Go, YAML, SQL, ...) to this repository URL.
-DOCS_REPO_URL := https://github.com/gdpais/Heartbeat
+DOCS_REPO_URL := https://github.com/gdpais/Atrium
 DOCS_REPO_REF := master
 # The generator is its own Go module (tools/docsite/go.mod), so the services'
 # module does not depend on its Markdown parser.
@@ -59,7 +59,7 @@ SQLC := GOCACHE=$$(pwd)/.tmp/gocache CGO_ENABLED=1 go run github.com/sqlc-dev/sq
 
 help:
 	@printf '%s\n' \
-		'Heartbeat developer commands:' \
+		'Atrium developer commands:' \
 		'  make tools-check         Verify docker, kind, kubectl, helm and go against the pinned versions' \
 		'  make install-tools       Install the pinned kind, kubectl, helm and helm3 into $$TOOLS_DIR (CI)' \
 		'  make kind-up             Create the kind cluster, build and load images, deploy the chart (PROFILE=full|minimal)' \
@@ -72,15 +72,15 @@ help:
 		'  make sqlserver-dev-init  Create the ignored .env.sqlserver-dev with random SA and collector passwords' \
 		'  make sqlserver-dev-up    Start a dev-only SQL Server container and point the collector at it' \
 		'  make sqlserver-dev-down  Remove the dev SQL Server container and its data; redeploy without it' \
-		'  make patientzero-up      Run PatientZero on kind against the sandbox SQL Server; Heartbeat reads its logs (needs sqlserver-dev-up)' \
-		'  make patientzero-down    Remove PatientZero, its databases and login; redeploy Heartbeat without its collector' \
+		'  make patientzero-up      Run PatientZero on kind against the sandbox SQL Server; Atrium reads its logs (needs sqlserver-dev-up)' \
+		'  make patientzero-down    Remove PatientZero, its databases and login; redeploy Atrium without its collector' \
 		'  make patientzero-load    Run k6 load against PatientZero on kind and follow it (LOAD=smoke|steady|peak|soak|day, LOAD_DURATION)' \
 		'  make patientzero-load-stop  Stop the PatientZero load' \
 		'  make patientzero-scenario  Run a PatientZero scenario with its load and check its signals (NAME=<scenario>; no NAME lists them)' \
 		'  make patientzero-scenarios Run every PatientZero scenario in order, about 2.5 hours (SCENARIOS="a b" for some)' \
 		'  make patientzero-scale   Fill patientzero_scale with a production-sized log and measure the log queries (SCALE, SCALE_SEED, SCALE_END)' \
 		'  make patientzero-scale-measure  Measure the log queries on patientzero_scale again' \
-		'  make patientzero-scale-collect  Redeploy Heartbeat with a collector that reads patientzero_scale (SCALE_LOOKBACK)' \
+		'  make patientzero-scale-collect  Redeploy Atrium with a collector that reads patientzero_scale (SCALE_LOOKBACK)' \
 		'  make patientzero-scale-check  Compare the users, sessions and error fingerprints in Loki with expected.json (SCALE_WAIT)' \
 		'  make patientzero-scale-down  Drop patientzero_scale and remove its collector' \
 		'  make kind-e2e            Run the acceptance checks on a separate, temporary kind cluster' \
@@ -138,7 +138,7 @@ health:
 # reads it: no `export`, no quotes. The "Dev-" prefix plus hex digits
 # satisfies SQL Server password complexity.
 sqlserver-dev-init:
-	@set -eu; umask 077; file=$(SQLSERVER_DEV_ENV_FILE); key=HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV; \
+	@set -eu; umask 077; file=$(SQLSERVER_DEV_ENV_FILE); key=ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV; \
 	unreadable() { echo "error: cannot read $$file" >&2; exit 2; }; \
 	if [ ! -f "$$file" ]; then \
 		printf 'MSSQL_SA_PASSWORD=Dev-%s\n' "$$(openssl rand -hex 16)" > "$$file"; \
@@ -155,7 +155,7 @@ sqlserver-dev-init:
 	if [ -z "$$user" ] || [ "$$user" = sa ]; then \
 		rest=$$(grep -v "^$$key=" "$$file") || [ $$? -eq 1 ] || unreadable; \
 		{ if [ -n "$$rest" ]; then printf '%s\n' "$$rest"; fi; \
-			printf '%s=heartbeat_collector:Dev-%s\n' "$$key" "$$(openssl rand -hex 16)"; } > "$$file.tmp"; \
+			printf '%s=atrium_collector:Dev-%s\n' "$$key" "$$(openssl rand -hex 16)"; } > "$$file.tmp"; \
 		mv "$$file.tmp" "$$file"; \
 		echo "Added a least-privilege collector login to $$file"; \
 	fi
@@ -173,7 +173,7 @@ patientzero-up:
 patientzero-down:
 	@PROFILE=$(PROFILE) SQLSERVER_ENV_FILE=$(SQLSERVER_DEV_ENV_FILE) $(PATIENTZERO_MODULE)/scripts/patientzero.sh down
 
-# LOAD, not PROFILE: PROFILE is the Heartbeat chart's values profile.
+# LOAD, not PROFILE: PROFILE is the Atrium chart's values profile.
 patientzero-load:
 	@LOAD='$(LOAD)' LOAD_DURATION='$(LOAD_DURATION)' LOAD_SEED='$(LOAD_SEED)' $(PATIENTZERO_MODULE)/scripts/patientzero.sh load
 
@@ -220,8 +220,8 @@ chart-check:
 	HELM=$(HELM) GOCACHE=$$(pwd)/.tmp/gocache go test -tags=chart -count=1 -run TestPatientZeroChart ./tests
 
 rules-check:
-	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/heartbeat.rules.yml /rules/heartbeat-config-reload.rules.yml /rules/heartbeat-collector-missing.rules.yml /rules/heartbeat-api-missing.rules.yml /rules/heartbeat-self.rules.yml /rules/generated/heartbeat-rendered.rules.yml
-	docker run --rm -v "$$(pwd)/infra/helm/heartbeat/files/prometheus/rules:/rules:ro" -w /rules/tests --entrypoint promtool $(PROMETHEUS_IMAGE) test rules heartbeat.rules.test.yml
+	docker run --rm -v "$$(pwd)/infra/helm/atrium/files/prometheus/rules:/rules:ro" --entrypoint promtool $(PROMETHEUS_IMAGE) check rules /rules/atrium.rules.yml /rules/atrium-config-reload.rules.yml /rules/atrium-collector-missing.rules.yml /rules/atrium-api-missing.rules.yml /rules/atrium-self.rules.yml /rules/generated/atrium-rendered.rules.yml
+	docker run --rm -v "$$(pwd)/infra/helm/atrium/files/prometheus/rules:/rules:ro" -w /rules/tests --entrypoint promtool $(PROMETHEUS_IMAGE) test rules atrium.rules.test.yml
 
 generate:
 	$(OAPI_CODEGEN) -o $(API_GENERATED) $(API_SPEC)

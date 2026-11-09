@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	collectorconfig "heartbeat/internal/config"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
+	collectorconfig "atrium/internal/config"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
 )
 
 // recountSource is a fakeSource that also recounts: the rows in (From, To],

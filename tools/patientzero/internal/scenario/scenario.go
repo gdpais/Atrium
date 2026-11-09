@@ -490,7 +490,7 @@ func (s *Scenario) validateDelivery(sig *Signal, where string, add func(string, 
 		add("%s: late_rows needs lost_after: it counts the rows lost", where)
 	}
 	if d.LateRows != "" && (!counterSelector.MatchString(d.LateRows) || strings.Contains(d.LateRows, "log_type")) {
-		add("%s: late_rows must be a counter's name with optional label matchers, without log_type, such as heartbeat_outsystems_late_rows_total{collector=\"patientzero\"}", where)
+		add("%s: late_rows must be a counter's name with optional label matchers, without log_type, such as atrium_outsystems_late_rows_total{collector=\"patientzero\"}", where)
 	}
 	if okTo {
 		if end, _ := s.StepStart(d.ToStep); s.Anchor(*sig) < end+s.Steps[to].Duration.D() {

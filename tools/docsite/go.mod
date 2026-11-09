@@ -1,6 +1,6 @@
 // The docs site generator is its own module so the services' module (what
 // ships) does not depend on its Markdown parser.
-module heartbeat/tools/docsite
+module atrium/tools/docsite
 
 go 1.27.3
 

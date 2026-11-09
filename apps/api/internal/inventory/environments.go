@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
 )
 
 // Environment is an environment as the API shows it, and as its audit

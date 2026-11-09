@@ -46,14 +46,14 @@ signals:
     within: 1m50s
   - name: last-hour-leaves-room-for-the-fast-burn
     promql: >-
-      sum(increase(heartbeat_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[1h]))
+      sum(increase(atrium_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[1h]))
       or vector(0)
     condition: "< 30000"
     step: baseline
     within: 30s
   - name: history-leaves-room-for-the-slow-burn
     promql: >-
-      sum(increase(heartbeat_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[6h]))
+      sum(increase(atrium_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[6h]))
       or vector(0)
     condition: "< 100000"
     step: baseline
@@ -63,7 +63,7 @@ signals:
   # the SLI past the fast-burn threshold (14.4 times the 0.1% budget).
   - name: module-errors-rise
     promql: >-
-      sum(rate(heartbeat_outsystems_errors_total{application="PatientZero",module="PatientZero_App"}[1m]))
+      sum(rate(atrium_outsystems_errors_total{application="PatientZero",module="PatientZero_App"}[1m]))
     condition: "> 0.5"
     step: broken
     within: 4m
@@ -75,7 +75,7 @@ signals:
     step: broken
     within: 4m
   - name: error-ratio-above-fast-burn
-    promql: heartbeat:outsystems_request_errors:ratio_rate5m{application="PatientZero"}
+    promql: atrium:outsystems_request_errors:ratio_rate5m{application="PatientZero"}
     condition: "> 0.0144"
     step: broken
     within: 4m
@@ -101,7 +101,7 @@ signals:
     from: end
     within: 10m
   - name: error-ratio-recovers
-    promql: heartbeat:outsystems_request_errors:ratio_rate5m{application="PatientZero"}
+    promql: atrium:outsystems_request_errors:ratio_rate5m{application="PatientZero"}
     condition: "< 0.006"
     step: broken
     from: end

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/internal/config"
+	"atrium/internal/config"
 )
 
 // Link kinds.
@@ -70,7 +70,7 @@ type adapter interface {
 	logsQuery(application, environment string, w Window) string
 }
 
-// adapters are the platforms Heartbeat has links for: with
+// adapters are the platforms Atrium has links for: with
 // config.PlatformGeneric there are none, and the loader keeps its
 // dashboards empty.
 var adapters = map[string]adapter{

@@ -1,4 +1,4 @@
-// PatientZero is a synthetic OutSystems 11 application for Heartbeat's tests
+// PatientZero is a synthetic OutSystems 11 application for Atrium's tests
 // and demos (ADR 0010). It serves entry points modelled on OutSystems ones;
 // each request runs SQL against the business database and writes the log rows
 // the platform would write into the logging database.
@@ -13,7 +13,7 @@
 //	PATIENTZERO_DATABASE                       business database [patientzero]
 //	PATIENTZERO_LOG_DATABASE                   logging database [patientzero_log]
 //	PATIENTZERO_SCHEMA_DIR                     the oslog fixtures the logging schema is built from [/app/oslog]
-//	PATIENTZERO_LOG_READER_ROLE                role granted SELECT on the log views; empty for none [heartbeat_oslog_reader]
+//	PATIENTZERO_LOG_READER_ROLE                role granted SELECT on the log views; empty for none [atrium_oslog_reader]
 //	PATIENTZERO_FRONT_END                      front-end server name in the log rows [the host name]
 //	PATIENTZERO_ADMIN_TOKEN                    bearer token for the scenario admin endpoints; without it they answer 401
 //	PATIENTZERO_JOURNAL_DIR                    where run journals are written [/var/lib/patientzero/journal]
@@ -41,17 +41,17 @@ import (
 
 	_ "github.com/microsoft/go-mssqldb"
 
-	"heartbeat/tools/patientzero/internal/app"
-	"heartbeat/tools/patientzero/internal/cluster"
-	"heartbeat/tools/patientzero/internal/inject"
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/runner"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/internal/shop"
-	signals "heartbeat/tools/patientzero/internal/signal"
-	"heartbeat/tools/patientzero/internal/traffic"
-	"heartbeat/tools/patientzero/scenarios"
+	"atrium/tools/patientzero/internal/app"
+	"atrium/tools/patientzero/internal/cluster"
+	"atrium/tools/patientzero/internal/inject"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/runner"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/shop"
+	signals "atrium/tools/patientzero/internal/signal"
+	"atrium/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/scenarios"
 )
 
 func main() {
@@ -98,7 +98,7 @@ func loadConfig() (config, error) {
 		database:    env("PATIENTZERO_DATABASE", "patientzero"),
 		logDatabase: env("PATIENTZERO_LOG_DATABASE", "patientzero_log"),
 		schemaDir:   env("PATIENTZERO_SCHEMA_DIR", "/app/oslog"),
-		readerRole:  env("PATIENTZERO_LOG_READER_ROLE", "heartbeat_oslog_reader"),
+		readerRole:  env("PATIENTZERO_LOG_READER_ROLE", "atrium_oslog_reader"),
 		frontEnd:    os.Getenv("PATIENTZERO_FRONT_END"),
 		adminToken:  os.Getenv("PATIENTZERO_ADMIN_TOKEN"),
 		journalDir:  env("PATIENTZERO_JOURNAL_DIR", "/var/lib/patientzero/journal"),

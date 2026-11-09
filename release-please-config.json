@@ -4,7 +4,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "heartbeat",
+      "package-name": "atrium",
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "prerelease": true,
@@ -15,7 +15,7 @@
         { "type": "revert", "section": "Changed" }
       ],
       "extra-files": [
-        { "type": "generic", "path": "infra/helm/heartbeat/Chart.yaml" }
+        { "type": "generic", "path": "infra/helm/atrium/Chart.yaml" }
       ]
     }
   }

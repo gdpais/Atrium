@@ -42,11 +42,11 @@ func TestClientMetricsCountEachAttempt(t *testing.T) {
 	}
 
 	want := `
-# HELP heartbeat_otlp_export_attempts_total OTLP/HTTP export attempts, by client and outcome (accepted, retryable, rejected).
-# TYPE heartbeat_otlp_export_attempts_total counter
-heartbeat_otlp_export_attempts_total{client="test",outcome="accepted"} 1
-heartbeat_otlp_export_attempts_total{client="test",outcome="rejected"} 1
-heartbeat_otlp_export_attempts_total{client="test",outcome="retryable"} 1
+# HELP atrium_otlp_export_attempts_total OTLP/HTTP export attempts, by client and outcome (accepted, retryable, rejected).
+# TYPE atrium_otlp_export_attempts_total counter
+atrium_otlp_export_attempts_total{client="test",outcome="accepted"} 1
+atrium_otlp_export_attempts_total{client="test",outcome="rejected"} 1
+atrium_otlp_export_attempts_total{client="test",outcome="retryable"} 1
 `
 	if err := testutil.GatherAndCompare(registry, strings.NewReader(want), MetricExportAttempts); err != nil {
 		t.Error(err)

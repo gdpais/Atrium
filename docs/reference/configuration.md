@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Heartbeat services are configured by one integrations file plus environment
+Atrium services are configured by one integrations file plus environment
 variables. Why config lives in YAML rather than PostgreSQL is explained in
 [ADR 0002](../architecture/decisions/0002-runtime-config-in-yaml.md).
 
@@ -9,14 +9,14 @@ Sources of truth:
 - Loader and validation: [`internal/config/config.go`](../../internal/config/config.go)
 - JSON schema: [`packages/config-schema/src/integrations.schema.json`](../../packages/config-schema/src/integrations.schema.json)
 - Deployed config: the `integrations` key of the Helm chart's values
-  ([defaults](../../infra/helm/heartbeat/values.yaml), no SQL Server targets),
+  ([defaults](../../infra/helm/atrium/values.yaml), no SQL Server targets),
   overridden per environment by files in [`infra/helm/values/`](../../infra/helm/values/)
 - Binary default for running a service outside Kubernetes:
   [`config/integrations.yaml`](../../config/integrations.yaml)
 
 ## Config files by environment
 
-The chart renders `integrations` into the `heartbeat-integrations` ConfigMap,
+The chart renders `integrations` into the `atrium-integrations` ConfigMap,
 mounted at `/app/config/integrations.yaml`. Helm merges maps across values
 files but **replaces lists**, so an environment that changes `collectors`
 restates the whole list.
@@ -25,8 +25,8 @@ restates the whole list.
 | --- | --- |
 | kind | Chart defaults (`values.yaml`) plus [`kind.yaml`](../../infra/helm/values/kind.yaml) |
 | kind with the SQL Server sandbox | Adds [`sqlserver-dev.yaml`](../../infra/helm/values/sqlserver-dev.yaml) |
-| Production | Values in the `heartbeat-deploy` config repository; [`production.example.yaml`](../../infra/helm/values/production.example.yaml) shows the shape |
-| Service run directly (`go run`) | `config/integrations.yaml`, or `HEARTBEAT_INTEGRATIONS_PATH` |
+| Production | Values in the `atrium-deploy` config repository; [`production.example.yaml`](../../infra/helm/values/production.example.yaml) shows the shape |
+| Service run directly (`go run`) | `config/integrations.yaml`, or `ATRIUM_INTEGRATIONS_PATH` |
 
 Helm validates `integrations` against the integrations schema (embedded in the
 chart's `values.schema.json`) before anything is applied, and `make chart-check`
@@ -48,7 +48,7 @@ not know which collectors came from the API.
 The API renders the file from approved assignments
 ([probe assignments](metrics-and-endpoints.md#probe-assignments)): on kind,
 `make kind-assignments` deploys it; in production a pull request to
-`heartbeat-deploy` will carry it [18]. An environment's inventory file
+`atrium-deploy` will carry it [18]. An environment's inventory file
 renders the same file offline, with `api inventory render`
 ([rendering the file's collectors](#rendering-the-files-collectors)). Empty or absent, the chart renders
 exactly what `integrations` alone renders. Managed targets count like
@@ -78,7 +78,7 @@ then does not start; on a hot reload it keeps the last valid config.
 
 ### Endpoints
 
-Heartbeat never writes to the observability platform itself: logs go to the
+Atrium never writes to the observability platform itself: logs go to the
 OpenTelemetry Collector, and metrics are scraped from `/metrics`
 ([ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)).
 These keys say where the platform's UI and query APIs are, for links and,
@@ -132,7 +132,7 @@ notification_channels:
   - id: default-webhook          # required, unique
     channel_type: webhook        # required
     target_ref: http://…         # required
-    credential_ref: env/HEARTBEAT_WEBHOOK_TOKEN   # optional secret reference
+    credential_ref: env/ATRIUM_WEBHOOK_TOKEN   # optional secret reference
     config:                      # optional string map
       timeout: 10s
 ```
@@ -201,7 +201,7 @@ A probe reads at most `max_rows` rows (default 10000, at most 100000). When
 its query returns more, the collector stops reading at the first row past the
 limit, cancels the query and fails the probe for that cycle, as for a query
 error: the error is logged (`returned more rows than max_rows`), the target is
-reported failed, and `heartbeat_collector_probe_errors_total{reason="error"}`
+reported failed, and `atrium_collector_probe_errors_total{reason="error"}`
 grows ([metrics reference](metrics-and-endpoints.md#collector-self-observability)).
 The built-in probes return at most a few hundred rows; the limit stops an
 override, or a server with unusually many databases or files, from filling
@@ -292,11 +292,11 @@ collectors:
 | --- | --- | --- |
 | `lag` | `60s` | Go duration, > 0. Rows the log service commits later than this after their `Instant` are missed |
 | `probes[].lag` | the collector's `lag` | Go duration, > 0. Replaces `lag` for one log type. A `screen` or `cyclic_job` row has the operation's start as `Instant` and is written when it ends, so set it above the longest screen request or timer (the timer timeout, 20 minutes by default) |
-| `batch_limit` | `5000` | 1–50000. A full batch is followed at once by the next, up to 10 per cycle. If every row of a full batch has the same `Instant`, the cycle fails and `heartbeat_outsystems_extract_stuck_batches_total` grows: raise `batch_limit`. A batch also ends early at about 8 MiB of row data (below) |
+| `batch_limit` | `5000` | 1–50000. A full batch is followed at once by the next, up to 10 per cycle. If every row of a full batch has the same `Instant`, the cycle fails and `atrium_outsystems_extract_stuck_batches_total` grows: raise `batch_limit`. A batch also ends early at about 8 MiB of row data (below) |
 | `initial_lookback` | `15m` | Go duration, > 0. Also used when the stored watermark is unreadable or belongs to another database |
 | `log_timezone` | `UTC` | IANA name such as `Europe/Lisbon`; `Local` is rejected. With a zone that has daylight saving time, rows logged in the hour that repeats when clocks go back can be missed: `Instant` itself is ambiguous then |
-| `recount_window` | `10m` | `0s` (off), or whole minutes from `2m` to `1h`. Once a minute, each log type counts again the rows in this window behind its watermark, to find rows committed past the `lag` (`heartbeat_outsystems_late_rows_total`) or read twice ([recount](metrics-and-endpoints.md#outsystems-log-extraction)). A wider window finds later commits and counts more index rows each minute |
-| `max_derived_series` | `50000` | 1–1000000. The most series the [derived metrics](metrics-and-endpoints.md#derived-outsystems-metrics) hold for this collector, counted as Prometheus stores them: one per counter, and a histogram's buckets, `+Inf`, sum and count (13 for the latency and timer histograms, 11 for screen state). Past it, a row that needs a new series is not counted in that metric, `heartbeat_outsystems_derived_series_overflow_total` grows and `OutSystemsDerivedSeriesOverflow` fires; series that exist keep counting. Each series takes about 690 bytes of the collector's memory, so 50000 is about 33 MiB. The default is a proposal, not a measured need: 29 times the 1,716 series of PatientZero's [production-sized profile](../../tools/patientzero/README.md#production-sized-logging-database) (6 applications, 14 modules, 8 screens each, 20 timers, 4 front-ends); size it from `heartbeat_outsystems_derived_series` on the real installation. Changing it restarts the collector, which deletes its derived series and starts counting again |
+| `recount_window` | `10m` | `0s` (off), or whole minutes from `2m` to `1h`. Once a minute, each log type counts again the rows in this window behind its watermark, to find rows committed past the `lag` (`atrium_outsystems_late_rows_total`) or read twice ([recount](metrics-and-endpoints.md#outsystems-log-extraction)). A wider window finds later commits and counts more index rows each minute |
+| `max_derived_series` | `50000` | 1–1000000. The most series the [derived metrics](metrics-and-endpoints.md#derived-outsystems-metrics) hold for this collector, counted as Prometheus stores them: one per counter, and a histogram's buckets, `+Inf`, sum and count (13 for the latency and timer histograms, 11 for screen state). Past it, a row that needs a new series is not counted in that metric, `atrium_outsystems_derived_series_overflow_total` grows and `OutSystemsDerivedSeriesOverflow` fires; series that exist keep counting. Each series takes about 690 bytes of the collector's memory, so 50000 is about 33 MiB. The default is a proposal, not a measured need: 29 times the 1,716 series of PatientZero's [production-sized profile](../../tools/patientzero/README.md#production-sized-logging-database) (6 applications, 14 modules, 8 screens each, 20 timers, 4 front-ends); size it from `atrium_outsystems_derived_series` on the real installation. Changing it restarts the collector, which deletes its derived series and starts counting again |
 
 Rules:
 
@@ -336,7 +336,7 @@ Rules:
   plus one byte as soon as its row is read. `error.fingerprint` is computed
   from the first lines of `Stack`, so the cut does not change it.
 - The watermark of each collector, target and log type is a file under
-  `HEARTBEAT_STATE_DIR` (`outsystems_logs/<collector>.<target>.<log type>.json`).
+  `ATRIUM_STATE_DIR` (`outsystems_logs/<collector>.<target>.<log type>.json`).
   It moves only after the OTel Collector accepted the batch, so delivery is at
   least once. The chart keeps the Collector's queue on the
   `otelCollectorQueue` volume.
@@ -375,14 +375,14 @@ Rules:
   so a file left invalid stops the next pod from starting.
 - A rejected reload, or a failed one that was rolled back, does not make the
   pod unready. Monitoring shows it:
-  `heartbeat_collector_config_last_reload_successful` is 0 until the next
-  successful reload, and `HeartbeatCollectorConfigReloadFailed` fires after 2
+  `atrium_collector_config_last_reload_successful` is 0 until the next
+  successful reload, and `AtriumCollectorConfigReloadFailed` fires after 2
   minutes ([config reload metrics](metrics-and-endpoints.md#config-reloads)).
 - Collectors are diffed by `id`; only changed, added or removed collectors are
   restarted. A failed apply is rolled back. If the rollback also fails,
   `runtime_diverged` is reported and `/readyz` returns 503.
 - Reload triggers: `SIGHUP`, authenticated `POST /admin/config/reload`, and file
-  polling when `HEARTBEAT_CONFIG_WATCH_INTERVAL` is set.
+  polling when `ATRIUM_CONFIG_WATCH_INTERVAL` is set.
 - `GET /admin/config` shows the active config redacted: credential values and
   every notification channel `config` value are masked, and userinfo is
   stripped from URLs.
@@ -397,9 +397,9 @@ per environment, kept in the configuration repository and changed by pull
 request. [`config/inventory.example.yaml`](../../config/inventory.example.yaml)
 shows every field; the schema is
 [`packages/config-schema/src/inventory.schema.json`](../../packages/config-schema/src/inventory.schema.json).
-The API applies the file set by `HEARTBEAT_API_INVENTORY_PATH` ([API](#api)).
+The API applies the file set by `ATRIUM_API_INVENTORY_PATH` ([API](#api)).
 The chart takes it as text in `api.inventory`, renders it into the
-`heartbeat-inventory` ConfigMap and mounts it in the API; keep it as a file of
+`atrium-inventory` ConfigMap and mounts it in the API; keep it as a file of
 its own beside the environment's values and pass it with
 `--set-file api.inventory=inventory.yaml` (Argo CD: `fileParameters`), so the
 same file is the one `api inventory check` checks. Without it, the inventory
@@ -480,7 +480,7 @@ Each change is audited, actor type `config` with the file's path and the
 pod as `host`, and `config_version` the file's revision, the `sha256:` of
 its content. A file that fails validation, or that PostgreSQL's rows refuse,
 changes nothing: the last applied inventory stays, the problems are logged
-once, `heartbeat_api_inventory_applies_total{result="invalid"}` counts it
+once, `atrium_api_inventory_applies_total{result="invalid"}` counts it
 ([metrics](metrics-and-endpoints.md#inventory-file)), and readiness is
 unaffected. A file refused by the rows is tried again at each read, as those
 rows may change; an invalid one when it changes. Rows of other environments
@@ -523,7 +523,7 @@ The DB collector looks up a `credential_ref`, and the API its PostgreSQL and
 Redis credential references, under one name:
 
 ```text
-HEARTBEAT_CREDENTIAL_<REF>
+ATRIUM_CREDENTIAL_<REF>
 ```
 
 `<REF>` is the full reference upper-cased, with `/`, `-` and `.` replaced by
@@ -532,12 +532,12 @@ the first `:`.
 
 | `credential_ref` | Name |
 | --- | --- |
-| `env/sqlserver-b` | `HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_B` |
-| `kv/sqlserver-default` | `HEARTBEAT_CREDENTIAL_KV_SQLSERVER_DEFAULT` |
+| `env/sqlserver-b` | `ATRIUM_CREDENTIAL_ENV_SQLSERVER_B` |
+| `kv/sqlserver-default` | `ATRIUM_CREDENTIAL_KV_SQLSERVER_DEFAULT` |
 
 It is looked up, in order:
 
-1. A file of that name in `HEARTBEAT_CREDENTIALS_DIR`, when that is set. A
+1. A file of that name in `ATRIUM_CREDENTIALS_DIR`, when that is set. A
    trailing line break is ignored.
 2. An environment variable of that name.
 
@@ -549,20 +549,20 @@ lookup is [`internal/credentials`](../../internal/credentials/credentials.go).
 
 In Kubernetes the chart mounts the Secret named by
 `dbCollector.credentials.existingSecret` as that directory
-(`/var/run/secrets/heartbeat/credentials`), one file per Secret key. After
+(`/var/run/secrets/atrium/credentials`), one file per Secret key. After
 you add or change a key, the kubelet updates the files within about a minute,
 and the next collection cycle uses them; the collector is not restarted. A
 target whose credential is missing fails on its own, and the others keep
 running. The Secret is not loaded into the environment, so a
-`HEARTBEAT_CREDENTIAL_*` variable reaches the container only through
+`ATRIUM_CREDENTIAL_*` variable reaches the container only through
 `dbCollector.extraEnv`.
 
 The chart mounts the API's Secret, `api.credentials.existingSecret`, the
 same way, in the API's container and in its `migrate` init container; its
-keys are `HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES` and
-`HEARTBEAT_CREDENTIAL_SECRET_API_REDIS` ([API](#api)).
+keys are `ATRIUM_CREDENTIAL_SECRET_API_POSTGRES` and
+`ATRIUM_CREDENTIAL_SECRET_API_REDIS` ([API](#api)).
 
-Outside Kubernetes (`go run`, tests), leave `HEARTBEAT_CREDENTIALS_DIR` unset
+Outside Kubernetes (`go run`, tests), leave `ATRIUM_CREDENTIALS_DIR` unset
 and export the variables; exporting them in your host shell does not pass them
 into a pod.
 
@@ -590,14 +590,14 @@ clear: the collector warns at start (`otlp_headers_over_http`, also in
 the receiver in `egress.extraRules`.
 
 ```bash
-kubectl -n heartbeat create secret generic heartbeat-otlp-headers \
+kubectl -n atrium create secret generic atrium-otlp-headers \
   --from-literal=Authorization="Bearer $OTLP_TOKEN"
-helm upgrade heartbeat ... \
-  --set dbCollector.otlpExporter.headers.existingSecret=heartbeat-otlp-headers \
-  --set dbCollector.otlpExporter.tls.ca.existingSecret=heartbeat-otlp-ca
+helm upgrade atrium ... \
+  --set dbCollector.otlpExporter.headers.existingSecret=atrium-otlp-headers \
+  --set dbCollector.otlpExporter.tls.ca.existingSecret=atrium-otlp-ca
 ```
 
-Heartbeat's own logs and spans still go to the bundled Collector, which
+Atrium's own logs and spans still go to the bundled Collector, which
 forwards them with its own exporter's headers
 ([`external-platform.example.yaml`](../../infra/helm/values/external-platform.example.yaml)).
 
@@ -608,11 +608,11 @@ that lists the values; other pages link here.
 
 | Store | What it holds | Default (`values.yaml`) | kind (`kind.yaml`) | Production example | Value key |
 | --- | --- | --- | --- | --- | --- |
-| Loki | OutSystems logs with raw user, session and request IDs and client IPs ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)); the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)); Heartbeat's own logs | 30 days | 30 days | 30 days | `loki.loki.limits_config.retention_period` (with `compactor.retention_enabled`) |
+| Loki | OutSystems logs with raw user, session and request IDs and client IPs ([ADR 0012](../architecture/decisions/0012-personal-data-in-telemetry.md)); the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)); Atrium's own logs | 30 days | 30 days | 30 days | `loki.loki.limits_config.retention_period` (with `compactor.retention_enabled`) |
 | Prometheus | Metrics, including the derived OutSystems metrics | 15 days | 2 days | 30 days | `prometheus.server.retention` |
-| Tempo | Heartbeat's own traces ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) | 7 days (`168h`) | 7 days | 7 days | `tempo.tempo.retention` |
+| Tempo | Atrium's own traces ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) | 7 days (`168h`) | 7 days | 7 days | `tempo.tempo.retention` |
 | PostgreSQL | Inventory and identity metadata; the audit outbox holds a row only until the OTel Collector accepts it | Until deleted; no retention job | same | managed service's backups | — |
-| Valkey | Login sessions | 8 h idle, 7 days at most | same | same | `HEARTBEAT_API_SESSION_IDLE_TIMEOUT`, `HEARTBEAT_API_SESSION_MAX_AGE` ([API variables](#api)) |
+| Valkey | Login sessions | 8 h idle, 7 days at most | same | same | `ATRIUM_API_SESSION_IDLE_TIMEOUT`, `ATRIUM_API_SESSION_MAX_AGE` ([API variables](#api)) |
 
 Loki deletes logs within about two hours of the compactor's run after they
 pass the period. `make chart-check` fails if a profile that bundles Loki
@@ -636,73 +636,73 @@ Loki's period, the Collector also exports them to a SIEM or object storage
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `HEARTBEAT_DB_COLLECTOR_LISTEN_ADDR` | `:8082` | HTTP listen address |
-| `HEARTBEAT_INTEGRATIONS_PATH` | `config/integrations.yaml` | Integrations file path |
-| `HEARTBEAT_ADMIN_TOKEN` | unset | Bearer token for `GET /admin/config` and `POST /admin/config/reload`; both answer 401 without it, and startup logs a warning. Surrounding whitespace is ignored |
-| `HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE`, `HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE` | unset | PEM certificate and key, both or neither: the admin endpoints move to their own HTTPS listener and leave the listen address, which keeps `/metrics` and the health endpoints. Read at each TLS handshake. The chart sets them from `dbCollector.adminTLS.existingSecret` ([admin endpoints over HTTPS](metrics-and-endpoints.md#db-collector-8082)) |
-| `HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR` | `:8443` | The HTTPS address of the admin endpoints, when their certificate is set |
-| `HEARTBEAT_CONFIG_WATCH_INTERVAL` | unset (off) | Go duration; poll the config file for changes (the chart sets `5s`, `dbCollector.configWatchInterval`) |
-| `HEARTBEAT_STATE_DIR` | `/var/lib/heartbeat` | Writable directory for state that must survive a restart: the `outsystems_logs` watermarks. Created on the first save; the `sqlserver` kind never uses it. The chart mounts the `dbCollector.persistence` volume there |
-| `HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE` | `false` | Skip TLS certificate verification. **Local dev container only**; applies to every target. When set, startup logs a warning and `GET /admin/config` lists it under `warnings` |
-| `HEARTBEAT_CREDENTIALS_DIR` | unset | Directory with one `HEARTBEAT_CREDENTIAL_<REF>` file per credential, read on every connection; references without a file come from the environment. The chart sets it to the mounted `dbCollector.credentials.existingSecret`. See [credential resolution](#credential-resolution) |
-| `HEARTBEAT_CREDENTIAL_<REF>` | — | Target credentials, see [credential resolution](#credential-resolution) |
-| `HEARTBEAT_OTLP_HEADERS_DIR` | unset | Directory of header files added to every request to `opentelemetry.endpoint`, read at each request. The chart sets it from `dbCollector.otlpExporter.headers.existingSecret` ([the OTLP exporter](#the-otlp-exporter)) |
-| `HEARTBEAT_OTLP_CA_FILE` | unset (system roots) | PEM certificates that verify an https `opentelemetry.endpoint`, read at start |
-| `HEARTBEAT_OTLP_CLIENT_CERT_FILE`, `HEARTBEAT_OTLP_CLIENT_KEY_FILE` | unset | Client certificate and key for mutual TLS, both or neither, read at each TLS handshake |
+| `ATRIUM_DB_COLLECTOR_LISTEN_ADDR` | `:8082` | HTTP listen address |
+| `ATRIUM_INTEGRATIONS_PATH` | `config/integrations.yaml` | Integrations file path |
+| `ATRIUM_ADMIN_TOKEN` | unset | Bearer token for `GET /admin/config` and `POST /admin/config/reload`; both answer 401 without it, and startup logs a warning. Surrounding whitespace is ignored |
+| `ATRIUM_DB_COLLECTOR_ADMIN_TLS_CERT_FILE`, `ATRIUM_DB_COLLECTOR_ADMIN_TLS_KEY_FILE` | unset | PEM certificate and key, both or neither: the admin endpoints move to their own HTTPS listener and leave the listen address, which keeps `/metrics` and the health endpoints. Read at each TLS handshake. The chart sets them from `dbCollector.adminTLS.existingSecret` ([admin endpoints over HTTPS](metrics-and-endpoints.md#db-collector-8082)) |
+| `ATRIUM_DB_COLLECTOR_ADMIN_LISTEN_ADDR` | `:8443` | The HTTPS address of the admin endpoints, when their certificate is set |
+| `ATRIUM_CONFIG_WATCH_INTERVAL` | unset (off) | Go duration; poll the config file for changes (the chart sets `5s`, `dbCollector.configWatchInterval`) |
+| `ATRIUM_STATE_DIR` | `/var/lib/atrium` | Writable directory for state that must survive a restart: the `outsystems_logs` watermarks. Created on the first save; the `sqlserver` kind never uses it. The chart mounts the `dbCollector.persistence` volume there |
+| `ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE` | `false` | Skip TLS certificate verification. **Local dev container only**; applies to every target. When set, startup logs a warning and `GET /admin/config` lists it under `warnings` |
+| `ATRIUM_CREDENTIALS_DIR` | unset | Directory with one `ATRIUM_CREDENTIAL_<REF>` file per credential, read on every connection; references without a file come from the environment. The chart sets it to the mounted `dbCollector.credentials.existingSecret`. See [credential resolution](#credential-resolution) |
+| `ATRIUM_CREDENTIAL_<REF>` | — | Target credentials, see [credential resolution](#credential-resolution) |
+| `ATRIUM_OTLP_HEADERS_DIR` | unset | Directory of header files added to every request to `opentelemetry.endpoint`, read at each request. The chart sets it from `dbCollector.otlpExporter.headers.existingSecret` ([the OTLP exporter](#the-otlp-exporter)) |
+| `ATRIUM_OTLP_CA_FILE` | unset (system roots) | PEM certificates that verify an https `opentelemetry.endpoint`, read at start |
+| `ATRIUM_OTLP_CLIENT_CERT_FILE`, `ATRIUM_OTLP_CLIENT_KEY_FILE` | unset | Client certificate and key for mutual TLS, both or neither, read at each TLS handshake |
 | `GOMEMLIMIT` | unset | Go's soft memory limit, such as `200MiB`. The chart sets 80% of `dbCollector.resources.limits.memory` (`204MiB` for the default `256Mi`), so the garbage collector works harder before the pod is OOM-killed; `dbCollector.goMemLimit` overrides it, `off` disables it |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | unset (stderr only) | Where the service sends its own logs, besides stderr: the OTel Collector's `otlp/self` receiver, such as `http://otel-collector:4319/v1/logs`. The chart sets it while `telemetry.enabled` and `otelCollector.enabled` are on. Not read from `OTEL_EXPORTER_OTLP_ENDPOINT`, whose port is the OutSystems delivery path ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | unset (stderr only) | Where the service sends its own logs, besides stderr: the OTel Collector's `otlp/self` receiver, such as `http://otel-collector:4319/v1/logs`. The chart sets it while `telemetry.enabled` and `otelCollector.enabled` are on. Not read from `OTEL_EXPORTER_OTLP_ENDPOINT`, whose port is the OutSystems delivery path ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | unset (no spans) | Where the service sends its spans, such as `http://otel-collector:4318/v1/traces`. The chart sets it while `telemetry.traces.enabled` and `otelCollector.enabled` are on. The OpenTelemetry SDK reads the other standard variables itself |
 | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | always on | The chart sets `parentbased_traceidratio` and `telemetry.traces.sampleRatio`: every cycle and request by default |
-| `OTEL_RESOURCE_ATTRIBUTES` | unset | `deployment.environment.name` is read from it: the environment Heartbeat itself runs in. The chart sets it from `telemetry.environment` |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | `deployment.environment.name` is read from it: the environment Atrium itself runs in. The chart sets it from `telemetry.environment` |
 | `OTEL_SDK_DISABLED` | unset | `true` turns off the OTLP export; stderr is unaffected |
-| `HEARTBEAT_PPROF_ADDR` | unset (off) | Loopback address for the runtime profiles at `/debug/pprof/`, such as `127.0.0.1:6060`; any other address is refused with an error in the log. Set it with `dbCollector.extraEnv`, then `kubectl port-forward pod/db-collector-0 6060` |
+| `ATRIUM_PPROF_ADDR` | unset (off) | Loopback address for the runtime profiles at `/debug/pprof/`, such as `127.0.0.1:6060`; any other address is refused with an error in the log. Set it with `dbCollector.extraEnv`, then `kubectl port-forward pod/db-collector-0 6060` |
 
 ### API
 
 The chart sets these from the `api` values: `api.postgres` and `api.redis`,
 or, when those are empty, the bundled `postgresql` and `valkey` without TLS
 (`disable` and `false`); any other server gets `verify-full` and TLS unless
-the values turn them off. `HEARTBEAT_API_SITE_ORIGIN` comes from
-`api.siteOrigin`, and `HEARTBEAT_API_INVENTORY_PATH` from `api.inventory`
+the values turn them off. `ATRIUM_API_SITE_ORIGIN` comes from
+`api.siteOrigin`, and `ATRIUM_API_INVENTORY_PATH` from `api.inventory`
 (the [inventory file](#inventory-file), mounted from its ConfigMap).
-`HEARTBEAT_API_INTEGRATIONS_PATH` is always
+`ATRIUM_API_INTEGRATIONS_PATH` is always
 `/app/config/integrations.yaml`, the collector's file, mounted from the
-`heartbeat-integrations` ConfigMap; the
+`atrium-integrations` ConfigMap; the
 other session settings take their defaults, or `api.extraEnv`. The telemetry variables are set as the collector's. A value
 that cannot work stops startup with an error naming the variable, instead of
 falling back to the default.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `HEARTBEAT_API_LISTEN_ADDR` | `:8081` | HTTP listen address, `host:port` |
-| `HEARTBEAT_API_POSTGRES_HOST` | required | PostgreSQL server: a host name or IP address, without a port |
-| `HEARTBEAT_API_POSTGRES_PORT` | `5432` | PostgreSQL port |
-| `HEARTBEAT_API_POSTGRES_DATABASE` | `heartbeat` | Database name |
-| `HEARTBEAT_API_POSTGRES_SSLMODE` | `verify-full` | `disable`, `require`, `verify-ca` or `verify-full`, with libpq's meaning. `allow` and `prefer` are rejected: they fall back to plaintext without saying so. `disable` is for a server without TLS on a trusted network: kind, a local container |
-| `HEARTBEAT_API_POSTGRES_SSLROOTCERT` | unset (the system's CAs) | PEM file of the CA certificates `verify-ca` and `verify-full` trust. Amazon RDS needs its CA bundle here |
-| `HEARTBEAT_API_POSTGRES_CREDENTIAL_REF` | `secret/api-postgres` | Credential reference of the login, `username:password` ([credential resolution](#credential-resolution)): by default `HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES`. `api migrate up` uses it too; give that command another reference to migrate as a different role, such as the schema's owner |
-| `HEARTBEAT_API_REDIS_ADDR` | required | Redis (Valkey) server, `host:port` |
-| `HEARTBEAT_API_REDIS_TLS` | `true` | TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. `false` for a server without TLS on a trusted network: kind, a local container |
-| `HEARTBEAT_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
-| `HEARTBEAT_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `HEARTBEAT_CREDENTIAL_<REF>` files, read on every new connection |
-| `HEARTBEAT_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. The chart sets it while `otelCollector.enabled` is on. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `HeartbeatAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
-| `HEARTBEAT_API_SITE_ORIGIN` | unset (unsafe requests refused) | The origin browsers reach the API at, such as `https://heartbeat.example.com`: scheme and host, a port only when it is not the scheme's default, no path. `POST`, `PUT`, `PATCH` and `DELETE` need one `Origin` header equal to it, or are refused with 403 before they run, logging in included ([sessions](metrics-and-endpoints.md#logging-in-and-sessions)). Written as a browser writes the header: lower case, without `:443` or `:80` or a trailing slash. Unset, the API logs a warning at startup and nobody can log in |
-| `HEARTBEAT_API_SESSION_IDLE_TIMEOUT` | `8h` | A session ends after this long without a request. A Go duration, at least `1m`, at most the max age. Requests move the deadline at most once a minute |
-| `HEARTBEAT_API_SESSION_MAX_AGE` | `168h` (7 days) | A session ends this long after login, however active. At least `1m`. The cookie's `Max-Age` too |
-| `HEARTBEAT_API_TRUSTED_PROXIES` | unset (none) | Comma-separated addresses or CIDRs, such as `10.0.0.0/8`, of proxies (an ingress controller) whose `X-Forwarded-For` names the client. The API reads the header from its end, only as far as these proxies wrote it, so a client cannot choose its own address. The client address is what failed logins are counted by and what audit records show; unset, it is the TCP peer's |
-| `HEARTBEAT_API_COLLECTOR_URL` | unset (observations unknown) | The DB collector's base URL, such as `http://db-collector:8082`, without a path. The API reads its redacted `GET /admin/config`, at most every 15s, to say whether a telemetry source is observed ([telemetry sources](metrics-and-endpoints.md#telemetry-sources)). The chart sets it to the `db-collector` Service while `dbCollector.enabled` is on, `https://db-collector:8443` with `dbCollector.adminTLS`, and the collector's NetworkPolicy admits the API |
-| `HEARTBEAT_API_COLLECTOR_CA_FILE` | unset (system roots) | PEM certificates that verify an https collector URL, read at start; a missing or empty file stops the API. The chart mounts only the CA of `dbCollector.adminTLS.ca` |
-| `HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN` | unset | The collector's admin token (its `HEARTBEAT_ADMIN_TOKEN`), sent as a bearer token. The chart takes it from the collector's Secret, `dbCollector.adminToken`; it is never logged. Without it the collector answers 401, and observations are unknown. Both services read the token at startup, so rotating it means restarting the collector and the API; until both run with the new one, observations are unknown (`refused the API's admin token`) |
-| `HEARTBEAT_API_INTEGRATIONS_PATH` | unset (no links) | The collector's [`integrations.yaml`](#integrationsyaml). The API renders its links into the platform's UI from its `dashboards` templates ([links](metrics-and-endpoints.md#links-into-the-platforms-ui)). Read at startup and at most every 30 seconds when links are asked for |
-| `HEARTBEAT_API_INVENTORY_PATH` | unset (no inventory file) | The environment's [inventory file](#inventory-file), applied to PostgreSQL when the API starts and when the file changes, read every 30 seconds ([applying the file](#applying-the-file)). A file that cannot be read or applied is logged and counted; the API starts and stays ready all the same |
-| `HEARTBEAT_API_SHUTDOWN_DELAY` | `5s` | How long the API keeps serving after `SIGTERM`, with `GET /readyz` answering 503, before it stops accepting connections: time for its Service to stop sending it requests. `0s` to `1m`. The chart's `api.terminationGracePeriodSeconds` (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay |
-| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `HEARTBEAT_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
+| `ATRIUM_API_LISTEN_ADDR` | `:8081` | HTTP listen address, `host:port` |
+| `ATRIUM_API_POSTGRES_HOST` | required | PostgreSQL server: a host name or IP address, without a port |
+| `ATRIUM_API_POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `ATRIUM_API_POSTGRES_DATABASE` | `atrium` | Database name |
+| `ATRIUM_API_POSTGRES_SSLMODE` | `verify-full` | `disable`, `require`, `verify-ca` or `verify-full`, with libpq's meaning. `allow` and `prefer` are rejected: they fall back to plaintext without saying so. `disable` is for a server without TLS on a trusted network: kind, a local container |
+| `ATRIUM_API_POSTGRES_SSLROOTCERT` | unset (the system's CAs) | PEM file of the CA certificates `verify-ca` and `verify-full` trust. Amazon RDS needs its CA bundle here |
+| `ATRIUM_API_POSTGRES_CREDENTIAL_REF` | `secret/api-postgres` | Credential reference of the login, `username:password` ([credential resolution](#credential-resolution)): by default `ATRIUM_CREDENTIAL_SECRET_API_POSTGRES`. `api migrate up` uses it too; give that command another reference to migrate as a different role, such as the schema's owner |
+| `ATRIUM_API_REDIS_ADDR` | required | Redis (Valkey) server, `host:port` |
+| `ATRIUM_API_REDIS_TLS` | `true` | TLS, verified against the system's CAs and the host name, as ElastiCache's in-transit encryption needs. `false` for a server without TLS on a trusted network: kind, a local container |
+| `ATRIUM_API_REDIS_CREDENTIAL_REF` | `secret/api-redis` | Credential reference of the login, `username:password`: by default `ATRIUM_CREDENTIAL_SECRET_API_REDIS`. For Valkey's `requirepass` or an ElastiCache AUTH token, the username is `default`, or empty to send the password alone |
+| `ATRIUM_CREDENTIALS_DIR` | unset | As for the DB collector: a directory of `ATRIUM_CREDENTIAL_<REF>` files, read on every new connection |
+| `ATRIUM_API_AUDIT_ENDPOINT` | unset (records wait) | OTLP/HTTP base URL audit records are sent to: the OTel Collector's logs receiver with the persistent queue, the one the OutSystems logs use, such as `http://otel-collector:4318`; a trailing `/v1/logs` is dropped. The chart sets it while `otelCollector.enabled` is on. Unset, the API logs `audit delivery off` at startup and the records wait in the outbox, which `AtriumAuditDeliveryStalled` reports ([audit delivery](metrics-and-endpoints.md#audit-delivery)). Not `OTEL_SDK_DISABLED`'s to turn off: audit records are not the API's own telemetry, and never go to the `4319` receiver of its own logs |
+| `ATRIUM_API_SITE_ORIGIN` | unset (unsafe requests refused) | The origin browsers reach the API at, such as `https://atrium.example.com`: scheme and host, a port only when it is not the scheme's default, no path. `POST`, `PUT`, `PATCH` and `DELETE` need one `Origin` header equal to it, or are refused with 403 before they run, logging in included ([sessions](metrics-and-endpoints.md#logging-in-and-sessions)). Written as a browser writes the header: lower case, without `:443` or `:80` or a trailing slash. Unset, the API logs a warning at startup and nobody can log in |
+| `ATRIUM_API_SESSION_IDLE_TIMEOUT` | `8h` | A session ends after this long without a request. A Go duration, at least `1m`, at most the max age. Requests move the deadline at most once a minute |
+| `ATRIUM_API_SESSION_MAX_AGE` | `168h` (7 days) | A session ends this long after login, however active. At least `1m`. The cookie's `Max-Age` too |
+| `ATRIUM_API_TRUSTED_PROXIES` | unset (none) | Comma-separated addresses or CIDRs, such as `10.0.0.0/8`, of proxies (an ingress controller) whose `X-Forwarded-For` names the client. The API reads the header from its end, only as far as these proxies wrote it, so a client cannot choose its own address. The client address is what failed logins are counted by and what audit records show; unset, it is the TCP peer's |
+| `ATRIUM_API_COLLECTOR_URL` | unset (observations unknown) | The DB collector's base URL, such as `http://db-collector:8082`, without a path. The API reads its redacted `GET /admin/config`, at most every 15s, to say whether a telemetry source is observed ([telemetry sources](metrics-and-endpoints.md#telemetry-sources)). The chart sets it to the `db-collector` Service while `dbCollector.enabled` is on, `https://db-collector:8443` with `dbCollector.adminTLS`, and the collector's NetworkPolicy admits the API |
+| `ATRIUM_API_COLLECTOR_CA_FILE` | unset (system roots) | PEM certificates that verify an https collector URL, read at start; a missing or empty file stops the API. The chart mounts only the CA of `dbCollector.adminTLS.ca` |
+| `ATRIUM_API_COLLECTOR_ADMIN_TOKEN` | unset | The collector's admin token (its `ATRIUM_ADMIN_TOKEN`), sent as a bearer token. The chart takes it from the collector's Secret, `dbCollector.adminToken`; it is never logged. Without it the collector answers 401, and observations are unknown. Both services read the token at startup, so rotating it means restarting the collector and the API; until both run with the new one, observations are unknown (`refused the API's admin token`) |
+| `ATRIUM_API_INTEGRATIONS_PATH` | unset (no links) | The collector's [`integrations.yaml`](#integrationsyaml). The API renders its links into the platform's UI from its `dashboards` templates ([links](metrics-and-endpoints.md#links-into-the-platforms-ui)). Read at startup and at most every 30 seconds when links are asked for |
+| `ATRIUM_API_INVENTORY_PATH` | unset (no inventory file) | The environment's [inventory file](#inventory-file), applied to PostgreSQL when the API starts and when the file changes, read every 30 seconds ([applying the file](#applying-the-file)). A file that cannot be read or applied is logged and counted; the API starts and stays ready all the same |
+| `ATRIUM_API_SHUTDOWN_DELAY` | `5s` | How long the API keeps serving after `SIGTERM`, with `GET /readyz` answering 503, before it stops accepting connections: time for its Service to stop sending it requests. `0s` to `1m`. The chart's `api.terminationGracePeriodSeconds` (30) covers 5s plus the 10s drain and the rest of the shutdown; raise it with the delay |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_SDK_DISABLED`, `ATRIUM_PPROF_ADDR` | unset | As for the DB collector. The `api migrate` and `api users` commands send no telemetry |
 | `GOMEMLIMIT` | unset | As for the DB collector, from `api.resources.limits.memory` and `api.goMemLimit` |
-| `HEARTBEAT_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |
+| `ATRIUM_CREDENTIAL_<REF>` | — | A credential without a file, see [credential resolution](#credential-resolution) |
 
 The settings above win over libpq's `PG*` environment variables, which the
 PostgreSQL driver also reads. Each replica keeps at most 8 PostgreSQL
-connections (`application_name` `heartbeat-api`); a connection attempt gives
+connections (`application_name` `atrium-api`); a connection attempt gives
 up after 5s.
 
 The API connects lazily: it starts while PostgreSQL or Redis is down or its
@@ -735,5 +735,5 @@ read -rs PASSWORD && printf '%s\n' "$PASSWORD" | \
 | File | Tracked | Purpose |
 | --- | --- | --- |
 | `.env.sqlserver-dev.example` | yes | Template for the SQL Server sandbox |
-| `.env.sqlserver-dev` | no (mode 600) | Random per-machine SA password and least-privilege collector credential (`heartbeat_collector:<password>`), generated by `make sqlserver-dev-init`; `make sqlserver-dev-up` creates that login with `sa` and copies only the collector credential into the `heartbeat-sqlserver-dev-credentials` Secret |
+| `.env.sqlserver-dev` | no (mode 600) | Random per-machine SA password and least-privilege collector credential (`atrium_collector:<password>`), generated by `make sqlserver-dev-init`; `make sqlserver-dev-up` creates that login with `sa` and copies only the collector credential into the `atrium-sqlserver-dev-credentials` Secret |
 | `infra/helm/values/sqlserver-dev.yaml` | yes | Values that point the collector at the sandbox container |

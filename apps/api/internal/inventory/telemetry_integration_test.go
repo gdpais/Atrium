@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/inventory"
+	"atrium/apps/api/internal/inventory"
 )
 
 // What an application's or a target's telemetry is labelled with, for

@@ -11,14 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"heartbeat/db/migrations"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/db/migrations"
+	"atrium/internal/credentials"
+	"atrium/internal/credentials/credentialstest"
 )
 
 func validConfig() Config {
 	return Config{
-		Host: "postgresql.heartbeat.svc", Port: 5432, Database: "heartbeat",
+		Host: "postgresql.atrium.svc", Port: 5432, Database: "atrium",
 		SSLMode: "verify-full", CredentialRef: "secret/api-postgres",
 	}
 }
@@ -55,12 +55,12 @@ func TestConfigValidate(t *testing.T) {
 
 func TestConnConfigUsesTheSettings(t *testing.T) {
 	cfg := validConfig()
-	cfg.Host, cfg.Port, cfg.Database, cfg.SSLMode = "2001:db8::5", 6432, "heartbeat prod", "disable"
+	cfg.Host, cfg.Port, cfg.Database, cfg.SSLMode = "2001:db8::5", 6432, "atrium prod", "disable"
 	cc, err := cfg.connConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cc.Host != "2001:db8::5" || cc.Port != 6432 || cc.Database != "heartbeat prod" {
+	if cc.Host != "2001:db8::5" || cc.Port != 6432 || cc.Database != "atrium prod" {
 		t.Fatalf("host %q port %d database %q", cc.Host, cc.Port, cc.Database)
 	}
 	if cc.TLSConfig != nil {
@@ -86,7 +86,7 @@ func TestConnConfigVerifiesTLSByDefault(t *testing.T) {
 	if cc.TLSConfig == nil || cc.TLSConfig.InsecureSkipVerify && cc.TLSConfig.VerifyPeerCertificate == nil {
 		t.Fatalf("verify-full does not verify the server: %+v", cc.TLSConfig)
 	}
-	if cc.TLSConfig.ServerName != "postgresql.heartbeat.svc" {
+	if cc.TLSConfig.ServerName != "postgresql.atrium.svc" {
 		t.Fatalf("TLS ServerName = %q, want the host", cc.TLSConfig.ServerName)
 	}
 	if len(cc.Fallbacks) != 0 {
@@ -104,7 +104,7 @@ func TestConnConfigIgnoresPGEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cc.Host != "postgresql.heartbeat.svc" || cc.Port != 5432 || cc.Database != "heartbeat" || cc.TLSConfig == nil {
+	if cc.Host != "postgresql.atrium.svc" || cc.Port != 5432 || cc.Database != "atrium" || cc.TLSConfig == nil {
 		t.Fatalf("PG* variables won: host %q port %d database %q TLS %v", cc.Host, cc.Port, cc.Database, cc.TLSConfig != nil)
 	}
 }
@@ -112,19 +112,19 @@ func TestConnConfigIgnoresPGEnvironment(t *testing.T) {
 func TestBeforeConnectReadsTheCredentialEveryTime(t *testing.T) {
 	dir := t.TempDir()
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES": "heartbeat_api:first\n",
+		"ATRIUM_CREDENTIAL_SECRET_API_POSTGRES": "atrium_api:first\n",
 	})
 	hook := beforeConnect(credentials.Files{Dir: dir}, "secret/api-postgres")
 	cc := &pgx.ConnConfig{}
 	if err := hook(context.Background(), cc); err != nil {
 		t.Fatal(err)
 	}
-	if cc.User != "heartbeat_api" || cc.Password != "first" {
+	if cc.User != "atrium_api" || cc.Password != "first" {
 		t.Fatalf("login %q / %q", cc.User, cc.Password)
 	}
 
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES": "heartbeat_api:rotated\n",
+		"ATRIUM_CREDENTIAL_SECRET_API_POSTGRES": "atrium_api:rotated\n",
 	})
 	if err := hook(context.Background(), cc); err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestBeforeConnectReadsTheCredentialEveryTime(t *testing.T) {
 	}
 
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES": ":no-user\n",
+		"ATRIUM_CREDENTIAL_SECRET_API_POSTGRES": ":no-user\n",
 	})
 	if err := hook(context.Background(), cc); err == nil || !strings.Contains(err.Error(), "no username") {
 		t.Fatalf("credential without a username: err = %v", err)
@@ -149,7 +149,7 @@ func TestBeforeConnectReadsTheCredentialEveryTime(t *testing.T) {
 func TestNewPoolDoesNotConnect(t *testing.T) {
 	cfg := validConfig()
 	cfg.Host, cfg.Port, cfg.SSLMode = "127.0.0.1", closedPort(t), "disable"
-	t.Setenv("HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES", "heartbeat:unused")
+	t.Setenv("ATRIUM_CREDENTIAL_SECRET_API_POSTGRES", "atrium:unused")
 	pool, err := NewPool(cfg, credentials.Env{})
 	if err != nil {
 		t.Fatal(err)

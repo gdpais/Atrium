@@ -12,9 +12,9 @@ Prometheus rule built until then would be rewritten if ELK won.
 
 The owner decided on 2026-11-02 to keep the Grafana stack. Other
 applications in the organization that consume OpenTelemetry must still be
-able to receive Heartbeat's metrics, logs and traces.
+able to receive Atrium's metrics, logs and traces.
 
-Two places could translate Heartbeat's data to OpenTelemetry for them:
+Two places could translate Atrium's data to OpenTelemetry for them:
 
 - **The API** ([ADR 0013](0013-api-design-and-subsystem-boundaries.md)). It
   is the control plane: inventory, policies, investigations and audit. It
@@ -24,7 +24,7 @@ Two places could translate Heartbeat's data to OpenTelemetry for them:
   push protocol with no query side, so an API endpoint could not serve
   "OTLP" to a caller that asks.
 - **The OpenTelemetry Collector.** It already receives every OTLP signal
-  Heartbeat emits, has a pipeline per signal (`metrics`, `logs`,
+  Atrium emits, has a pipeline per signal (`metrics`, `logs`,
   `logs/self`; `traces` comes with Tempo [TODO 3.6]) with role-named log
   exporters, and is the only place besides the chart that names a platform
   (ADR 0011). In the bundled stack Prometheus scrapes the db-collector's
@@ -36,15 +36,15 @@ Two places could translate Heartbeat's data to OpenTelemetry for them:
 
 ## Decision
 
-1. **The Grafana stack is Heartbeat's observability platform.** Prometheus,
+1. **The Grafana stack is Atrium's observability platform.** Prometheus,
    Loki, Grafana and Alertmanager stay bundled, Tempo joins them
-   ([ADR 0018](0018-heartbeats-own-telemetry.md), [TODO 3.6]), and
+   ([ADR 0018](0018-atriums-own-telemetry.md), [TODO 3.6]), and
    dashboards, rules and query adapters are written for them only. The ELK
    review in TODO 18 is
    closed; ADR 0011's boundary stays, so another platform is still a values
    file away.
 2. **The Collector is the transformation layer.** A consumer that wants
-   Heartbeat's telemetry gets it pushed as OTLP from the Collector: an
+   Atrium's telemetry gets it pushed as OTLP from the Collector: an
    optional, role-named exporter per signal (`otlp_http/share-metrics`,
    `/share-logs`, `/share-traces`) added next to the bundled exporters, set in
    the chart's values with the endpoint and credentials in a Secret. When
@@ -53,7 +53,7 @@ Two places could translate Heartbeat's data to OpenTelemetry for them:
    pipeline of its own that exports only to the shared exporter: in the
    `metrics` pipeline they would also reach the Collector's `prometheus`
    exporter, and Prometheus would store them twice.
-3. **The API serves Heartbeat's own resources, not raw telemetry.**
+3. **The API serves Atrium's own resources, not raw telemetry.**
    Inventory, investigations, evidence links and, later, query results go
    through the API as JSON, and its reads of logs and metrics go through the
    ADR 0011 adapters, with the Grafana stack's (Loki, Prometheus, and Tempo

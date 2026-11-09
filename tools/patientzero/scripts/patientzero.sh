@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs PatientZero (ADR 0010) on the kind cluster next to the Heartbeat chart,
+# Runs PatientZero (ADR 0010) on the kind cluster next to the Atrium chart,
 # against the sandbox SQL Server. The Makefile calls this: make patientzero-up
 # and make patientzero-down. Run make sqlserver-dev-up first.
 #
@@ -8,15 +8,15 @@
 #      SQL Server env file if it has none.
 #   2. As sa, inside the SQL Server container: creates the patientzero and
 #      patientzero_log databases and PatientZero's login, db_owner of those
-#      two databases and nothing else, and adds the Heartbeat collector's
+#      two databases and nothing else, and adds the Atrium collector's
 #      login to a role in patientzero_log that PatientZero grants SELECT on
 #      the log views, nothing more.
 #   3. Builds the image, loads it into kind and installs the chart into the
 #      patientzero namespace. PatientZero creates its schemas at startup.
-#   4. Redeploys the Heartbeat chart with an outsystems_logs collector that
+#   4. Redeploys the Atrium chart with an outsystems_logs collector that
 #      reads patientzero_log. A later make kind-deploy drops that collector;
 #      run make patientzero-up again to restore it.
-# down: uninstalls the chart, redeploys Heartbeat without the collector, and
+# down: uninstalls the chart, redeploys Atrium without the collector, and
 # drops the two databases and the login.
 # load: runs the k6 load (tools/patientzero/load) as a Job next to
 # PatientZero, follows its output and exits with k6's result. Interrupting it
@@ -39,11 +39,11 @@
 # scale: a production-sized test logging database, patientzero_scale on the
 # sandbox SQL Server: two weeks of the surveyed installation's log, written
 # straight into the cycle tables (tools/patientzero/cmd/oslog-scale), then
-# every collector query measured against it. The Heartbeat collector's login
+# every collector query measured against it. The Atrium collector's login
 # can read it like patientzero_log. Writes .tmp/patientzero-scale/
 # expected.json and report.md. It does not touch PatientZero on kind.
 # scale-measure: measures again, on the database as it is.
-# scale-collect: redeploys Heartbeat with a second outsystems_logs collector,
+# scale-collect: redeploys Atrium with a second outsystems_logs collector,
 #   patientzero-scale, that reads patientzero_scale from SCALE_LOOKBACK back.
 #   Its target and deployment.environment.name are named after the generated
 #   log's end (scale-<end>), so a regenerated log gets fresh watermarks and
@@ -59,10 +59,10 @@
 # Every kubectl and helm call names the kind context explicitly.
 #
 # Environment (defaults in brackets), shared with scripts/kind.sh:
-#   KIND_CLUSTER           cluster name [heartbeat]
-#   HEARTBEAT_NAMESPACE    Heartbeat's namespace [heartbeat]
+#   KIND_CLUSTER           cluster name [atrium]
+#   ATRIUM_NAMESPACE    Atrium's namespace [atrium]
 #   PATIENTZERO_NAMESPACE  PatientZero's namespace [patientzero]
-#   SQLSERVER_CONTAINER    sandbox SQL Server container [heartbeat-sqlserver-dev]
+#   SQLSERVER_CONTAINER    sandbox SQL Server container [atrium-sqlserver-dev]
 #   SQLSERVER_ENV_FILE     SA password and credentials [.env.sqlserver-dev]
 #   PROFILE, EXTRA_VALUES  passed on to scripts/kind.sh deploy
 #   LOAD                   load profile: smoke, steady, peak, soak or day [steady]
@@ -79,22 +79,22 @@
 set -eu
 cd "$(dirname "$0")/../../.."
 
-CLUSTER=${KIND_CLUSTER:-heartbeat}
+CLUSTER=${KIND_CLUSTER:-atrium}
 CONTEXT=kind-$CLUSTER
 NAMESPACE=${PATIENTZERO_NAMESPACE:-patientzero}
-HEARTBEAT_NAMESPACE=${HEARTBEAT_NAMESPACE:-heartbeat}
-SQLSERVER_CONTAINER=${SQLSERVER_CONTAINER:-heartbeat-sqlserver-dev}
+ATRIUM_NAMESPACE=${ATRIUM_NAMESPACE:-atrium}
+SQLSERVER_CONTAINER=${SQLSERVER_CONTAINER:-atrium-sqlserver-dev}
 SQLSERVER_ENV_FILE=${SQLSERVER_ENV_FILE:-.env.sqlserver-dev}
 STATE_DIR=.tmp/kind/$CLUSTER
 CHART=tools/patientzero/chart
 RELEASE=patientzero
 CREDENTIAL_KEY=PATIENTZERO_SQL_CREDENTIAL
-COLLECTOR_KEY=HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV
-READER_ROLE=heartbeat_oslog_reader
+COLLECTOR_KEY=ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV
+READER_ROLE=atrium_oslog_reader
 DATABASE=patientzero
 LOG_DATABASE=patientzero_log
 SCALE_DATABASE=patientzero_scale
-HEARTBEAT_VALUES=$STATE_DIR/patientzero-heartbeat.yaml
+ATRIUM_VALUES=$STATE_DIR/patientzero-atrium.yaml
 # The patientzero-scale collector's name, lookback and start, while it runs.
 SCALE_STATE=$STATE_DIR/patientzero-scale
 SCALE_DIR=.tmp/patientzero-scale
@@ -140,7 +140,7 @@ ensure_credential() {
 	[ -n "$collector_login" ] && [ "$collector_login" != "$collector" ] ||
 		die "$COLLECTOR_KEY in $SQLSERVER_ENV_FILE must be <login>:<password>; run make sqlserver-dev-init"
 	[ "$(printf '%s' "$collector_login" | tr 'A-Z' 'a-z')" != "$(printf '%s' "$pz_login" | tr 'A-Z' 'a-z')" ] ||
-		die "PatientZero and the Heartbeat collector must use different logins"
+		die "PatientZero and the Atrium collector must use different logins"
 }
 
 # Runs a batch as sa in the container. sqlcmd substitutes $(NAME) from the
@@ -176,7 +176,7 @@ DECLARE @qlogin nvarchar(300) = QUOTENAME(@login), @qcollector nvarchar(300) = Q
 IF LEN(@login) = 0 OR LEN(@login) > 128 OR LEN(@password) = 0 OR LEN(@password) > 128
 	THROW 50000, 'the PatientZero login and password must be 1 to 128 characters', 1;
 IF SUSER_ID(@collector) IS NULL
-	THROW 50000, 'the Heartbeat collector login does not exist; run make sqlserver-dev-up first', 1;
+	THROW 50000, 'the Atrium collector login does not exist; run make sqlserver-dev-up first', 1;
 IF EXISTS (SELECT 1 FROM sys.server_role_members AS m
 	JOIN sys.server_principals AS p ON p.principal_id = m.member_principal_id WHERE p.name = @login)
 	THROW 50000, 'the existing PatientZero login is a member of a server role; drop it or use another name', 1;
@@ -265,14 +265,14 @@ node_arch() {
 # cannot hide behind a reused tag.
 build_image() {
 	arch=$(node_arch)
-	log "building heartbeat/patientzero for linux/$arch"
+	log "building atrium/patientzero for linux/$arch"
 	docker build --quiet --platform "linux/$arch" --provenance=false \
-		-t heartbeat/patientzero:build -f tools/patientzero/Dockerfile . >/dev/null
-	id=$(docker image inspect -f '{{.Id}}' heartbeat/patientzero:build)
+		-t atrium/patientzero:build -f tools/patientzero/Dockerfile . >/dev/null
+	id=$(docker image inspect -f '{{.Id}}' atrium/patientzero:build)
 	tag=dev-$(printf '%s' "${id#sha256:}" | cut -c1-12)
-	docker tag heartbeat/patientzero:build "heartbeat/patientzero:$tag"
-	log "loading heartbeat/patientzero:$tag into $CLUSTER"
-	kind load docker-image --name "$CLUSTER" "heartbeat/patientzero:$tag" >/dev/null
+	docker tag atrium/patientzero:build "atrium/patientzero:$tag"
+	log "loading atrium/patientzero:$tag into $CLUSTER"
+	kind load docker-image --name "$CLUSTER" "atrium/patientzero:$tag" >/dev/null
 }
 
 install_chart() {
@@ -299,9 +299,9 @@ install_chart() {
 		--set sql.trustServerCertificate=true \
 		--set "sql.database=$DATABASE" --set "sql.logDatabase=$LOG_DATABASE" \
 		--set "logReaderRole=$READER_ROLE" \
-		--set "signals.prometheusURL=http://prometheus.$HEARTBEAT_NAMESPACE.svc:9090" \
-		--set "signals.lokiURL=http://loki.$HEARTBEAT_NAMESPACE.svc:3100" \
-		--set "signals.alertmanagerURL=http://alertmanager.$HEARTBEAT_NAMESPACE.svc:9093" \
+		--set "signals.prometheusURL=http://prometheus.$ATRIUM_NAMESPACE.svc:9090" \
+		--set "signals.lokiURL=http://loki.$ATRIUM_NAMESPACE.svc:3100" \
+		--set "signals.alertmanagerURL=http://alertmanager.$ATRIUM_NAMESPACE.svc:9093" \
 		--wait --timeout 5m
 }
 
@@ -328,7 +328,7 @@ KIND_PEERS='  otelCollector:
             - 10.244.0.0/16'
 
 # PatientZero's scenario runner reads Prometheus, Loki and Alertmanager, whose
-# NetworkPolicies admit only Heartbeat's own components and extraPeers. This
+# NetworkPolicies admit only Atrium's own components and extraPeers. This
 # admits the PatientZero pod to the three. A values file replaces a list, so
 # kind.yaml's peers are repeated, and a change to them stops here.
 network_peers() {
@@ -366,7 +366,7 @@ backendNetworkPolicies:
 EOF
 }
 
-# The Heartbeat values that add PatientZero's collectors: the one reading
+# The Atrium values that add PatientZero's collectors: the one reading
 # patientzero_log while PatientZero is installed, and the one reading
 # patientzero_scale after make patientzero-scale-collect. With neither, there
 # is no values file. A values file replaces a list instead of merging it, so
@@ -374,7 +374,7 @@ EOF
 # integrations.collectors, and appends to that list. The sandbox target's host
 # is SQLSERVER_CONTAINER, so a throwaway cluster reads its own container.
 # While PatientZero is installed, network_peers follows.
-heartbeat_values() {
+atrium_values() {
 	with_patientzero=
 	if helm status "$RELEASE" --kube-context "$CONTEXT" --namespace "$NAMESPACE" >/dev/null 2>&1; then
 		with_patientzero=1
@@ -382,23 +382,23 @@ heartbeat_values() {
 	scale_label=
 	[ -f "$SCALE_STATE" ] && read -r scale_label scale_lookback _ <"$SCALE_STATE"
 	if [ -z "$with_patientzero$scale_label" ]; then
-		rm -f "$HEARTBEAT_VALUES"
+		rm -f "$ATRIUM_VALUES"
 		return
 	fi
 	src=infra/helm/values/sqlserver-dev.yaml
 	awk '/^  collectors:$/ { found = 1; next }
 		found && NF && $0 !~ /^    / && $0 !~ /^[[:space:]]*#/ { bad = 1 }
 		END { exit !(found && !bad) }' "$src" ||
-		die "$src no longer ends with integrations.collectors; update heartbeat_values in $0"
+		die "$src no longer ends with integrations.collectors; update atrium_values in $0"
 	mkdir -p "$STATE_DIR"
 	{
 		# The sandbox target is this run's container, as kind-e2e points it.
-		sed "s/^\( *host: \)heartbeat-sqlserver-dev\$/\1$SQLSERVER_CONTAINER/" "$src"
+		sed "s/^\( *host: \)atrium-sqlserver-dev\$/\1$SQLSERVER_CONTAINER/" "$src"
 		[ -z "$with_patientzero" ] || log_collector patientzero local-dev "" patientzero-log "$LOG_DATABASE"
 		[ -z "$scale_label" ] ||
 			log_collector patientzero-scale "$scale_label" "$scale_lookback" "$scale_label" "$SCALE_DATABASE"
 		[ -z "$with_patientzero" ] || network_peers
-	} >"$HEARTBEAT_VALUES"
+	} >"$ATRIUM_VALUES"
 }
 
 # log_collector <id> <environment> <initial lookback or empty> <target> <database>
@@ -434,10 +434,10 @@ log_collector() {
 EOF
 }
 
-# Redeploys Heartbeat with the values heartbeat_values wrote, if any.
+# Redeploys Atrium with the values atrium_values wrote, if any.
 redeploy() {
-	if [ -f "$HEARTBEAT_VALUES" ]; then
-		EXTRA_VALUES="$HEARTBEAT_VALUES ${EXTRA_VALUES:-}" scripts/kind.sh deploy >/dev/null
+	if [ -f "$ATRIUM_VALUES" ]; then
+		EXTRA_VALUES="$ATRIUM_VALUES ${EXTRA_VALUES:-}" scripts/kind.sh deploy >/dev/null
 	else
 		scripts/kind.sh deploy >/dev/null
 	fi
@@ -446,13 +446,13 @@ redeploy() {
 cmd_up() {
 	cluster_exists || die "kind cluster $CLUSTER does not exist; run make sqlserver-dev-up"
 	sqlserver_healthy || die "$SQLSERVER_CONTAINER is not running and healthy; run make sqlserver-dev-up"
-	[ -f "$STATE_DIR/sqlserver-dev" ] || die "Heartbeat on $CLUSTER does not target $SQLSERVER_CONTAINER; run make sqlserver-dev-up"
+	[ -f "$STATE_DIR/sqlserver-dev" ] || die "Atrium on $CLUSTER does not target $SQLSERVER_CONTAINER; run make sqlserver-dev-up"
 	ensure_credential
 	grant_logins
 	build_image
 	install_chart
-	heartbeat_values
-	log "redeploying Heartbeat with the patientzero outsystems_logs collector"
+	atrium_values
+	log "redeploying Atrium with the patientzero outsystems_logs collector"
 	redeploy
 	kubectl_ -n "$NAMESPACE" get pods,svc
 	log "PatientZero is up; try: kubectl --context $CONTEXT -n $NAMESPACE port-forward svc/patientzero 8080"
@@ -465,13 +465,13 @@ cmd_down() {
 		fi
 		kubectl_ delete namespace "$NAMESPACE" --ignore-not-found >/dev/null
 		log "removed $RELEASE and the $NAMESPACE namespace"
-		if [ -f "$HEARTBEAT_VALUES" ]; then
-			heartbeat_values
-			log "redeploying Heartbeat without the patientzero collector"
+		if [ -f "$ATRIUM_VALUES" ]; then
+			atrium_values
+			log "redeploying Atrium without the patientzero collector"
 			redeploy
 		fi
 	else
-		rm -f "$HEARTBEAT_VALUES"
+		rm -f "$ATRIUM_VALUES"
 	fi
 	if sqlserver_healthy && [ -f "$SQLSERVER_ENV_FILE" ]; then
 		credential=$(env_value "$CREDENTIAL_KEY")
@@ -665,9 +665,9 @@ admin_retry() {
 # and has not ended are listed in $work/outages, so an interrupted run ends
 # them.
 
-pod_uid() { kubectl_ -n "$HEARTBEAT_NAMESPACE" get pod "$1" -o jsonpath='{.metadata.uid}' 2>/dev/null || true; }
+pod_uid() { kubectl_ -n "$ATRIUM_NAMESPACE" get pod "$1" -o jsonpath='{.metadata.uid}' 2>/dev/null || true; }
 pod_ready() {
-	[ "$(kubectl_ -n "$HEARTBEAT_NAMESPACE" get pod "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = True ]
+	[ "$(kubectl_ -n "$ATRIUM_NAMESPACE" get pod "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" = True ]
 }
 
 # The agent's waits give up after 4 minutes, inside the 5 PatientZero waits
@@ -699,8 +699,8 @@ end_outage() {
 	if [ "$1" = sqlserver ]; then
 		docker start "$SQLSERVER_CONTAINER" >/dev/null && wait_sqlserver || return 1
 	else
-		kubectl_ -n "$HEARTBEAT_NAMESPACE" scale "statefulset/$1" --replicas=1 >/dev/null &&
-			kubectl_ -n "$HEARTBEAT_NAMESPACE" rollout status "statefulset/$1" --timeout=4m >/dev/null || return 1
+		kubectl_ -n "$ATRIUM_NAMESPACE" scale "statefulset/$1" --replicas=1 >/dev/null &&
+			kubectl_ -n "$ATRIUM_NAMESPACE" rollout status "statefulset/$1" --timeout=4m >/dev/null || return 1
 	fi
 	grep -vx "$1" "$work/outages" >"$work/outages.new" || true
 	mv "$work/outages.new" "$work/outages"
@@ -718,7 +718,7 @@ cluster_fault() {
 	restart:start)
 		if [ -n "$pod" ]; then
 			uid=$(pod_uid "$pod")
-			kubectl_ -n "$HEARTBEAT_NAMESPACE" delete pod "$pod" --wait=false >/dev/null && wait_replaced "$pod" "$uid"
+			kubectl_ -n "$ATRIUM_NAMESPACE" delete pod "$pod" --wait=false >/dev/null && wait_replaced "$pod" "$uid"
 		else
 			docker restart "$SQLSERVER_CONTAINER" >/dev/null && wait_sqlserver
 		fi
@@ -727,8 +727,8 @@ cluster_fault() {
 	outage:start)
 		printf '%s\n' "$3" >>"$work/outages"
 		if [ -n "$pod" ]; then
-			kubectl_ -n "$HEARTBEAT_NAMESPACE" scale "statefulset/$3" --replicas=0 >/dev/null &&
-				kubectl_ -n "$HEARTBEAT_NAMESPACE" wait --for=delete "pod/$pod" --timeout=3m >/dev/null
+			kubectl_ -n "$ATRIUM_NAMESPACE" scale "statefulset/$3" --replicas=0 >/dev/null &&
+				kubectl_ -n "$ATRIUM_NAMESPACE" wait --for=delete "pod/$pod" --timeout=3m >/dev/null
 		else
 			docker stop "$SQLSERVER_CONTAINER" >/dev/null
 		fi
@@ -935,7 +935,7 @@ cmd_scale_measure() {
 cmd_scale_collect() {
 	cluster_exists || die "kind cluster $CLUSTER does not exist; run make sqlserver-dev-up"
 	sqlserver_healthy || die "$SQLSERVER_CONTAINER is not running and healthy; run make sqlserver-dev-up"
-	[ -f "$STATE_DIR/sqlserver-dev" ] || die "Heartbeat on $CLUSTER does not target $SQLSERVER_CONTAINER; run make sqlserver-dev-up"
+	[ -f "$STATE_DIR/sqlserver-dev" ] || die "Atrium on $CLUSTER does not target $SQLSERVER_CONTAINER; run make sqlserver-dev-up"
 	end=$(sed -n 's/^  "end": "\([^"]*\)",*$/\1/p' "$SCALE_DIR/expected.json" 2>/dev/null)
 	[ -n "$end" ] || die "$SCALE_DIR/expected.json is missing; run make patientzero-scale"
 	label=scale-$(printf '%s' "$end" | tr -d ':.-' | tr 'A-Z' 'a-z')
@@ -944,8 +944,8 @@ cmd_scale_collect() {
 	lookback=${SCALE_LOOKBACK:-${stored:-48h}}
 	mkdir -p "$STATE_DIR"
 	printf '%s %s %s\n' "$label" "$lookback" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$SCALE_STATE"
-	heartbeat_values
-	log "redeploying Heartbeat with the patientzero-scale collector: $SCALE_DATABASE from $lookback back, as $label"
+	atrium_values
+	log "redeploying Atrium with the patientzero-scale collector: $SCALE_DATABASE from $lookback back, as $label"
 	redeploy
 	log "extracting; make patientzero-scale-check compares Loki with $SCALE_DIR/expected.json once it caught up"
 }
@@ -955,7 +955,7 @@ cmd_scale_collect() {
 # wait (open_forward). kubectl runs directly, so $! is kubectl.
 scale_loki() {
 	: >"$work/port-forward.log"
-	kubectl --context "$CONTEXT" -n "$HEARTBEAT_NAMESPACE" port-forward svc/loki :3100 >"$work/port-forward.log" 2>&1 &
+	kubectl --context "$CONTEXT" -n "$ATRIUM_NAMESPACE" port-forward svc/loki :3100 >"$work/port-forward.log" 2>&1 &
 	forward=$!
 	ran=0
 	i=0
@@ -1022,8 +1022,8 @@ cmd_scale_down() {
 	if [ -f "$SCALE_STATE" ]; then
 		rm -f "$SCALE_STATE"
 		if cluster_exists; then
-			heartbeat_values
-			log "redeploying Heartbeat without the patientzero-scale collector"
+			atrium_values
+			log "redeploying Atrium without the patientzero-scale collector"
 			redeploy
 		fi
 	fi

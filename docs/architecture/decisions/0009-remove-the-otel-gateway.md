@@ -9,11 +9,11 @@ The OTel gateway (`services/otel-gateway`) was planned as a thin Go service
 that parses what the stock OpenTelemetry Collector cannot, starting with
 OutSystems. It never got a caller:
 
-- `POST /v1/heartbeat/events` normalized one JSON event into the
+- `POST /v1/atrium/events` normalized one JSON event into the
   [application event contract](../../../packages/telemetry-contracts/src/application_event.schema.json)
   and returned it to the caller. Nothing was exported to the OTel Collector,
   and nothing sends those events.
-- `POST /v1/heartbeat/alerts` was Alertmanager's default receiver. It counted
+- `POST /v1/atrium/alerts` was Alertmanager's default receiver. It counted
   each delivery and discarded it, so every alert except `Watchdog` reached a
   sink that looked like delivery and was not.
 
@@ -55,7 +55,7 @@ Considered and not chosen:
 - A release publishes the db-collector image and the chart. The
   `heartbeat/otel-gateway` package on GHCR only serves releases up to
   `v0.1.0`. (Update: releases also publish the API image,
-  `heartbeat/api`, since the API was added [TODO 4.1].)
+  `atrium/api`, since the API was added [TODO 4.1].)
 - Until an environment configures receivers, alerts other than `Watchdog`
   notify no one. This was already true in practice; the default no longer
   hides it.

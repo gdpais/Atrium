@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 var modules = map[string][]string{

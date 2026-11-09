@@ -8,10 +8,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"heartbeat/internal/telemetry"
+	"atrium/internal/telemetry"
 )
 
-var tracer = telemetry.Tracer("heartbeat/api/store")
+var tracer = telemetry.Tracer("atrium/api/store")
 
 // querySpanKey marks a context whose query span [queryTracer] started.
 type querySpanKey struct{}

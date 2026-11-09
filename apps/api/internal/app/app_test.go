@@ -16,11 +16,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/httpapi"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/httpapi"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/store"
 )
 
 // testSecret is a password the logs must never show.
@@ -362,11 +362,11 @@ func TestRunWithDependenciesDown(t *testing.T) {
 	var logs syncBuffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	// PostgreSQL's credential is missing; Redis has one but is not there.
-	t.Setenv("HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES", "")
-	t.Setenv("HEARTBEAT_CREDENTIAL_SECRET_API_REDIS", "default:"+testSecret)
+	t.Setenv("ATRIUM_CREDENTIAL_SECRET_API_POSTGRES", "")
+	t.Setenv("ATRIUM_CREDENTIAL_SECRET_API_REDIS", "default:"+testSecret)
 	cfg := Config{
 		Postgres: store.Config{
-			Host: "127.0.0.1", Port: closedAddr(t).Port, Database: "heartbeat",
+			Host: "127.0.0.1", Port: closedAddr(t).Port, Database: "atrium",
 			SSLMode: "disable", CredentialRef: "secret/api-postgres",
 		},
 		Redis:          redis.Config{Addr: closedAddr(t).String(), CredentialRef: "secret/api-redis"},
@@ -457,7 +457,7 @@ func TestRunWithDependenciesDown(t *testing.T) {
 func TestNewRunDepsRejectsInvalidSettings(t *testing.T) {
 	_, err := newRunDeps(Config{
 		ListenAddr: "127.0.0.1:0",
-		Postgres:   store.Config{Host: "db", Port: 5432, Database: "heartbeat", SSLMode: "prefer", CredentialRef: "secret/api-postgres"},
+		Postgres:   store.Config{Host: "db", Port: 5432, Database: "atrium", SSLMode: "prefer", CredentialRef: "secret/api-postgres"},
 		Redis:      redis.Config{Addr: "valkey:6379", CredentialRef: "secret/api-redis"},
 		Logger:     slog.New(slog.DiscardHandler),
 	})
@@ -466,7 +466,7 @@ func TestNewRunDepsRejectsInvalidSettings(t *testing.T) {
 	}
 	_, err = newRunDeps(Config{
 		ListenAddr: "127.0.0.1:0",
-		Postgres:   store.Config{Host: "db", Port: 5432, Database: "heartbeat", SSLMode: "disable", CredentialRef: "secret/api-postgres"},
+		Postgres:   store.Config{Host: "db", Port: 5432, Database: "atrium", SSLMode: "disable", CredentialRef: "secret/api-postgres"},
 		Redis:      redis.Config{Addr: "valkey", CredentialRef: "secret/api-redis"},
 		Logger:     slog.New(slog.DiscardHandler),
 	})

@@ -1,7 +1,7 @@
 # Metrics and Endpoints Reference
 
 Ports, HTTP endpoints and Prometheus metrics exposed by the local stack and
-Heartbeat services. For how the pieces connect, see the
+Atrium services. For how the pieces connect, see the
 [architecture overview](../architecture/overview.md).
 
 ## Local ports (kind)
@@ -11,11 +11,11 @@ maps fixed NodePorts to these ports on 127.0.0.1 only.
 
 | Service | Host port(s) | Notes |
 | --- | --- | --- |
-| DB collector | 8082 | Heartbeat service |
+| DB collector | 8082 | Atrium service |
 | Prometheus | 9090 | 15s scrape interval |
 | Grafana | 3001 | Local login `admin`/`admin`, anonymous viewer enabled. **Local only.** |
 | Alertmanager | 9093 | |
-| OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile. Heartbeat's own logs use a third port, 4319, in-cluster only |
+| OpenTelemetry Collector | 4317 (OTLP gRPC), 4318 (OTLP HTTP) | `full` profile. Atrium's own logs use a third port, 4319, in-cluster only |
 | Loki | none | In-cluster only (`loki:3100`); query it through Grafana, or `kubectl port-forward svc/loki 3100` |
 | Tempo | none | In-cluster only (`tempo:3200`, OTLP on `tempo:4318`); query it through Grafana, or `kubectl port-forward svc/tempo 3200`. `full` profile |
 | SQL Server (dev target only) | 127.0.0.1:11433 | Loopback-bound Docker container; see the [local development guide](../guides/local-development.md#sql-server-sandbox) |
@@ -35,9 +35,9 @@ Grafana or `kubectl port-forward`; the API has no host port.
 | --- | --- | --- |
 | `GET /metrics` | none | Prometheus exposition: probe metrics and self-observability |
 | `GET /healthz` (alias `/healthcheck`) | none | Liveness only; 200 while the process serves HTTP |
-| `GET /readyz` | none | 503 until every collector finishes its first cycle, when a collector is failed or crash-looping, when a collector has not completed a cycle within 2× its interval + 10s, or when the runtime diverged after a failed rollback. A monitored database being down does **not** make it unready, even when every target fails: readiness says whether the collector itself works, so a database outage never takes it out of its Service or fails a `helm upgrade --wait`. Target health is `heartbeat_collector_target_up` and the target states below. The body is only `{"status":"ready"}` or `{"status":"not_ready"}`; the reasons are in `GET /admin/config`. |
-| `GET /admin/config` | `Authorization: Bearer $HEARTBEAT_ADMIN_TOKEN` | Diagnostics, see below |
-| `POST /admin/config/reload` | `Authorization: Bearer $HEARTBEAT_ADMIN_TOKEN` | 400 invalid config, 500 apply failure, 503 before the first reconcile or while another reload holds the lock. The body includes the error text and the readiness report |
+| `GET /readyz` | none | 503 until every collector finishes its first cycle, when a collector is failed or crash-looping, when a collector has not completed a cycle within 2× its interval + 10s, or when the runtime diverged after a failed rollback. A monitored database being down does **not** make it unready, even when every target fails: readiness says whether the collector itself works, so a database outage never takes it out of its Service or fails a `helm upgrade --wait`. Target health is `atrium_collector_target_up` and the target states below. The body is only `{"status":"ready"}` or `{"status":"not_ready"}`; the reasons are in `GET /admin/config`. |
+| `GET /admin/config` | `Authorization: Bearer $ATRIUM_ADMIN_TOKEN` | Diagnostics, see below |
+| `POST /admin/config/reload` | `Authorization: Bearer $ATRIUM_ADMIN_TOKEN` | 400 invalid config, 500 apply failure, 503 before the first reconcile or while another reload holds the lock. The body includes the error text and the readiness report |
 
 Reload can also be triggered with `SIGHUP` or file polling.
 
@@ -55,7 +55,7 @@ the certificate with `adminTLS.ca` (only the CA is mounted in its pod). A
 missing or unloadable certificate stops the collector at start.
 
 ```bash
-kubectl -n heartbeat port-forward svc/db-collector 8443
+kubectl -n atrium port-forward svc/db-collector 8443
 curl -s --cacert ca.crt --resolve db-collector:8443:127.0.0.1 \
   -H "Authorization: Bearer $TOKEN" https://db-collector:8443/admin/config | jq .readiness
 ```
@@ -65,7 +65,7 @@ curl -s --cacert ca.crt --resolve db-collector:8443:127.0.0.1 \
 | Field | Content |
 | --- | --- |
 | `version`, `loaded_at`, `last_reload_at` | Active config version (SHA-256 of the file) and timestamps |
-| `last_reload_err`, `runtime_diverged`, `rollback_err` | Why the last reload was rejected or failed; set until the next successful reload. Monitoring sees it as [`heartbeat_collector_config_last_reload_successful`](#config-reloads) 0 |
+| `last_reload_err`, `runtime_diverged`, `rollback_err` | Why the last reload was rejected or failed; set until the next successful reload. Monitoring sees it as [`atrium_collector_config_last_reload_successful`](#config-reloads) 0 |
 | `warnings` | Insecure startup settings, e.g. `sqlserver_trust_server_certificate` |
 | `readiness` | What `/readyz` decided and why: `status`, `reasons`, and per collector its phase, cycle age, restarts and targets. Each target has its state (`ok`, `failed`, `backoff`, `blocked` for an `outsystems_logs` target waiting for the OTel Collector, `degraded` for a target with some probes failing or skipped, or `skipped` for a target the cycle deadline left no time for), consecutive failures, last success and the raw driver `error` of its last failed cycle, kept while it backs off, which can name the host, port and login but never contains the password. A `blocked` target's `error` says which log type waits, with how many rows, and for how long. A `degraded` target lists its failing `probes`, each with its state (`failed`, `backoff` while it waits out its own backoff, or `skipped` when the cycle deadline came before it started), consecutive failures, next attempt and `error` |
 | `config` | The active config, redacted ([configuration reference](configuration.md#validation-and-reload-behavior)) |
@@ -77,7 +77,7 @@ curl -s -H "Authorization: Bearer local-admin-token" localhost:8082/admin/config
 **Admin authentication.** Both admin endpoints go through one check: exactly
 one `Authorization: Bearer <token>` header (scheme case-insensitive), whose
 SHA-256 digest is compared in constant time with the digest of
-`HEARTBEAT_ADMIN_TOKEN` computed at startup, so neither the token nor its
+`ATRIUM_ADMIN_TOKEN` computed at startup, so neither the token nor its
 length leaks through timing. A missing or wrong token gets 401 with a
 `WWW-Authenticate: Bearer` challenge before the method is checked (an
 authenticated wrong method gets 405). Admin responses are `Cache-Control:
@@ -90,7 +90,7 @@ Prometheus, the configured scrapers and operator peers, and the API (for
 With `dbCollector.adminTLS` the admin endpoints move to their own HTTPS port,
 which only the operators and the API reach.
 Operators reach the admin endpoints with
-`kubectl -n heartbeat port-forward pod/db-collector-0 8082`, which
+`kubectl -n atrium port-forward pod/db-collector-0 8082`, which
 NetworkPolicy does not apply to, or from a listed peer such as a VPN range.
 
 ## API (`:8081`)
@@ -98,7 +98,7 @@ NetworkPolicy does not apply to, or from a listed peer such as a VPN range.
 The control plane
 ([ADR 0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)).
 The chart deploys it as `Deployment/api` behind `Service/api` (ClusterIP);
-reach it with `kubectl -n heartbeat port-forward svc/api 8081`. Its contract
+reach it with `kubectl -n atrium port-forward svc/api 8081`. Its contract
 is [`apps/api/openapi.yaml`](../../apps/api/openapi.yaml); `/metrics` is
 served beside it.
 
@@ -135,7 +135,7 @@ served beside it.
 | `PUT`, `DELETE /api/v1/users/{id}/roles/{role}` | session, `admin`; `Origin` | Grant or revoke a role |
 
 On `SIGTERM` or `SIGINT` the API answers `GET /readyz` with 503 and keeps
-serving for `HEARTBEAT_API_SHUTDOWN_DELAY` (5s), while its Service stops
+serving for `ATRIUM_API_SHUTDOWN_DELAY` (5s), while its Service stops
 sending it requests; then it stops accepting connections and its audit
 drainer, waits up to 10s for the requests in flight, closes the rest, then
 closes its PostgreSQL and Redis connections. An audit export in flight is
@@ -162,7 +162,7 @@ one declares none, so no operation is served on a default.
 **Before each operation**, in this order: the response gets an
 `X-Request-Id` (a UUID, the `request_id` of any audit record the request
 writes); a body over 1 MiB is refused; `POST`, `PUT`, `PATCH` and `DELETE`
-need one `Origin` header equal to `HEARTBEAT_API_SITE_ORIGIN` (403
+need one `Origin` header equal to `ATRIUM_API_SITE_ORIGIN` (403
 otherwise; browsers send it with every such request, so a page on another
 site cannot make one with the user's cookie); then, unless the operation is
 public, the session cookie must name a live session (401, and the cookie is
@@ -188,12 +188,12 @@ first that is not. A member that cannot be set is refused, never ignored.
 A hash made with older argon2id parameters is replaced with one made with the
 current ones at a successful login.
 
-**The cookie** is `__Host-heartbeat_session`: `HttpOnly`, `Secure`,
+**The cookie** is `__Host-atrium_session`: `HttpOnly`, `Secure`,
 `SameSite=Lax`, `Path=/`, no `Domain`, kept until the session's absolute end.
 Its value is 256 random bits, base64url; Redis keeps only its SHA-256, as the
 key of the session (user, client address, created and last-seen times), which
 expires by itself at the earlier of 8 hours without a request and 7 days
-after login (`HEARTBEAT_API_SESSION_IDLE_TIMEOUT`, `_MAX_AGE`). The session's
+after login (`ATRIUM_API_SESSION_IDLE_TIMEOUT`, `_MAX_AGE`). The session's
 `id` in the body and in audit records is another random UUID: it identifies
 the session but cannot log in. A browser keeps a `Secure` cookie only from
 HTTPS, or from `localhost`.
@@ -215,7 +215,7 @@ On kind, through a port-forward, with the admin made by
 file, never the command line:
 
 ```bash
-kubectl --context kind-heartbeat -n heartbeat port-forward svc/api 8081 &
+kubectl --context kind-atrium -n atrium port-forward svc/api 8081 &
 jq -n --rawfile p admin-password '{email: "admin@example.com", password: ($p | rtrimstr("\n"))}' |
   curl -sS -c cookies -H 'Origin: http://localhost:8081' -H 'Content-Type: application/json' \
     --data @- localhost:8081/api/v1/session
@@ -355,7 +355,7 @@ created in, for good, as an application does.
 | `host` | Checked as the collector checks it: a host name, an IPv4 address or a bare IPv6 address, with no port, brackets, credentials or path; at most 253 characters; stored in lower case, and an IPv6 address in its canonical form |
 | `port` | 1 to 65535; 1433 when left out |
 | `database_name` | Empty for the login's default database; at most 128 characters; compared without regard to case, as SQL Server does by default |
-| `credential_ref` | `kv/`, `secret/` or `env/` and a name of lower-case letters, digits and `-`, at most 200. The collector reads `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of its credentials Secret ([credential resolution](configuration.md#credential-resolution)): `env/finance-prod` is `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses, and each key has one spelling: `env/Finance.Prod`, which the collector would read from the same key, is refused rather than passing for another reference. A value shaped like a credential is refused, and the problem does not repeat it |
+| `credential_ref` | `kv/`, `secret/` or `env/` and a name of lower-case letters, digits and `-`, at most 200. The collector reads `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of its credentials Secret ([credential resolution](configuration.md#credential-resolution)): `env/finance-prod` is `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`. Stricter than the collector's own rule, which the API runs too, so the API stores no reference the collector refuses, and each key has one spelling: `env/Finance.Prod`, which the collector would read from the same key, is refused rather than passing for another reference. A value shaped like a credential is refused, and the problem does not repeat it |
 | `status`, `labels` | As for applications |
 
 The environment, engine and host, port and database together are unique:
@@ -367,7 +367,7 @@ with. The credential reaches the collector on its own path, a Secret key
 ([database targets guide](../guides/database-targets.md#3-provide-the-credential)).
 Whether a target is reachable is the collector's to report, once a
 [probe assignment](#probe-assignments) renders it into a collector: its
-`heartbeat_collector_target_up`, and its state and driver error in
+`atrium_collector_target_up`, and its state and driver error in
 `GET /admin/config` (`readiness.collectors[].targets[]`). A change to a
 target's host, port, database or credential reference sends its approved
 assignments back to draft, each with an audit record of its own: an
@@ -411,8 +411,8 @@ per-name link, the `application_name` it was rendered for. With
 `platform: generic`, or no templates, the list is empty.
 
 **Where the templates come from.** The chart mounts the
-`heartbeat-integrations` ConfigMap, the file the DB collector runs from,
-into the API at `/app/config` (`HEARTBEAT_API_INTEGRATIONS_PATH`); it is
+`atrium-integrations` ConfigMap, the file the DB collector runs from,
+into the API at `/app/config` (`ATRIUM_API_INTEGRATIONS_PATH`); it is
 rendered whenever the API or the collector is. The API reads the file at
 startup and again at most every 30 seconds when links are asked for, so a
 ConfigMap change reaches it without a restart, within the kubelet's sync
@@ -434,7 +434,7 @@ on kind:
 curl -sS -b cookies 'localhost:8081/api/v1/applications/<id>/links?from=2026-11-04T09:00:00Z&to=2026-11-04T10:00:00Z'
 ```
 
-The *Heartbeat Inventory* dashboard carries the same links on its sources'
+The *Atrium Inventory* dashboard carries the same links on its sources'
 `application_name` and its targets' `target`, with Grafana's row values for
 the variables; a test (`tests/dashboards_test.go`) fails when a shipped
 template and the dashboard's link differ. A deployment that changes
@@ -531,7 +531,7 @@ is deterministic (sorted, no timestamps), and checked with the integrations
 schema and the collector's loader before it leaves the API.
 `GET /api/v1/probe-assignments/rendered` serves it to operators as
 `application/yaml`; on kind, `make kind-assignments` deploys it. The pull
-request to `heartbeat-deploy` that carries it in production waits for that
+request to `atrium-deploy` that carries it in production waits for that
 repository [18].
 
 | State | Meaning |
@@ -592,7 +592,7 @@ allows.
 | --- | --- | --- |
 | `viewer` | Read everything the API serves: inventory, telemetry sources, database targets, probes and their assignments. Show their own session, log out, change their own password. Nothing else changes | Wallboards and people who only look. A wallboard logs in as a user of its own with only `viewer`, so its session, left on a shared screen, can change nothing |
 | `operator` | What a viewer may, and create, change and delete inventory, telemetry sources, database targets and probe assignments | The SREs who onboard applications and databases |
-| `admin` | What an operator may, and manage custom probe definitions, whose SQL runs on monitored databases ([below](#probe-definitions)), and users and roles | Whoever runs Heartbeat. The first comes from `api users create-admin` |
+| `admin` | What an operator may, and manage custom probe definitions, whose SQL runs on monitored databases ([below](#probe-definitions)), and users and roles | Whoever runs Atrium. The first comes from `api users create-admin` |
 
 Each operation's least role is its `security` in
 [`openapi.yaml`](../../apps/api/openapi.yaml), and the roles are rows in
@@ -663,20 +663,20 @@ bytes) and a `_total` suffix on counters only.
 
 | Probe | Source view | Metric | Type | Extra labels | Series per target |
 | --- | --- | --- | --- | --- | --- |
-| `waits` | `sys.dm_os_wait_stats` | `heartbeat_sqlserver_wait_seconds_total` | counter | `wait_type` | one per wait type with non-zero wait time, benign idle waits excluded: usually tens to low hundreds, at most the ~1,000 wait types SQL Server defines |
-| `blocking` | `sys.dm_exec_requests` | `heartbeat_sqlserver_blocked_requests` | gauge | `blocking_session_id` | one per blocking session; none while nothing is blocked |
-| `sessions` | `sys.dm_exec_sessions` | `heartbeat_sqlserver_sessions` | gauge | `status` | one per session status (about 5) |
-| `memory_pressure` | `sys.dm_os_performance_counters` | `heartbeat_sqlserver_total_server_memory_bytes` | gauge | none | 1 |
-| `storage` | `sys.master_files` | `heartbeat_sqlserver_database_file_size_bytes` | gauge | `database_name`, `file_name`, `file_type` | one per database file; tempdb files report their configured startup size, not their current size |
-| `throughput` | `sys.dm_os_performance_counters` | `heartbeat_sqlserver_batch_requests_total` | counter | none | 1 |
-| `throughput` | `sys.dm_os_performance_counters` | `heartbeat_sqlserver_transactions_total` | counter | none | 1 (server-wide `_Total`) |
-| `cpu` | `sys.dm_os_ring_buffers` | `heartbeat_sqlserver_cpu_sql_process_ratio` | gauge | none | 1 |
-| `cpu` | `sys.dm_os_ring_buffers` | `heartbeat_sqlserver_cpu_other_process_ratio` | gauge | none | 1 on Windows, none on Linux |
-| `buffer_cache` | `sys.dm_os_performance_counters` | `heartbeat_sqlserver_page_life_expectancy_seconds` | gauge | none | 1 |
-| `buffer_cache` | `sys.dm_os_performance_counters` | `heartbeat_sqlserver_buffer_cache_hit_ratio` | gauge | none | 1 |
-| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `heartbeat_sqlserver_database_file_reads_total`, `heartbeat_sqlserver_database_file_writes_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
-| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `heartbeat_sqlserver_database_file_read_bytes_total`, `heartbeat_sqlserver_database_file_written_bytes_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
-| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `heartbeat_sqlserver_database_file_read_stall_seconds_total`, `heartbeat_sqlserver_database_file_write_stall_seconds_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
+| `waits` | `sys.dm_os_wait_stats` | `atrium_sqlserver_wait_seconds_total` | counter | `wait_type` | one per wait type with non-zero wait time, benign idle waits excluded: usually tens to low hundreds, at most the ~1,000 wait types SQL Server defines |
+| `blocking` | `sys.dm_exec_requests` | `atrium_sqlserver_blocked_requests` | gauge | `blocking_session_id` | one per blocking session; none while nothing is blocked |
+| `sessions` | `sys.dm_exec_sessions` | `atrium_sqlserver_sessions` | gauge | `status` | one per session status (about 5) |
+| `memory_pressure` | `sys.dm_os_performance_counters` | `atrium_sqlserver_total_server_memory_bytes` | gauge | none | 1 |
+| `storage` | `sys.master_files` | `atrium_sqlserver_database_file_size_bytes` | gauge | `database_name`, `file_name`, `file_type` | one per database file; tempdb files report their configured startup size, not their current size |
+| `throughput` | `sys.dm_os_performance_counters` | `atrium_sqlserver_batch_requests_total` | counter | none | 1 |
+| `throughput` | `sys.dm_os_performance_counters` | `atrium_sqlserver_transactions_total` | counter | none | 1 (server-wide `_Total`) |
+| `cpu` | `sys.dm_os_ring_buffers` | `atrium_sqlserver_cpu_sql_process_ratio` | gauge | none | 1 |
+| `cpu` | `sys.dm_os_ring_buffers` | `atrium_sqlserver_cpu_other_process_ratio` | gauge | none | 1 on Windows, none on Linux |
+| `buffer_cache` | `sys.dm_os_performance_counters` | `atrium_sqlserver_page_life_expectancy_seconds` | gauge | none | 1 |
+| `buffer_cache` | `sys.dm_os_performance_counters` | `atrium_sqlserver_buffer_cache_hit_ratio` | gauge | none | 1 |
+| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `atrium_sqlserver_database_file_reads_total`, `atrium_sqlserver_database_file_writes_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
+| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `atrium_sqlserver_database_file_read_bytes_total`, `atrium_sqlserver_database_file_written_bytes_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
+| `file_io` | `sys.dm_io_virtual_file_stats`, `sys.master_files` | `atrium_sqlserver_database_file_read_stall_seconds_total`, `atrium_sqlserver_database_file_write_stall_seconds_total` | counter | `database_name`, `file_name`, `file_type` | one per database file each |
 
 **Counters.** Waits, throughput and file I/O are cumulative in SQL Server (the
 `Batch Requests/sec` and `Transactions/sec` performance counters are totals
@@ -703,7 +703,7 @@ and idle. The `cpu` probe reads only the newest record, so both ratios (0–1,
 of all the CPUs SQL Server sees) change once a minute whatever the scrape
 interval, and lag the real load by up to a minute; idle is `1 -` their sum.
 SQL Server on Linux reports no idle time (always 0, measured on 2019 and
-2022), so `heartbeat_sqlserver_cpu_other_process_ratio` is exported on Windows
+2022), so `atrium_sqlserver_cpu_other_process_ratio` is exported on Windows
 only (the probe reads the platform from `@@VERSION`). Nothing is exported in
 the first minute after SQL Server starts, nor while the newest record is 3
 minutes old or more, so a scheduler monitor that stops writing shows as a gap
@@ -724,7 +724,7 @@ the `storage` probe's file size: read and write operations, bytes read and
 written, and I/O stall seconds (the time SQL Server waited for reads or writes
 to complete). Average latency per operation is the stall rate over the
 operation rate, e.g.
-`rate(heartbeat_sqlserver_database_file_read_stall_seconds_total[5m]) / (rate(heartbeat_sqlserver_database_file_reads_total[5m]) > 0)`,
+`rate(atrium_sqlserver_database_file_read_stall_seconds_total[5m]) / (rate(atrium_sqlserver_database_file_reads_total[5m]) > 0)`,
 where `> 0` leaves no value instead of dividing by zero for an idle file. The
 counters restart at 0 when SQL Server restarts or a database comes back online,
 which `rate()` treats as a reset. A stock instance has about 10 files (60
@@ -749,8 +749,8 @@ removed collector's series are deleted. A failing probe fails only itself.
 For example, `storage` and `file_io` read `sys.master_files`, which a long
 `RESTORE` or schema change can lock until the probe times out. While the
 target's other probes succeed, the target is `degraded`, stays up
-(`heartbeat_collector_target_up` 1) and keeps collecting, and the failing
-probe (`heartbeat_collector_probe_up` 0) backs off on its own, with the same
+(`atrium_collector_target_up` 1) and keeps collecting, and the failing
+probe (`atrium_collector_probe_up` 0) backs off on its own, with the same
 schedule as a target (the next cycle, then doubling up to 5m, with jitter)
 and its series cleared until it succeeds again. A target fails, and backs off
 as a whole, only when every probe that ran failed, as when its database is
@@ -758,33 +758,33 @@ unreachable or its login is refused; the probes' own backoffs are then
 forgotten. When every probe of a target is backing off on its own, they all
 run. While a target backs off none of its probes run and all its probe
 series are cleared, so they leave a gap instead of a frozen value; only the
-`heartbeat_collector_target_*` and `heartbeat_collector_probe_up` series stay.
+`atrium_collector_target_*` and `atrium_collector_probe_up` series stay.
 
 A probe that cannot start because its cycle already reached its deadline
 (the probes before it, or the wait for one of the concurrent target slots,
 used the whole scrape interval) is `skipped`, not failed: it does not back
 off, keeps exporting the series of its last run, and its
-`heartbeat_collector_probe_up` stays as it was. The next cycle runs the
+`atrium_collector_probe_up` stays as it was. The next cycle runs the
 target's first skipped probe first, and dispatches the first skipped
 target first, so a short cycle does not starve the same probes or targets
 every time. A skipped probe does not count as a probe that ran:
 a target whose other probes succeeded is `degraded`, and a target none of
 whose probes ran is `skipped`, keeps all its series and does not back off,
 but its last success does not advance: `time() -
-heartbeat_collector_target_last_success_timestamp_seconds` shows how stale
+atrium_collector_target_last_success_timestamp_seconds` shows how stale
 its series are. No alert watches that age; a collector whose cycles keep
-running out of time fires `HeartbeatCollectorCyclesLate` and
-`HeartbeatCollectorCyclesLateFast` instead. Under a sustained overload the
+running out of time fires `AtriumCollectorCyclesLate` and
+`AtriumCollectorCyclesLateFast` instead. Under a sustained overload the
 same targets can be skipped every cycle: targets compete for the slots in
-the configured order. `heartbeat_collector_probe_errors_total` still counts
+the configured order. `atrium_collector_probe_errors_total` still counts
 the skip with reason `not_started`, and
-`heartbeat_collector_cycle_duration_seconds` shows the cycle using its whole
+`atrium_collector_cycle_duration_seconds` shows the cycle using its whole
 interval.
 
 A probe that returns no rows exports no series:
-`heartbeat_sqlserver_blocked_requests` is absent, not 0, while nothing is
+`atrium_sqlserver_blocked_requests` is absent, not 0, while nothing is
 blocked. Queries that need a zero fall back to targets whose `blocking` probe
-succeeded (`heartbeat_collector_probe_up{probe="blocking"} == 1`), as the
+succeeded (`atrium_collector_probe_up{probe="blocking"} == 1`), as the
 dashboard's Blocked Requests panel does, so neither an unreachable target nor
 a failing `blocking` probe reads as 0. The catalog lives in
 [`catalog.go`](../../services/db-collector/internal/probes/sqlserver/catalog.go).
@@ -793,28 +793,28 @@ a failing `blocking` probe reads as 0. The catalog lives in
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_collector_target_up` | gauge | `collector`, `environment`, `target` | 1 if the last cycle for the target succeeded, including an `outsystems_logs` target that waits for the OTel Collector (`blocked`) and one with some probes failing (`degraded`) |
-| `heartbeat_collector_probe_up` | gauge | `collector`, `environment`, `target`, `probe` | 1 if the probe's last execution succeeded, waiting for the OTel Collector included; 0 if it failed, backs off on its own, or its target failed or backs off |
-| `heartbeat_collector_target_consecutive_failures` | gauge | `collector`, `environment`, `target` | Failed cycles in a row; a `degraded` cycle is not one |
-| `heartbeat_collector_target_last_success_timestamp_seconds` | gauge | `collector`, `environment`, `target` | Unix time of the last cycle that did not fail the target (`ok`, `blocked` or `degraded`); use it for freshness alerts, and `heartbeat_collector_probe_up` for a single probe |
-| `heartbeat_collector_cycle_duration_seconds` | gauge | `collector` | Duration of the last collection cycle |
-| `heartbeat_collector_cycle_seconds` | histogram | `collector` | Duration of every collection cycle; buckets 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
-| `heartbeat_collector_cycles_total` | counter | `collector`, `outcome` | Cycles by outcome: `on_time` (finished within its interval), `late` (used the whole interval: the deadline ended what was still running, and the next cycle starts late) or `panic`. Created at 0. A cycle ended by the collector stopping is not counted |
-| `heartbeat_collector_cycle_start_delay_seconds` | histogram | `collector` | How much later than the interval after the previous start a cycle started; buckets 10ms, 100ms, 500ms, 1s, 5s, 15s, 60s |
-| `heartbeat_collector_db_connections` | gauge | `environment`, `target`, `state` | Connections to a monitored database, `in_use` or `idle`. Read at each scrape, so a target's series go with its last connection pool. Targets on one server and database with one credential share a pool, reported under the first of them, in name order, used in the last 15 minutes; a renamed target takes its series over within 15 minutes |
-| `heartbeat_collector_db_connection_waits_total`, `heartbeat_collector_db_connection_wait_seconds_total` | counter | `environment`, `target` | Waits for a free connection, and the time spent in them, including those of the target's pools closed since, as after a credential rotation |
-| `heartbeat_collector_http_requests_total` | counter | `method`, `route`, `code` | Requests to the collector's own endpoints, as [the API's](#api-requests) |
-| `heartbeat_collector_http_request_duration_seconds` | histogram | `method`, `route` | Time to serve them |
-| `heartbeat_collector_target_login_sysadmin` | gauge | `collector`, `environment`, `target` | 1 if the collector's login for the target is sysadmin-equivalent: a member of `sysadmin`, or holding `CONTROL SERVER` (it should be 0; see [login permissions](../guides/database-targets.md#collector-login-permissions)). Checked when the collector first connects to the target and about every 10 minutes after; absent until the first check, and while SQL Server cannot tell |
-| `heartbeat_collector_probe_duration_seconds` | histogram | `collector`, `environment`, `target`, `probe` | Probe execution time, failed and timed-out executions included (an abandoned probe is observed at the time it was abandoned); buckets 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
-| `heartbeat_collector_probe_errors_total` | counter | `collector`, `environment`, `target`, `probe`, `reason` | Failed probe executions. `reason` is one of `timeout` (probe timeout or cycle deadline reached while running, including a probe abandoned because it did not stop within 2s, or a database read or write that timed out), `error` (connection, login, query or decoding error, or more rows than the probe's `max_rows`), `not_started` (cycle deadline passed before the probe could start, or an abandoned probe of the target is still running), `panic`. Probes interrupted because the collector is stopping (shutdown or reload) are not counted |
+| `atrium_collector_target_up` | gauge | `collector`, `environment`, `target` | 1 if the last cycle for the target succeeded, including an `outsystems_logs` target that waits for the OTel Collector (`blocked`) and one with some probes failing (`degraded`) |
+| `atrium_collector_probe_up` | gauge | `collector`, `environment`, `target`, `probe` | 1 if the probe's last execution succeeded, waiting for the OTel Collector included; 0 if it failed, backs off on its own, or its target failed or backs off |
+| `atrium_collector_target_consecutive_failures` | gauge | `collector`, `environment`, `target` | Failed cycles in a row; a `degraded` cycle is not one |
+| `atrium_collector_target_last_success_timestamp_seconds` | gauge | `collector`, `environment`, `target` | Unix time of the last cycle that did not fail the target (`ok`, `blocked` or `degraded`); use it for freshness alerts, and `atrium_collector_probe_up` for a single probe |
+| `atrium_collector_cycle_duration_seconds` | gauge | `collector` | Duration of the last collection cycle |
+| `atrium_collector_cycle_seconds` | histogram | `collector` | Duration of every collection cycle; buckets 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
+| `atrium_collector_cycles_total` | counter | `collector`, `outcome` | Cycles by outcome: `on_time` (finished within its interval), `late` (used the whole interval: the deadline ended what was still running, and the next cycle starts late) or `panic`. Created at 0. A cycle ended by the collector stopping is not counted |
+| `atrium_collector_cycle_start_delay_seconds` | histogram | `collector` | How much later than the interval after the previous start a cycle started; buckets 10ms, 100ms, 500ms, 1s, 5s, 15s, 60s |
+| `atrium_collector_db_connections` | gauge | `environment`, `target`, `state` | Connections to a monitored database, `in_use` or `idle`. Read at each scrape, so a target's series go with its last connection pool. Targets on one server and database with one credential share a pool, reported under the first of them, in name order, used in the last 15 minutes; a renamed target takes its series over within 15 minutes |
+| `atrium_collector_db_connection_waits_total`, `atrium_collector_db_connection_wait_seconds_total` | counter | `environment`, `target` | Waits for a free connection, and the time spent in them, including those of the target's pools closed since, as after a credential rotation |
+| `atrium_collector_http_requests_total` | counter | `method`, `route`, `code` | Requests to the collector's own endpoints, as [the API's](#api-requests) |
+| `atrium_collector_http_request_duration_seconds` | histogram | `method`, `route` | Time to serve them |
+| `atrium_collector_target_login_sysadmin` | gauge | `collector`, `environment`, `target` | 1 if the collector's login for the target is sysadmin-equivalent: a member of `sysadmin`, or holding `CONTROL SERVER` (it should be 0; see [login permissions](../guides/database-targets.md#collector-login-permissions)). Checked when the collector first connects to the target and about every 10 minutes after; absent until the first check, and while SQL Server cannot tell |
+| `atrium_collector_probe_duration_seconds` | histogram | `collector`, `environment`, `target`, `probe` | Probe execution time, failed and timed-out executions included (an abandoned probe is observed at the time it was abandoned); buckets 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, 10s, 30s, 60s |
+| `atrium_collector_probe_errors_total` | counter | `collector`, `environment`, `target`, `probe`, `reason` | Failed probe executions. `reason` is one of `timeout` (probe timeout or cycle deadline reached while running, including a probe abandoned because it did not stop within 2s, or a database read or write that timed out), `error` (connection, login, query or decoding error, or more rows than the probe's `max_rows`), `not_started` (cycle deadline passed before the probe could start, or an abandoned probe of the target is still running), `panic`. Probes interrupted because the collector is stopping (shutdown or reload) are not counted |
 | `go_*`, `process_*` | | none | Go runtime (goroutines, GC, memory) and process (CPU, resident memory, open file descriptors, start time) metrics of the collector itself |
 
 The probe error counters are created at 0 for every scheduled probe and reason
 when a collector starts, so `rate()` and `increase()` see the first error.
 Targets skipped during backoff run no probes, so they add neither errors nor
-durations; `heartbeat_collector_target_up` and
-`heartbeat_collector_target_consecutive_failures` cover them. Error text is
+durations; `atrium_collector_target_up` and
+`atrium_collector_target_consecutive_failures` cover them. Error text is
 logged, never used as a label. The probe series of a collector are deleted when
 it stops and recreated when it starts, so a reload that changes a collector
 resets its error counters to 0 (a counter reset for `rate()`) and drops the
@@ -822,7 +822,7 @@ series of removed targets and probes.
 
 Per target, the self-observability series are 4 target gauges, 4 connection
 pool series (2 connection gauges and 2 wait counters, unless the target shares
-another target's pool) plus, per scheduled probe, `heartbeat_collector_probe_up`,
+another target's pool) plus, per scheduled probe, `atrium_collector_probe_up`,
 13 histogram series (10 buckets, `+Inf`, sum, count) and 4 error counters:
 170 series for a target with the 9 built-in probes. Probe metric series are
 listed in the table above.
@@ -835,16 +835,16 @@ reload, whatever triggered it (file polling, `SIGHUP` or
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_collector_config_last_reload_successful` | gauge | none | 1 if the last load or reload succeeded; 0 if it was rejected (invalid file) or could not be applied, until the next successful one. The last good config keeps running meanwhile, unless the rollback of a failed apply failed too (`runtime_diverged`, and `/readyz` returns 503). It is 0 exactly while `GET /admin/config` shows a `last_reload_err` |
-| `heartbeat_collector_config_last_reload_success_timestamp_seconds` | gauge | none | Unix time of the last successful load or reload: when the active config was loaded |
-| `heartbeat_collector_config_reloads_total` | counter | `result` | Loads and reloads by result, the `result` of `POST /admin/config/reload`: `ok`, `invalid_candidate` (unreadable or invalid file, nothing applied), `apply_failed` (valid file, collectors not reconciled; rolled back or diverged), `busy` (gave up waiting for another reload; nothing read, the gauges unchanged). Created at 0 for every result |
-| `heartbeat_collector_config_info` | gauge | `version` | Always 1. `version` is the active config's SHA-256, as in `GET /admin/config`. One series, which changes only when a reload activates a different file |
+| `atrium_collector_config_last_reload_successful` | gauge | none | 1 if the last load or reload succeeded; 0 if it was rejected (invalid file) or could not be applied, until the next successful one. The last good config keeps running meanwhile, unless the rollback of a failed apply failed too (`runtime_diverged`, and `/readyz` returns 503). It is 0 exactly while `GET /admin/config` shows a `last_reload_err` |
+| `atrium_collector_config_last_reload_success_timestamp_seconds` | gauge | none | Unix time of the last successful load or reload: when the active config was loaded |
+| `atrium_collector_config_reloads_total` | counter | `result` | Loads and reloads by result, the `result` of `POST /admin/config/reload`: `ok`, `invalid_candidate` (unreadable or invalid file, nothing applied), `apply_failed` (valid file, collectors not reconciled; rolled back or diverged), `busy` (gave up waiting for another reload; nothing read, the gauges unchanged). Created at 0 for every result |
+| `atrium_collector_config_info` | gauge | `version` | Always 1. `version` is the active config's SHA-256, as in `GET /admin/config`. One series, which changes only when a reload activates a different file |
 
 The startup load counts as one `ok`: a file that fails validation at startup
 stops the collector instead (it exits, and Kubernetes restarts it), so
-`HeartbeatServiceDown` reports that case. A rejected reload therefore matters
+`AtriumServiceDown` reports that case. A rejected reload therefore matters
 twice: the change has not taken effect, and if the file in the ConfigMap stays
-invalid, the next pod restart fails. `HeartbeatCollectorConfigReloadFailed`
+invalid, the next pod restart fails. `AtriumCollectorConfigReloadFailed`
 (below) fires on it.
 
 ### OutSystems log extraction
@@ -859,32 +859,32 @@ acknowledges up to 10 batches.
 While a log type waits for the OTel Collector to accept a batch, past the
 probe execution that read it
 ([backpressure](../architecture/application-observability.md#scope)),
-`heartbeat_outsystems_export_blocked` is 1, the target stays up
-(`heartbeat_collector_target_up` 1, no backoff, no probe error), and
+`atrium_outsystems_export_blocked` is 1, the target stays up
+(`atrium_collector_target_up` 1, no backoff, no probe error), and
 `GET /admin/config` shows it as `blocked`, counted in `targets_blocked`,
 with what it waits for. A database the collector cannot read still fails
 the target as before.
 
 | Metric | Type | Meaning |
 | --- | --- | --- |
-| `heartbeat_outsystems_extract_rows_total` | counter | Rows extracted and accepted by the OTel Collector |
-| `heartbeat_outsystems_extract_lag_seconds` | gauge | How far the watermark trails now, in real time: about the lag (the collector's, or the log type's own) plus the poll interval when extraction keeps up; it grows while extraction fails or falls behind |
-| `heartbeat_outsystems_extract_lag_setting_seconds` | gauge | The lag the log type is configured with, its own or the collector's: `heartbeat_outsystems_extract_lag_seconds` never goes below it. Set when the collector starts |
-| `heartbeat_outsystems_export_failures_total` | counter | Batches the OTel Collector rejected for good (a 4xx status other than 429). Network errors, timeouts, 429 and 5xx are retried with backoff (up to 5 s apart, 10 s per attempt) until the Collector accepts the batch. The watermark stays, so the rows are read again |
-| `heartbeat_outsystems_export_blocked` | gauge | 1 while the log type waits for the OTel Collector to accept a batch, past the probe execution that read it: its extraction is paused, but its target is up. 0 otherwise. `OutSystemsLogExportBlocked` fires once it has been 1 for 2 minutes; meanwhile the lag grows, and `OutSystemsLogExtractionBehind` fires once it has been above 30 minutes for 10 |
-| `heartbeat_outsystems_extract_stuck_batches_total` | counter | Cycles that failed because every row of a full batch had the same `Instant`. The log type does not move until `batch_limit` is raised |
-| `heartbeat_outsystems_log_delay_seconds` | gauge | Now minus the newest `Instant` extracted, set when rows arrive: about the lag plus the poll interval while extraction keeps up. A row is read only once it is older than the lag, so this cannot show OutSystems' log service falling behind; `heartbeat_outsystems_late_rows_total` does. Absent until the first row |
-| `heartbeat_outsystems_late_rows_total` | counter | Rows the recount found in the logging database behind the watermark that were never read: committed later than the lag after their `Instant`. They are not in Loki and are not sent ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)). `OutSystemsLateLogRows` fires on any |
-| `heartbeat_outsystems_duplicate_rows_total` | counter | Rows the recount found delivered more often than the logging database holds them: read twice by the extraction, a defect, or deleted from the database after they were sent. It does not count a batch sent again after the OTel Collector had taken it (its answer lost, or a restart before the watermark was saved), which delivery at least once allows ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), so 0 does not mean Loki holds no row twice. `OutSystemsDuplicateLogRows` fires on any |
-| `heartbeat_outsystems_recounts_total` | counter | Recounts run, failed ones included: one in each minute that has a poll |
-| `heartbeat_outsystems_recount_failures_total` | counter | Recounts that failed (query error, more than 1,000,000 rows in the window). Late and duplicate rows are not counted meanwhile; extraction goes on |
+| `atrium_outsystems_extract_rows_total` | counter | Rows extracted and accepted by the OTel Collector |
+| `atrium_outsystems_extract_lag_seconds` | gauge | How far the watermark trails now, in real time: about the lag (the collector's, or the log type's own) plus the poll interval when extraction keeps up; it grows while extraction fails or falls behind |
+| `atrium_outsystems_extract_lag_setting_seconds` | gauge | The lag the log type is configured with, its own or the collector's: `atrium_outsystems_extract_lag_seconds` never goes below it. Set when the collector starts |
+| `atrium_outsystems_export_failures_total` | counter | Batches the OTel Collector rejected for good (a 4xx status other than 429). Network errors, timeouts, 429 and 5xx are retried with backoff (up to 5 s apart, 10 s per attempt) until the Collector accepts the batch. The watermark stays, so the rows are read again |
+| `atrium_outsystems_export_blocked` | gauge | 1 while the log type waits for the OTel Collector to accept a batch, past the probe execution that read it: its extraction is paused, but its target is up. 0 otherwise. `OutSystemsLogExportBlocked` fires once it has been 1 for 2 minutes; meanwhile the lag grows, and `OutSystemsLogExtractionBehind` fires once it has been above 30 minutes for 10 |
+| `atrium_outsystems_extract_stuck_batches_total` | counter | Cycles that failed because every row of a full batch had the same `Instant`. The log type does not move until `batch_limit` is raised |
+| `atrium_outsystems_log_delay_seconds` | gauge | Now minus the newest `Instant` extracted, set when rows arrive: about the lag plus the poll interval while extraction keeps up. A row is read only once it is older than the lag, so this cannot show OutSystems' log service falling behind; `atrium_outsystems_late_rows_total` does. Absent until the first row |
+| `atrium_outsystems_late_rows_total` | counter | Rows the recount found in the logging database behind the watermark that were never read: committed later than the lag after their `Instant`. They are not in Loki and are not sent ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)). `OutSystemsLateLogRows` fires on any |
+| `atrium_outsystems_duplicate_rows_total` | counter | Rows the recount found delivered more often than the logging database holds them: read twice by the extraction, a defect, or deleted from the database after they were sent. It does not count a batch sent again after the OTel Collector had taken it (its answer lost, or a restart before the watermark was saved), which delivery at least once allows ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), so 0 does not mean Loki holds no row twice. `OutSystemsDuplicateLogRows` fires on any |
+| `atrium_outsystems_recounts_total` | counter | Recounts run, failed ones included: one in each minute that has a poll |
+| `atrium_outsystems_recount_failures_total` | counter | Recounts that failed (query error, more than 1,000,000 rows in the window). Late and duplicate rows are not counted meanwhile; extraction goes on |
 
-Two more have other labels. `heartbeat_outsystems_stage_duration_seconds`
+Two more have other labels. `atrium_outsystems_stage_duration_seconds`
 (histogram; `collector`, `log_type`, `stage`) is the time of one step of a batch:
 `read` (the query), `build` (rows to OTLP records), `export` (until the OTel
 Collector accepted it, waiting for Loki included), `derive` (the derived metrics)
 and `watermark` (the save to disk); buckets 10ms to 300s, at most 440 series per
-collector. `heartbeat_outsystems_held_bytes` (gauge, no labels) is the memory
+collector. `atrium_outsystems_held_bytes` (gauge, no labels) is the memory
 held now by batches read, being exported or pending (their row data and, once
 built, their records and request body), against the 64 MiB allowed.
 
@@ -899,7 +899,7 @@ watermark after a restart, and when a reload changes `recount_window` or the
 query: only the minutes after it are compared. A row committed more than about the window after its `Instant`
 goes uncounted.
 
-The counters and `heartbeat_outsystems_export_blocked` are created at 0 when
+The counters and `atrium_outsystems_export_blocked` are created at 0 when
 a collector starts and, like the probe series, deleted when it stops. Error text (contract violations, login and
 query errors) is logged and reported per target in `GET /admin/config`.
 
@@ -912,15 +912,15 @@ and the entry-point log types:
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_outsystems_operations_total` | counter | `module`, `log_type`, `operation`, `outcome` | Entry points: screens, Reactive server calls, timers and exposed APIs |
-| `heartbeat_outsystems_operation_duration_seconds` | histogram | `module`, `log_type`, `outcome` | Entry-point duration; buckets 0.1 to 60 s |
-| `heartbeat_outsystems_operation_seconds_total` | counter | `module`, `log_type`, `operation` | Entry-point seconds, for the mean per operation |
-| `heartbeat_outsystems_front_end_operations_total` | counter | `front_end`, `outcome` | Entry points per front-end server |
-| `heartbeat_outsystems_integration_duration_seconds` | histogram | `direction`, `type`, `outcome` | Integration calls, consumed and exposed |
-| `heartbeat_outsystems_errors_total` | counter | `module` | Error log rows |
-| `heartbeat_outsystems_slow_events_total` | counter | `module`, `kind` | Slow SQL and slow extension rows of the general log |
-| `heartbeat_outsystems_timer_delay_seconds` | histogram | `operation` | Timer start minus its schedule; buckets 1 s to 1 h |
-| `heartbeat_outsystems_screen_state_bytes` | histogram | `module`, `kind` | Traditional web screen session and viewstate size; buckets 1 KiB to 16 MiB |
+| `atrium_outsystems_operations_total` | counter | `module`, `log_type`, `operation`, `outcome` | Entry points: screens, Reactive server calls, timers and exposed APIs |
+| `atrium_outsystems_operation_duration_seconds` | histogram | `module`, `log_type`, `outcome` | Entry-point duration; buckets 0.1 to 60 s |
+| `atrium_outsystems_operation_seconds_total` | counter | `module`, `log_type`, `operation` | Entry-point seconds, for the mean per operation |
+| `atrium_outsystems_front_end_operations_total` | counter | `front_end`, `outcome` | Entry points per front-end server |
+| `atrium_outsystems_integration_duration_seconds` | histogram | `direction`, `type`, `outcome` | Integration calls, consumed and exposed |
+| `atrium_outsystems_errors_total` | counter | `module` | Error log rows |
+| `atrium_outsystems_slow_events_total` | counter | `module`, `kind` | Slow SQL and slow extension rows of the general log |
+| `atrium_outsystems_timer_delay_seconds` | histogram | `operation` | Timer start minus its schedule; buckets 1 s to 1 h |
+| `atrium_outsystems_screen_state_bytes` | histogram | `module`, `kind` | Traditional web screen session and viewstate size; buckets 1 KiB to 16 MiB |
 
 They are deleted with their collector. Per application, each operation adds
 3 counter series (two outcomes and its seconds) and each module, log type and
@@ -938,8 +938,8 @@ the series when the collector stops or a reload changes it.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_outsystems_derived_series` | gauge | `collector` | Derived series the collector holds, as the budget counts them; at most its `max_derived_series` |
-| `heartbeat_outsystems_derived_series_overflow_total` | counter | `collector`, `metric` | Rows a derived metric (`metric`, its name) did not count because they needed a new series past `max_derived_series`: one per row and metric. `OutSystemsDerivedSeriesOverflow` fires on any |
+| `atrium_outsystems_derived_series` | gauge | `collector` | Derived series the collector holds, as the budget counts them; at most its `max_derived_series` |
+| `atrium_outsystems_derived_series_overflow_total` | counter | `collector`, `metric` | Rows a derived metric (`metric`, its name) did not count because they needed a new series past `max_derived_series`: one per row and metric. `OutSystemsDerivedSeriesOverflow` fires on any |
 
 Both are created, the counter at 0 for each of the nine metrics, when a
 collector starts, and deleted when it stops.
@@ -951,13 +951,13 @@ included. Prometheus scrapes it as job `api`.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_http_requests_total` | counter | `method`, `route`, `code` | Requests served, by status code |
-| `heartbeat_api_http_request_duration_seconds` | histogram | `method`, `route` | Time from receiving a request to its handler returning; the Prometheus client's default buckets, 5ms to 10s |
-| `heartbeat_api_db_connections` | gauge | `state` | PostgreSQL pool connections: `in_use`, `idle` or `constructing` |
-| `heartbeat_api_db_connections_max` | gauge | none | The most connections the pool opens |
-| `heartbeat_api_db_connection_waits_total`, `heartbeat_api_db_connection_wait_seconds_total` | counter | none | Acquires that found no idle connection, and the time they waited |
-| `heartbeat_api_redis_connections` | gauge | `state` | Redis pool connections: `in_use` or `idle` |
-| `heartbeat_api_redis_connection_timeouts_total` | counter | none | Commands that gave up waiting for a connection from the pool |
+| `atrium_api_http_requests_total` | counter | `method`, `route`, `code` | Requests served, by status code |
+| `atrium_api_http_request_duration_seconds` | histogram | `method`, `route` | Time from receiving a request to its handler returning; the Prometheus client's default buckets, 5ms to 10s |
+| `atrium_api_db_connections` | gauge | `state` | PostgreSQL pool connections: `in_use`, `idle` or `constructing` |
+| `atrium_api_db_connections_max` | gauge | none | The most connections the pool opens |
+| `atrium_api_db_connection_waits_total`, `atrium_api_db_connection_wait_seconds_total` | counter | none | Acquires that found no idle connection, and the time they waited |
+| `atrium_api_redis_connections` | gauge | `state` | Redis pool connections: `in_use` or `idle` |
+| `atrium_api_redis_connection_timeouts_total` | counter | none | Commands that gave up waiting for a connection from the pool |
 
 `route` is the pattern that served the request, without the method
 (`/readyz`, `/api/v1/applications/{id}`, never the ID itself), or
@@ -970,7 +970,7 @@ OPTIONS. A scan of made-up paths and methods therefore lands in the
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_login_attempts_total` | counter | `outcome` | Logins this replica answered: `succeeded`; `failed` (wrong credentials, an unknown email, a disabled user, each also audited); `rate_limited` (refused unchecked, past the limits). Requests it could not check (400) are not counted. Each outcome starts at 0. A rise in `failed` or `rate_limited` is someone guessing; the audit records say which accounts and from where |
+| `atrium_api_login_attempts_total` | counter | `outcome` | Logins this replica answered: `succeeded`; `failed` (wrong credentials, an unknown email, a disabled user, each also audited); `rate_limited` (refused unchecked, past the limits). Requests it could not check (400) are not counted. Each outcome starts at 0. A rise in `failed` or `rate_limited` is someone guessing; the audit records say which accounts and from where |
 
 ### Audit delivery
 
@@ -992,21 +992,21 @@ fails if a record holds a password, a hash or a session token.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_audit_outbox_rows` | gauge | none | Records waiting in the outbox, read at each scrape. Every replica reports the same table. Absent from a scrape while PostgreSQL does not answer within 2s; the rest of the scrape still works |
-| `heartbeat_api_audit_outbox_oldest_age_seconds` | gauge | none | Age of the oldest waiting record, 0 when none waits; normally a few seconds at most. `HeartbeatAuditDeliveryStalled` fires above 2 minutes for 2 minutes |
-| `heartbeat_api_audit_records_delivered_total` | counter | none | Records this replica delivered: the Collector accepted them and they left the outbox. A record can be delivered twice (an export the Collector took after the API gave up on it); its id tells the copies apart |
+| `atrium_api_audit_outbox_rows` | gauge | none | Records waiting in the outbox, read at each scrape. Every replica reports the same table. Absent from a scrape while PostgreSQL does not answer within 2s; the rest of the scrape still works |
+| `atrium_api_audit_outbox_oldest_age_seconds` | gauge | none | Age of the oldest waiting record, 0 when none waits; normally a few seconds at most. `AtriumAuditDeliveryStalled` fires above 2 minutes for 2 minutes |
+| `atrium_api_audit_records_delivered_total` | counter | none | Records this replica delivered: the Collector accepted them and they left the outbox. A record can be delivered twice (an export the Collector took after the API gave up on it); its id tells the copies apart |
 
 The drainer claims up to 100 of the oldest rows at a time with
 `FOR UPDATE SKIP LOCKED`, so replicas never send the same rows at once, and
 sends them with the OTLP client the db-collector uses (`client="audit"` in
-`heartbeat_otlp_export_attempts_total`): one export, retried for up to 30s,
+`atrium_otlp_export_attempts_total`): one export, retried for up to 30s,
 holds a round's rows. It goes on at once while it finds full batches, polls
 every 2s once the outbox is empty, and backs off from 1s to 30s while the
 Collector fails, logging `audit: delivery failed` once, then every minute,
 and `audit: delivery resumed`. A request the Collector accepts while refusing
 some of its records (OTLP partial success) is not sent again: those records
-are counted in `heartbeat_otlp_export_rejected_records_total{client="audit"}`
-and `HeartbeatOTLPRecordsRejected` fires. Without `HEARTBEAT_API_AUDIT_ENDPOINT`, nothing
+are counted in `atrium_otlp_export_rejected_records_total{client="audit"}`
+and `AtriumOTLPRecordsRejected` fires. Without `ATRIUM_API_AUDIT_ENDPOINT`, nothing
 is sent and records wait; the chart sets it to the bundled OTel Collector's
 `4318` while the Collector is on, so in the `minimal` profile records wait.
 A round that finds records is traced: `audit.drain` → `audit.export` and the
@@ -1015,11 +1015,11 @@ A round that finds records is traced: `audit.drain` → `audit.export` and the
 Each record is an OTLP log record: severity INFO, the record's time, the
 record as compact JSON in the body
 ([`audit_record.schema.json`](../../packages/telemetry-contracts/src/audit_record.schema.json)),
-attributes `event.name` = `heartbeat.audit` and `log.record.uid` = the record's
-id, and the resource `service.name` = `heartbeat-api` with the replica's
+attributes `event.name` = `atrium.audit` and `log.record.uid` = the record's
+id, and the resource `service.name` = `atrium-api` with the replica's
 `service.version`, `service.instance.id` and `deployment.environment.name`.
-There is no `service.namespace`, so audit records stay out of Heartbeat's own
-logs (`service_namespace="heartbeat"`). The record's fields are `id`, `time`,
+There is no `service.namespace`, so audit records stay out of Atrium's own
+logs (`service_namespace="atrium"`). The record's fields are `id`, `time`,
 `request_id`, `actor` (a user's `user_id` and `email`, a `cli` command and
 the `host` it ran on, a `system` task of the API, the inventory `file` a
 `config` actor applied, or the `address` of a `client` that is not logged
@@ -1027,20 +1027,20 @@ in), `action`, `entity_type`, `entity_id`, `before`, `after`
 and, for runtime config and the inventory file, `config_version`. In Grafana's Explore, on Loki:
 
 ```logql
-{service_name="heartbeat-api"} | event_name="heartbeat.audit" | json | entity_type="user"
+{service_name="atrium-api"} | event_name="atrium.audit" | json | entity_type="user"
 ```
 
 ### Inventory file
 
 The API applying the environment's
 [inventory file](configuration.md#applying-the-file), when
-`HEARTBEAT_API_INVENTORY_PATH` is set. Each replica reads the file and counts
+`ATRIUM_API_INVENTORY_PATH` is set. Each replica reads the file and counts
 its own reads.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or after it failed validation, is not counted; one PostgreSQL's rows refused is tried again, and counted, at each read |
-| `heartbeat_api_inventory_applied_timestamp_seconds` | gauge | none | When the replica last applied the file or found PostgreSQL matching it, as a Unix time; absent before the first time |
+| `atrium_api_inventory_applies_total` | counter | `result` | Reads of the file applied or refused: `changed` (PostgreSQL changed to match it), `unchanged` (it matched already, as on every replica but the one that applied it), `invalid` (the file failed validation, or PostgreSQL's rows refused it: nothing changed), `error` (it could not be read, or PostgreSQL could not be reached; tried again 30 seconds later). A file read again after it was applied, or after it failed validation, is not counted; one PostgreSQL's rows refused is tried again, and counted, at each read |
+| `atrium_api_inventory_applied_timestamp_seconds` | gauge | none | When the replica last applied the file or found PostgreSQL matching it, as a Unix time; absent before the first time |
 
 ### Inventory info metrics
 
@@ -1053,22 +1053,22 @@ scrape on every replica and nothing has to be refreshed after a write or an
 apply; whether a source is observed comes from the collector's
 `GET /admin/config`, which the API reads at most every 15 seconds (as for
 [telemetry sources](#telemetry-sources)). Every replica reports the same
-rows, so aggregate away `instance`: `max without (instance) (heartbeat_api_inventory_application_info)`.
-The chart's *Heartbeat Inventory* dashboard (`heartbeat-inventory`) lists them
+rows, so aggregate away `instance`: `max without (instance) (atrium_api_inventory_application_info)`.
+The chart's *Atrium Inventory* dashboard (`atrium-inventory`) lists them
 beside their health: each source with its observation, its requests and
 failed share from the [derived OutSystems metrics](#derived-outsystems-metrics)
 and its environment's extraction lag; each database target with
-`heartbeat_collector_target_up`, the time since its last success and its
+`atrium_collector_target_up`, the time since its last success and its
 failures in a row. Its tables join on `environment` and on `application_name`
 or `target`, the labels those series share.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_api_inventory_environment_info` | gauge | `environment`, `type`, `status`, `managed_by` | An environment. `environment` is its slug, the `environment` of the collector's series |
-| `heartbeat_api_inventory_application_info` | gauge | `environment`, `application`, `platform`, `criticality`, `status`, `managed_by` | An application, by its name in its environment |
-| `heartbeat_api_inventory_source_info` | gauge | `environment`, `application`, `source_type`, `ingest_mode`, `application_name`, `status`, `managed_by`, `observation` | A telemetry source of the application. `application_name` is its config's (the OutSystems `Application_Name`, the `${application}` of the [links](#links-into-the-platforms-ui)), `""` when it has none; `observation` is its [`observation.status`](#telemetry-sources): `observed`, `not_observed`, `unknown` or `not_applicable` |
-| `heartbeat_api_inventory_database_target_info` | gauge | `environment`, `target`, `engine`, `status`, `managed_by` | A database target. `target` is its name, the `target` of the collector's series |
-| `heartbeat_api_inventory_info_truncated` | gauge | `kind` | 1 when a kind (`environment`, `application`, `source`, `database_target`) has more than 1,000 rows, so its info metric lists only the first 1,000 in label order; 0 otherwise |
+| `atrium_api_inventory_environment_info` | gauge | `environment`, `type`, `status`, `managed_by` | An environment. `environment` is its slug, the `environment` of the collector's series |
+| `atrium_api_inventory_application_info` | gauge | `environment`, `application`, `platform`, `criticality`, `status`, `managed_by` | An application, by its name in its environment |
+| `atrium_api_inventory_source_info` | gauge | `environment`, `application`, `source_type`, `ingest_mode`, `application_name`, `status`, `managed_by`, `observation` | A telemetry source of the application. `application_name` is its config's (the OutSystems `Application_Name`, the `${application}` of the [links](#links-into-the-platforms-ui)), `""` when it has none; `observation` is its [`observation.status`](#telemetry-sources): `observed`, `not_observed`, `unknown` or `not_applicable` |
+| `atrium_api_inventory_database_target_info` | gauge | `environment`, `target`, `engine`, `status`, `managed_by` | A database target. `target` is its name, the `target` of the collector's series |
+| `atrium_api_inventory_info_truncated` | gauge | `kind` | 1 when a kind (`environment`, `application`, `source`, `database_target`) has more than 1,000 rows, so its info metric lists only the first 1,000 in label order; 0 otherwise |
 
 `status` is `active` or `disabled`: a row the file dropped is disabled,
 never deleted, so it stays listed. `managed_by` is `api` or `config`
@@ -1089,28 +1089,28 @@ a host, a port, a database name, a label, a config beyond
 so whoever reaches the API's port reads these names: route only `/api/v1/…`
 to the API from outside the cluster. A rename, or a change to a
 labelled field, ends one series and starts another, as a deploy changes
-`heartbeat_service_info`.
+`atrium_service_info`.
 
-### Heartbeat's own telemetry
+### Atrium's own telemetry
 
 Both services expose these
-([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)).
+([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)).
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `heartbeat_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `heartbeat_collector_*` series is the monitored target's |
-| `heartbeat_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
-| `heartbeat_telemetry_trace_errors_total` | counter | none | Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest |
-| `heartbeat_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, `outsystems` on the collector, or `audit` on the API; `self-logs` and `audit` exist only while the service has their endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
-| `heartbeat_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
-| `heartbeat_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
-| `heartbeat_otlp_export_rejected_records_total` | counter | `client` | Records the receiver refused inside a request it accepted (OTLP partial success). Such a request is not sent again, so the records are lost; `HeartbeatOTLPRecordsRejected` fires on any. Created at 0 |
+| `atrium_service_info` | gauge | `service`, `version`, `revision`, `environment` | Always 1: what is running. `environment` is `telemetry.environment`, where the service itself runs; the `environment` of a `atrium_collector_*` series is the monitored target's |
+| `atrium_telemetry_log_records_total` | counter | `outcome` | The service's own log records sent over OTLP: `exported`, `dropped_queue_full` (the queue holds 1,024 records and 8 MiB, while the Collector is slow or down) or `dropped_export_failed` (two attempts within 5 s failed, or the service stopped first). All are created at 0, and a service with no endpoint stays at 0. Dropped records are still on stderr |
+| `atrium_telemetry_trace_errors_total` | counter | none | Errors the tracing SDK reported, mostly batches of spans it could not send; it keeps at most 2,048 spans waiting and drops the rest |
+| `atrium_otlp_export_attempts_total` | counter | `client`, `outcome` | OTLP/HTTP attempts: `accepted`, `retryable` (network error, timeout, 429, 5xx) or `rejected` (any other status). `client` is `self-logs`, `outsystems` on the collector, or `audit` on the API; `self-logs` and `audit` exist only while the service has their endpoint. Created at 0. An attempt cancelled because the service is stopping is not counted |
+| `atrium_otlp_export_attempt_duration_seconds` | histogram | `client` | Time of one attempt, whatever its outcome; buckets 5ms to 30s. Attempts near 10 s mean the receiver waits: for `outsystems`, the Collector waiting for Loki |
+| `atrium_otlp_export_bytes_total` | counter | `client` | Compressed bytes of accepted requests |
+| `atrium_otlp_export_rejected_records_total` | counter | `client` | Records the receiver refused inside a request it accepted (OTLP partial success). Such a request is not sent again, so the records are lost; `AtriumOTLPRecordsRejected` fires on any. Created at 0 |
 
-The logs themselves are in Loki with the labels `service_namespace="heartbeat"`,
+The logs themselves are in Loki with the labels `service_namespace="atrium"`,
 `service_name` (`db-collector`, `api`) and `deployment_environment_name`:
 
 ```logql
-{service_namespace="heartbeat", service_name="db-collector"} | detected_level="error"
+{service_namespace="atrium", service_name="db-collector"} | detected_level="error"
 ```
 
 Traces are in Tempo. A collection cycle is one trace, `collector.cycle` →
@@ -1151,7 +1151,7 @@ that is not sampled about 1.7 µs in the tracing middleware.
 ### Prometheus scrape jobs and rules
 
 Scrape jobs (`prometheus.scrapeConfigs` in the chart's
-[`values.yaml`](../../infra/helm/heartbeat/values.yaml)): `prometheus`,
+[`values.yaml`](../../infra/helm/atrium/values.yaml)): `prometheus`,
 `otel-collector`, `db-collector`, `api`, `alertmanager`, `loki`, `tempo`; the `minimal`
 profile drops `otel-collector`, `loki` and `tempo`, which it does not deploy. `db-collector` and `api` use
 DNS discovery on the headless `db-collector-headless` and `api-headless`
@@ -1159,70 +1159,70 @@ Services, which list the pods even while they are unready, so their failure
 metrics are still scraped. With `api.enabled: false`, turn the `api` job off
 too. Prometheus sends alerts to `alertmanager:9093`.
 
-Rules ([`heartbeat.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat.rules.yml),
-[`heartbeat-config-reload.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-config-reload.rules.yml)
+Rules ([`atrium.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium.rules.yml),
+[`atrium-config-reload.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium-config-reload.rules.yml)
 for the config reload alert, and
-[`heartbeat-collector-missing.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-collector-missing.rules.yml)
+[`atrium-collector-missing.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium-collector-missing.rules.yml)
 for a db-collector with no pod,
-[`heartbeat-api-missing.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-api-missing.rules.yml)
+[`atrium-api-missing.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium-api-missing.rules.yml)
 for an API with no pod, and
-[`heartbeat-self.rules.yml`](../../infra/helm/heartbeat/files/prometheus/rules/heartbeat-self.rules.yml)
-for Heartbeat's own objectives):
+[`atrium-self.rules.yml`](../../infra/helm/atrium/files/prometheus/rules/atrium-self.rules.yml)
+for Atrium's own objectives):
 
 | Rule | Type |
 | --- | --- |
-| `heartbeat:up:count`, `heartbeat:service_up:ratio` | Recording |
-| `heartbeat:sqlserver_wait_seconds:rate5m` | Recording: wait seconds per second by `wait_type`, `rate()` of `heartbeat_sqlserver_wait_seconds_total` |
-| `heartbeat:sqlserver_blocked_requests:sum` | Recording: blocked requests per target; 0 when the target's `blocking` probe succeeded and nothing is blocked |
-| `heartbeat:sqlserver_sessions:sum` | Recording: sessions per target, all statuses |
-| `heartbeat:outsystems_operations:rate5m`, `heartbeat:outsystems_errors:rate5m` | Recording: OutSystems entry points per second by log type and outcome; error log rows per second by module |
-| `heartbeat:outsystems_request_duration_seconds:p95_5m`, `heartbeat:outsystems_integration_duration_seconds:p95_5m` | Recording: p95 request and integration latency |
-| `heartbeat:outsystems_request_errors:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_request_slow:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_requests:rate{1h,6h}` | Recording: availability and latency (2 s) SLIs per application over screens, Reactive server calls and exposed APIs, and their traffic |
+| `atrium:up:count`, `atrium:service_up:ratio` | Recording |
+| `atrium:sqlserver_wait_seconds:rate5m` | Recording: wait seconds per second by `wait_type`, `rate()` of `atrium_sqlserver_wait_seconds_total` |
+| `atrium:sqlserver_blocked_requests:sum` | Recording: blocked requests per target; 0 when the target's `blocking` probe succeeded and nothing is blocked |
+| `atrium:sqlserver_sessions:sum` | Recording: sessions per target, all statuses |
+| `atrium:outsystems_operations:rate5m`, `atrium:outsystems_errors:rate5m` | Recording: OutSystems entry points per second by log type and outcome; error log rows per second by module |
+| `atrium:outsystems_request_duration_seconds:p95_5m`, `atrium:outsystems_integration_duration_seconds:p95_5m` | Recording: p95 request and integration latency |
+| `atrium:outsystems_request_errors:ratio_rate{5m,30m,1h,6h}`, `atrium:outsystems_request_slow:ratio_rate{5m,30m,1h,6h}`, `atrium:outsystems_requests:rate{1h,6h}` | Recording: availability and latency (2 s) SLIs per application over screens, Reactive server calls and exposed APIs, and their traffic |
 | `OutSystemsErrorBudgetBurnFast`, `OutSystemsLatencyBudgetBurnFast` | Alert (critical): 14.4× burn of a 99.9% availability or 99%-within-2-s objective over 1h and 5m, for applications with at least five (availability) or one (latency) requests a minute |
 | `OutSystemsErrorBudgetBurnSlow`, `OutSystemsLatencyBudgetBurnSlow` | Alert (warning): 6× burn over 6h and 30m |
 | `OutSystemsLogExtractionBehind` | Alert (warning): a log type's extraction lag above 30 minutes for 10m; the OutSystems metrics and SLO alerts of that target are stale |
-| `OutSystemsLogExportBlocked` | Alert (warning): `heartbeat_outsystems_export_blocked` 1 for 2m, one alert per target: the OTel Collector has not taken a batch, so its log types read nothing more, usually because Loki is down or slow. Nothing is lost while the rows are still in the logging database's views |
-| `OutSystemsLateLogRows` | Alert (warning): `heartbeat_outsystems_late_rows_total` grew in the last 15 minutes, per log type: rows committed later than the lag, not in Loki. Raise the log type's `lag` |
-| `OutSystemsDuplicateLogRows` | Alert (warning): `heartbeat_outsystems_duplicate_rows_total` grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent |
-| `OutSystemsDerivedSeriesOverflow` | Alert (warning): `heartbeat_outsystems_derived_series_overflow_total` grew in the last 15 minutes, per collector: its derived series reached `max_derived_series`, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise `max_derived_series` if the collector's memory allows |
+| `OutSystemsLogExportBlocked` | Alert (warning): `atrium_outsystems_export_blocked` 1 for 2m, one alert per target: the OTel Collector has not taken a batch, so its log types read nothing more, usually because Loki is down or slow. Nothing is lost while the rows are still in the logging database's views |
+| `OutSystemsLateLogRows` | Alert (warning): `atrium_outsystems_late_rows_total` grew in the last 15 minutes, per log type: rows committed later than the lag, not in Loki. Raise the log type's `lag` |
+| `OutSystemsDuplicateLogRows` | Alert (warning): `atrium_outsystems_duplicate_rows_total` grew in the last 15 minutes: rows the extraction read twice, a defect, or rows deleted from the logging database after they were sent |
+| `OutSystemsDerivedSeriesOverflow` | Alert (warning): `atrium_outsystems_derived_series_overflow_total` grew in the last 15 minutes, per collector: its derived series reached `max_derived_series`, so rows that need a new series (a new application, module, operation or front-end) are missing from the derived metrics, dashboards and SLO alerts. Raise `max_derived_series` if the collector's memory allows |
 | `OutSystemsLogRecountFailing` | Alert (warning): more than half of a log type's recounts failed in the last 15 minutes, of three or more, whatever the poll interval; the reason is in the collector's log |
-| `HeartbeatServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the API, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector or the API, whose DNS discovery finds no target while they have no pod (`absent(up{job="db-collector"})`, `absent(up{job="api"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
+| `AtriumServiceDown` | Alert (warning): `up == 0` for 2m for the DB collector, the API, the OTel Collector, Loki or Tempo; and no `up` series at all for the DB collector or the API, whose DNS discovery finds no target while they have no pod (`absent(up{job="db-collector"})`, `absent(up{job="api"})`). Where a name on Prometheus' DNS search path fails instead of answering NXDOMAIN, discovery keeps the collector's last target, and the `up == 0` rule fires instead |
 | `LokiDiscardingLogs` | Alert (warning): Loki discarded log rows in the last 10 minutes for a reason other than its rate limit (`loki_discarded_samples_total`); those rows are lost |
-| `HeartbeatCollectorLoginElevated` | Alert (warning): `heartbeat_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
-| `HeartbeatCollectorConfigReloadFailed` | Alert (warning): `heartbeat_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |
-| `heartbeat:collector_cycles_late:ratio_rate{5m,30m,1h,6h}`, `heartbeat:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}`, `heartbeat:api_request_errors:ratio_rate{5m,30m,1h,6h}`, `heartbeat:api_request_slow:ratio_rate{5m,1h}` | Recording: Heartbeat's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without `/metrics` and the health endpoints |
-| `HeartbeatCollectorCyclesLateFast`, `HeartbeatCollectorCyclesLate` | Alert (warning): 14.4× over 1h and 5m, and 6× over 6h and 30m, burn of the objective of 99.5% of cycles on time, for collectors with at least 30 cycles an hour. A slow monitored database can cause it as well as Heartbeat, so it stays a warning |
-| `HeartbeatExtractionFreshnessBurn`, `HeartbeatExtractionFreshnessBurnSlow` | Alert (warning): the same burn rates against an extraction lag within 5 minutes of its configured lag 99% of the time |
-| `HeartbeatAPIErrorBudgetBurnFast` (critical), `HeartbeatAPIErrorBudgetBurnSlow` (warning), `HeartbeatAPISlow` (warning) | Alert: 99.9% of the API's requests succeed and 95% answer within 250 ms, with at least five (errors) or one (latency) requests a minute |
-| `HeartbeatServiceRestarting` | Alert (warning): more than 3 process starts in an hour, from `process_start_time_seconds` |
-| `HeartbeatServiceMemoryHigh` | Alert (warning): resident memory above `GOMEMLIMIT`, 80% of the container's limit under the chart, for 15m |
-| `HeartbeatGoroutinesGrowing` | Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h |
-| `HeartbeatOwnLogsDropped` | Alert (warning): `heartbeat_telemetry_log_records_total` counted drops in the last 15 minutes |
-| `HeartbeatOTLPExportRejected` | Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes |
-| `HeartbeatOTLPRecordsRejected` | Alert (warning): the OTel Collector accepted a request but refused some of its records (OTLP partial success) in the last 15 minutes, per client; those records are lost |
-| `HeartbeatAuditDeliveryStalled` | Alert (warning): the oldest audit record in the API's outbox above 2 minutes old for 2 minutes, `max()` over the replicas, which report the same table: the Collector does not take audit records, or `HEARTBEAT_API_AUDIT_ENDPOINT` is unset. Changes still commit and no record is lost ([audit delivery](#audit-delivery)) |
+| `AtriumCollectorLoginElevated` | Alert (warning): `atrium_collector_target_login_sysadmin == 1` for 15m, the collector's login for a target is sysadmin-equivalent |
+| `AtriumCollectorConfigReloadFailed` | Alert (warning): `atrium_collector_config_last_reload_successful == 0` for 2m, the collector rejected or could not apply its last config change and still runs the last good config. The reason is `last_reload_err` in `GET /admin/config` and the `config reload rejected` or `config reload failed` line in the pod log. Clears on the next successful reload. On by default; `prometheusRules.configReloadAlert.enabled: false` leaves it out |
+| `atrium:collector_cycles_late:ratio_rate{5m,30m,1h,6h}`, `atrium:outsystems_extract_fresh:ratio_avg{5m,30m,1h,6h}`, `atrium:api_request_errors:ratio_rate{5m,30m,1h,6h}`, `atrium:api_request_slow:ratio_rate{5m,1h}` | Recording: Atrium's own SLIs: late cycles per collector, the share of time a log type's extraction lag stayed within 5 minutes of its configured lag, with a target that is down counted as behind, and the API's failed and slower-than-250-ms requests, without `/metrics` and the health endpoints |
+| `AtriumCollectorCyclesLateFast`, `AtriumCollectorCyclesLate` | Alert (warning): 14.4× over 1h and 5m, and 6× over 6h and 30m, burn of the objective of 99.5% of cycles on time, for collectors with at least 30 cycles an hour. A slow monitored database can cause it as well as Atrium, so it stays a warning |
+| `AtriumExtractionFreshnessBurn`, `AtriumExtractionFreshnessBurnSlow` | Alert (warning): the same burn rates against an extraction lag within 5 minutes of its configured lag 99% of the time |
+| `AtriumAPIErrorBudgetBurnFast` (critical), `AtriumAPIErrorBudgetBurnSlow` (warning), `AtriumAPISlow` (warning) | Alert: 99.9% of the API's requests succeed and 95% answer within 250 ms, with at least five (errors) or one (latency) requests a minute |
+| `AtriumServiceRestarting` | Alert (warning): more than 3 process starts in an hour, from `process_start_time_seconds` |
+| `AtriumServiceMemoryHigh` | Alert (warning): resident memory above `GOMEMLIMIT`, 80% of the container's limit under the chart, for 15m |
+| `AtriumGoroutinesGrowing` | Alert (warning): over 200 goroutines and growing by more than 20 an hour over 6 hours, for 1h |
+| `AtriumOwnLogsDropped` | Alert (warning): `atrium_telemetry_log_records_total` counted drops in the last 15 minutes |
+| `AtriumOTLPExportRejected` | Alert (warning): the OTel Collector rejected a request of a client for good in the last 15 minutes |
+| `AtriumOTLPRecordsRejected` | Alert (warning): the OTel Collector accepted a request but refused some of its records (OTLP partial success) in the last 15 minutes, per client; those records are lost |
+| `AtriumAuditDeliveryStalled` | Alert (warning): the oldest audit record in the API's outbox above 2 minutes old for 2 minutes, `max()` over the replicas, which report the same table: the Collector does not take audit records, or `ATRIUM_API_AUDIT_ENDPOINT` is unset. Changes still commit and no record is lost ([audit delivery](#audit-delivery)) |
 | `Watchdog` | Alert: always firing. Alertmanager routes it to the `deadmans-switch` receiver (healthchecks.io in production, ADR 0005), which notifies when it stops arriving |
 
 `files/prometheus/rules/generated/` (in the chart) is loaded but empty; it is
 reserved for rules rendered from alert policies. The chart ships all rule files
-in the `heartbeat-prometheus-rules` ConfigMap. An alert that can be turned off
+in the `atrium-prometheus-rules` ConfigMap. An alert that can be turned off
 has a rule file of its own, which the chart leaves out of the ConfigMap when
 its value is false, so operators do not edit rule files:
 `prometheusRules.configReloadAlert.enabled` for
-`heartbeat-config-reload.rules.yml`. `heartbeat-collector-missing.rules.yml`
+`atrium-config-reload.rules.yml`. `atrium-collector-missing.rules.yml`
 is in it only when the release has the db-collector and the bundled Prometheus
 scrapes it as job `db-collector` (not disabled, no `job_name` override):
 `absent()` fires wherever nothing matches. A shared Prometheus never gets it,
 even one that loads this ConfigMap and scrapes the collector as `db-collector`;
 it needs its own copy of the rule, for its own job name.
-`heartbeat-api-missing.rules.yml` is the same for the API: in it only when
+`atrium-api-missing.rules.yml` is the same for the API: in it only when
 `api.enabled` and the bundled Prometheus scrapes it as job `api`.
 `prometheusRules.enabled: false` leaves
 out every rule. `make rules-check` validates the
 rules and runs their promtool unit tests (`files/prometheus/rules/tests/`). A Go
 test fails if a rule, rule test, dashboard, script or metrics doc names a SQL
 Server metric the probe catalog does not emit, an OutSystems metric or a
-collector self-metric (`heartbeat_collector_*`) the collector does not export,
+collector self-metric (`atrium_collector_*`) the collector does not export,
 or if a rule or dashboard reads a counter without `rate()` or `increase()`.
 
 ## Known gaps

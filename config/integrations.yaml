@@ -3,8 +3,8 @@ dashboards:
   base_url: http://localhost:3001
   dashboard_templates:
     sqlserver-overview: /d/sqlserver-overview
-    heartbeat-service: /d/heartbeat-service
-    heartbeat-inventory: /d/heartbeat-inventory
+    atrium-service: /d/atrium-service
+    atrium-inventory: /d/atrium-inventory
     outsystems-overview: /d/outsystems-overview
   deep_link_templates:
     logs-explore: /explore?orgId=1&left=${logs_query}
@@ -20,19 +20,19 @@ notification_channels:
   - id: default-webhook
     channel_type: webhook
     target_ref: http://localhost:9093/api/v2/alerts
-    credential_ref: env/HEARTBEAT_WEBHOOK_TOKEN
+    credential_ref: env/ATRIUM_WEBHOOK_TOKEN
     config:
       timeout: 10s
   - id: local-email
     channel_type: email
     target_ref: ops@example.local
-    credential_ref: env/HEARTBEAT_SMTP_PASSWORD
+    credential_ref: env/ATRIUM_SMTP_PASSWORD
     config:
       smtp_host: smtp.example.local
       smtp_port: "587"
 credential_refs:
-  sqlserver-default: env/HEARTBEAT_SQLSERVER_PASSWORD
-  webhook-default: env/HEARTBEAT_WEBHOOK_TOKEN
+  sqlserver-default: env/ATRIUM_SQLSERVER_PASSWORD
+  webhook-default: env/ATRIUM_WEBHOOK_TOKEN
 collectors:
   - id: sqlserver-default
     kind: sqlserver

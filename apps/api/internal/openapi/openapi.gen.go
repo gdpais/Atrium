@@ -390,10 +390,10 @@ type ComponentUpdate struct {
 // the credential: `kv/`, `secret/` or `env/` and a name of lower-case
 // letters, digits and `-`, at most 200, so that each key has one
 // spelling. The collector reads the
-// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+// `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of
 // its mounted credentials Secret, the reference upper-cased with `/`,
 // `-` and `.` as `_` (`env/finance-prod` is
-// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+// `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`).
 //
 // Examples: env/finance-prod
 type CredentialRef = string
@@ -424,10 +424,10 @@ type DatabaseTarget struct {
 	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
 	// letters, digits and `-`, at most 200, so that each key has one
 	// spelling. The collector reads the
-	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is
-	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	// `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`).
 	//
 	//
 	// Examples: env/finance-prod
@@ -483,10 +483,10 @@ type DatabaseTargetUpdate struct {
 	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
 	// letters, digits and `-`, at most 200, so that each key has one
 	// spelling. The collector reads the
-	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is
-	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	// `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`).
 	//
 	//
 	// Examples: env/finance-prod
@@ -531,7 +531,7 @@ type Environment struct {
 
 	// Slug The environment as the collectors and the telemetry name it: each
 	// collector's `environment` setting, the `environment` label of
-	// Heartbeat's metrics and the `deployment.environment.name` of logs
+	// Atrium's metrics and the `deployment.environment.name` of logs
 	// (ADR 0017 §2). Lower-case letters, digits and hyphens, 1 to 63,
 	// starting and ending with a letter or a digit, so that it works as a
 	// label value, in a URL and as a Kubernetes name. Unique, and fixed
@@ -577,7 +577,7 @@ type EnvironmentUpdate struct {
 // Examples: sql01.finance.internal
 type Host = string
 
-// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+// IngestMode How its telemetry arrives: `agentless`, read from the platform by an Atrium collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
 type IngestMode string
 
 // Labels At most 64 labels; keys of 1 to 63 characters, values of at most 256, without control characters. A change replaces them all.
@@ -654,10 +654,10 @@ type NewDatabaseTarget struct {
 	// the credential: `kv/`, `secret/` or `env/` and a name of lower-case
 	// letters, digits and `-`, at most 200, so that each key has one
 	// spelling. The collector reads the
-	// `username:password` from the key `HEARTBEAT_CREDENTIAL_<REF>` of
+	// `username:password` from the key `ATRIUM_CREDENTIAL_<REF>` of
 	// its mounted credentials Secret, the reference upper-cased with `/`,
 	// `-` and `.` as `_` (`env/finance-prod` is
-	// `HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD`).
+	// `ATRIUM_CREDENTIAL_ENV_FINANCE_PROD`).
 	//
 	//
 	// Examples: env/finance-prod
@@ -710,7 +710,7 @@ type NewEnvironment struct {
 
 	// Slug The environment as the collectors and the telemetry name it: each
 	// collector's `environment` setting, the `environment` label of
-	// Heartbeat's metrics and the `deployment.environment.name` of logs
+	// Atrium's metrics and the `deployment.environment.name` of logs
 	// (ADR 0017 §2). Lower-case letters, digits and hyphens, 1 to 63,
 	// starting and ending with a letter or a digit, so that it works as a
 	// label value, in a URL and as a Kubernetes name. Unique, and fixed
@@ -805,7 +805,7 @@ type NewTelemetrySource struct {
 	// Examples: {"application_name":"Claims"}
 	Config SourceConfig `json:"config"`
 
-	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by an Atrium collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
 	IngestMode IngestMode `json:"ingest_mode"`
 
 	// SourceType The kind of source, which says what `config` holds (one JSON Schema per type in `packages/config-schema/src/telemetry-sources`).
@@ -839,11 +839,11 @@ type Observation struct {
 	// Detail Why the source is not observed, or why that is unknown.
 	Detail *string `json:"detail,omitempty"`
 
-	// Status `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself).
+	// Status `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Atrium collector reads this kind of source (an `otlp` source sends its telemetry itself).
 	Status ObservationStatus `json:"status"`
 }
 
-// ObservationStatus `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Heartbeat collector reads this kind of source (an `otlp` source sends its telemetry itself).
+// ObservationStatus `observed`: an enabled collector extracts the source's environment; `not_observed`: the collector answered, and none does; `unknown`: the collector could not be asked; `not_applicable`: no Atrium collector reads this kind of source (an `otlp` source sends its telemetry itself).
 type ObservationStatus string
 
 // Password 15 characters to 1,024 bytes of UTF-8. Stored only as its argon2id hash.
@@ -1058,7 +1058,7 @@ type SessionUser struct {
 
 // Slug The environment as the collectors and the telemetry name it: each
 // collector's `environment` setting, the `environment` label of
-// Heartbeat's metrics and the `deployment.environment.name` of logs
+// Atrium's metrics and the `deployment.environment.name` of logs
 // (ADR 0017 §2). Lower-case letters, digits and hyphens, 1 to 63,
 // starting and ending with a letter or a digit, so that it works as a
 // label value, in a URL and as a Kubernetes name. Unique, and fixed
@@ -1110,7 +1110,7 @@ type TelemetrySource struct {
 	EnvironmentId openapi_types.UUID `json:"environment_id"`
 	Id            openapi_types.UUID `json:"id"`
 
-	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by an Atrium collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
 	IngestMode IngestMode `json:"ingest_mode"`
 
 	// Observation Whether the DB collector observes the source, as its redacted `GET /admin/config` says when the source is read.
@@ -1144,7 +1144,7 @@ type TelemetrySourceUpdate struct {
 	// Examples: {"application_name":"Claims"}
 	Config *SourceConfig `json:"config,omitempty"`
 
-	// IngestMode How its telemetry arrives: `agentless`, read from the platform by a Heartbeat collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
+	// IngestMode How its telemetry arrives: `agentless`, read from the platform by an Atrium collector (OutSystems 11 self-managed), or `otlp`, sent by the platform (OutSystems Cloud and ODC). `file` and `api` are in the schema for later types; an `outsystems` source takes `agentless` or `otlp`.
 	IngestMode *IngestMode `json:"ingest_mode,omitempty"`
 
 	// Status `disabled` keeps the entity and its history but takes it out of use. Disabling an environment does not change its applications' status.

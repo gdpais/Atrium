@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/store"
 )
 
 // renderAssignments runs `api probe-assignments render`: it writes the

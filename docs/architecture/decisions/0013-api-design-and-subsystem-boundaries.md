@@ -133,7 +133,7 @@ freezes them.
 9. **Versioned job envelopes on Redis Streams, with consumer groups.** The
    PostgreSQL row (`investigation_jobs`, `report_runs`) is the job; the
    stream message only delivers it.
-   - One stream per job type (`heartbeat:jobs:<type>`), one consumer group per
+   - One stream per job type (`atrium:jobs:<type>`), one consumer group per
      worker service, trimmed by length.
    - The envelope carries `type`, `version`, `job_id`, `enqueued_at` and a
      typed `payload`, defined as JSON Schema beside the existing payload

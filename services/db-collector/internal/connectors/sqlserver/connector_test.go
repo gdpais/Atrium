@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 const testPassword = "s3cr3t-P@ssw0rd"

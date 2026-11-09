@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
 )
 
 // ApplyResult is what applying an inventory file changed.

@@ -1,0 +1,180 @@
+{{- /*
+Ingress NetworkPolicies for the bundled observability engines [9.6]: only the
+components that use an engine reach it, on the ports they use (values.yaml,
+backendNetworkPolicies). A component that is off is not admitted, and an
+engine that is off gets no policy. Grafana has none: whatever serves its UI
+must reach it, and its login is the access control (ADR 0012).
+
+Each rule is a list of TCP or UDP ports and the peers admitted to them. A rule
+without peers is dropped; with no rule left the policy denies all ingress,
+because an empty `from` would admit every source.
+*/}}
+{{- define "atrium.backendNetworkPolicy" -}}
+{{- $sel := dict "root" .root "component" .name }}
+{{- $rules := list }}
+{{- range .rules }}
+{{- if .from }}
+{{- $rules = append $rules . }}
+{{- end }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .name }}
+  namespace: {{ .root.Release.Namespace }}
+  labels:
+    {{- include "atrium.componentLabels" $sel | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "atrium.enginePodLabels" (dict "root" .root "engine" .engine) | trim | nindent 6 }}
+  policyTypes:
+    - Ingress
+  {{- if $rules }}
+  ingress:
+    {{- range $rules }}
+    - ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol | default "TCP" }}
+          port: {{ .port }}
+        {{- end }}
+      from:
+        {{- toYaml .from | nindent 8 }}
+    {{- end }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+{{- end }}
+
+{{- $np := .Values.backendNetworkPolicies }}
+{{- if $np.enabled }}
+{{- $peer := dict }}
+{{- range list "db-collector" "api" "prometheus" "alertmanager" "grafana" "loki" "tempo" "otelCollector" }}
+{{- $_ := set $peer . (include "atrium.enginePeer" (dict "root" $ "engine" .) | fromYaml) }}
+{{- end }}
+{{- $on := dict
+  "db-collector" .Values.dbCollector.enabled
+  "api" .Values.api.enabled
+  "prometheus" .Values.prometheus.enabled
+  "alertmanager" (and .Values.prometheus.enabled .Values.prometheus.alertmanager.enabled)
+  "grafana" .Values.grafana.enabled
+  "loki" .Values.loki.enabled
+  "tempo" .Values.tempo.enabled
+  "otelCollector" .Values.otelCollector.enabled }}
+
+{{- if $on.otelCollector }}
+{{- $ports := .Values.otelCollector.ports }}
+{{- $otlp := dict "port" (dig "otlp" "containerPort" 4317 $ports) }}
+{{- $otlpHttp := dict "port" (dig "otlp-http" "containerPort" 4318 $ports) }}
+{{- $otlpSelf := dict "port" (dig "otlp-self" "containerPort" 4319 $ports) }}
+{{- $metrics := dict "port" (dig "prom-exporter" "containerPort" 8889 $ports) }}
+{{- $exporter := dig "prom-exporter" "enabled" false $ports }}
+{{- $rules := list }}
+{{- /* The db-collector and the API send OTLP/HTTP only: the collector's
+outsystems_logs rows, both services' spans, and their own logs while
+telemetry is on. */}}
+{{- $senders := list }}
+{{- range list "db-collector" "api" }}
+{{- if get $on . }}
+{{- $senders = append $senders (get $peer .) }}
+{{- end }}
+{{- end }}
+{{- if $senders }}
+{{- $sent := list $otlpHttp }}
+{{- if .Values.telemetry.enabled }}
+{{- $sent = append $sent $otlpSelf }}
+{{- end }}
+{{- $rules = append $rules (dict "ports" $sent "from" $senders) }}
+{{- end }}
+{{- if and $exporter (include "atrium.prometheusScrapes" (dict "root" $ "job" "otel-collector")) }}
+{{- $rules = append $rules (dict "ports" (list $metrics) "from" (list $peer.prometheus)) }}
+{{- end }}
+{{- $extraPorts := list $otlp $otlpHttp $otlpSelf }}
+{{- if $exporter }}
+{{- $extraPorts = append $extraPorts $metrics }}
+{{- end }}
+{{- $rules = append $rules (dict "ports" $extraPorts "from" $np.otelCollector.extraPeers) }}
+---
+# The OTel Collector: OTLP/HTTP and their own logs from the db-collector and the API, its Prometheus exporter
+# from the bundled Prometheus, and extraPeers on the OTLP ports and exporter.
+{{ include "atrium.backendNetworkPolicy" (dict "root" $ "name" "otel-collector" "engine" "otelCollector" "rules" $rules) | trim }}
+{{- end }}
+
+{{- if $on.prometheus }}
+{{- $api := dict "port" 9090 }}
+{{- $rules := list }}
+{{- if $on.grafana }}
+{{- $rules = append $rules (dict "ports" (list $api) "from" (list $peer.grafana)) }}
+{{- end }}
+{{- $rules = append $rules (dict "ports" (list $api) "from" $np.prometheus.extraPeers) }}
+---
+# The Prometheus server's port 9090: Grafana's datasource and extraPeers.
+# Its own scrape of itself and the config reloader use loopback.
+{{ include "atrium.backendNetworkPolicy" (dict "root" $ "name" "prometheus" "engine" "prometheus" "rules" $rules) | trim }}
+{{- end }}
+
+{{- if $on.alertmanager }}
+{{- $am := .Values.prometheus.alertmanager }}
+{{- $rules := list }}
+{{- /* Alerts, and the alertmanager scrape job, on the fixed container port. */}}
+{{- $rules = append $rules (dict "ports" (list (dict "port" 9093)) "from" (list $peer.prometheus)) }}
+{{- $rules = append $rules (dict "ports" (list (dict "port" 9093)) "from" $np.alertmanager.extraPeers) }}
+{{- if gt (int ($am.replicaCount | default 1)) 1 }}
+{{- /* Replicas gossip with each other on the cluster port. */}}
+{{- $cluster := dig "service" "clusterPort" 9094 $am }}
+{{- $rules = append $rules (dict "ports" (list (dict "port" $cluster) (dict "port" $cluster "protocol" "UDP")) "from" (list $peer.alertmanager)) }}
+{{- end }}
+---
+# Alertmanager's port 9093: alerts from the bundled Prometheus, which also
+# scrapes it, and extraPeers.
+{{ include "atrium.backendNetworkPolicy" (dict "root" $ "name" "alertmanager" "engine" "alertmanager" "rules" $rules) | trim }}
+{{- end }}
+
+{{- if $on.loki }}
+{{- $server := .Values.loki.loki.server | default dict }}
+{{- $http := dict "port" ($server.http_listen_port | default 3100) }}
+{{- $grpc := dict "port" ($server.grpc_listen_port | default 9095) }}
+{{- $clients := list }}
+{{- if $on.otelCollector }}
+{{- $clients = append $clients $peer.otelCollector }}
+{{- end }}
+{{- if $on.grafana }}
+{{- $clients = append $clients $peer.grafana }}
+{{- end }}
+{{- if include "atrium.prometheusScrapes" (dict "root" $ "job" "loki") }}
+{{- $clients = append $clients $peer.prometheus }}
+{{- end }}
+{{- $rules := list (dict "ports" (list $http) "from" $clients) }}
+{{- $rules = append $rules (dict "ports" (list $http) "from" $np.loki.extraPeers) }}
+{{- /* Loki reaches itself through its Services: the compactor's gRPC address
+and the memberlist ring it must join to start. */}}
+{{- $rules = append $rules (dict "ports" (list $grpc (dict "port" 7946)) "from" (list $peer.loki)) }}
+---
+# Loki holds user IDs, session IDs and client IPs (ADR 0012). Port 3100: OTLP
+# pushes from the OTel Collector, queries from Grafana's datasource, the
+# bundled Prometheus's scrape, and extraPeers. gRPC and memberlist: Loki only.
+{{ include "atrium.backendNetworkPolicy" (dict "root" $ "name" "loki" "engine" "loki" "rules" $rules) | trim }}
+{{- end }}
+
+{{- if $on.tempo }}
+{{- $query := dict "port" 3200 }}
+{{- $otlp := dict "port" 4318 }}
+{{- $rules := list }}
+{{- if $on.otelCollector }}
+{{- $rules = append $rules (dict "ports" (list $otlp) "from" (list $peer.otelCollector)) }}
+{{- end }}
+{{- $clients := list }}
+{{- if $on.grafana }}
+{{- $clients = append $clients $peer.grafana }}
+{{- end }}
+{{- if include "atrium.prometheusScrapes" (dict "root" $ "job" "tempo") }}
+{{- $clients = append $clients $peer.prometheus }}
+{{- end }}
+{{- $rules = append $rules (dict "ports" (list $query) "from" $clients) }}
+{{- $rules = append $rules (dict "ports" (list $query $otlp) "from" $np.tempo.extraPeers) }}
+---
+# Tempo: OTLP from the OTel Collector, queries from Grafana's datasource, the
+# bundled Prometheus's scrape, and extraPeers.
+{{ include "atrium.backendNetworkPolicy" (dict "root" $ "name" "tempo" "engine" "tempo" "rules" $rules) | trim }}
+{{- end }}
+{{- end }}

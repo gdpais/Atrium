@@ -16,21 +16,21 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // Credential references resolved through EnvCredentialResolver.
 const (
-	// liveCredentialRef is HEARTBEAT_CREDENTIAL_SQLSERVER_TEST, the
+	// liveCredentialRef is ATRIUM_CREDENTIAL_SQLSERVER_TEST, the
 	// least-privilege collector login ("username:password").
 	liveCredentialRef = "sqlserver-test"
-	// liveSACredentialRef is HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_SA, the sa
+	// liveSACredentialRef is ATRIUM_CREDENTIAL_SQLSERVER_TEST_SA, the sa
 	// login.  Only the sysadmin check uses it; probes never run as sa.
 	liveSACredentialRef = "sqlserver-test-sa"
-	// liveControlCredentialRef is HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_CONTROL,
+	// liveControlCredentialRef is ATRIUM_CREDENTIAL_SQLSERVER_TEST_CONTROL,
 	// a login holding CONTROL SERVER without being in sysadmin.  Only the
 	// sysadmin check uses it.
 	liveControlCredentialRef = "sqlserver-test-control"
@@ -41,17 +41,17 @@ const (
 // test-sqlserver.
 func liveExecutor(t *testing.T, credentialRef string) (SQLExecutor, collectormetadata.DatabaseTarget) {
 	t.Helper()
-	addr := os.Getenv("HEARTBEAT_TEST_SQLSERVER_ADDR")
+	addr := os.Getenv("ATRIUM_TEST_SQLSERVER_ADDR")
 	if addr == "" {
-		t.Skip("HEARTBEAT_TEST_SQLSERVER_ADDR is not set; run make test-sqlserver")
+		t.Skip("ATRIUM_TEST_SQLSERVER_ADDR is not set; run make test-sqlserver")
 	}
 	host, portText, err := net.SplitHostPort(addr)
 	if err != nil {
-		t.Fatalf("HEARTBEAT_TEST_SQLSERVER_ADDR: %v", err)
+		t.Fatalf("ATRIUM_TEST_SQLSERVER_ADDR: %v", err)
 	}
 	port, err := strconv.Atoi(portText)
 	if err != nil {
-		t.Fatalf("HEARTBEAT_TEST_SQLSERVER_ADDR port: %v", err)
+		t.Fatalf("ATRIUM_TEST_SQLSERVER_ADDR port: %v", err)
 	}
 
 	manager := connector.NewManager(connector.EnvCredentialResolver{})
@@ -107,7 +107,7 @@ func TestCatalogProbesAgainstSQLServer(t *testing.T) {
 	waitForRows := map[string]time.Duration{"cpu": 3 * time.Minute}
 	// SQL Server on Linux, which the test server runs, reports no system
 	// idle time, so the cpu probe leaves other-process CPU out there.
-	mayBeAbsent := map[string]bool{"heartbeat_sqlserver_cpu_other_process_ratio": true}
+	mayBeAbsent := map[string]bool{"atrium_sqlserver_cpu_other_process_ratio": true}
 	registry := prometheus.NewRegistry()
 	exporter := collectorexport.NewPrometheusExporter(registry)
 	for _, name := range executor.Catalog.Names() {
@@ -201,8 +201,8 @@ func TestSysadminCheckAgainstSQLServer(t *testing.T) {
 		want          bool
 	}{
 		{"least-privilege login", liveCredentialRef, "", false},
-		{"sa", liveSACredentialRef, "HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_SA", true},
-		{"control server login", liveControlCredentialRef, "HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_CONTROL", true},
+		{"sa", liveSACredentialRef, "ATRIUM_CREDENTIAL_SQLSERVER_TEST_SA", true},
+		{"control server login", liveControlCredentialRef, "ATRIUM_CREDENTIAL_SQLSERVER_TEST_CONTROL", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.env != "" && os.Getenv(tc.env) == "" {

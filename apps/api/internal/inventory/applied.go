@@ -8,9 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/store"
 )
 
 // Runner says what the collector's sqlserver collectors run:

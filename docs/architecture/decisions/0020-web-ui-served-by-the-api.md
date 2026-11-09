@@ -17,7 +17,7 @@ What is fixed already:
 - The UI owns nothing durable and talks only to the API, from the same origin
   ([ADR 0013](0013-api-design-and-subsystem-boundaries.md) §1). The session
   is a `__Host-` cookie (`Secure`, `SameSite=Lax`, `Path=/`), and every unsafe
-  request needs an `Origin` equal to `HEARTBEAT_API_SITE_ORIGIN` (§8).
+  request needs an `Origin` equal to `ATRIUM_API_SITE_ORIGIN` (§8).
 - One chart for kind, CI and production, rendered by Argo CD
   ([ADR 0003](0003-helm-on-kind-and-production.md),
   [ADR 0005](0005-production-delivery-and-operations-defaults.md)); one version
@@ -72,7 +72,7 @@ and how it is tested.
 8. **The API image builds the UI.** A Node stage on the build platform runs
    `npm ci` and `npm run build`; the Go stage embeds `apps/web/dist`. Since
    `go:embed` cannot reach outside its package's directory, a small Go package
-   in `apps/web` holds the embed, as `heartbeat/db/migrations` does for the
+   in `apps/web` holds the embed, as `atrium/db/migrations` does for the
    migrations, and the API imports it. A Go build without a bundle embeds a
    committed placeholder page instead (an embed pattern that matches nothing
    fails the build), so `go test` and `go build` never need Node. The API's

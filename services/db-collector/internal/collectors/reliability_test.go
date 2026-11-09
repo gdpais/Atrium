@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	collectorconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
-const testMetric = "heartbeat_test_value"
+const testMetric = "atrium_test_value"
 
 // funcExecutor adapts a function to ProbeExecutor.
 type funcExecutor func(context.Context, collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error)

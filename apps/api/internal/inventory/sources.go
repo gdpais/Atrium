@@ -15,10 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/store"
-	configschema "heartbeat/packages/config-schema"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/store"
+	configschema "atrium/packages/config-schema"
 )
 
 // Ingest modes (telemetry_sources.ingest_mode).
@@ -48,7 +48,7 @@ const (
 	NotObserved = "not_observed"
 	// ObservationUnknown: the collector could not be asked.
 	ObservationUnknown = "unknown"
-	// NotApplicable: no Heartbeat collector reads this kind of source; an
+	// NotApplicable: no Atrium collector reads this kind of source; an
 	// otlp source sends its telemetry itself.
 	NotApplicable = "not_applicable"
 )
@@ -505,7 +505,7 @@ func (s *Service) observe(ctx context.Context, sources []Source) {
 	for i := range sources {
 		src := &sources[i]
 		if src.SourceType != SourceOutSystems || src.IngestMode != IngestAgentless {
-			detail := "no Heartbeat collector reads a " + src.SourceType + " " + src.IngestMode + " source"
+			detail := "no Atrium collector reads a " + src.SourceType + " " + src.IngestMode + " source"
 			if src.IngestMode == IngestOTLP {
 				detail = "an otlp source sends its telemetry itself; no collector reads it"
 			}

@@ -23,9 +23,9 @@ import (
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	"google.golang.org/protobuf/proto"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/otlp"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/otlp"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // t0 is the base time of the extraction tests.

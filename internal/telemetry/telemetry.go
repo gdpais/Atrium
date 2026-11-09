@@ -1,4 +1,4 @@
-// Package telemetry is what every Heartbeat service does about its own
+// Package telemetry is what every Atrium service does about its own
 // observability (ADR 0018): one identity for its signals, a build-info metric,
 // its logs sent over OTLP as well as written to stderr, its traces, and an
 // optional pprof listener.
@@ -21,7 +21,7 @@
 //	OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  where spans go; see [EnvTracesEndpoint]
 //	OTEL_RESOURCE_ATTRIBUTES          deployment.environment.name is read from it
 //	OTEL_SDK_DISABLED                 true turns the OTLP export off
-//	HEARTBEAT_PPROF_ADDR              loopback address of the pprof listener; unset
+//	ATRIUM_PPROF_ADDR              loopback address of the pprof listener; unset
 //	                                  runs none
 package telemetry
 
@@ -39,7 +39,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/internal/otlp"
+	"atrium/internal/otlp"
 )
 
 // Environment variables this package reads.
@@ -47,11 +47,11 @@ const (
 	EnvLogsEndpoint       = "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
 	EnvResourceAttributes = "OTEL_RESOURCE_ATTRIBUTES"
 	EnvSDKDisabled        = "OTEL_SDK_DISABLED"
-	EnvPprofAddr          = "HEARTBEAT_PPROF_ADDR"
+	EnvPprofAddr          = "ATRIUM_PPROF_ADDR"
 )
 
-// Namespace is the service.namespace of every Heartbeat service.
-const Namespace = "heartbeat"
+// Namespace is the service.namespace of every Atrium service.
+const Namespace = "atrium"
 
 // MetricServiceInfo is always 1 and says what is running. Labels: service,
 // version, revision, environment.
@@ -59,14 +59,14 @@ const Namespace = "heartbeat"
 // environment is here rather than on the scrape job because the collector's
 // series already use that label for the monitored target's environment; a
 // scrape label of the same name would rename theirs.
-const MetricServiceInfo = "heartbeat_service_info"
+const MetricServiceInfo = "atrium_service_info"
 
 // environmentAttribute is the resource attribute that names the environment
 // the service itself runs in.
 const environmentAttribute = "deployment.environment.name"
 
 // version and revision are set at build time, with
-// -ldflags "-X heartbeat/internal/telemetry.version=... -X ...revision=...".
+// -ldflags "-X atrium/internal/telemetry.version=... -X ...revision=...".
 var (
 	version  = "dev"
 	revision = ""

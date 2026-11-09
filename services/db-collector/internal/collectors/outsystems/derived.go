@@ -10,8 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
-	collectorconfig "heartbeat/internal/config"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // Derived metrics, computed from every row delivered to the OTel Collector
@@ -23,30 +23,30 @@ const (
 	// MetricOperationDuration is the duration of entry points: screens,
 	// Reactive server calls (mobile requests), timers and exposed APIs.
 	// Labels: module, log_type, outcome.
-	MetricOperationDuration = "heartbeat_outsystems_operation_duration_seconds"
+	MetricOperationDuration = "atrium_outsystems_operation_duration_seconds"
 	// MetricOperations counts entry points.  Labels: module, log_type,
 	// operation, outcome.
-	MetricOperations = "heartbeat_outsystems_operations_total"
+	MetricOperations = "atrium_outsystems_operations_total"
 	// MetricOperationSeconds sums entry-point durations, for the mean per
 	// operation.  Labels: module, log_type, operation.
-	MetricOperationSeconds = "heartbeat_outsystems_operation_seconds_total"
+	MetricOperationSeconds = "atrium_outsystems_operation_seconds_total"
 	// MetricIntegrationDuration is the duration of every integration call,
 	// consumed or exposed.  Labels: direction, type, outcome.
-	MetricIntegrationDuration = "heartbeat_outsystems_integration_duration_seconds"
+	MetricIntegrationDuration = "atrium_outsystems_integration_duration_seconds"
 	// MetricErrors counts error log rows.  Label: module.
-	MetricErrors = "heartbeat_outsystems_errors_total"
+	MetricErrors = "atrium_outsystems_errors_total"
 	// MetricSlowEvents counts the slow SQL and slow extension rows the
 	// platform writes to the general log.  Labels: module, kind.
-	MetricSlowEvents = "heartbeat_outsystems_slow_events_total"
+	MetricSlowEvents = "atrium_outsystems_slow_events_total"
 	// MetricTimerDelay is how late timers start against their schedule.
 	// Label: operation.
-	MetricTimerDelay = "heartbeat_outsystems_timer_delay_seconds"
+	MetricTimerDelay = "atrium_outsystems_timer_delay_seconds"
 	// MetricScreenState is the session and viewstate size of Traditional web
 	// screen requests.  Labels: module, kind.
-	MetricScreenState = "heartbeat_outsystems_screen_state_bytes"
+	MetricScreenState = "atrium_outsystems_screen_state_bytes"
 	// MetricFrontEndOperations counts entry points per front-end server.
 	// Labels: front_end, outcome.
-	MetricFrontEndOperations = "heartbeat_outsystems_front_end_operations_total"
+	MetricFrontEndOperations = "atrium_outsystems_front_end_operations_total"
 )
 
 // derivedMetrics names every derived metric, the values of the metric label
@@ -70,11 +70,11 @@ var derivedMetrics = []string{
 const (
 	// MetricDerivedSeries is the number of derived series the collector
 	// holds, as the budget counts them.  Label: collector.
-	MetricDerivedSeries = "heartbeat_outsystems_derived_series"
+	MetricDerivedSeries = "atrium_outsystems_derived_series"
 	// MetricDerivedSeriesOverflow counts the observations the derived
 	// metrics dropped because they needed a new series past the collector's
 	// budget: one per row and metric.  Labels: collector, metric.
-	MetricDerivedSeriesOverflow = "heartbeat_outsystems_derived_series_overflow_total"
+	MetricDerivedSeriesOverflow = "atrium_outsystems_derived_series_overflow_total"
 )
 
 // Label caps.  A value past its cap is counted under [otherValue], so a

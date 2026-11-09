@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/internal/testreap"
+	"atrium/internal/testreap"
 )
 
 // A container left behind by a test process that is gone is removed, even
@@ -51,7 +51,7 @@ func TestReapRemovesOnlyOrphanedContainers(t *testing.T) {
 // registers its removal.
 func labelled(t *testing.T, host string, pid int) string {
 	t.Helper()
-	name := "heartbeat-api-test-" + randomHex(t)[:12]
+	name := "atrium-api-test-" + randomHex(t)[:12]
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
