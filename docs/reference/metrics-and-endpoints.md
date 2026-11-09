@@ -1214,7 +1214,10 @@ is in it only when the release has the db-collector and the bundled Prometheus
 scrapes it as job `db-collector` (not disabled, no `job_name` override):
 `absent()` fires wherever nothing matches. A shared Prometheus never gets it,
 even one that loads this ConfigMap and scrapes the collector as `db-collector`;
-it needs its own copy of the rule, for its own job name. `prometheusRules.enabled: false` leaves
+it needs its own copy of the rule, for its own job name.
+`heartbeat-api-missing.rules.yml` is the same for the API: in it only when
+`api.enabled` and the bundled Prometheus scrapes it as job `api`.
+`prometheusRules.enabled: false` leaves
 out every rule. `make rules-check` validates the
 rules and runs their promtool unit tests (`files/prometheus/rules/tests/`). A Go
 test fails if a rule, rule test, dashboard, script or metrics doc names a SQL
