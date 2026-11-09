@@ -1,4 +1,4 @@
-# Heartbeat DB Collector
+# Atrium DB Collector
 
 `db-collector` is the runtime service that connects to SQL Server targets,
 runs configured probes on an interval, and exports the results as Prometheus
@@ -68,8 +68,8 @@ the applied steps are rolled back in reverse order; if the rollback also fails,
 succeeds. Unknown SQL Server probe names and OutSystems log types are invalid
 too: `internal/app` registers both catalogs' `Validate` with the config
 manager, and the runtime check stays as a backstop. Every load and reload is
-exported as `heartbeat_collector_config_*` metrics, and a rejected or failed
-one fires `HeartbeatCollectorConfigReloadFailed`
+exported as `atrium_collector_config_*` metrics, and a rejected or failed
+one fires `AtriumCollectorConfigReloadFailed`
 ([config reload metrics](../../docs/reference/metrics-and-endpoints.md#config-reloads)).
 
 ## Failure Isolation And Readiness
@@ -106,17 +106,17 @@ one fires `HeartbeatCollectorConfigReloadFailed`
   and probe.
 - A failed probe clears its series instead of exporting stale values, for as
   long as it backs off. While a target backs off none of its probes run, so
-  all its probe series are cleared; only its `heartbeat_collector_target_*`
-  and `heartbeat_collector_probe_up` series stay. A removed collector's
+  all its probe series are cleared; only its `atrium_collector_target_*`
+  and `atrium_collector_probe_up` series stay. A removed collector's
   series are deleted.
-- Self-observability series: `heartbeat_collector_target_up`,
-  `heartbeat_collector_probe_up`,
-  `heartbeat_collector_target_consecutive_failures`,
-  `heartbeat_collector_target_last_success_timestamp_seconds`,
-  `heartbeat_collector_target_login_sysadmin`,
-  `heartbeat_collector_cycle_duration_seconds`, the per-probe
-  `heartbeat_collector_probe_duration_seconds` histogram and
-  `heartbeat_collector_probe_errors_total` counter (by `reason`: `timeout`,
+- Self-observability series: `atrium_collector_target_up`,
+  `atrium_collector_probe_up`,
+  `atrium_collector_target_consecutive_failures`,
+  `atrium_collector_target_last_success_timestamp_seconds`,
+  `atrium_collector_target_login_sysadmin`,
+  `atrium_collector_cycle_duration_seconds`, the per-probe
+  `atrium_collector_probe_duration_seconds` histogram and
+  `atrium_collector_probe_errors_total` counter (by `reason`: `timeout`,
   `error`, `not_started`, `panic`; created at 0 when the collector starts),
   and Go runtime and process metrics. A stopped collector's probe series are
   deleted with its other series.
@@ -130,9 +130,9 @@ one fires `HeartbeatCollectorConfigReloadFailed`
   raw driver error of the target's last failed cycle, kept while it backs off.
   The `/readyz` body is only the status.
 - The admin endpoints (`GET /admin/config`, `POST /admin/config/reload`) need
-  `HEARTBEAT_ADMIN_TOKEN` as a bearer token, compared in constant time, and are
+  `ATRIUM_ADMIN_TOKEN` as a bearer token, compared in constant time, and are
   disabled without it. Startup warns when certificate verification is off
-  (`HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE`). Details:
+  (`ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE`). Details:
   [endpoints](../../docs/reference/metrics-and-endpoints.md#db-collector-8082).
 - SQL Server connections are pooled per target (max 2 open, 10m lifetime);
   idle pools are closed after 15m.
@@ -229,8 +229,8 @@ API for future alerting or investigation workflows.
 Current behavior:
 
 - credentials are resolved through a `CredentialResolver` on every `Open`:
-  `FileCredentialResolver` reads a `HEARTBEAT_CREDENTIAL_<REF>` file from
-  `HEARTBEAT_CREDENTIALS_DIR` (the mounted credentials Secret), so a rotated
+  `FileCredentialResolver` reads a `ATRIUM_CREDENTIAL_<REF>` file from
+  `ATRIUM_CREDENTIALS_DIR` (the mounted credentials Secret), so a rotated
   credential is used by the next connection without a restart, and falls
   back to an environment variable of the same name
   ([resolution rules](../../docs/reference/configuration.md#credential-resolution)).
@@ -245,7 +245,7 @@ Current behavior:
   pool lock. An elevated or undeterminable login is logged as a warning and
   reported through `Manager.Sysadmin`, which `SQLExecutor` exposes to the
   runner (`SysadminReporter`) for the
-  `heartbeat_collector_target_login_sysadmin` health series
+  `atrium_collector_target_login_sysadmin` health series
 - connection errors are scrubbed of the login and password before they are
   wrapped, because go-mssqldb's DSN parse errors quote the whole DSN
 - every batch starts with `connector.SessionSettings`
@@ -271,7 +271,7 @@ self-metrics as SQL Server probes.
   connector, pools and session settings), checks the query contract, turns
   the rows into OTLP records, sends them, and only then saves the watermark
   (`Store`, one file per collector, target and log type under
-  `HEARTBEAT_STATE_DIR`). A full batch leaves its last `Instant` for the
+  `ATRIUM_STATE_DIR`). A full batch leaves its last `Instant` for the
   next batch, read at once up to 10 times per call.
 - `internal/otlp` posts the records to
   `<opentelemetry.endpoint>/v1/logs` (protobuf, gzip, retries).

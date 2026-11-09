@@ -14,8 +14,8 @@ import (
 
 	"github.com/golang-migrate/migrate/v4/database"
 
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/testenv"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/testenv"
 )
 
 func discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
@@ -46,7 +46,7 @@ func TestMigrateUpAppliesTheMigrations(t *testing.T) {
 	if v, dirty, err := store.MigrationVersion(context.Background(), cfg, resolver); err != nil || int64(v) != latest || dirty {
 		t.Fatalf("after up: version %d dirty %v err %v, want %d", v, dirty, err, latest)
 	}
-	tables := pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-tAc",
+	tables := pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-tAc",
 		"select string_agg(coalesce(to_regclass(name)::text, '-'), ',') from unnest(array['users','applications','investigations','report_runs','schema_migrations']) as name")
 	if strings.TrimSpace(tables) != "users,applications,investigations,report_runs,schema_migrations" {
 		t.Fatalf("tables after migrate up: %s", tables)
@@ -90,7 +90,7 @@ func TestMigrateUpConcurrently(t *testing.T) {
 			t.Fatalf("concurrent MigrateUp: %v", err)
 		}
 	}
-	if rows := strings.TrimSpace(pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-tAc", "select count(*) from schema_migrations")); rows != "1" {
+	if rows := strings.TrimSpace(pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-tAc", "select count(*) from schema_migrations")); rows != "1" {
 		t.Fatalf("schema_migrations has %s rows, want 1", rows)
 	}
 }
@@ -149,7 +149,7 @@ func TestMigrateUpLeavesANewerSchemaAlone(t *testing.T) {
 	if _, err := store.MigrateUp(context.Background(), cfg, resolver, discard()); err != nil {
 		t.Fatal(err)
 	}
-	pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-c", "update schema_migrations set version = 9999")
+	pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-c", "update schema_migrations set version = 9999")
 	result, err := store.MigrateUp(context.Background(), cfg, resolver, discard())
 	if err != nil {
 		t.Fatalf("MigrateUp on a newer schema: %v", err)
@@ -159,7 +159,7 @@ func TestMigrateUpLeavesANewerSchemaAlone(t *testing.T) {
 	}
 
 	// A dirty version is not skipped: it needs repair first.
-	pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-c", "update schema_migrations set version = 1, dirty = true")
+	pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-c", "update schema_migrations set version = 1, dirty = true")
 	if _, err := store.MigrateUp(context.Background(), cfg, resolver, discard()); err == nil || !strings.Contains(err.Error(), "Dirty") {
 		t.Fatalf("MigrateUp on a dirty schema = %v, want golang-migrate's dirty error", err)
 	}
@@ -197,13 +197,13 @@ func TestSchemaCheckerAgainstPostgres(t *testing.T) {
 	if err := check(); err != nil {
 		t.Fatalf("after migrating: Check = %v", err)
 	}
-	pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-c", "update schema_migrations set dirty = true")
+	pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-c", "update schema_migrations set dirty = true")
 	if err := check(); err == nil || !strings.Contains(err.Error(), "dirty") {
 		t.Fatalf("dirty: Check = %v", err)
 	}
 	// The next release's migration is running: this build's schema is
 	// complete, so it stays ready.
-	pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-c", fmt.Sprintf("update schema_migrations set version = %d, dirty = true", latest+1))
+	pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-c", fmt.Sprintf("update schema_migrations set version = %d, dirty = true", latest+1))
 	if err := check(); err != nil {
 		t.Fatalf("dirty newer version: Check = %v", err)
 	}
@@ -228,7 +228,7 @@ func TestPoolUsesARotatedCredential(t *testing.T) {
 
 	rotated := pg.Credential
 	rotated.Password += "-rotated"
-	pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-c", "alter role heartbeat password '"+rotated.Password+"'")
+	pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-c", "alter role atrium password '"+rotated.Password+"'")
 	pool.Reset()
 	if err := pool.Ping(ctx); err == nil || !strings.Contains(err.Error(), "password authentication failed") {
 		t.Fatalf("old credential after the password changed: Ping = %v", err)

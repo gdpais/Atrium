@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 type recorder struct{ calls []string }

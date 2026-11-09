@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/logschema"
 )
 
 const fixtureDir = "../../../../services/db-collector/internal/collectors/outsystems/testdata/oslog"

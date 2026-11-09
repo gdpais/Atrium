@@ -6,7 +6,7 @@
 ## Context
 
 [ADR 0020](0020-web-ui-served-by-the-api.md) chose a Web UI for operators,
-and its first screens shipped [TODO 5.1–5.2]. Heartbeat's operators are its
+and its first screens shipped [TODO 5.1–5.2]. Atrium's operators are its
 maintainers, sysadmins and the DevOps team: a request to monitor an
 application, add a database target or change a probe reaches them as a
 ticket, and they already deliver the platform as code (Helm values, Argo CD,
@@ -20,7 +20,7 @@ Two ways to change the same thing would remain:
   ([ADR 0014](0014-probe-assignments-to-runtime-config.md)). A UI change would
   go form → PostgreSQL → rendered YAML → pull request → Argo CD.
 - A Web UI is a second front end to build, secure and keep current (Node, npm,
-  React, Playwright, a CSP), beside Grafana, which every user of Heartbeat
+  React, Playwright, a CSP), beside Grafana, which every user of Atrium
   already works in.
 
 Grafana cannot replace the UI for changes: it has no forms of its own, a form
@@ -44,7 +44,7 @@ an `Origin` on every change. They hold no risk a UI would remove.
 2. **The inventory is code.** Environments, applications, components,
    telemetry sources, database targets, probe definitions and probe
    assignments are declared per environment in one YAML file, the inventory,
-   kept in the configuration repository (`heartbeat-deploy`, [TODO 18]) beside
+   kept in the configuration repository (`atrium-deploy`, [TODO 18]) beside
    the environment's values. A change is a pull request: review approves it,
    git is its history, and that repository's CI validates it with a JSON
    Schema in `packages/config-schema` and the API's own checks, run offline
@@ -92,7 +92,7 @@ an `Origin` on every change. They hold no risk a UI would remove.
 - The API's inventory endpoints and their tests stay; the reconciler calls
   the same validation, so the file and the API cannot accept different
   inventories.
-- `heartbeat-deploy` becomes the place an environment is described, values
+- `atrium-deploy` becomes the place an environment is described, values
   and inventory together, and production delivery [TODO 18] no longer waits
   for a UI. The API needs no GitHub App while every assignment is in the
   inventory.

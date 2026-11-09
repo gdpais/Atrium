@@ -21,7 +21,7 @@ export const traffic = {
     // Share of orders the business rules refuse (an unknown product): HTTP
     // 400 and an error row under the same Request_Key. 0.3% of orders is
     // about 0.07% of all requests, inside the 99.9% availability objective
-    // of Heartbeat's SLO alerts, so they stay quiet without a fault; at 3%
+    // of Atrium's SLO alerts, so they stay quiet without a fault; at 3%
     // the steady load alone sat at the slow burn's 0.6%.
     invalidOrderShare: 0.003,
     // Seconds between two steps of a session, and between two sessions of

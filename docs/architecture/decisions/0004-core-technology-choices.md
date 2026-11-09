@@ -5,7 +5,7 @@
 
 ## Context
 
-Heartbeat is built for use inside a large company. The constraints: few
+Atrium is built for use inside a large company. The constraints: few
 runtimes and moving parts, free for enterprise use, Grafana-native, and
 compatible with OpenTelemetry. It complements existing APMs (Dynatrace,
 Datadog) rather than replacing them.
@@ -35,7 +35,7 @@ is installed on monitored database hosts.
 - MVP stack: Grafana + Prometheus + Loki + PostgreSQL + Redis.
 - Scale-out (Mimir) and richer search (OpenSearch) are explicit later decisions,
   not defaults.
-- These engines are the bundled platform, not a dependency of Heartbeat's
+- These engines are the bundled platform, not a dependency of Atrium's
   services: [ADR 0011](0011-platform-agnostic-telemetry-boundary.md) keeps the
   platform replaceable, and [ADR 0019](0019-keep-grafana-and-share-telemetry-as-otlp.md)
   keeps the Grafana stack after the review against the organization's ELK

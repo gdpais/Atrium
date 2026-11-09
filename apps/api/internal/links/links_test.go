@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/internal/config"
+	"atrium/internal/config"
 )
 
 // shipped is the dashboards section of config/integrations.yaml and the

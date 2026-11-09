@@ -13,7 +13,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit"
 )
 
 // FileCheckInterval is how often a FileApplier reads the inventory file: a
@@ -31,10 +31,10 @@ const (
 	// tried again at the next read). A file read again unchanged after it
 	// was applied or failed validation is not counted; one the existing
 	// rows refused is tried again, and counted, at each read.
-	MetricInventoryApplies = "heartbeat_api_inventory_applies_total"
+	MetricInventoryApplies = "atrium_api_inventory_applies_total"
 	// MetricInventoryAppliedTime is when the API last applied the file, or
 	// found PostgreSQL matching it, as a Unix time; absent until then.
-	MetricInventoryAppliedTime = "heartbeat_api_inventory_applied_timestamp_seconds"
+	MetricInventoryAppliedTime = "atrium_api_inventory_applied_timestamp_seconds"
 )
 
 // Results of an apply, the values of MetricInventoryApplies' result label.

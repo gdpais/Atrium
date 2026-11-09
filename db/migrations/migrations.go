@@ -1,4 +1,4 @@
-// Package migrations embeds Heartbeat's PostgreSQL migrations, the
+// Package migrations embeds Atrium's PostgreSQL migrations, the
 // NNNN_name.up.sql and NNNN_name.down.sql files beside it, so the API binary
 // carries the schema it was built for and `api migrate up` applies it with
 // golang-migrate (ADR 0013).

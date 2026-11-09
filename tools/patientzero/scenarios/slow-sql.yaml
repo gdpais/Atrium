@@ -48,14 +48,14 @@ signals:
     within: 1m50s
   - name: last-hour-leaves-room-for-the-fast-burn
     promql: >-
-      sum(increase(heartbeat_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[1h]))
+      sum(increase(atrium_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[1h]))
       or vector(0)
     condition: "< 12000"
     step: baseline
     within: 30s
   - name: history-leaves-room-for-the-slow-burn
     promql: >-
-      sum(increase(heartbeat_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[6h]))
+      sum(increase(atrium_outsystems_operations_total{application="PatientZero",log_type=~"screen|mobile_request|integration"}[6h]))
       or vector(0)
     condition: "< 45000"
     step: baseline
@@ -65,13 +65,13 @@ signals:
   # once (a request whose statement is waiting is a running session), and
   # the platform's slow-query rows reach Loki and the slow SQL counter.
   - name: sql-server-runs-more-sessions
-    promql: max(heartbeat_sqlserver_sessions{status="running"})
+    promql: max(atrium_sqlserver_sessions{status="running"})
     condition: "> 5"
     step: slow
     within: 3m
   - name: slow-sql-counted
     promql: >-
-      sum(rate(heartbeat_outsystems_slow_events_total{application="PatientZero",kind="sql"}[1m]))
+      sum(rate(atrium_outsystems_slow_events_total{application="PatientZero",kind="sql"}[1m]))
     condition: "> 1"
     step: slow
     within: 4m
@@ -83,7 +83,7 @@ signals:
     step: slow
     within: 4m
   - name: slow-ratio-above-fast-burn
-    promql: heartbeat:outsystems_request_slow:ratio_rate5m{application="PatientZero"}
+    promql: atrium:outsystems_request_slow:ratio_rate5m{application="PatientZero"}
     condition: "> 0.144"
     step: slow
     within: 5m
@@ -109,13 +109,13 @@ signals:
     from: end
     within: 10m
   - name: sessions-back-down
-    promql: max(heartbeat_sqlserver_sessions{status="running"})
+    promql: max(atrium_sqlserver_sessions{status="running"})
     condition: "< 4"
     step: slow
     from: end
     within: 3m
   - name: slow-ratio-recovers
-    promql: heartbeat:outsystems_request_slow:ratio_rate5m{application="PatientZero"}
+    promql: atrium:outsystems_request_slow:ratio_rate5m{application="PatientZero"}
     condition: "< 0.06"
     step: slow
     from: end

@@ -12,17 +12,17 @@ import (
 const (
 	// MetricExportAttempts counts HTTP attempts by outcome (see
 	// [exportOutcomes]). Labels: client, outcome.
-	MetricExportAttempts = "heartbeat_otlp_export_attempts_total"
+	MetricExportAttempts = "atrium_otlp_export_attempts_total"
 	// MetricExportAttemptDuration is the time of one HTTP attempt, whatever
 	// its outcome. Labels: client.
-	MetricExportAttemptDuration = "heartbeat_otlp_export_attempt_duration_seconds"
+	MetricExportAttemptDuration = "atrium_otlp_export_attempt_duration_seconds"
 	// MetricExportBytes counts the compressed bytes of accepted requests.
 	// Labels: client.
-	MetricExportBytes = "heartbeat_otlp_export_bytes_total"
+	MetricExportBytes = "atrium_otlp_export_bytes_total"
 	// MetricExportRejectedRecords counts the records the receiver refused
 	// inside requests it accepted (OTLP partial success). Retrying such a
 	// request is not allowed, so these records are lost. Labels: client.
-	MetricExportRejectedRecords = "heartbeat_otlp_export_rejected_records_total"
+	MetricExportRejectedRecords = "atrium_otlp_export_rejected_records_total"
 )
 
 // Values of the outcome label of [MetricExportAttempts].

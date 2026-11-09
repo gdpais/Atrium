@@ -1,6 +1,6 @@
 // PatientZero's load (ADR 0010) [16.5]: virtual users with stable identities
 // drive the entry points, so distinct-user counts and per-user timelines in
-// Heartbeat have a known answer. The traffic mix is in traffic.js.
+// Atrium have a known answer. The traffic mix is in traffic.js.
 //
 //   k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=steady patientzero.js
 //
@@ -146,7 +146,7 @@ export const options = {
     checks: ['rate>0.99'],
     http_req_failed: ['rate<0.01'],
   },
-  // The user names and session ids are the identities Heartbeat shows; keep
+  // The user names and session ids are the identities Atrium shows; keep
   // them out of k6's per-URL metrics.
   systemTags: ['status', 'method', 'name', 'scenario', 'check', 'expected_response'],
 };

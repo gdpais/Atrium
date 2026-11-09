@@ -28,7 +28,7 @@ Services load it through the shared config manager in `internal/config`:
 
 Reload triggers: explicit `SIGHUP` and authenticated
 `POST /admin/config/reload` (deterministic, preferred in production), and
-optional polling for file changes (`HEARTBEAT_CONFIG_WATCH_INTERVAL`). ConfigMap
+optional polling for file changes (`ATRIUM_CONFIG_WATCH_INTERVAL`). ConfigMap
 volumes update through symlink swaps, so watchers must watch the parent
 directory and debounce.
 

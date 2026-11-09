@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 var at = time.Date(2026, 10, 22, 10, 0, 0, 500_000_000, time.UTC)
@@ -266,14 +266,14 @@ func TestDeliveryChecksTheLateRowsCounter(t *testing.T) {
 	src := Sources{Loki: loki.URL, Prometheus: prom.URL, Ledger: &fakeLedger{rows: 120, held: 25}, Application: "PatientZero"}
 	sig := scenario.Signal{Name: "d", Delivery: &scenario.Delivery{
 		LogTypes: []string{"general"}, LostAfter: scenario.Duration(30 * time.Second),
-		LateRows: `heartbeat_outsystems_late_rows_total{collector="patientzero"}`,
+		LateRows: `atrium_outsystems_late_rows_total{collector="patientzero"}`,
 	}}
 	w := Window{From: from, To: from.Add(5 * time.Minute), At: evaluated}
 	res, err := src.EvaluateDelivery(context.Background(), sig, w)
 	if err != nil || !res.Pass || res.Delivery[0].Late == nil || *res.Delivery[0].Late != 25 {
 		t.Fatalf("%+v, %v; want a pass with 25 late rows counted", res, err)
 	}
-	want := `sum(heartbeat_outsystems_late_rows_total{collector="patientzero", log_type="general"})`
+	want := `sum(atrium_outsystems_late_rows_total{collector="patientzero", log_type="general"})`
 	if len(asked) != 2 || asked[0] != want+" @"+strconv.FormatInt(from.Unix(), 10)+".000" {
 		t.Fatalf("asked Prometheus %q, want %s at the window's start and at the evaluation", asked, want)
 	}

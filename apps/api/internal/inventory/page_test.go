@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
+	api "atrium/apps/api"
 )
 
 func TestPageLimits(t *testing.T) {

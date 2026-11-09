@@ -15,11 +15,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/probedefs"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/services/db-collector/probecatalog"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/testenv"
+	"atrium/services/db-collector/probecatalog"
 )
 
 var admin = audit.UserActor("6f1c0e8a-3c55-4f0b-9d2b-4a7e8c1d2e3f", "admin@example.com")

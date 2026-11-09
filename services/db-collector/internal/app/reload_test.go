@@ -13,8 +13,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 // newReloadFixture starts a service with the given collectors declared.
@@ -205,7 +205,7 @@ func TestAdminReloadBusyWhenLockHeldPastDeadline(t *testing.T) {
 	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = svc.configManager.ReloadApplying(func(heartbeatconfig.RuntimeConfig, heartbeatconfig.RuntimeConfig) error {
+		_, _ = svc.configManager.ReloadApplying(func(atriumconfig.RuntimeConfig, atriumconfig.RuntimeConfig) error {
 			close(entered)
 			<-release
 			return nil
@@ -259,7 +259,7 @@ func TestReloadStartsAndStopsOutSystemsLogsCollectors(t *testing.T) {
 	pollers.mu.Lock()
 	started := pollers.configs["oslogs"][0]
 	pollers.mu.Unlock()
-	if started.Kind != heartbeatconfig.KindOutSystemsLogs || started.OutSystemsLogs.LogsEndpoint != "http://otel-collector:4318" {
+	if started.Kind != atriumconfig.KindOutSystemsLogs || started.OutSystemsLogs.LogsEndpoint != "http://otel-collector:4318" {
 		t.Fatalf("oslogs started with %+v", started)
 	}
 

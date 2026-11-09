@@ -110,7 +110,7 @@ type EnvironmentInfoRow struct {
 	ManagedBy string
 }
 
-// The inventory's info metrics (heartbeat_api_inventory_*_info), read at
+// The inventory's info metrics (atrium_api_inventory_*_info), read at
 // each scrape of the API's /metrics. Each returns at most @row_limit rows,
 // in a fixed order, so a scrape's series are bounded and stable: the
 // collector asks for one more than its cap to tell that a kind was cut.

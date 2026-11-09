@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	heartbeatconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
+	atriumconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
 )
 
 // Every built-in query passes the check every query_template override must
@@ -15,7 +15,7 @@ import (
 func TestCatalogQueriesAreOneReadOnlySelect(t *testing.T) {
 	for _, name := range DefaultCatalog().Names() {
 		probe, _ := DefaultCatalog().Get(name)
-		if err := heartbeatconfig.ValidateReadOnlySelect(probe.QueryTemplate); err != nil {
+		if err := atriumconfig.ValidateReadOnlySelect(probe.QueryTemplate); err != nil {
 			t.Errorf("probe %s must be one read-only SELECT: it %v", name, err)
 		}
 	}
@@ -25,30 +25,30 @@ func TestCatalogQueriesAreOneReadOnlySelect(t *testing.T) {
 // every cycle (usability test finding F4).
 func TestValidateRejectsUnknownProbes(t *testing.T) {
 	catalog := DefaultCatalog()
-	collector := func(kind string, enabled bool, collectorProbe, targetProbe string) heartbeatconfig.CollectorRuntimeConfig {
-		c := heartbeatconfig.CollectorRuntimeConfig{ID: "c", Kind: kind, Enabled: enabled}
+	collector := func(kind string, enabled bool, collectorProbe, targetProbe string) atriumconfig.CollectorRuntimeConfig {
+		c := atriumconfig.CollectorRuntimeConfig{ID: "c", Kind: kind, Enabled: enabled}
 		if collectorProbe != "" {
-			c.Probes = []heartbeatconfig.ProbeRuntimeConfig{{Name: collectorProbe}}
+			c.Probes = []atriumconfig.ProbeRuntimeConfig{{Name: collectorProbe}}
 		}
-		c.Targets = []heartbeatconfig.TargetRuntimeConfig{{Name: "t", Probes: []heartbeatconfig.ProbeRuntimeConfig{{Name: targetProbe}}}}
+		c.Targets = []atriumconfig.TargetRuntimeConfig{{Name: "t", Probes: []atriumconfig.ProbeRuntimeConfig{{Name: targetProbe}}}}
 		return c
 	}
 	const probes = "probes: blocking, buffer_cache, cpu, file_io, memory_pressure, sessions, storage, throughput, waits"
 	tests := []struct {
 		name      string
-		collector heartbeatconfig.CollectorRuntimeConfig
+		collector atriumconfig.CollectorRuntimeConfig
 		wantErr   string
 	}{
-		{"known probes", collector(heartbeatconfig.KindSQLServer, true, "waits", "file_io"), ""},
-		{"unknown on the target", collector(heartbeatconfig.KindSQLServer, true, "", "wiats"), `collector c target t: unknown SQL Server probe "wiats"; ` + probes},
-		{"unknown on the collector", collector(heartbeatconfig.KindSQLServer, true, "wiats", "waits"), `collector c: unknown SQL Server probe "wiats"; ` + probes},
-		{"disabled collectors too", collector(heartbeatconfig.KindSQLServer, false, "", "wiats"), `unknown SQL Server probe "wiats"`},
-		{"log types are not SQL Server probes", collector(heartbeatconfig.KindSQLServer, true, "", "error"), `unknown SQL Server probe "error"`},
-		{"outsystems_logs collectors are not checked here", collector(heartbeatconfig.KindOutSystemsLogs, true, "error", "error"), ""},
+		{"known probes", collector(atriumconfig.KindSQLServer, true, "waits", "file_io"), ""},
+		{"unknown on the target", collector(atriumconfig.KindSQLServer, true, "", "wiats"), `collector c target t: unknown SQL Server probe "wiats"; ` + probes},
+		{"unknown on the collector", collector(atriumconfig.KindSQLServer, true, "wiats", "waits"), `collector c: unknown SQL Server probe "wiats"; ` + probes},
+		{"disabled collectors too", collector(atriumconfig.KindSQLServer, false, "", "wiats"), `unknown SQL Server probe "wiats"`},
+		{"log types are not SQL Server probes", collector(atriumconfig.KindSQLServer, true, "", "error"), `unknown SQL Server probe "error"`},
+		{"outsystems_logs collectors are not checked here", collector(atriumconfig.KindOutSystemsLogs, true, "error", "error"), ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := catalog.Validate(heartbeatconfig.RuntimeConfig{Collectors: []heartbeatconfig.CollectorRuntimeConfig{tt.collector}})
+			err := catalog.Validate(atriumconfig.RuntimeConfig{Collectors: []atriumconfig.CollectorRuntimeConfig{tt.collector}})
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -91,7 +91,7 @@ func TestCatalogContainsRequiredProbes(t *testing.T) {
 // checked against Prometheus conventions once, here: base units only, and
 // _total on counters and nowhere else.
 func TestCatalogMetricsFollowPrometheusConventions(t *testing.T) {
-	validName := regexp.MustCompile(`^heartbeat_sqlserver_[a-z0-9_]+[a-z0-9]$`)
+	validName := regexp.MustCompile(`^atrium_sqlserver_[a-z0-9_]+[a-z0-9]$`)
 	nonBaseUnit := regexp.MustCompile(`_(ms|milliseconds|kb|mb|gb|kilobytes|megabytes|minutes|hours|percent)(_|$)`)
 	seen := map[string]bool{}
 	for _, probe := range DefaultCatalog().byName {
@@ -101,7 +101,7 @@ func TestCatalogMetricsFollowPrometheusConventions(t *testing.T) {
 			}
 			seen[metric.Name] = true
 			if !validName.MatchString(metric.Name) {
-				t.Errorf("%s: not a heartbeat_sqlserver_ snake_case name", metric.Name)
+				t.Errorf("%s: not a atrium_sqlserver_ snake_case name", metric.Name)
 			}
 			if nonBaseUnit.MatchString(metric.Name) {
 				t.Errorf("%s: use base units (seconds, bytes, ratio) and Scale", metric.Name)

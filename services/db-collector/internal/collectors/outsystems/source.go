@@ -11,8 +11,8 @@ import (
 	"github.com/golang-sql/civil"
 	mssql "github.com/microsoft/go-mssqldb"
 
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // QueryParams are the parameters bound to a log-type query.

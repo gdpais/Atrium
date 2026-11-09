@@ -1,6 +1,6 @@
 # PatientZero
 
-A synthetic OutSystems 11 application for Heartbeat's tests and demos
+A synthetic OutSystems 11 application for Atrium's tests and demos
 ([ADR 0010](../../docs/architecture/decisions/0010-patientzero-test-application.md)).
 Each request runs real SQL against PatientZero's business database and
 writes the log rows the platform would write for it into its own logging
@@ -9,7 +9,7 @@ client IP. The db-collector's `outsystems_logs` collector reads those rows
 the same way it reads a real logging database.
 
 It is test tooling: its own Go module, image and Helm chart, never part of
-the Heartbeat module, chart, images or releases.
+the Atrium module, chart, images or releases.
 
 > **Status:** first slice [16.5]: the service, its two databases on the
 > sandbox SQL Server, three entry points, k6 load, and the scenario runner
@@ -22,9 +22,9 @@ the Heartbeat module, chart, images or releases.
 ## Run it on kind
 
 ```bash
-make sqlserver-dev-up    # the sandbox SQL Server, with Heartbeat deployed against it
+make sqlserver-dev-up    # the sandbox SQL Server, with Atrium deployed against it
 make patientzero-up
-kubectl --context kind-heartbeat -n patientzero port-forward svc/patientzero 8080
+kubectl --context kind-atrium -n patientzero port-forward svc/patientzero 8080
 ```
 
 ```bash
@@ -49,7 +49,7 @@ make patientzero-down    # remove PatientZero, its databases and its login
 [`scripts/patientzero.sh`](scripts/patientzero.sh) does the work: it takes
 the same `KIND_CLUSTER`, `SQLSERVER_CONTAINER` and `SQLSERVER_ENV_FILE` as
 `scripts/kind.sh`, so it also runs against a second, throwaway cluster.
-`make patientzero-up` also redeploys the Heartbeat chart with an
+`make patientzero-up` also redeploys the Atrium chart with an
 `outsystems_logs` collector named `patientzero` that reads `patientzero_log`.
 A later `make kind-deploy` drops that collector; run `make patientzero-up`
 again to restore it.
@@ -123,7 +123,7 @@ the pod out of its Service while the entry points shed load with `503`
 
 [k6](https://grafana.com/docs/k6/) drives the entry points with virtual
 users of stable identity, so distinct-user counts and per-user timelines in
-Heartbeat have a known answer
+Atrium have a known answer
 ([`load/patientzero.js`](load/patientzero.js)):
 
 ```bash
@@ -157,7 +157,7 @@ whole day, split evenly over its 24 hours).
   between steps and a pause between sessions. One session in ten is
   anonymous: it only opens the order list. 0.3% of orders name an unknown
   product, so they get HTTP 400 and an `error` row: about 0.07% of all
-  requests, inside the 99.9% objective of Heartbeat's
+  requests, inside the 99.9% objective of Atrium's
   [SLO alerts](../../docs/architecture/application-observability.md#slos-and-alerts).
 - **Partners.** `partner.<k>` call the exposed REST API from `10.30.0.<k>`,
   with no session: each call gets a new one, as a stateless API client does.
@@ -183,7 +183,7 @@ k6 run -e BASE_URL=http://localhost:8080 -e PROFILE=smoke tools/patientzero/load
 
 ## Scenarios
 
-A scenario injects a fault for a while and names the signals Heartbeat must
+A scenario injects a fault for a while and names the signals Atrium must
 show for it: PromQL, LogQL and Alertmanager alerts, each within a window.
 PatientZero runs it behind an admin endpoint, checks the signals and writes
 a JSONL run journal: each fault's start and end, the users, sessions and
@@ -257,7 +257,7 @@ make patientzero-scale-down               # drop patientzero_scale
   `make patientzero-scale-down`. On Docker Desktop's default 8 GB, next to
   kind, that starves the disposable server of `make test-sqlserver` (its
   tests time out). Restart the sandbox afterwards
-  (`docker restart heartbeat-sqlserver-dev`; its data stays) or give Docker
+  (`docker restart atrium-sqlserver-dev`; its data stays) or give Docker
   more memory.
 
 On 2026-10-20, at `SCALE=1` (9.8 M rows, 3.0 GB, generated in 53 s), no
@@ -292,7 +292,7 @@ The [scenarios workflow](../../.github/workflows/scenarios.yml) runs all
 three after the scenarios, nightly and on the release pull request, with
 `SCALE_WAIT=45`; `check.md` is in the run's summary.
 
-`patientzero-scale-collect` redeploys Heartbeat with a second
+`patientzero-scale-collect` redeploys Atrium with a second
 `outsystems_logs` collector, `patientzero-scale`, next to PatientZero's. Its
 target and `deployment.environment.name` are `scale-<end of the log>`, so a
 regenerated log starts with fresh watermarks and its own rows in Loki;
@@ -332,7 +332,7 @@ On 2026-11-02 the scenarios workflow ran it on CI, on the current export
 path (the db-collector waits for the Collector in the background): all 48
 hours matched again, Loki caught up in 16.5 minutes, and *Users affected*
 over 47 h held 2,629 series
-([run](https://github.com/gdpais/Heartbeat/actions/runs/41538460130)).
+([run](https://github.com/gdpais/Atrium/actions/runs/41538460130)).
 
 *Users affected* grows with the range, up to the users who hit an error,
 at most the week's 4,829 at `SCALE=1`; it is the panel to watch on a larger
@@ -358,8 +358,8 @@ so a full queue reaches the db-collector as a 503
   generates into `.env.sqlserver-dev` (`PATIENTZERO_SQL_CREDENTIAL`). The
   login is `db_owner` of the two databases and has no server permissions:
   it creates its own schemas and, later, rotates the log views.
-- The Heartbeat collector keeps its own least-privilege login. In
-  `patientzero_log` it is a member of `heartbeat_oslog_reader`, which has
+- The Atrium collector keeps its own least-privilege login. In
+  `patientzero_log` it is a member of `atrium_oslog_reader`, which has
   `SELECT` on the log views only: what a real logging database grants it.
 - Log rows are inserted through the current week's views, so a rotation
   only has to move the views. The error view's `Stack` is computed from a
@@ -414,7 +414,7 @@ Environment variables (the chart sets them):
 | `PATIENTZERO_DATABASE` | `patientzero` | Business database |
 | `PATIENTZERO_LOG_DATABASE` | `patientzero_log` | Logging database |
 | `PATIENTZERO_SCHEMA_DIR` | `/app/oslog` | The oslog fixtures the logging schema is built from |
-| `PATIENTZERO_LOG_READER_ROLE` | `heartbeat_oslog_reader` | Role granted `SELECT` on the log views; empty for none |
+| `PATIENTZERO_LOG_READER_ROLE` | `atrium_oslog_reader` | Role granted `SELECT` on the log views; empty for none |
 | `PATIENTZERO_FRONT_END` | the host name (the pod name on kind) | Front-end server in `Executed_By` and `Server` |
 | `PATIENTZERO_LISTEN` | `:8080` | Listen address |
 | `PATIENTZERO_MAX_IN_FLIGHT` | `64` | Entry-point requests served at once (chart `maxInFlight`); past it they get `503` with `Retry-After: 1`, and the journal counts them as `shed`. `0` turns the limit off. The health and admin endpoints are never limited |
@@ -457,11 +457,11 @@ script calls the paths and headers the server serves.
 
 ## Why it lives in this repository
 
-PatientZero shares two contracts with Heartbeat that change together with
-the product: the logging schema above and, with the scenarios, Heartbeat's
+PatientZero shares two contracts with Atrium that change together with
+the product: the logging schema above and, with the scenarios, Atrium's
 own metric names and queries. In one repository a change to either is one
 pull request and one CI run, not coordinated releases of two repositories. It is kept separable: its own module
-with no imports from Heartbeat's, its own Dockerfile and chart, and nothing in
+with no imports from Atrium's, its own Dockerfile and chart, and nothing in
 the product refers to it. It moves to its own repository if it gains users
-outside Heartbeat, its own release cadence, or grows into a general
+outside Atrium, its own release cadence, or grows into a general
 simulator.

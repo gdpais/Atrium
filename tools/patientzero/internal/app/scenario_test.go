@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/inject"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/internal/shop"
-	"heartbeat/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/internal/inject"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/traffic"
 )
 
 // switchOn starts a fault of the given type on s's injector.

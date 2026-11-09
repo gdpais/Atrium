@@ -43,7 +43,7 @@ const (
 )
 
 // ErrNotConfigured is a Client without the collector's URL.
-var ErrNotConfigured = errors.New("the API is not configured to read the collector (HEARTBEAT_API_COLLECTOR_URL)")
+var ErrNotConfigured = errors.New("the API is not configured to read the collector (ATRIUM_API_COLLECTOR_URL)")
 
 // Coverage is which environments the enabled outsystems_logs collectors
 // extract, as the collector reported it.

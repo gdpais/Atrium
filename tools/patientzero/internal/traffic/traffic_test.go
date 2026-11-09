@@ -59,7 +59,7 @@ func TestDistinctSetsAreCapped(t *testing.T) {
 }
 
 // A shed request is counted apart from the requests served: it wrote no log
-// rows, so it is not one of the requests Heartbeat reports.
+// rows, so it is not one of the requests Atrium reports.
 func TestShedIsCountedApart(t *testing.T) {
 	var c Counter
 	c.Shed("GetOrders") // no run yet: ignored

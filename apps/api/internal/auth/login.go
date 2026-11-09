@@ -17,18 +17,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/users"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/users"
+	"atrium/internal/telemetry"
 )
 
-var tracer = telemetry.Tracer("heartbeat/api/auth")
+var tracer = telemetry.Tracer("atrium/api/auth")
 
 // MetricLoginAttempts counts logins by outcome: succeeded, failed (wrong
 // credentials or a disabled user) and rate_limited (refused unchecked).
-const MetricLoginAttempts = "heartbeat_api_login_attempts_total"
+const MetricLoginAttempts = "atrium_api_login_attempts_total"
 
 // Values of the outcome label of MetricLoginAttempts.
 const (

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/internal/testreap"
+	"atrium/internal/testreap"
 )
 
 type postgresStack struct {
@@ -32,7 +32,7 @@ func newPostgresStack(t *testing.T, root string) *postgresStack {
 	}
 	s := &postgresStack{
 		Root: root, Compose: filepath.Join(root, "infra/docker-compose.test.yml"),
-		Project: "heartbeat-test-" + hex.EncodeToString(id[:]), DBName: "heartbeat_smoke",
+		Project: "atrium-test-" + hex.EncodeToString(id[:]), DBName: "atrium_smoke",
 	}
 	// Remove the projects of test processes that died before their cleanup.
 	testreap.ReapOnce(t)
@@ -85,13 +85,13 @@ func (s *postgresStack) ResetDatabase(t *testing.T) {
 
 func (s *postgresStack) ApplyMigration(t *testing.T, path string) string {
 	t.Helper()
-	return s.run(t, "exec", "-T", "postgres", "psql", "-U", "heartbeat", "-d", s.DBName,
+	return s.run(t, "exec", "-T", "postgres", "psql", "-U", "atrium", "-d", s.DBName,
 		"-v", "ON_ERROR_STOP=1", "-f", path)
 }
 
 func (s *postgresStack) PSQL(t *testing.T, database, query string) string {
 	t.Helper()
-	return s.run(t, "exec", "-T", "postgres", "psql", "-U", "heartbeat", "-d", database,
+	return s.run(t, "exec", "-T", "postgres", "psql", "-U", "atrium", "-d", database,
 		"-v", "ON_ERROR_STOP=1", "-c", query)
 }
 
@@ -101,7 +101,7 @@ func (s *postgresStack) PSQLResult(t *testing.T, database, query string) (string
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	output, err := s.command(ctx, "exec", "-T", "postgres", "psql", "-U", "heartbeat", "-d", database,
+	output, err := s.command(ctx, "exec", "-T", "postgres", "psql", "-U", "atrium", "-d", database,
 		"-v", "ON_ERROR_STOP=1", "-c", query).CombinedOutput()
 	return string(output), err
 }

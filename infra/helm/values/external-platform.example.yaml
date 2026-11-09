@@ -1,18 +1,18 @@
-# Heartbeat on an observability platform the chart does not bundle
+# Atrium on an observability platform the chart does not bundle
 # (ADR 0011): Elastic, a vendor's OTLP endpoint, or a shared OTel gateway.
 #
 # The bundled Grafana stack is off. The OpenTelemetry Collector scrapes the
 # db-collector's and the API's /metrics, as Prometheus would, and sends
-# metrics and logs as OTLP/HTTP to the platform. Heartbeat's services do not
+# metrics and logs as OTLP/HTTP to the platform. Atrium's services do not
 # change.
 #
 # Before use: create the Secret below, set the endpoint, and install the
-# platform's own dashboards and alert rules. Heartbeat ships content only for
+# platform's own dashboards and alert rules. Atrium ships content only for
 # Grafana (files/grafana, files/prometheus). The Collector's export queue
 # needs a volume: the default StorageClass, or set
 # otelCollectorQueue.persistence.storageClassName.
 #
-#   kubectl create secret generic heartbeat-platform-otlp \
+#   kubectl create secret generic atrium-platform-otlp \
 #     --from-literal=endpoint=https://otlp.example.internal \
 #     --from-literal=authorization='ApiKey <key>'
 
@@ -30,7 +30,7 @@ grafanaDashboards:
   enabled: false
 
 integrations:
-  # No dashboards, links or queries: Heartbeat has none for this platform.
+  # No dashboards, links or queries: Atrium has none for this platform.
   platform: generic
   dashboards: null
   logs: null
@@ -63,12 +63,12 @@ otelCollector:
     - name: PLATFORM_OTLP_ENDPOINT
       valueFrom:
         secretKeyRef:
-          name: heartbeat-platform-otlp
+          name: atrium-platform-otlp
           key: endpoint
     - name: PLATFORM_OTLP_AUTHORIZATION
       valueFrom:
         secretKeyRef:
-          name: heartbeat-platform-otlp
+          name: atrium-platform-otlp
           key: authorization
   alternateConfig:
     extensions:
@@ -107,7 +107,7 @@ otelCollector:
         spike_limit_percentage: 25
       resource:
         attributes:
-          - key: heartbeat.source
+          - key: atrium.source
             value: otel-collector
             action: upsert
       batch: {}
@@ -119,7 +119,7 @@ otelCollector:
         endpoint: ${env:PLATFORM_OTLP_ENDPOINT}
         headers:
           Authorization: ${env:PLATFORM_OTLP_AUTHORIZATION}
-      # Heartbeat's own logs and its traces; the chart's logs/self and traces
+      # Atrium's own logs and its traces; the chart's logs/self and traces
       # pipelines stay as they are.
       otlp_http/self-logs:
         endpoint: ${env:PLATFORM_OTLP_ENDPOINT}

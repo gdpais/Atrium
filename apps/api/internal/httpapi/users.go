@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/openapi"
-	"heartbeat/apps/api/internal/users"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/openapi"
+	"atrium/apps/api/internal/users"
 )
 
 // Users reads and changes users and their roles, for admins:

@@ -14,11 +14,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/tools/patientzero/internal/app"
-	"heartbeat/tools/patientzero/internal/cluster"
-	"heartbeat/tools/patientzero/internal/inject"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/scenarios"
+	"atrium/tools/patientzero/internal/app"
+	"atrium/tools/patientzero/internal/cluster"
+	"atrium/tools/patientzero/internal/inject"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/scenarios"
 )
 
 // registry is the registry PatientZero's main builds.
@@ -212,7 +212,7 @@ func TestEveryScenarioHasAPlaceInTheOrder(t *testing.T) {
 // Every alert a scenario checks is one the chart ships: a check that one
 // stays quiet would pass for good on a name the rules no longer have.
 func TestEveryAlertIsFiredOrNotCovered(t *testing.T) {
-	const rules = "../../../infra/helm/heartbeat/files/prometheus/rules"
+	const rules = "../../../infra/helm/atrium/files/prometheus/rules"
 	files, err := filepath.Glob(rules + "/*.yml")
 	if err != nil {
 		t.Fatal(err)

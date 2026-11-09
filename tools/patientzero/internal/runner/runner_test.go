@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/inject"
-	"heartbeat/tools/patientzero/internal/journal"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/internal/signal"
-	"heartbeat/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/internal/inject"
+	"atrium/tools/patientzero/internal/journal"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/signal"
+	"atrium/tools/patientzero/internal/traffic"
 )
 
 const token = "s3cret-admin-token"

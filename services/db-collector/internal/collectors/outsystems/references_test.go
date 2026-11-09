@@ -14,8 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	collectorconfig "heartbeat/internal/config"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // repoRoot is the repository root relative to this package's directory.
@@ -25,16 +25,16 @@ const repoRoot = "../../../../.."
 // Prometheus rules and their tests, the Grafana dashboards, the end-to-end
 // checks and the docs.
 var referenceFilePatterns = []string{
-	"infra/helm/heartbeat/files/prometheus/rules/*.yml",
-	"infra/helm/heartbeat/files/prometheus/rules/tests/*.yml",
-	"infra/helm/heartbeat/files/grafana/dashboards/*.json",
+	"infra/helm/atrium/files/prometheus/rules/*.yml",
+	"infra/helm/atrium/files/prometheus/rules/tests/*.yml",
+	"infra/helm/atrium/files/grafana/dashboards/*.json",
 	"scripts/*.sh",
 	"docs/reference/*.md",
 	"docs/architecture/*.md",
 	"docs/guides/*.md",
 }
 
-var outsystemsMetricRef = regexp.MustCompile(`\bheartbeat_outsystems_[a-z0-9_]+`)
+var outsystemsMetricRef = regexp.MustCompile(`\batrium_outsystems_[a-z0-9_]+`)
 
 // registeredMetrics returns the name of every series family Metrics exports,
 // with _bucket, _sum and _count for histograms, after touching each metric.

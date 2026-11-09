@@ -2,7 +2,7 @@
 // run, per interval and over the run: requests, failures and latency per
 // entry point, and distinct users and sessions. The run journal records
 // these summaries, the known answer for the users, sessions and requests
-// Heartbeat reports. It counts only while a run is active, and its distinct
+// Atrium reports. It counts only while a run is active, and its distinct
 // sets are capped, so memory stays bounded however long the load runs.
 package traffic
 

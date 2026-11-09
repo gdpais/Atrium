@@ -30,7 +30,7 @@ if ! git merge-base --is-ancestor "$sha" origin/master; then
 	exit 1
 fi
 
-chart_version=$(git show "$sha:infra/helm/heartbeat/Chart.yaml" | sed -n 's/^version: *\([^ #]*\).*/\1/p')
+chart_version=$(git show "$sha:infra/helm/atrium/Chart.yaml" | sed -n 's/^version: *\([^ #]*\).*/\1/p')
 if [ "$chart_version" != "$version" ]; then
 	echo "Chart.yaml at $tag says version $chart_version, expected $version" >&2
 	exit 1

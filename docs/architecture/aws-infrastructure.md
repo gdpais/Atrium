@@ -44,7 +44,7 @@ flowchart LR
     subgraph vpc["VPC · two zones · private subnets"]
       alb["Internal ALB<br/>ACM certificate"]
       subgraph eks["EKS Auto Mode · t4g.large nodes"]
-        hb["Heartbeat chart<br/>collector · API · OTel Collector<br/>Prometheus · Loki · Tempo<br/>Alertmanager · Grafana"]
+        hb["Atrium chart<br/>collector · API · OTel Collector<br/>Prometheus · Loki · Tempo<br/>Alertmanager · Grafana"]
         addons["Argo CD · External Secrets<br/>cert-manager"]
       end
       data[("RDS PostgreSQL<br/>ElastiCache Valkey<br/>EBS gp3")]
@@ -88,7 +88,7 @@ Every component, why it is there and how it is sized:
 | Internal ALB + ACM | Grafana and the API over HTTPS, one ALB shared through an ingress group; ACM's public certificate is free | 1 ALB |
 | Route 53 | A private zone for the internal names and a public zone for ACM's DNS validation | 2 zones |
 | CloudTrail | The free management-events trail, delivered to S3 | 1 trail |
-| CloudWatch | Billing and NAT alarms, the Lambda's logs, EKS audit logs only if needed. Heartbeat watches itself in Prometheus ([ADR 0018](decisions/0018-heartbeats-own-telemetry.md)), so no Container Insights | A few GB a month |
+| CloudWatch | Billing and NAT alarms, the Lambda's logs, EKS audit logs only if needed. Atrium watches itself in Prometheus ([ADR 0018](decisions/0018-atriums-own-telemetry.md)), so no Container Insights | A few GB a month |
 | SNS → Lambda → End User Messaging Social | WhatsApp for critical alerts only ([ADR 0005](decisions/0005-production-delivery-and-operations-defaults.md)) | Inside the free tiers except the per-message fee |
 | Connectivity to the SQL Servers | Still open in ADR 0005. Assumed: on-premises over one Site-to-Site VPN | 1 VPN connection |
 
@@ -101,7 +101,7 @@ $250 a month for a second copy of the fixed costs).
 ### Node sizing
 
 Requests and memory limits from the chart's
-[`values.yaml`](../../infra/helm/heartbeat/values.yaml), with the production
+[`values.yaml`](../../infra/helm/atrium/values.yaml), with the production
 example's managed data stores (the bundled PostgreSQL and Valkey off):
 
 | Workload | CPU request | Memory request | Memory limit |
@@ -114,7 +114,7 @@ example's managed data stores (the bundled PostgreSQL and Valkey off):
 | Tempo | 50m | 64 MiB | 384 MiB |
 | Grafana | 50m | 128 MiB | 512 MiB |
 | Alertmanager | not set | not set | not set |
-| **Heartbeat** | **450m** | **0.94 GiB** | **3.9 GiB** |
+| **Atrium** | **450m** | **0.94 GiB** | **3.9 GiB** |
 | Argo CD, External Secrets, cert-manager (estimate) | about 600m | about 1.5 GiB | about 3 GiB |
 | **All** | **about 1.1 vCPU** | **about 2.5 GiB** | **about 7 GiB** |
 
@@ -140,11 +140,11 @@ eu-west-1 ([sources](#sources)).
 | Input | Baseline | Growth | Where it comes from |
 | --- | --- | --- | --- |
 | Region | eu-west-1 | eu-west-1 | No doc names a region; Ireland offers every service used here. Re-price if another region is chosen |
-| Clusters | 1 | 1 | `heartbeat-deploy` has one environment, `production` |
+| Clusters | 1 | 1 | `atrium-deploy` has one environment, `production` |
 | SQL Server targets | about 5 + 1 OutSystems logging database | about 25 | **Unknown**; owner question |
 | Logs into Loki | 1 GB a day | 10 GB a day | **Unknown**. Baseline from the measured 9.7 rows a second under PatientZero's steady load, at about 1 KB a row |
 | Loki on S3 | 5:1 compression, 30-day retention: about 6 GB | about 60 GB | Retention from the chart (`retention_period: 30d`) |
-| Traces | about 40 MB a day, 7-day retention | about 1 GB in all | Measured 80 MB a day on kind; production about half ([ADR 0018](decisions/0018-heartbeats-own-telemetry.md)) |
+| Traces | about 40 MB a day, 7-day retention | about 1 GB in all | Measured 80 MB a day on kind; production about half ([ADR 0018](decisions/0018-atriums-own-telemetry.md)) |
 | Prometheus | 30-day retention on 50 GiB | 100 GiB | `production.example.yaml` sets 30 days and 50 GiB (the chart's default is 15 days) |
 | Critical alerts | 30 a month, 3 recipients, firing and resolved: 180 messages | 100 a month, 5 recipients: 1,000 | **Unknown** |
 | High availability | One NAT, Single-AZ RDS, one Valkey node | NAT per zone, Multi-AZ RDS, Valkey replica | Owner question |
@@ -220,7 +220,7 @@ instead.
 | healthchecks.io | $0 | $0 to $20 | Hobbyist (free, 20 checks) is enough for one Watchdog per environment; Business ($20, 100 checks) when a team needs shared access |
 | WhatsApp (Meta's fee) | about $3 | about $17 | Meta charges per delivered utility template message, since 1 October 2026 also inside the customer service window. Portugal is billed at Meta's "Rest of Western Europe" rate, about €0.014 a message (a third-party figure; the official rate card is a download from Meta's pricing page). AWS bills it through End User Messaging Social, converted from Meta's INR rate card |
 | WhatsApp phone number | $0 | $0 | A number that can receive Meta's verification; an existing one works |
-| GitHub Pro | $4 | $4 | Needed for the ruleset on the private `heartbeat-deploy` ([TODO 18](../../TODO.md)); Heartbeat itself is public, so its Actions minutes are free |
+| GitHub Pro | $4 | $4 | Needed for the ruleset on the private `atrium-deploy` ([TODO 18](../../TODO.md)); Atrium itself is public, so its Actions minutes are free |
 | Domain name | $0 | $0 | Assumes the organization's domain; a new `.com` through Route 53 is about $15 a year |
 
 ## Cost drivers and cheaper options
@@ -273,7 +273,7 @@ Costs to avoid:
    WhatsApp rate card (EUR or USD list rates) for "Rest of Western Europe";
    AWS End User Messaging's pricing page for the AWS fee.
 3. **Sizing inputs.** Resources and PVC sizes in the chart's `values.yaml`
-   and `heartbeat-deploy`'s `environments/production/values.yaml`; retention
+   and `atrium-deploy`'s `environments/production/values.yaml`; retention
    (Loki `retention_period`, Prometheus `retention`, Tempo `retention`);
    measured use in [what the telemetry costs](../reference/metrics-and-endpoints.md#what-the-telemetry-costs).
 4. **Real usage**, once production runs: replace the assumptions with Cost

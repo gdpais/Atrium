@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/application_event.schema.json",
-  "title": "Heartbeat Application Event",
+  "$id": "https://atrium.local/schemas/application_event.schema.json",
+  "title": "Atrium Application Event",
   "type": "object",
   "additionalProperties": false,
   "required": ["timestamp", "environment", "application", "severity", "message"],

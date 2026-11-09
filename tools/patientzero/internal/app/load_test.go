@@ -15,9 +15,9 @@ import (
 	"sync"
 	"testing"
 
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/oslog"
-	"heartbeat/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/oslog"
+	"atrium/tools/patientzero/internal/shop"
 )
 
 const loadScript = "../../load/patientzero.js"

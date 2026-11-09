@@ -11,9 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/services/db-collector/internal/collectors"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	"atrium/services/db-collector/internal/collectors"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // slowExecutor simulates an in-flight SQL probe: once started it takes delay

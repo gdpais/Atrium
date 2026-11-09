@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
 )
 
 // Statuses of a user.

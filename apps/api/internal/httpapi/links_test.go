@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/links"
-	"heartbeat/internal/config"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/links"
+	"atrium/internal/config"
 )
 
 type fakeTelemetry struct {

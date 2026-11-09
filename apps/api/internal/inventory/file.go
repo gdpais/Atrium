@@ -16,11 +16,11 @@ import (
 	"golang.org/x/text/message"
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/apps/api/internal/probedefs"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/config"
-	configschema "heartbeat/packages/config-schema"
-	"heartbeat/services/db-collector/probecatalog"
+	"atrium/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/config"
+	configschema "atrium/packages/config-schema"
+	"atrium/services/db-collector/probecatalog"
 )
 
 // FileVersion is the only inventory file format so far.

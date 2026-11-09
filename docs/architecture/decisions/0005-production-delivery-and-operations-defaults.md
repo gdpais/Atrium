@@ -26,19 +26,19 @@ The notification requirements and the constraints around them:
 | Platform | **Amazon EKS** | Production on AWS. |
 | Kubernetes version | Newest minor EKS supports (**1.36** today). kind pins the same minor (`kindest/node:v1.36.4@sha256:099e0493…cbfaed`) and moves only when EKS does | Local and CI test the API version production runs. |
 | Deploy mechanism | **Argo CD (GitOps)** from the first production deploy; no interim CI push pipeline | Production does not exist yet, so a push pipeline would be thrown away. GitOps keeps cluster credentials out of CI, makes every change a reviewed commit, reverts manual drift, and rolls back via `git revert`. |
-| Desired state | A separate config repository (`heartbeat-deploy`) with Argo CD `Application`s and per-environment values; this repo keeps the chart, defaults and `production.example.yaml` | Argo CD best practice: clean audit trail, separate write access for production, no CI commit loops. |
+| Desired state | A separate config repository (`atrium-deploy`) with Argo CD `Application`s and per-environment values; this repo keeps the chart, defaults and `production.example.yaml` | Argo CD best practice: clean audit trail, separate write access for production, no CI commit loops. |
 | Registry | **Amazon ECR** for images (multi-arch, referenced by digest) and the chart (OCI). GitHub Actions pushes through GitHub OIDC → IAM role; no long-lived AWS keys | EKS nodes pull with IAM (no pull secrets), in-region, with image scanning. |
 | Secrets | **AWS Secrets Manager**, synced into Kubernetes Secrets by **External Secrets Operator** using EKS Pod Identity. ESO also refreshes Argo CD's short-lived ECR credentials | Managed, IAM-scoped, audited in CloudTrail, supports rotation. The chart only consumes `existingSecret` names, so the backend stays swappable. |
 | Versions | Latest stable that production supports, pinned exactly (tools, CI runner image, node image by digest, `Chart.lock`, image digests in production); Renovate proposes updates, kind CI must pass | Current without floating tags; upgrades are reviewed, one change at a time. |
 | Alert notifications | Discord now; Slack (`slack_configs`) and Teams (`msteamsv2_configs`) in production; webhook URLs from mounted Secrets | Native Alertmanager receivers; the legacy `msteams_configs` depends on the retired connectors. |
 | WhatsApp | Production, **critical severity only**: Alertmanager `sns_configs` → Amazon SNS topic → small Lambda → AWS End User Messaging Social `SendWhatsAppMessage` with an approved utility template | No custom code in the cluster; AWS-native IAM and audit; SNS can fan out to more channels later. Critical-only because messages cost money, reach personal phones and are rate-limited by Meta. |
-| Dead-man's switch | Alertmanager Watchdog → healthchecks.io, which notifies the chat channels | Chat receivers cannot detect silence; the watcher must be outside Heartbeat's failure domain (ADR 0003, risk 1), and outside AWS too. |
+| Dead-man's switch | Alertmanager Watchdog → healthchecks.io, which notifies the chat channels | Chat receivers cannot detect silence; the watcher must be outside Atrium's failure domain (ADR 0003, risk 1), and outside AWS too. |
 | Grafana access | Admin login. kind: `admin/admin`, loopback only. Production: generated admin password from Secrets Manager, anonymous access off, TLS at ingress | Matches [ADR 0004](0004-core-technology-choices.md)'s local-auth-first choice; SSO is a later values change. |
 
 Vault was considered for secrets and not chosen. It is a system to operate
 (HA storage, unsealing, upgrades) or a paid HCP service, and its license
 changed in 2023 (OpenBao is the open fork). It earns its cost for multi-cloud
-or dynamic secrets. Heartbeat is AWS-only, and the monitored databases belong to
+or dynamic secrets. Atrium is AWS-only, and the monitored databases belong to
 other teams, so dynamic SQL Server logins are unlikely to be allowed.
 
 Chart rules that follow from Argo CD (it renders with `helm template` and

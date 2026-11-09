@@ -17,7 +17,7 @@ func TestBundledEnginesMatchTestFixtures(t *testing.T) {
 	root := repoRoot(t)
 
 	var values map[string]any
-	readYAML(t, filepath.Join(root, "infra/helm/heartbeat/values.yaml"), &values)
+	readYAML(t, filepath.Join(root, "infra/helm/atrium/values.yaml"), &values)
 	chartImage := func(key string) string {
 		image, _ := dig(values, key, "image").(map[string]any)
 		repository, _ := image["repository"].(string)

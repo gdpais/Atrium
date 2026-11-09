@@ -1,0 +1,14 @@
+{{- /* The DB collector's runtime config, and what the API renders links
+into the platform's UI from (TODO 4.9): one file, so both read the same. */}}
+{{- if or .Values.dbCollector.enabled .Values.api.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "atrium.integrationsConfigMap" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "atrium.labels" . | nindent 4 }}
+data:
+  integrations.yaml: |
+    {{- include "atrium.integrationsYaml" . | nindent 4 }}
+{{- end }}

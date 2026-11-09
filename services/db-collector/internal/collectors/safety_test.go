@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // sysadminExecutor is a ProbeExecutor that also implements SysadminReporter

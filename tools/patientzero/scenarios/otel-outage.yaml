@@ -4,11 +4,11 @@ name: otel-outage
 description: >-
   The OTel Collector is down for 4 minutes while the load runs (its
   StatefulSet scaled to 0). Prometheus cannot scrape it, so
-  HeartbeatServiceDown fires for it after 2 minutes and resolves once it is
+  AtriumServiceDown fires for it after 2 minutes and resolves once it is
   back. The db-collector's exports fail meanwhile and are retried in the
   background until the Collector takes them, so OutSystemsLogExportBlocked
   fires too. The db-collector's own logs have nowhere to go, so it counts them
-  dropped and HeartbeatOwnLogsDropped fires. Once the Collector is back the backlog drains and Loki ends
+  dropped and AtriumOwnLogsDropped fires. Once the Collector is back the backlog drains and Loki ends
   with every row PatientZero committed, once.
 load: steady
 steps:
@@ -23,13 +23,13 @@ steps:
     duration: 2m
 signals:
   - name: collector-down-fires
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: otel-collector}
     state: firing
     step: down
     within: 4m
   - name: collector-down-resolves
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: otel-collector}
     state: resolved
     step: down
@@ -42,7 +42,7 @@ signals:
     step: down
     within: 4m
   - name: own-logs-dropped-fires
-    alert: HeartbeatOwnLogsDropped
+    alert: AtriumOwnLogsDropped
     labels: {job: db-collector}
     state: firing
     step: down
@@ -55,7 +55,7 @@ signals:
     from: end
     within: 3m
   - name: extraction-catches-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: down
     from: end

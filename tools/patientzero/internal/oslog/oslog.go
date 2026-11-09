@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"heartbeat/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/logschema"
 )
 
 // Row is one log row: the log type (the fixture's name, such as screen) and

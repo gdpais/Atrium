@@ -33,7 +33,7 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 		AppVersion string `yaml:"appVersion"`
 		Home       string `yaml:"home"`
 	}
-	readYAML(t, filepath.Join(root, "infra/helm/heartbeat/Chart.yaml"), &chart)
+	readYAML(t, filepath.Join(root, "infra/helm/atrium/Chart.yaml"), &chart)
 	if chart.AppVersion != chart.Version {
 		t.Errorf("Chart.yaml appVersion %q differs from version %q; images are published with the release version, so the default tag would not exist", chart.AppVersion, chart.Version)
 	}
@@ -66,7 +66,7 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 		return strings.ReplaceAll(s, "${{ github.repository_owner }}", owner)
 	}
 	imagePrefix := expand(workflow.Env["IMAGE_PREFIX"])
-	if imagePrefix != "ghcr.io/"+owner+"/heartbeat" {
+	if imagePrefix != "ghcr.io/"+owner+"/atrium" {
 		t.Errorf("release.yml IMAGE_PREFIX is %q; update this test and the chart's image defaults together", imagePrefix)
 	}
 	chartRef := expand(workflow.Env["CHART_REPO"]) + "/" + chart.Name
@@ -88,7 +88,7 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 	}
 
 	var values map[string]any
-	readYAML(t, filepath.Join(root, "infra/helm/heartbeat/values.yaml"), &values)
+	readYAML(t, filepath.Join(root, "infra/helm/atrium/values.yaml"), &values)
 	var published []string
 	for _, service := range services {
 		ref := strings.ReplaceAll(expand(workflow.Jobs.Images.Env["REF"]), "${{ matrix.service }}", service)
@@ -115,7 +115,7 @@ func TestChartDefaultsToReleasedArtifacts(t *testing.T) {
 
 	// The install docs name the same locations, so a move breaks them here
 	// rather than for a reader.
-	for _, doc := range []string{"docs/guides/install-from-release.md", "infra/helm/heartbeat/README.md"} {
+	for _, doc := range []string{"docs/guides/install-from-release.md", "infra/helm/atrium/README.md"} {
 		content, err := os.ReadFile(filepath.Join(root, doc))
 		if err != nil {
 			t.Fatal(err)

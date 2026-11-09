@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/config"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/config"
 )
 
 // Probe assignment states (ADR 0014 §4). PostgreSQL holds the request; the

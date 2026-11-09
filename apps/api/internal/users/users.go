@@ -1,4 +1,4 @@
-// Package users manages Heartbeat's local users and their roles (ADR 0013
+// Package users manages Atrium's local users and their roles (ADR 0013
 // §7–8). [Service] serves the API's admin operations; [SetPassword] also
 // serves a user changing their own password; [CreateAdmin] makes admins for
 // `api users create-admin`: the first admin, since there is no default
@@ -20,9 +20,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
 )
 
 // RoleAdmin is the role an admin has; migration 0002 creates it.

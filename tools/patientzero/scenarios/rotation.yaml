@@ -20,7 +20,7 @@ signals:
   # Each log type's extraction lag is its lag (15 s; 1 minute for screens)
   # plus up to a 15-second poll.
   - name: extraction-keeps-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: rotated
     mode: always

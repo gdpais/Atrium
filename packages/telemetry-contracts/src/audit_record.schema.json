@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/audit_record.schema.json",
-  "title": "Heartbeat Audit Record",
-  "description": "One admin or operator change (ADR 0016): the body of an OTLP log record with service.name heartbeat-api and event.name heartbeat.audit. Secrets never appear in it: before and after hold credential references, never passwords, password hashes, session IDs or tokens.",
+  "$id": "https://atrium.local/schemas/audit_record.schema.json",
+  "title": "Atrium Audit Record",
+  "description": "One admin or operator change (ADR 0016): the body of an OTLP log record with service.name atrium-api and event.name atrium.audit. Secrets never appear in it: before and after hold credential references, never passwords, password hashes, session IDs or tokens.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "time", "request_id", "actor", "action", "entity_type", "entity_id", "before", "after"],

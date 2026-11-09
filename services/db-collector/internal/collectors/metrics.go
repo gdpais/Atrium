@@ -9,13 +9,13 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/telemetry"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/telemetry"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // tracer starts the spans of collection cycles.
-var tracer = telemetry.Tracer("heartbeat/collectors")
+var tracer = telemetry.Tracer("atrium/collectors")
 
 // Per-probe self-observability metrics, maintained by [ProbeMetrics].
 const (
@@ -23,20 +23,20 @@ const (
 	// timed-out executions included.  An abandoned execution is observed with
 	// the time until it was abandoned.  Probes that never started are not
 	// observed.  Labels: collector, environment, target, probe.
-	MetricProbeDuration = "heartbeat_collector_probe_duration_seconds"
+	MetricProbeDuration = "atrium_collector_probe_duration_seconds"
 	// MetricProbeErrors counts failed probe executions by reason (see
 	// [ProbeErrorReasons]).  Labels: collector, environment, target, probe,
 	// reason.
-	MetricProbeErrors = "heartbeat_collector_probe_errors_total"
+	MetricProbeErrors = "atrium_collector_probe_errors_total"
 	// MetricCycles counts collection cycles by outcome (see [CycleOutcomes]).
 	// Labels: collector, outcome.
-	MetricCycles = "heartbeat_collector_cycles_total"
+	MetricCycles = "atrium_collector_cycles_total"
 	// MetricCycleSeconds is a histogram of cycle wall time; MetricCycleDuration
 	// has only the last cycle's, which hides the tail.  Labels: collector.
-	MetricCycleSeconds = "heartbeat_collector_cycle_seconds"
+	MetricCycleSeconds = "atrium_collector_cycle_seconds"
 	// MetricCycleStartDelay is how much later than the interval after the
 	// previous start a cycle started.  Labels: collector.
-	MetricCycleStartDelay = "heartbeat_collector_cycle_start_delay_seconds"
+	MetricCycleStartDelay = "atrium_collector_cycle_start_delay_seconds"
 )
 
 // Values of the outcome label of [MetricCycles].

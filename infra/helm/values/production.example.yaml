@@ -1,5 +1,5 @@
 # Example production values (ADR 0005). Not deployed from this repository:
-# real per-environment values live in the heartbeat-deploy config repository,
+# real per-environment values live in the atrium-deploy config repository,
 # where Argo CD renders the chart with them. Every <...> and example.internal
 # value is a placeholder. This file is rendered in CI so it stays valid against
 # the chart.
@@ -26,7 +26,7 @@ tempo:
       trace:
         backend: s3
         s3:
-          bucket: <heartbeat-traces-bucket>
+          bucket: <atrium-traces-bucket>
           endpoint: s3.<region>.amazonaws.com
           region: <region>
         wal:
@@ -34,13 +34,13 @@ tempo:
 
 dbCollector:
   image:
-    repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/db-collector
+    repository: <account>.dkr.ecr.<region>.amazonaws.com/atrium/db-collector
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
   adminToken:
-    existingSecret: heartbeat-runtime
+    existingSecret: atrium-runtime
   # The admin endpoints on their own HTTPS port, so the token is never sent in
   # the clear: a cert-manager Certificate for db-collector and
-  # db-collector.heartbeat.svc, whose Secret also holds ca.crt for the API.
+  # db-collector.atrium.svc, whose Secret also holds ca.crt for the API.
   adminTLS:
     existingSecret: db-collector-admin-tls
     ca:
@@ -63,38 +63,38 @@ dbCollector:
       targets:
         - ipBlock:
             cidr: 10.20.0.0/16
-  # ExternalSecret-managed: HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_<NAME>=<login>:<password>.
+  # ExternalSecret-managed: ATRIUM_CREDENTIAL_ENV_SQLSERVER_<NAME>=<login>:<password>.
   # Mounted as files read on every connection: a rotation in AWS Secrets
   # Manager reaches the collector after the ExternalSecret's refresh and the
   # kubelet's sync, without a restart.
   credentials:
-    existingSecret: heartbeat-sqlserver-credentials
+    existingSecret: atrium-sqlserver-credentials
 
 # The API on Amazon RDS for PostgreSQL and Amazon ElastiCache for Valkey, both
 # with TLS (ADR 0015); the chart's bundled postgresql and valkey are off.
 api:
   image:
-    repository: <account>.dkr.ecr.<region>.amazonaws.com/heartbeat/api
+    repository: <account>.dkr.ecr.<region>.amazonaws.com/atrium/api
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  # ExternalSecret-managed: HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES and
-  # HEARTBEAT_CREDENTIAL_SECRET_API_REDIS, each <login>:<password> (the
+  # ExternalSecret-managed: ATRIUM_CREDENTIAL_SECRET_API_POSTGRES and
+  # ATRIUM_CREDENTIAL_SECRET_API_REDIS, each <login>:<password> (the
   # ElastiCache user, or "default" and the AUTH token). Read on every new
   # connection, like the collector's: a rotation needs no restart.
   credentials:
-    existingSecret: heartbeat-api-credentials
+    existingSecret: atrium-api-credentials
   # The public origin of the ingress in front of the API: logins and every
   # other change must come from a page on it.
-  siteOrigin: https://heartbeat.example.internal
+  siteOrigin: https://atrium.example.internal
   postgres:
-    host: heartbeat.<id>.<region>.rds.amazonaws.com
-    database: heartbeat
+    host: atrium.<id>.<region>.rds.amazonaws.com
+    database: atrium
     sslMode: verify-full
     # Amazon RDS's certificates are not in the image's system CAs: the RDS
     # CA bundle (global-bundle.pem, from AWS) in a ConfigMap, mounted below.
-    sslRootCert: /etc/heartbeat/rds-ca/global-bundle.pem
+    sslRootCert: /etc/atrium/rds-ca/global-bundle.pem
   redis:
     # The replication group's primary endpoint, in-transit encryption on.
-    addr: master.heartbeat.<id>.<region>.cache.amazonaws.com:6379
+    addr: master.atrium.<id>.<region>.cache.amazonaws.com:6379
     tls: true
   extraVolumes:
     - name: rds-ca
@@ -102,7 +102,7 @@ api:
         name: rds-ca-bundle
   extraVolumeMounts:
     - name: rds-ca
-      mountPath: /etc/heartbeat/rds-ca
+      mountPath: /etc/atrium/rds-ca
       readOnly: true
 postgresql:
   enabled: false
@@ -112,18 +112,18 @@ valkey:
 integrations:
   platform: grafana
   dashboards:
-    base_url: https://grafana.heartbeat.example.internal
+    base_url: https://grafana.atrium.example.internal
     dashboard_templates:
       sqlserver-overview: /d/sqlserver-overview
-      heartbeat-service: /d/heartbeat-service
-      heartbeat-inventory: /d/heartbeat-inventory
+      atrium-service: /d/atrium-service
+      atrium-inventory: /d/atrium-inventory
       outsystems-overview: /d/outsystems-overview
     deep_link_templates:
       logs-explore: /explore?orgId=1&left=${logs_query}
       outsystems-application: /d/outsystems-overview?orgId=1&var-environment=${environment}&var-application=${application}&from=${from}&to=${to}
       sqlserver-target: /d/sqlserver-overview?orgId=1&var-environment=${environment}&var-target=${target}&from=${from}&to=${to}
   logs:
-    base_url: https://grafana.heartbeat.example.internal
+    base_url: https://grafana.atrium.example.internal
   alerting:
     base_url: http://alertmanager:9093
   notification_channels: []
@@ -175,7 +175,7 @@ integrations:
         # applications, modules and operations are left out of them and
         # OutSystemsDerivedSeriesOverflow fires. About 690 bytes of the
         # collector's memory each. A proposed default: size it from
-        # heartbeat_outsystems_derived_series once the installation runs.
+        # atrium_outsystems_derived_series once the installation runs.
         max_derived_series: 50000
         probes:
           - name: error
@@ -210,7 +210,7 @@ prometheus:
     extraSecretMounts:
       - name: alert-receivers
         mountPath: /etc/alertmanager/secrets
-        secretName: heartbeat-alert-receivers
+        secretName: atrium-alert-receivers
         readOnly: true
     config:
       route:
@@ -232,7 +232,7 @@ prometheus:
         - name: chat
           slack_configs:
             - api_url_file: /etc/alertmanager/secrets/slack-webhook-url
-              channel: "#heartbeat-alerts"
+              channel: "#atrium-alerts"
               send_resolved: true
           msteamsv2_configs:
             - webhook_url_file: /etc/alertmanager/secrets/teams-webhook-url
@@ -240,14 +240,14 @@ prometheus:
         - name: chat-and-whatsapp
           slack_configs:
             - api_url_file: /etc/alertmanager/secrets/slack-webhook-url
-              channel: "#heartbeat-alerts"
+              channel: "#atrium-alerts"
               send_resolved: true
           msteamsv2_configs:
             - webhook_url_file: /etc/alertmanager/secrets/teams-webhook-url
               send_resolved: true
           # SNS -> Lambda -> AWS End User Messaging Social (WhatsApp template).
           sns_configs:
-            - topic_arn: arn:aws:sns:<region>:<account>:heartbeat-critical-alerts
+            - topic_arn: arn:aws:sns:<region>:<account>:atrium-critical-alerts
               sigv4:
                 region: <region>
         - name: deadmans-switch
@@ -267,19 +267,19 @@ grafana:
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
       alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:<region>:<account>:certificate/<id>
     hosts:
-      - grafana.heartbeat.example.internal
+      - grafana.atrium.example.internal
   grafana.ini:
     server:
-      root_url: https://grafana.heartbeat.example.internal
+      root_url: https://grafana.atrium.example.internal
 
 loki:
   loki:
     storage:
       type: s3
       bucketNames:
-        chunks: <heartbeat-loki-chunks>
-        ruler: <heartbeat-loki-ruler>
-        admin: <heartbeat-loki-admin>
+        chunks: <atrium-loki-chunks>
+        ruler: <atrium-loki-ruler>
+        admin: <atrium-loki-admin>
       s3:
         region: <region>
     schemaConfig:

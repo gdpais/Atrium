@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/shop"
-	"heartbeat/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/internal/shop"
+	"atrium/tools/patientzero/internal/traffic"
 )
 
 // gateStore signals entered when a call reaches it (so a test knows the
@@ -264,7 +264,7 @@ func (stubConn) Begin() (driver.Tx, error)           { return nil, errors.New("s
 // a 5xx carries a generic message, and a refused order a fixed 400 message.
 func TestServerActionErrorsAreSanitized(t *testing.T) {
 	t.Run("internal error is generic 500", func(t *testing.T) {
-		store := &fakeStore{fail: errors.New("mssql: login failed for user 'heartbeat' at tcp:secret-host:1433")}
+		store := &fakeStore{fail: errors.New("mssql: login failed for user 'atrium' at tcp:secret-host:1433")}
 		s, _ := newServer(t, store)
 		req := httptest.NewRequest(http.MethodPost, PathPlaceOrder, strings.NewReader(`{"productId":1,"quantity":1}`))
 		req.RemoteAddr = "10.244.0.9:51000"

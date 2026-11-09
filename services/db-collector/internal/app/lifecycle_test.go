@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 func testLifecycle(t *testing.T, pollers *fakePollers, backoff restartBackoff) *pollerLifecycle {
@@ -23,8 +23,8 @@ func testLifecycle(t *testing.T, pollers *fakePollers, backoff restartBackoff) *
 	return lifecycle
 }
 
-func collectorConfig(id, env string) heartbeatconfig.CollectorRuntimeConfig {
-	return heartbeatconfig.CollectorRuntimeConfig{ID: id, Kind: "sqlserver", Enabled: true, Environment: env, ScrapeInterval: time.Second}
+func collectorConfig(id, env string) atriumconfig.CollectorRuntimeConfig {
+	return atriumconfig.CollectorRuntimeConfig{ID: id, Kind: "sqlserver", Enabled: true, Environment: env, ScrapeInterval: time.Second}
 }
 
 func stateOf(l *pollerLifecycle, id string) (collectorState, bool) {

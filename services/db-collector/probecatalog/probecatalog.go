@@ -10,8 +10,8 @@
 package probecatalog
 
 import (
-	"heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/probes/sqlserver"
+	"atrium/internal/config"
+	"atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // Probe is one built-in probe.

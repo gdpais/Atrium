@@ -9,10 +9,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"heartbeat/internal/telemetry"
+	"atrium/internal/telemetry"
 )
 
-var tracer = telemetry.Tracer("heartbeat/api/redis")
+var tracer = telemetry.Tracer("atrium/api/redis")
 
 // tracingHook gives each command a span, inside a span that records: a
 // readiness check, which has none, makes no trace of its own. The attributes

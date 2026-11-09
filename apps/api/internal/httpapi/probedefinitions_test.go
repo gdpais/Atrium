@@ -12,12 +12,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/probedefs"
 )
 
-const testSite = "https://heartbeat.example.com"
+const testSite = "https://atrium.example.com"
 
 // roleAuth authenticates a session token that is a role's name as a user
 // with that role alone.

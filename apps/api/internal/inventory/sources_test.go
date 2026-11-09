@@ -11,9 +11,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
-	"heartbeat/apps/api/internal/collectors"
-	configschema "heartbeat/packages/config-schema"
+	api "atrium/apps/api"
+	"atrium/apps/api/internal/collectors"
+	configschema "atrium/packages/config-schema"
 )
 
 // Every source type has a schema and its ingest modes, and the spec lists
@@ -119,7 +119,7 @@ func TestObserve(t *testing.T) {
 
 	got = sources()
 	New(nil).observe(context.Background(), got)
-	if o := got[0].Observation; o.Status != ObservationUnknown || !strings.Contains(o.Detail, "HEARTBEAT_API_COLLECTOR_URL") {
+	if o := got[0].Observation; o.Status != ObservationUnknown || !strings.Contains(o.Detail, "ATRIUM_API_COLLECTOR_URL") {
 		t.Errorf("no observer: %+v", o)
 	}
 }

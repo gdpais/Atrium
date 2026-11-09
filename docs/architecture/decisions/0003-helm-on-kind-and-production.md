@@ -16,14 +16,14 @@ The collector hardening work depends on exactly that behavior.
 
 ## Decision
 
-- Package Heartbeat with **Helm** and use the same versioned chart locally, in CI
+- Package Atrium with **Helm** and use the same versioned chart locally, in CI
   and in production, with environment-specific values.
 - Use **kind** for the local and integration-CI cluster.
 - Keep **SQL Server in Docker** as an external test target, outside the cluster.
 - Adapt Make targets and CI as part of the migration, then **retire the
   platform Compose definition** once equivalent workflows pass. Do not complete
   the Kustomize bundle first and translate it again later.
-- **Principle:** what Heartbeat *deploys* goes through Helm; what Heartbeat
+- **Principle:** what Atrium *deploys* goes through Helm; what Atrium
   *tests against* (the SQL Server target, the disposable PostgreSQL schema
   fixture) stays as Docker fixtures.
 - Keep the **collector a singleton** until explicit target ownership across
@@ -31,7 +31,7 @@ The collector hardening work depends on exactly that behavior.
 
 ## Proposed design (as planned; see Implementation for what changed)
 
-- One umbrella chart `heartbeat` owns Heartbeat workloads and content
+- One umbrella chart `atrium` owns Atrium workloads and content
   (collector, gateway, integrations config, Prometheus rules, Grafana
   dashboards). Third-party engines are pinned, condition-gated dependencies,
   using namespaced charts only (`prometheus-community/prometheus` with
@@ -57,7 +57,7 @@ The collector hardening work depends on exactly that behavior.
 
 Ranked by effect on the goal:
 
-1. **Monitoring failure domain.** If Heartbeat and its alert path run on the
+1. **Monitoring failure domain.** If Atrium and its alert path run on the
    infrastructure being investigated, a failure there removes the evidence too.
    Keep an external availability check or notification path; a separate
    namespace is not a separate failure domain.
@@ -86,7 +86,7 @@ The migration is done when these pass with retained evidence:
 - A pod reaches the Docker SQL target (DNS, TCP, authentication, TLS) without
   widening database exposure.
 - A code change produces a new running image; a stale `:local` tag cannot mask it.
-- With one SQL target configured, `heartbeat_collector_target_up` and probe
+- With one SQL target configured, `atrium_collector_target_up` and probe
   metrics are fresh in Prometheus and Grafana shows the target.
 - A valid ConfigMap update changes the active config version. An invalid one is
   rejected visibly while collection continues. A partial reload failure rolls
@@ -101,7 +101,7 @@ The migration is done when these pass with retained evidence:
 
 ## Implementation (2026-10-03)
 
-The chart is [`infra/helm/heartbeat`](../../../infra/helm/heartbeat), values are
+The chart is [`infra/helm/atrium`](../../../infra/helm/atrium), values are
 in [`infra/helm/values`](../../../infra/helm/values), and the workflow is
 `make kind-*` ([guide](../../guides/kubernetes-local.md)). The proposed design
 was followed, with these differences:
@@ -146,11 +146,11 @@ host; the e2e script prints them on every run.
 Update 2026-10-28: the local loop's budget is agreed (last row above).
 
 - Memory is the peak `docker stats` usage of the kind node container
-  (`heartbeat-control-plane` for the default `KIND_CLUSTER`) over at least
+  (`atrium-control-plane` for the default `KIND_CLUSTER`) over at least
   30 minutes of `make patientzero-load` after a deploy, less the
   `patientzero` namespace: PatientZero and its k6 Job (up to 512 MiB) run in
   the same node but are not part of the profile, and
-  `docker exec heartbeat-control-plane crictl stats --label io.kubernetes.pod.namespace=patientzero`
+  `docker exec atrium-control-plane crictl stats --label io.kubernetes.pod.namespace=patientzero`
   shows their share. Load grows Prometheus's head block and Loki's
   ingesters until they flush, so an idle reading understates it; the
   2.0 GiB above was measured idle. Yet every run by this method, each on a
@@ -180,7 +180,7 @@ Update 2026-10-28: the local loop's budget is agreed (last row above).
   peak, still fits, with about 0.8 GiB to spare (two profiles, the
   sandbox's 2.2 GiB and the second cluster's fresh SQL Server's 0.9 GiB).
   Run the second cluster's checks in CI, or
-  `docker restart heartbeat-sqlserver-dev` first, which frees the
+  `docker restart atrium-sqlserver-dev` first, which frees the
   sandbox's memory and keeps its databases. On 2026-10-22, before SQL
   Server's memory was capped, a load flood and a second cluster each got it
   killed.

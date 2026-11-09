@@ -11,10 +11,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/otlp"
-	"heartbeat/services/db-collector/internal/collectors"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/otlp"
+	"atrium/services/db-collector/internal/collectors"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // Waiting for the OTel Collector.
@@ -41,7 +41,7 @@ import (
 //     Collector that keeps up is never seen as blocked.  An export that is
 //     still pending at the end of the call blocks the log type: the call
 //     returns [collectors.ErrBlocked], the target stays up, and
-//     heartbeat_outsystems_export_blocked is 1 until the export ends.  The
+//     atrium_outsystems_export_blocked is 1 until the export ends.  The
 //     error names the last failed attempt, and an attempt that failed for
 //     another reason than waiting (a wrong endpoint, a 5xx) is logged as a
 //     warning, so a Collector that cannot be reached is not mistaken for a

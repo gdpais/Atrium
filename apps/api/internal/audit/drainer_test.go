@@ -17,11 +17,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/otlp"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/otlp"
+	"atrium/internal/telemetry"
 )
 
 // memoryOutbox is an outbox in memory, for one drainer.
@@ -126,7 +126,7 @@ func eventually(t *testing.T, cond func() bool, msg string) {
 }
 
 // Each record reaches the Collector as an OTLP log record with ADR 0016's
-// identity: service.name heartbeat-api, event.name heartbeat.audit, the
+// identity: service.name atrium-api, event.name atrium.audit, the
 // record's id, and the record, valid against its schema, as the body.
 func TestDrainerSendsEachRecordAsAnOTLPLogRecord(t *testing.T) {
 	collector := audittest.NewCollector(t)
@@ -146,13 +146,13 @@ func TestDrainerSendsEachRecordAsAnOTLPLogRecord(t *testing.T) {
 		resource[kv.Key] = kv.Value.GetStringValue()
 	}
 	wantResource := map[string]string{
-		"service.name": "heartbeat-api", "service.version": "1.2.3",
+		"service.name": "atrium-api", "service.version": "1.2.3",
 		"service.instance.id": "api-7d9f-xk2p", "deployment.environment.name": "kind",
 	}
 	if fmt.Sprint(resource) != fmt.Sprint(wantResource) {
 		t.Fatalf("resource = %v, want %v", resource, wantResource)
 	}
-	if scope := accepted[0].ResourceLogs[0].ScopeLogs[0].Scope.GetName(); scope != "heartbeat/api/audit" {
+	if scope := accepted[0].ResourceLogs[0].ScopeLogs[0].Scope.GetName(); scope != "atrium/api/audit" {
 		t.Fatalf("scope = %q", scope)
 	}
 	records := collector.Records()
@@ -160,7 +160,7 @@ func TestDrainerSendsEachRecordAsAnOTLPLogRecord(t *testing.T) {
 		t.Fatalf("got %d records, want %d", len(records), len(want))
 	}
 	for i, record := range records {
-		if got := audittest.Attribute(record, "event.name"); got != "heartbeat.audit" {
+		if got := audittest.Attribute(record, "event.name"); got != "atrium.audit" {
 			t.Errorf("record %d: event.name = %q", i, got)
 		}
 		if got := audittest.Attribute(record, "log.record.uid"); got != want[i].ID {

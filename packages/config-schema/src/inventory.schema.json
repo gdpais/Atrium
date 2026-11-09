@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/inventory.schema.json",
-  "title": "Heartbeat inventory",
+  "$id": "https://atrium.local/schemas/inventory.schema.json",
+  "title": "Atrium inventory",
   "description": "One environment's inventory, as code (ADR 0021): the environment, its applications with their components and telemetry sources, and its database targets with the probes each runs. Reviewed as a pull request in the configuration repository and applied by the API. `api inventory check -f FILE` checks a file against this schema and against the API's own rules, which this schema cannot express: uniqueness, a source type's config, hosts and probe policies.",
   "type": "object",
   "additionalProperties": false,

@@ -16,15 +16,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/httpapi"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/apps/api/internal/users"
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/httpapi"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/testenv"
+	"atrium/apps/api/internal/users"
+	atriumconfig "atrium/internal/config"
+	"atrium/internal/credentials"
+	"atrium/internal/credentials/credentialstest"
 )
 
 // inventoryClient sends requests to the API as a browser on the site does.
@@ -108,7 +108,7 @@ func userWithRole(t *testing.T, c inventoryClient, pool *pgxpool.Pool, email, ro
 // operator, in its request.
 func TestRunManagesTheInventory(t *testing.T) {
 	t.Parallel()
-	const site = "https://heartbeat.example.com"
+	const site = "https://atrium.example.com"
 	pg, pgCfg, pool := testenv.MigratedPostgres(t)
 	valkey, redisCfg := testenv.Valkey(t)
 	dir := t.TempDir()
@@ -124,9 +124,9 @@ func TestRunManagesTheInventory(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"config": heartbeatconfig.RuntimeConfig{Collectors: []heartbeatconfig.CollectorRuntimeConfig{{
+		_ = json.NewEncoder(w).Encode(map[string]any{"config": atriumconfig.RuntimeConfig{Collectors: []atriumconfig.CollectorRuntimeConfig{{
 			ID: "oslogs-prod", Kind: "outsystems_logs", Enabled: true, Environment: "prod",
-			Targets: []heartbeatconfig.TargetRuntimeConfig{{Name: "logging-db", EnvironmentSlug: "prod", CredentialRef: "env/oslog"}},
+			Targets: []atriumconfig.TargetRuntimeConfig{{Name: "logging-db", EnvironmentSlug: "prod", CredentialRef: "env/oslog"}},
 		}}}.Redacted()})
 	}))
 	t.Cleanup(collector.Close)

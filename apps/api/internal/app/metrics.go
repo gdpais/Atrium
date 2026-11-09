@@ -6,7 +6,7 @@ import (
 	promcollectors "github.com/prometheus/client_golang/prometheus/collectors"
 	goredis "github.com/redis/go-redis/v9"
 
-	"heartbeat/internal/telemetry"
+	"atrium/internal/telemetry"
 )
 
 // HTTP request metrics, recorded by [telemetry.HTTPMetrics] for every request the
@@ -14,11 +14,11 @@ import (
 const (
 	// MetricHTTPRequests counts requests by their response's status code.
 	// Labels: method, route, code.
-	MetricHTTPRequests = "heartbeat_api_http_requests_total"
+	MetricHTTPRequests = "atrium_api_http_requests_total"
 	// MetricHTTPRequestDuration is the time from receiving a request to its
 	// handler returning, with the Prometheus client's default buckets.
 	// Labels: method, route.
-	MetricHTTPRequestDuration = "heartbeat_api_http_request_duration_seconds"
+	MetricHTTPRequestDuration = "atrium_api_http_request_duration_seconds"
 )
 
 // newRegistry returns the API's Prometheus registry with Go runtime (go_*)
@@ -42,19 +42,19 @@ func newRegistry() (*prometheus.Registry, *telemetry.HTTPMetrics, error) {
 const (
 	// MetricDBConnections is the PostgreSQL pool's connections by state:
 	// in_use, idle or constructing.
-	MetricDBConnections = "heartbeat_api_db_connections"
+	MetricDBConnections = "atrium_api_db_connections"
 	// MetricDBConnectionsMax is the most connections the pool opens.
-	MetricDBConnectionsMax = "heartbeat_api_db_connections_max"
+	MetricDBConnectionsMax = "atrium_api_db_connections_max"
 	// MetricDBConnectionWaits counts acquires that found no idle connection.
-	MetricDBConnectionWaits = "heartbeat_api_db_connection_waits_total"
+	MetricDBConnectionWaits = "atrium_api_db_connection_waits_total"
 	// MetricDBConnectionWaitSeconds is the time those acquires waited.
-	MetricDBConnectionWaitSeconds = "heartbeat_api_db_connection_wait_seconds_total"
+	MetricDBConnectionWaitSeconds = "atrium_api_db_connection_wait_seconds_total"
 	// MetricRedisConnections is the Redis pool's connections by state: in_use
 	// or idle.
-	MetricRedisConnections = "heartbeat_api_redis_connections"
+	MetricRedisConnections = "atrium_api_redis_connections"
 	// MetricRedisConnectionTimeouts counts commands that gave up waiting for
 	// a connection from the pool.
-	MetricRedisConnectionTimeouts = "heartbeat_api_redis_connection_timeouts_total"
+	MetricRedisConnectionTimeouts = "atrium_api_redis_connection_timeouts_total"
 )
 
 var (

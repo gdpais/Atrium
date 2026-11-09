@@ -16,12 +16,12 @@ import (
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	"google.golang.org/protobuf/proto"
 
-	"heartbeat/internal/otlp"
+	"atrium/internal/otlp"
 )
 
 // MetricLogRecords counts the log records a service tried to send over OTLP.
 // Labels: outcome (see [logOutcomes]).
-const MetricLogRecords = "heartbeat_telemetry_log_records_total"
+const MetricLogRecords = "atrium_telemetry_log_records_total"
 
 // Values of the outcome label of [MetricLogRecords].
 const (
@@ -59,7 +59,7 @@ const (
 	// selfLogsClient is the client label of the export's OTLP metrics.
 	selfLogsClient = "self-logs"
 	// scopeName is the instrumentation scope of the records.
-	scopeName = "heartbeat/internal/telemetry"
+	scopeName = "atrium/internal/telemetry"
 )
 
 // handler writes each record to base and queues it for export. It satisfies

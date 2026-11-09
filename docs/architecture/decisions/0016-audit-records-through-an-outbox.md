@@ -5,13 +5,13 @@
 
 ## Context
 
-Phase 3 builds the API, the first component that changes Heartbeat's own
+Phase 3 builds the API, the first component that changes Atrium's own
 records, so it needs an audit trail [4.10]. What is already said about it:
 
 - [Operator workflows](../workflows.md#audit): every operator or admin
   change appends one JSONL line (time, actor, action, entity type and ID,
   before and after, request ID, config version) to a dated file such as
-  `audit/heartbeat-audit-YYYY-MM-DD.jsonl`; files are rotated and shipped to
+  `audit/atrium-audit-YYYY-MM-DD.jsonl`; files are rotated and shipped to
   Loki or a SIEM [15.3]. Secrets never enter it.
 - [ADR 0013](0013-api-design-and-subsystem-boundaries.md): "A request that
   writes several rows, and its audit record [4.10], runs in one transaction."
@@ -34,7 +34,7 @@ These don't fit together:
 - Nothing in the stack ships container files or standard output: the
   platform receives OTLP from the services and scrapes Prometheus endpoints.
   Shipping files would mean a node log agent, which no other part of
-  Heartbeat needs.
+  Atrium needs.
 
 Phase 2 built an ordered log path that loses nothing across restarts: OTLP
 to the OTel Collector, a persistent sending queue, Loki
@@ -54,7 +54,7 @@ to the OTel Collector, a persistent sending queue, Loki
 3. **Delivered as OTLP log records.** A drainer in each API replica claims the
    oldest rows (`FOR UPDATE SKIP LOCKED`, in batches), sends them to the OTel
    Collector as OTLP/HTTP log records (the record as the body;
-   `service.name = heartbeat-api`, `event.name = heartbeat.audit` and the
+   `service.name = atrium-api`, `event.name = atrium.audit` and the
    record's `id` as attributes), and deletes them once the Collector accepts
    them. Delivery is at least once; the `id` identifies a duplicate. The
    Collector routes them to Loki through the same persistent queue as the
@@ -66,7 +66,7 @@ to the OTel Collector, a persistent sending queue, Loki
    and the age of its oldest row, and an alert fires when delivery has
    stalled for a few minutes, as `OutSystemsLogExportBlocked` does for logs.
 5. **Searched where it lands.** Audit records are read in Grafana from Loki
-   (`{service_name="heartbeat-api"} | event_name="heartbeat.audit"`). An
+   (`{service_name="atrium-api"} | event_name="atrium.audit"`). An
    audit search API and an `audit_events` table stay deferred [17].
 6. **No secrets, tested.** Records hold credential references, never values;
    password hashes, session IDs and tokens never appear in `before` or
@@ -103,4 +103,4 @@ Considered and not chosen:
   replaced by this record; shipping to a SIEM becomes a Collector exporter.
 - Collector reload results and collector add, remove and change decisions
   stay where they are: the collector's own logs and its
-  `heartbeat_collector_config_*` metrics.
+  `atrium_collector_config_*` metrics.

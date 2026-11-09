@@ -18,7 +18,7 @@
 // is always the preferred deadlock victim.
 //
 // Credential references are resolved by package [credentials]:
-// [FileCredentialResolver] reads HEARTBEAT_CREDENTIAL_<REF> from a file in a
+// [FileCredentialResolver] reads ATRIUM_CREDENTIAL_<REF> from a file in a
 // directory, such as a mounted Kubernetes Secret, on every [Manager.Open], so
 // a rotated credential needs no restart; [EnvCredentialResolver] reads the
 // environment variable of that name.
@@ -44,9 +44,9 @@ import (
 
 	_ "github.com/microsoft/go-mssqldb"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/credentials"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/credentials"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // Credential holds the username and password for a SQL Server connection.
@@ -194,12 +194,12 @@ type Manager struct {
 
 // NewManager returns a Manager configured with sensible production defaults:
 // 5-second dial/query timeouts, TLS encryption enabled, the application name
-// set to "HeartbeatDBCollector", and connection pooling enabled.  Callers
+// set to "AtriumDBCollector", and connection pooling enabled.  Callers
 // should invoke [Manager.Close] on shutdown to release pooled connections.
 func NewManager(resolver CredentialResolver) Manager {
 	return Manager{
 		Resolver:     resolver,
-		Application:  "HeartbeatDBCollector",
+		Application:  "AtriumDBCollector",
 		DialTimeout:  5 * time.Second,
 		QueryTimeout: 5 * time.Second,
 		Encrypt:      true,

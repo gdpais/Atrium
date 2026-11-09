@@ -1,0 +1,39 @@
+apiVersion: v2
+name: atrium
+description: >-
+  Atrium monitoring platform: the DB collector, its
+  integrations config, Prometheus rules and Grafana dashboards, plus pinned
+  observability engines that each environment can turn off.
+type: application
+# Chart version: the release version, set by release-please (ADR 0006).
+version: 0.1.0 # x-release-please-version
+# Default tag for the Atrium images when values do not set one.
+appVersion: "0.1.0" # x-release-please-version
+home: https://github.com/gdpais/Atrium
+sources:
+  - https://github.com/gdpais/Atrium
+# Third-party engines. Namespaced charts only and no CRDs (ADR 0003); each is
+# turned off with <name>.enabled=false so production can use shared services.
+# Versions are pinned exactly and updated by Renovate (ADR 0005).
+dependencies:
+  - name: prometheus
+    version: 29.40.3
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  - name: grafana
+    version: 14.3.1
+    repository: https://grafana-community.github.io/helm-charts
+    condition: grafana.enabled
+  - name: loki
+    version: 20.2.2
+    repository: https://grafana-community.github.io/helm-charts
+    condition: loki.enabled
+  - name: tempo
+    version: 3.2.1
+    repository: https://grafana-community.github.io/helm-charts
+    condition: tempo.enabled
+  - name: opentelemetry-collector
+    alias: otelCollector
+    version: 0.178.1
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    condition: otelCollector.enabled

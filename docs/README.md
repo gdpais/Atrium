@@ -1,18 +1,18 @@
-# Heartbeat Documentation
+# Atrium Documentation
 
 Start with the group for what you want to do. Every topic has one home; other
 pages link to it instead of repeating it.
 
 These pages are also published as an HTML site at
-<https://gdpais.github.io/Heartbeat/>, rebuilt from `master` on every push. The Markdown
+<https://gdpais.github.io/Atrium/>, rebuilt from `master` on every push. The Markdown
 is the source; `make docs-site` builds the site locally into `docs/site/`,
 which is not committed.
 
 ## By audience
 
-**Start here (what Heartbeat is and where it stands)**
+**Start here (what Atrium is and where it stands)**
 
-1. [Product overview](product/overview.md): what Heartbeat is, who it is for,
+1. [Product overview](product/overview.md): what Atrium is, who it is for,
    its scope and current status
 2. [Roadmap](product/roadmap.md): the phases, what each lets someone do, and
    what is done
@@ -35,7 +35,7 @@ which is not committed.
 - [Contributing](../CONTRIBUTING.md): branches, commits, checks, pull requests
   and releases; [changelog](../CHANGELOG.md)
 - Test application: [PatientZero](../tools/patientzero/README.md), the
-  synthetic OutSystems application Heartbeat is tested against, and its
+  synthetic OutSystems application Atrium is tested against, and its
   [fault scenarios and run journal](../tools/patientzero/scenarios/README.md)
 - [TODO.md](../TODO.md): implementation task list, the source of truth for
   delivery order and status
@@ -121,9 +121,9 @@ review and are not tracked in git. Their lasting outcomes are recorded as
 | **Investigation** | A request to correlate evidence for a subject (user, IP, session, request) in an application over a time window. |
 | **Evidence link** | A URL into Grafana, Loki or Prometheus that supports an investigation result; raw evidence is never copied. |
 | **Adaptive baseline** | A computed, versioned threshold (for example rolling median + MAD) rendered into Prometheus rules. |
-| **OTel gateway** | A Heartbeat normalization service that never got a caller, removed by [ADR 0009](architecture/decisions/0009-remove-the-otel-gateway.md). Not the stock **OpenTelemetry Collector**, which does OTLP ingest and routing. |
-| **Plane** | One of Heartbeat's four areas (telemetry, analysis jobs, control plane, presentation); see [core systems](architecture/overview.md#core-systems). |
+| **OTel gateway** | An Atrium normalization service that never got a caller, removed by [ADR 0009](architecture/decisions/0009-remove-the-otel-gateway.md). Not the stock **OpenTelemetry Collector**, which does OTLP ingest and routing. |
+| **Plane** | One of Atrium's four areas (telemetry, analysis jobs, control plane, presentation); see [core systems](architecture/overview.md#core-systems). |
 | **Control plane** | The Go API (`apps/api`) plus PostgreSQL, Redis and the YAML config and inventory files, which manage inventory, probe assignments, and later policies, schedules and investigations. |
 | **Phase** | One step of the [roadmap](product/roadmap.md), defined by what it lets someone do. TODO.md calls them delivery *stages*, with the same numbers; its section numbers differ. |
 | **ADR** | Architecture decision record, under [`architecture/decisions/`](architecture/decisions/README.md). |
-| **PatientZero** | The synthetic OutSystems 11 application Heartbeat is tested and demonstrated against ([ADR 0010](architecture/decisions/0010-patientzero-test-application.md)). |
+| **PatientZero** | The synthetic OutSystems 11 application Atrium is tested and demonstrated against ([ADR 0010](architecture/decisions/0010-patientzero-test-application.md)). |

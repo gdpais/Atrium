@@ -12,11 +12,11 @@ import (
 	"slices"
 	"strings"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 // Workloads a cluster fault can act on, as the host agent knows them: the
-// Heartbeat StatefulSets of the same name (one pod each), and SQL Server,
+// Atrium StatefulSets of the same name (one pod each), and SQL Server,
 // the Docker container outside the cluster.
 var Workloads = []string{"db-collector", "loki", "otel-collector", "sqlserver", "tempo"}
 

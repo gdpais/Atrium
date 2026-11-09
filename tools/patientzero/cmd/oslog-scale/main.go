@@ -33,8 +33,8 @@ import (
 
 	_ "github.com/microsoft/go-mssqldb"
 
-	"heartbeat/tools/patientzero/internal/logschema"
-	"heartbeat/tools/patientzero/internal/scale"
+	"atrium/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/scale"
 )
 
 // errBehind is caught-up's answer while the collector is still catching up.
@@ -65,15 +65,15 @@ func run(log *slog.Logger, args []string) error {
 	endFlag := fs.String("end", "", "last instant generated, RFC 3339 (default now, UTC)")
 	schemaDir := fs.String("schema-dir", "../../services/db-collector/internal/collectors/outsystems/testdata/oslog", "the oslog fixtures the logging schema is built from")
 	queriesDir := fs.String("queries-dir", "../../services/db-collector/internal/probes/outsystems/queries", "the collector's log queries")
-	reader := fs.String("reader-role", "heartbeat_oslog_reader", "role granted SELECT on the log views")
-	readerLogin := fs.String("reader-login", "", "login added to the reader role, such as the Heartbeat collector's")
+	reader := fs.String("reader-role", "atrium_oslog_reader", "role granted SELECT on the log views")
+	readerLogin := fs.String("reader-login", "", "login added to the reader role, such as the Atrium collector's")
 	limit := fs.Int("limit", 5000, "rows per query run (the collector's batch_limit)")
 	out := fs.String("out", "../../.tmp/patientzero-scale", "directory for expected.json, report.md and check.md")
 	lokiURL := fs.String("loki", "http://127.0.0.1:3100", "check: Loki's HTTP API")
 	environment := fs.String("environment", "", "check: deployment.environment.name of the collector that read the log")
 	collectedFrom := fs.String("collected-from", "", "check: when that collector started, RFC 3339")
 	lookback := fs.Duration("lookback", 48*time.Hour, "check: that collector's initial_lookback")
-	dashboards := fs.String("dashboards", "../../infra/helm/heartbeat/files/grafana/dashboards", "check: the chart's Grafana dashboards")
+	dashboards := fs.String("dashboards", "../../infra/helm/atrium/files/grafana/dashboards", "check: the chart's Grafana dashboards")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

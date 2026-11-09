@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 // ErrInjected marks a failure a scenario injected: errors.Is(err,
@@ -380,7 +380,7 @@ func (p delayParams) rule(k kind, known []string) (*rule, error) {
 
 // Register adds the latency, errors, deploy, sql-latency, rotation,
 // commit-delay and log-flood fault types, acting on inj, to reg. modules maps each PatientZero module (eSpace) to
-// its entry points, named as Heartbeat's operation label names them: the
+// its entry points, named as Atrium's operation label names them: the
 // names a fault may target.
 func Register(reg *scenario.Registry, inj *Injector, modules map[string][]string) {
 	var entryPoints []string

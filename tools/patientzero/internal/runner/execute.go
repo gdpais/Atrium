@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/journal"
-	"heartbeat/tools/patientzero/internal/scenario"
-	"heartbeat/tools/patientzero/internal/signal"
-	"heartbeat/tools/patientzero/internal/traffic"
+	"atrium/tools/patientzero/internal/journal"
+	"atrium/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/signal"
+	"atrium/tools/patientzero/internal/traffic"
 )
 
 // The journal events' data. The field names are the journal's contract

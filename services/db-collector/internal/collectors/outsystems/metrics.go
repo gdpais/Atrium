@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/telemetry"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/telemetry"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // Extraction self-metrics, maintained by [Metrics].  Labels: collector,
@@ -22,50 +22,50 @@ import (
 // health come from the Runner, with the log type as the probe label.
 const (
 	// MetricRows counts rows extracted and delivered to the OTel Collector.
-	MetricRows = "heartbeat_outsystems_extract_rows_total"
+	MetricRows = "atrium_outsystems_extract_rows_total"
 	// MetricLag is how far the watermark trails now: rows newer than it are
 	// not extracted yet.  At rest it is about lag plus the poll interval.
-	MetricLag = "heartbeat_outsystems_extract_lag_seconds"
+	MetricLag = "atrium_outsystems_extract_lag_seconds"
 	// MetricLagSetting is the lag the log type is configured with: its own,
 	// or the collector's.  MetricLag never goes below it, so an objective on
 	// the lag is set relative to it.
-	MetricLagSetting = "heartbeat_outsystems_extract_lag_setting_seconds"
+	MetricLagSetting = "atrium_outsystems_extract_lag_setting_seconds"
 	// MetricExportFailures counts batches the OTel Collector did not accept
 	// after retries; the watermark stays and the batch is read again.
-	MetricExportFailures = "heartbeat_outsystems_export_failures_total"
+	MetricExportFailures = "atrium_outsystems_export_failures_total"
 	// MetricStuckBatches counts cycles that failed because every row of a
 	// full batch had the same Instant.  Extraction of the log type cannot
 	// move until batch_limit is raised.
-	MetricStuckBatches = "heartbeat_outsystems_extract_stuck_batches_total"
+	MetricStuckBatches = "atrium_outsystems_extract_stuck_batches_total"
 	// MetricLogDelay is now minus the newest Instant extracted, set when rows
 	// arrive: how far behind the platform's own log service is.
-	MetricLogDelay = "heartbeat_outsystems_log_delay_seconds"
+	MetricLogDelay = "atrium_outsystems_log_delay_seconds"
 	// MetricExportBlocked is 1 while the log type waits for the OTel
 	// Collector to accept a batch, past the cycle that read it: its
 	// extraction is paused, but its target is up (export.go).  0 otherwise.
-	MetricExportBlocked = "heartbeat_outsystems_export_blocked"
+	MetricExportBlocked = "atrium_outsystems_export_blocked"
 	// MetricLateRows counts rows a recount found in the logging database
 	// behind the watermark that the extraction never read: committed later
 	// than the lag (recount.go).  They are not sent.
-	MetricLateRows = "heartbeat_outsystems_late_rows_total"
+	MetricLateRows = "atrium_outsystems_late_rows_total"
 	// MetricDuplicateRows counts rows a recount found delivered more often
 	// than the logging database holds them: read twice, or deleted after
 	// they were sent.  A batch sent again after the Collector took it is
 	// not counted.
-	MetricDuplicateRows = "heartbeat_outsystems_duplicate_rows_total"
+	MetricDuplicateRows = "atrium_outsystems_duplicate_rows_total"
 	// MetricRecounts counts the recounts run, failed ones included.
-	MetricRecounts = "heartbeat_outsystems_recounts_total"
+	MetricRecounts = "atrium_outsystems_recounts_total"
 	// MetricRecountFailures counts recounts that failed; meanwhile late and
 	// duplicate rows go uncounted.
-	MetricRecountFailures = "heartbeat_outsystems_recount_failures_total"
+	MetricRecountFailures = "atrium_outsystems_recount_failures_total"
 	// MetricStageDuration is the time of one step of a batch (see
 	// [batchStages]).  Labels: collector, log_type, stage.  Without target,
 	// since each series is a histogram and a step's cost hardly differs
 	// between the targets of a collector.
-	MetricStageDuration = "heartbeat_outsystems_stage_duration_seconds"
+	MetricStageDuration = "atrium_outsystems_stage_duration_seconds"
 	// MetricHeldBytes is the row data held in memory now, read, being
 	// exported or pending, against [Executor.MaxHeldBytes].  No labels.
-	MetricHeldBytes = "heartbeat_outsystems_held_bytes"
+	MetricHeldBytes = "atrium_outsystems_held_bytes"
 )
 
 // Values of the stage label of [MetricStageDuration].
@@ -243,14 +243,14 @@ func (m *Metrics) forgetCollector(collectorID string) {
 }
 
 // tracer starts the spans of a batch's steps.
-var tracer = telemetry.Tracer("heartbeat/outsystems")
+var tracer = telemetry.Tracer("atrium/outsystems")
 
 // stage starts one step of a batch, as a span and for [MetricStageDuration].
 // The function it returns ends it, with err marking a failed one.  A nil
 // *Metrics still traces.
 func (m *Metrics) stage(ctx context.Context, item collectormetadata.ScheduledProbe, stage string) (context.Context, func(err error)) {
 	began := time.Now()
-	ctx, span := tracer.Start(ctx, "outsystems."+stage, trace.WithAttributes(attribute.String("heartbeat.log_type", item.Definition.Name)))
+	ctx, span := tracer.Start(ctx, "outsystems."+stage, trace.WithAttributes(attribute.String("atrium.log_type", item.Definition.Name)))
 	return ctx, func(err error) {
 		if err != nil {
 			// Not the error's text, which can name the host and the login.

@@ -6,9 +6,9 @@ services:
     # (ADR 0015; tests/chart_engines_test.go).
     image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     environment:
-      POSTGRES_DB: heartbeat
-      POSTGRES_USER: heartbeat
-      POSTGRES_PASSWORD: heartbeat-test-only
+      POSTGRES_DB: atrium
+      POSTGRES_USER: atrium
+      POSTGRES_PASSWORD: atrium-test-only
     # postgres 18 keeps its data under /var/lib/postgresql/18/docker and
     # refuses to start with a mount at /var/lib/postgresql/data.
     tmpfs:
@@ -17,8 +17,8 @@ services:
     # test process removes the project once that one is gone, if it died
     # before its cleanup (internal/testreap).
     labels:
-      heartbeat.test.host: ${HEARTBEAT_TEST_HOST:-}
-      heartbeat.test.pid: ${HEARTBEAT_TEST_PID:-}
+      atrium.test.host: ${ATRIUM_TEST_HOST:-}
+      atrium.test.pid: ${ATRIUM_TEST_PID:-}
     volumes:
       - ../db/migrations:/migrations:ro
     # Over TCP: while initdb runs, the entrypoint starts a temporary server
@@ -26,7 +26,7 @@ services:
     # check over the socket can pass on the temporary server and let the
     # tests in before the real one is up (as testenv's does, internal/testenv).
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U heartbeat -d heartbeat"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U atrium -d atrium"]
       interval: 1s
       timeout: 5s
       retries: 60

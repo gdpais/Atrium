@@ -1,4 +1,4 @@
-# Contributing to Heartbeat
+# Contributing to Atrium
 
 How to branch, commit, test and open pull requests, for people and coding
 agents alike. The reasoning behind these rules is in
@@ -170,7 +170,7 @@ too. To add or bump an action, resolve the tag to its commit with
 `.object.sha` through `gh api repos/<owner>/<repo>/git/tags/<sha>`). Renovate
 (`renovate.json`) proposes the updates, the SHA and the comment together, in
 one weekly `GitHub Actions` pull request; majors wait for approval on the
-[dependency dashboard](https://github.com/gdpais/Heartbeat/issues/86).
+[dependency dashboard](https://github.com/gdpais/Atrium/issues/86).
 
 ## Releases
 
@@ -193,13 +193,13 @@ release, and the tag starts `.github/workflows/release.yml`, which:
 
 1. checks the tag is on `master`, matches the chart version and passed the
    required CI check (`ci-ok`);
-2. builds `ghcr.io/gdpais/heartbeat/db-collector` and
-   `ghcr.io/gdpais/heartbeat/api` for `linux/amd64` and `linux/arm64`, and
-   pushes the chart to `oci://ghcr.io/gdpais/charts/heartbeat`;
+2. builds `ghcr.io/gdpais/atrium/db-collector` and
+   `ghcr.io/gdpais/atrium/api` for `linux/amd64` and `linux/arm64`, and
+   pushes the chart to `oci://ghcr.io/gdpais/charts/atrium`;
 3. lists every artifact with its digest in the GitHub release.
 
 While the version is `0.y.z`, every release is marked *Pre-release* on GitHub:
-Heartbeat is a prototype until `1.0.0`.
+Atrium is a prototype until `1.0.0`.
 
 A published version is never rebuilt. If a run fails after the tag exists, run
 the `release` workflow by hand (Actions → release → Run workflow) with the tag;
@@ -228,10 +228,10 @@ waiting; the first release pull request covers every commit since `v0.1.0`.
    tag ruleset), both targeting all tags (*Include all tags*). Every tag here
    is a release tag, so all tags rather than `v*`: per-component tags such as
    `db-collector-v1.2.0` would not match `v*`.
-   - `Heartbeat-tags`: *Restrict updates*, *Restrict deletions* and *Block
+   - `Atrium-tags`: *Restrict updates*, *Restrict deletions* and *Block
      force pushes*, with an empty bypass list, so no one can move or delete
      a tag.
-   - `Heartbeat-tag-creation`: *Restrict creations* only, with the release
+   - `Atrium-tag-creation`: *Restrict creations* only, with the release
      app in the bypass list (*Always allow*). Add it after the first release
      is tagged by hand.
 

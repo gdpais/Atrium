@@ -39,7 +39,7 @@ collectors:
         - name: core-db
           host: sql.prod.local
           port: 1433
-          database_name: Heartbeat
+          database_name: Atrium
           credential_ref: kv/core-db
   - id: otel-sidecar
     kind: otel
@@ -620,7 +620,7 @@ func TestValidHost(t *testing.T) {
 		want bool
 	}{
 		{"sql.example.internal", true},
-		{"heartbeat-sqlserver-dev", true},
+		{"atrium-sqlserver-dev", true},
 		{"sql_01.corp", true},
 		{"10.0.0.5", true},
 		{"2001:db8::5", true},
@@ -1135,7 +1135,7 @@ func TestParseRuntimeConfigRejectsUnknownKeys(t *testing.T) {
         - name: core-db
           host: sql.prod.local
           port: 1433
-          database_name: Heartbeat
+          database_name: Atrium
           credential_ref: kv/core-db
           probes:
             - name: waits

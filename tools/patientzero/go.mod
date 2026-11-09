@@ -1,6 +1,6 @@
 // PatientZero is its own module, like tools/docsite: test code stays out of
 // the product's module, images and releases (ADR 0010).
-module heartbeat/tools/patientzero
+module atrium/tools/patientzero
 
 go 1.27.3
 

@@ -21,7 +21,7 @@ What each option costs:
   problem, by the value support gives them, and correlate it with the
   application's own screens and tables. Nothing to manage. The data is
   personal data wherever Loki or a copy of it goes.
-- **Keyed hash.** Still correlates within Heartbeat, and the key can be
+- **Keyed hash.** Still correlates within Atrium, and the key can be
   rotated. But support has the raw value, so every search needs the key to
   hash it first, and Grafana's log views show only hashes. The key becomes a
   secret every environment must hold and protect, and anyone with the key
@@ -38,7 +38,7 @@ What each option costs:
 2. **Restrict who can reach them.** NetworkPolicies allow only the components
    that use Loki to reach it [9.6]. Grafana, the only human path to the logs,
    needs a login outside kind (anonymous viewing is allowed only in the kind
-   values, behind loopback ports). Later Heartbeat features that copy
+   values, behind loopback ports). Later Atrium features that copy
    identifiers out of Loki (investigation evidence, reports) keep them under
    the same access rules and retention.
 3. **The extractor stays able to hash before export.** If compliance asks

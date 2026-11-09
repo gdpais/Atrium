@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/internal/credentials"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/testenv"
+	"atrium/internal/credentials"
 )
 
 // `api users create-admin` end to end: it refuses a database that is not
@@ -52,7 +52,7 @@ func TestCreateAdminCommand(t *testing.T) {
 	if strings.Contains(logs, secret) || strings.Contains(logs, "$argon2id$") {
 		t.Fatalf("logs contain the password or its hash:\n%s", logs)
 	}
-	record := pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-tAc",
+	record := pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-tAc",
 		"select record->>'entity_type', record->'actor'->>'type', record->'actor'->>'command', record->'after'->>'display_name' from audit_outbox")
 	if got := strings.TrimSpace(record); got != "user|cli|api users create-admin|First Admin" {
 		t.Fatalf("audit record: %q", got)
@@ -71,7 +71,7 @@ func TestCreateAdminCommand(t *testing.T) {
 	if rendered.String() != inventory.RenderHeader+"managedCollectors: []\n" {
 		t.Fatalf("probe-assignments render = %q", rendered.String())
 	}
-	if n := strings.TrimSpace(pg.Exec(t, "psql", "-U", "heartbeat", "-d", "heartbeat", "-tAc", "select count(*) from audit_outbox")); n != "1" {
+	if n := strings.TrimSpace(pg.Exec(t, "psql", "-U", "atrium", "-d", "atrium", "-tAc", "select count(*) from audit_outbox")); n != "1" {
 		t.Fatalf("audit records after the render: %s, want the admin's only", n)
 	}
 }

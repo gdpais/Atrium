@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	heartbeatconfig "heartbeat/internal/config"
+	atriumconfig "atrium/internal/config"
 )
 
 // The API reads a collector whose admin endpoints are on HTTPS, verifying
@@ -21,7 +21,7 @@ func TestClientReadsAnHTTPSCollectorWithItsCA(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"version": "abc", "config": heartbeatconfig.RuntimeConfig{}.Redacted()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"version": "abc", "config": atriumconfig.RuntimeConfig{}.Redacted()})
 	}))
 	defer server.Close()
 	caFile := filepath.Join(t.TempDir(), "ca.crt")

@@ -57,7 +57,7 @@ func (t MetricType) String() string {
 // Sample represents a single metric observation produced by a probe execution.
 type Sample struct {
 	// Metric is the fully-qualified Prometheus metric name
-	// (e.g. "heartbeat_sqlserver_sessions").
+	// (e.g. "atrium_sqlserver_sessions").
 	Metric string
 	// Help is the human-readable description registered with the metric.
 	// Falls back to Metric when empty.

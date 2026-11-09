@@ -17,30 +17,30 @@
 # Environment (all required; passed to sqlcmd through the environment, never
 # on a command line):
 #   MSSQL_SA_PASSWORD             sa password of the container
-#   HEARTBEAT_COLLECTOR_LOGIN     collector login name (not sa)
-#   HEARTBEAT_COLLECTOR_PASSWORD  collector login password
+#   ATRIUM_COLLECTOR_LOGIN     collector login name (not sa)
+#   ATRIUM_COLLECTOR_PASSWORD  collector login password
 set -eu
 
 container=${1:?usage: scripts/sqlserver-login.sh <container>}
 : "${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD}"
-: "${HEARTBEAT_COLLECTOR_LOGIN:?set HEARTBEAT_COLLECTOR_LOGIN}"
-: "${HEARTBEAT_COLLECTOR_PASSWORD:?set HEARTBEAT_COLLECTOR_PASSWORD}"
+: "${ATRIUM_COLLECTOR_LOGIN:?set ATRIUM_COLLECTOR_LOGIN}"
+: "${ATRIUM_COLLECTOR_PASSWORD:?set ATRIUM_COLLECTOR_PASSWORD}"
 
 # sqlcmd substitutes $(NAME) from the environment into the batch as plain
 # text, inside N'...' literals, so any quote is doubled first. The quoted
 # heredoc keeps the shell from expanding $(NAME) itself.
 sql_quote() { printf '%s' "$1" | sed "s/'/''/g"; }
-HEARTBEAT_COLLECTOR_LOGIN=$(sql_quote "$HEARTBEAT_COLLECTOR_LOGIN")
-HEARTBEAT_COLLECTOR_PASSWORD=$(sql_quote "$HEARTBEAT_COLLECTOR_PASSWORD")
-export HEARTBEAT_COLLECTOR_LOGIN HEARTBEAT_COLLECTOR_PASSWORD
+ATRIUM_COLLECTOR_LOGIN=$(sql_quote "$ATRIUM_COLLECTOR_LOGIN")
+ATRIUM_COLLECTOR_PASSWORD=$(sql_quote "$ATRIUM_COLLECTOR_PASSWORD")
+export ATRIUM_COLLECTOR_LOGIN ATRIUM_COLLECTOR_PASSWORD
 SQLCMDPASSWORD=$MSSQL_SA_PASSWORD docker exec -i \
-	-e SQLCMDPASSWORD -e HEARTBEAT_COLLECTOR_LOGIN -e HEARTBEAT_COLLECTOR_PASSWORD \
+	-e SQLCMDPASSWORD -e ATRIUM_COLLECTOR_LOGIN -e ATRIUM_COLLECTOR_PASSWORD \
 	"$container" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -h -1 <<'SQL'
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 -- nvarchar(max) so that an over-long value is refused, not truncated.
-DECLARE @login nvarchar(max) = N'$(HEARTBEAT_COLLECTOR_LOGIN)';
-DECLARE @password nvarchar(max) = N'$(HEARTBEAT_COLLECTOR_PASSWORD)';
+DECLARE @login nvarchar(max) = N'$(ATRIUM_COLLECTOR_LOGIN)';
+DECLARE @password nvarchar(max) = N'$(ATRIUM_COLLECTOR_PASSWORD)';
 DECLARE @sql nvarchar(max), @elevated int;
 -- Reports whether @login is sysadmin-equivalent, by impersonating it.
 DECLARE @elevated_sql nvarchar(max) = N'EXECUTE AS LOGIN = ' + QUOTENAME(@login, N'''') + N';
@@ -49,11 +49,11 @@ REVERT;';
 
 -- 1. Checks, before any change.
 IF LEN(@login) = 0 OR LEN(@login) > 128
-	THROW 50000, 'HEARTBEAT_COLLECTOR_LOGIN must be 1 to 128 characters', 1;
+	THROW 50000, 'ATRIUM_COLLECTOR_LOGIN must be 1 to 128 characters', 1;
 IF LEN(@password) = 0 OR LEN(@password) > 128
-	THROW 50000, 'HEARTBEAT_COLLECTOR_PASSWORD must be 1 to 128 characters', 1;
+	THROW 50000, 'ATRIUM_COLLECTOR_PASSWORD must be 1 to 128 characters', 1;
 IF @login = N'sa'
-	THROW 50000, 'HEARTBEAT_COLLECTOR_LOGIN must name a dedicated login, not sa', 1;
+	THROW 50000, 'ATRIUM_COLLECTOR_LOGIN must name a dedicated login, not sa', 1;
 IF SUSER_ID(@login) IS NOT NULL
 BEGIN
 	IF EXISTS (SELECT 1 FROM sys.server_role_members AS m

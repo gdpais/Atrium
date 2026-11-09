@@ -1,4 +1,4 @@
--- Survey of an OutSystems 11 logging database for Heartbeat (TODO 3.3).
+-- Survey of an OutSystems 11 logging database for Atrium (TODO 3.3).
 --
 -- Read-only. Run it with a login that has SELECT on the oslog_* objects (the
 -- extractor's login is enough) against the logging database, for example:

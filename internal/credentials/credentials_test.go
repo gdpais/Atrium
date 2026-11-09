@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/internal/credentials/credentialstest"
 )
 
 const testPassword = "s3cr3t-P@ssw0rd"
@@ -23,10 +23,10 @@ func mustResolve(t *testing.T, r Resolver, ref string) Credential {
 
 func TestKey(t *testing.T) {
 	for ref, want := range map[string]string{
-		"env/sqlserver-b":         "HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_B",
-		"kv/sqlserver-default":    "HEARTBEAT_CREDENTIAL_KV_SQLSERVER_DEFAULT",
-		"secret/finance.prod-ro":  "HEARTBEAT_CREDENTIAL_SECRET_FINANCE_PROD_RO",
-		"env/Mixed/Case_name-1.2": "HEARTBEAT_CREDENTIAL_ENV_MIXED_CASE_NAME_1_2",
+		"env/sqlserver-b":         "ATRIUM_CREDENTIAL_ENV_SQLSERVER_B",
+		"kv/sqlserver-default":    "ATRIUM_CREDENTIAL_KV_SQLSERVER_DEFAULT",
+		"secret/finance.prod-ro":  "ATRIUM_CREDENTIAL_SECRET_FINANCE_PROD_RO",
+		"env/Mixed/Case_name-1.2": "ATRIUM_CREDENTIAL_ENV_MIXED_CASE_NAME_1_2",
 	} {
 		if got := Key(ref); got != want {
 			t.Errorf("Key(%q) = %q, want %q", ref, got, want)
@@ -35,8 +35,8 @@ func TestKey(t *testing.T) {
 }
 
 func TestEnv(t *testing.T) {
-	t.Setenv("HEARTBEAT_CREDENTIAL_KV_SQLSERVER_DEFAULT", "collector:pass:with:colons")
-	t.Setenv("HEARTBEAT_CREDENTIAL_ENV_MALFORMED", "no-separator-"+testPassword)
+	t.Setenv("ATRIUM_CREDENTIAL_KV_SQLSERVER_DEFAULT", "collector:pass:with:colons")
+	t.Setenv("ATRIUM_CREDENTIAL_ENV_MALFORMED", "no-separator-"+testPassword)
 
 	got := mustResolve(t, Env{}, "kv/sqlserver-default")
 	if want := (Credential{Username: "collector", Password: "pass:with:colons"}); got != want {
@@ -59,7 +59,7 @@ func TestEnv(t *testing.T) {
 func TestFilesFollowsSecretUpdates(t *testing.T) {
 	dir := t.TempDir()
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A": "collector:old-password\n",
+		"ATRIUM_CREDENTIAL_ENV_SQLSERVER_A": "collector:old-password\n",
 	})
 	r := Files{Dir: dir}
 
@@ -68,8 +68,8 @@ func TestFilesFollowsSecretUpdates(t *testing.T) {
 	}
 
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A": "collector:new-password\n",
-		"HEARTBEAT_CREDENTIAL_KV_SQLSERVER_B":  "reader:b-password",
+		"ATRIUM_CREDENTIAL_ENV_SQLSERVER_A": "collector:new-password\n",
+		"ATRIUM_CREDENTIAL_KV_SQLSERVER_B":  "reader:b-password",
 	})
 	if got := mustResolve(t, r, "env/sqlserver-a"); got != (Credential{Username: "collector", Password: "new-password"}) {
 		t.Fatalf("after rotation: %+v", got)
@@ -79,7 +79,7 @@ func TestFilesFollowsSecretUpdates(t *testing.T) {
 	}
 
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_KV_SQLSERVER_B": "reader:b-password",
+		"ATRIUM_CREDENTIAL_KV_SQLSERVER_B": "reader:b-password",
 	})
 	if _, err := r.Resolve(context.Background(), "env/sqlserver-a"); err == nil || !strings.Contains(err.Error(), "missing credential for ref env/sqlserver-a") {
 		t.Fatalf("removed key: err = %v", err)
@@ -88,15 +88,15 @@ func TestFilesFollowsSecretUpdates(t *testing.T) {
 
 func TestFilesFallsBack(t *testing.T) {
 	const ref = "env/sqlserver-a"
-	t.Setenv("HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A", "env-user:env-password")
+	t.Setenv("ATRIUM_CREDENTIAL_ENV_SQLSERVER_A", "env-user:env-password")
 	fromEnv := Credential{Username: "env-user", Password: "env-password"}
 	withFile := t.TempDir()
 	credentialstest.WriteSecretVolume(t, withFile, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A": "file-user:from-file",
+		"ATRIUM_CREDENTIAL_ENV_SQLSERVER_A": "file-user:from-file",
 	})
 	withoutFile := t.TempDir()
 	credentialstest.WriteSecretVolume(t, withoutFile, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_OTHER": "other:other-password",
+		"ATRIUM_CREDENTIAL_ENV_OTHER": "other:other-password",
 	})
 
 	for _, tc := range []struct {
@@ -137,7 +137,7 @@ func TestFilesValues(t *testing.T) {
 		":" + testPassword:                     {Username: "", Password: testPassword},
 	} {
 		dir := t.TempDir()
-		credentialstest.WriteSecretVolume(t, dir, map[string]string{"HEARTBEAT_CREDENTIAL_ENV_A": value})
+		credentialstest.WriteSecretVolume(t, dir, map[string]string{"ATRIUM_CREDENTIAL_ENV_A": value})
 		if got := mustResolve(t, Files{Dir: dir}, "env/a"); got != want {
 			t.Errorf("file %q: Resolve = %+v, want %+v", value, got, want)
 		}
@@ -147,7 +147,7 @@ func TestFilesValues(t *testing.T) {
 // A file that is there but unusable is an error, never a reason to use the
 // environment's credential instead, and the error never quotes the file.
 func TestFilesDoesNotFallBackOnBadFiles(t *testing.T) {
-	t.Setenv("HEARTBEAT_CREDENTIAL_ENV_A", "env-user:env-password")
+	t.Setenv("ATRIUM_CREDENTIAL_ENV_A", "env-user:env-password")
 	outside := filepath.Join(t.TempDir(), "outside")
 	if err := os.WriteFile(outside, []byte("outside:"+testPassword), 0o600); err != nil {
 		t.Fatal(err)
@@ -161,14 +161,14 @@ func TestFilesDoesNotFallBackOnBadFiles(t *testing.T) {
 		{
 			name: "no colon",
 			setup: func(t *testing.T, dir string) {
-				credentialstest.WriteSecretVolume(t, dir, map[string]string{"HEARTBEAT_CREDENTIAL_ENV_A": "collector" + testPassword})
+				credentialstest.WriteSecretVolume(t, dir, map[string]string{"ATRIUM_CREDENTIAL_ENV_A": "collector" + testPassword})
 			},
 			want: "credential env/a must be username:password",
 		},
 		{
 			name: "empty file",
 			setup: func(t *testing.T, dir string) {
-				credentialstest.WriteSecretVolume(t, dir, map[string]string{"HEARTBEAT_CREDENTIAL_ENV_A": ""})
+				credentialstest.WriteSecretVolume(t, dir, map[string]string{"ATRIUM_CREDENTIAL_ENV_A": ""})
 			},
 			want: "credential env/a must be username:password",
 		},
@@ -176,7 +176,7 @@ func TestFilesDoesNotFallBackOnBadFiles(t *testing.T) {
 			// os.Root refuses symlinks that leave the directory.
 			name: "symlink out of the directory",
 			setup: func(t *testing.T, dir string) {
-				if err := os.Symlink(outside, filepath.Join(dir, "HEARTBEAT_CREDENTIAL_ENV_A")); err != nil {
+				if err := os.Symlink(outside, filepath.Join(dir, "ATRIUM_CREDENTIAL_ENV_A")); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -185,7 +185,7 @@ func TestFilesDoesNotFallBackOnBadFiles(t *testing.T) {
 		{
 			name: "unreadable entry",
 			setup: func(t *testing.T, dir string) {
-				if err := os.Mkdir(filepath.Join(dir, "HEARTBEAT_CREDENTIAL_ENV_A"), 0o700); err != nil {
+				if err := os.Mkdir(filepath.Join(dir, "ATRIUM_CREDENTIAL_ENV_A"), 0o700); err != nil {
 					t.Fatal(err)
 				}
 			},

@@ -57,11 +57,11 @@ import (
 
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
+	collectorconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
 )
 
 // DefaultMaxBatches bounds the batches one call reads while batches are

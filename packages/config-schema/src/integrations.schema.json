@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/integrations.schema.json",
-  "title": "Heartbeat Integrations Config",
+  "$id": "https://atrium.local/schemas/integrations.schema.json",
+  "title": "Atrium Integrations Config",
   "type": "object",
   "additionalProperties": false,
   "required": ["collectors"],
   "properties": {
     "platform": {
-      "description": "Observability platform that stores and shows Heartbeat's telemetry (ADR 0011). Heartbeat only writes OTLP to opentelemetry.endpoint and Prometheus exposition on /metrics; grafana selects Grafana dashboard and deep-link syntax and, later, the API's query adapters; generic is any other platform, for which dashboards, logs and alerting stay empty.",
+      "description": "Observability platform that stores and shows Atrium's telemetry (ADR 0011). Atrium only writes OTLP to opentelemetry.endpoint and Prometheus exposition on /metrics; grafana selects Grafana dashboard and deep-link syntax and, later, the API's query adapters; generic is any other platform, for which dashboards, logs and alerting stay empty.",
       "type": "string",
       "enum": ["grafana", "generic"],
       "default": "grafana"
@@ -29,7 +29,7 @@
       }
     },
     "logs": {
-      "description": "The platform's log query API (Loki). Heartbeat never writes logs here; they go through opentelemetry.endpoint.",
+      "description": "The platform's log query API (Loki). Atrium never writes logs here; they go through opentelemetry.endpoint.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -96,7 +96,7 @@
               "initial_lookback": {"type": "string", "description": "outsystems_logs only: where a log type without a watermark starts, back from now (Go duration, default 15m)."},
               "log_timezone": {"type": "string", "description": "outsystems_logs only: IANA time zone the Instant column is stored in (default UTC)."},
               "recount_window": {"type": "string", "description": "outsystems_logs only: how far behind its watermark each log type recounts its rows, once a minute, to find rows committed past the lag (0s off, or whole minutes from 2m to 1h; default 10m)."},
-              "max_derived_series": {"type": "integer", "minimum": 1, "maximum": 1000000, "description": "outsystems_logs only: the most series the derived OutSystems metrics may hold for this collector, counted as Prometheus stores them (a histogram's buckets, sum and count each); past it, rows that need a new series are dropped from the derived metrics and counted in heartbeat_outsystems_derived_series_overflow_total (default 50000)."},
+              "max_derived_series": {"type": "integer", "minimum": 1, "maximum": 1000000, "description": "outsystems_logs only: the most series the derived OutSystems metrics may hold for this collector, counted as Prometheus stores them (a histogram's buckets, sum and count each); past it, rows that need a new series are dropped from the derived metrics and counted in atrium_outsystems_derived_series_overflow_total (default 50000)."},
               "target_names": {
                 "type": "array",
                 "items": {"type": "string"}

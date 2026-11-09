@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 // Collector phases reported by the lifecycle and served on /readyz.
@@ -67,12 +67,12 @@ func (b restartBackoff) delay(crashes int) time.Duration {
 
 // pollerRunFunc runs one poller until ctx is cancelled. It is a seam so tests
 // can simulate pollers that crash; production uses collectors.Poller.Start.
-type pollerRunFunc func(ctx context.Context, collector heartbeatconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error
+type pollerRunFunc func(ctx context.Context, collector atriumconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error
 
 // pollerEntry is the supervised state of one collector. All fields except
 // collector, cancel, and done are guarded by pollerLifecycle.mu.
 type pollerEntry struct {
-	collector heartbeatconfig.CollectorRuntimeConfig
+	collector atriumconfig.CollectorRuntimeConfig
 	cancel    context.CancelFunc
 	// done is closed when the supervisor goroutine exits for good.
 	done chan struct{}
@@ -90,7 +90,7 @@ type pollerEntry struct {
 
 // collectorState is an immutable copy of a pollerEntry used for readiness.
 type collectorState struct {
-	Collector   heartbeatconfig.CollectorRuntimeConfig
+	Collector   atriumconfig.CollectorRuntimeConfig
 	Phase       string
 	Started     time.Time
 	LastCycle   collectors.CycleResult
@@ -101,7 +101,7 @@ type collectorState struct {
 }
 
 // pollerLifecycle supervises one poller goroutine per collector. It implements
-// heartbeatconfig.CollectorLifecycle.
+// atriumconfig.CollectorLifecycle.
 //
 // Pollers run under a context derived from the lifecycle's base context, never
 // from the context passed to Start/Update, so they outlive the reload request
@@ -123,7 +123,7 @@ type pollerLifecycle struct {
 // newPollerLifecycle creates a supervisor whose pollers run under a child of
 // parent and execute cycles with runner.
 func newPollerLifecycle(parent context.Context, runner collectors.Runner, logger *slog.Logger) *pollerLifecycle {
-	return newPollerLifecycleWithRun(parent, logger, func(ctx context.Context, collector heartbeatconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error {
+	return newPollerLifecycleWithRun(parent, logger, func(ctx context.Context, collector atriumconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error {
 		return collectors.Poller{Runner: runner, Collector: collector, Report: report}.Start(ctx)
 	})
 }
@@ -149,7 +149,7 @@ func newPollerLifecycleWithRun(parent context.Context, logger *slog.Logger, run 
 // Start launches a poller for collector and returns once its goroutine is
 // running; it does not wait for the first cycle. If the collector already
 // exists, Start falls back to Update.
-func (l *pollerLifecycle) Start(ctx context.Context, collector heartbeatconfig.CollectorRuntimeConfig) error {
+func (l *pollerLifecycle) Start(ctx context.Context, collector atriumconfig.CollectorRuntimeConfig) error {
 	l.mu.Lock()
 	if _, exists := l.items[collector.ID]; !exists {
 		defer l.mu.Unlock()
@@ -165,7 +165,7 @@ func (l *pollerLifecycle) Start(ctx context.Context, collector heartbeatconfig.C
 // would otherwise delete series the new one just wrote. It gives up with an error
 // when ctx ends first; in that case the old entry stays registered (phase
 // restarting, then failed once it exits) so the next reload restarts it.
-func (l *pollerLifecycle) Update(ctx context.Context, collector heartbeatconfig.CollectorRuntimeConfig) error {
+func (l *pollerLifecycle) Update(ctx context.Context, collector atriumconfig.CollectorRuntimeConfig) error {
 	l.mu.Lock()
 	if l.closed {
 		l.mu.Unlock()
@@ -194,7 +194,7 @@ func (l *pollerLifecycle) Update(ctx context.Context, collector heartbeatconfig.
 }
 
 // startLocked registers and launches a supervised poller. l.mu must be held.
-func (l *pollerLifecycle) startLocked(collector heartbeatconfig.CollectorRuntimeConfig) error {
+func (l *pollerLifecycle) startLocked(collector atriumconfig.CollectorRuntimeConfig) error {
 	if l.closed {
 		return errLifecycleClosed
 	}
@@ -373,13 +373,13 @@ func (l *pollerLifecycle) Stop(ctx context.Context, id string) error {
 
 // Status returns the current lifecycle status for one collector. It never
 // includes raw error text.
-func (l *pollerLifecycle) Status(id string) heartbeatconfig.CollectorStatus {
+func (l *pollerLifecycle) Status(id string) atriumconfig.CollectorStatus {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if entry, exists := l.items[id]; exists {
-		return heartbeatconfig.CollectorStatus{ID: id, Phase: entry.phase, Version: id}
+		return atriumconfig.CollectorStatus{ID: id, Phase: entry.phase, Version: id}
 	}
-	return heartbeatconfig.CollectorStatus{ID: id, Phase: phaseStopped}
+	return atriumconfig.CollectorStatus{ID: id, Phase: phaseStopped}
 }
 
 // needsRestart reports whether a collector whose config did not change must
@@ -395,10 +395,10 @@ func (l *pollerLifecycle) needsRestart(id string) bool {
 
 // configs returns the configs of every managed collector, i.e. what the
 // runtime is actually running, sorted by ID.
-func (l *pollerLifecycle) configs() []heartbeatconfig.CollectorRuntimeConfig {
+func (l *pollerLifecycle) configs() []atriumconfig.CollectorRuntimeConfig {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	out := make([]heartbeatconfig.CollectorRuntimeConfig, 0, len(l.items))
+	out := make([]atriumconfig.CollectorRuntimeConfig, 0, len(l.items))
 	for _, entry := range l.items {
 		out = append(out, entry.collector)
 	}

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/scenario"
+	"atrium/tools/patientzero/internal/scenario"
 )
 
 // maxBody caps a response read from a source.

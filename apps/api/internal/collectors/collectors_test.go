@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	heartbeatconfig "heartbeat/internal/config"
+	atriumconfig "atrium/internal/config"
 )
 
 const token = "admin-token-for-the-test"
@@ -19,7 +19,7 @@ const token = "admin-token-for-the-test"
 // adminServer serves GET /admin/config as the collector does: the redacted
 // runtime config of collectors, encoded from the collector's own type, so
 // that a renamed field breaks this test before it breaks the observation.
-func adminServer(t *testing.T, status int, collectors []heartbeatconfig.CollectorRuntimeConfig) (*httptest.Server, *atomic.Int32) {
+func adminServer(t *testing.T, status int, collectors []atriumconfig.CollectorRuntimeConfig) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,26 +34,26 @@ func adminServer(t *testing.T, status int, collectors []heartbeatconfig.Collecto
 		}
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"version": "abc", "config": heartbeatconfig.RuntimeConfig{Collectors: collectors}.Redacted(),
+			"version": "abc", "config": atriumconfig.RuntimeConfig{Collectors: collectors}.Redacted(),
 		})
 	}))
 	t.Cleanup(server.Close)
 	return server, &calls
 }
 
-func target(name, env string) heartbeatconfig.TargetRuntimeConfig {
-	return heartbeatconfig.TargetRuntimeConfig{Name: name, EnvironmentSlug: env, CredentialRef: "env/sqlserver-dev"}
+func target(name, env string) atriumconfig.TargetRuntimeConfig {
+	return atriumconfig.TargetRuntimeConfig{Name: name, EnvironmentSlug: env, CredentialRef: "env/sqlserver-dev"}
 }
 
 func TestCoverageFollowsTheCollectorsRule(t *testing.T) {
-	server, _ := adminServer(t, http.StatusOK, []heartbeatconfig.CollectorRuntimeConfig{
-		{ID: "oslogs-prod", Kind: KindOutSystemsLogs, Enabled: true, Environment: "prod", Targets: []heartbeatconfig.TargetRuntimeConfig{target("logging-db", "prod")}},
+	server, _ := adminServer(t, http.StatusOK, []atriumconfig.CollectorRuntimeConfig{
+		{ID: "oslogs-prod", Kind: KindOutSystemsLogs, Enabled: true, Environment: "prod", Targets: []atriumconfig.TargetRuntimeConfig{target("logging-db", "prod")}},
 		// Two targets, one selected: only the selected one's environment.
 		{ID: "oslogs-shared", Kind: KindOutSystemsLogs, Enabled: true, TargetNames: []string{"eu"},
-			Targets: []heartbeatconfig.TargetRuntimeConfig{target("eu", "prod"), target("us", "us-prod")}},
-		{ID: "oslogs-off", Kind: KindOutSystemsLogs, Enabled: false, Targets: []heartbeatconfig.TargetRuntimeConfig{target("db", "staging")}},
-		{ID: "sql-staging", Kind: "sqlserver", Enabled: true, Targets: []heartbeatconfig.TargetRuntimeConfig{target("db", "staging")}},
-		{ID: "oslogs-unlabelled", Kind: KindOutSystemsLogs, Enabled: true, Targets: []heartbeatconfig.TargetRuntimeConfig{target("db", "")}},
+			Targets: []atriumconfig.TargetRuntimeConfig{target("eu", "prod"), target("us", "us-prod")}},
+		{ID: "oslogs-off", Kind: KindOutSystemsLogs, Enabled: false, Targets: []atriumconfig.TargetRuntimeConfig{target("db", "staging")}},
+		{ID: "sql-staging", Kind: "sqlserver", Enabled: true, Targets: []atriumconfig.TargetRuntimeConfig{target("db", "staging")}},
+		{ID: "oslogs-unlabelled", Kind: KindOutSystemsLogs, Enabled: true, Targets: []atriumconfig.TargetRuntimeConfig{target("db", "")}},
 	})
 	c := &Client{URL: server.URL + "/", Token: token}
 	got, err := c.OutSystemsLogs(context.Background())
@@ -131,8 +131,8 @@ func TestAnswersAreKeptForTTL(t *testing.T) {
 // still completes, and its answer, not the caller's cancellation, is what
 // the next callers get.
 func TestACancelledCallerDoesNotPoisonTheCache(t *testing.T) {
-	server, calls := adminServer(t, http.StatusOK, []heartbeatconfig.CollectorRuntimeConfig{
-		{ID: "oslogs-prod", Kind: KindOutSystemsLogs, Enabled: true, Targets: []heartbeatconfig.TargetRuntimeConfig{target("db", "prod")}},
+	server, calls := adminServer(t, http.StatusOK, []atriumconfig.CollectorRuntimeConfig{
+		{ID: "oslogs-prod", Kind: KindOutSystemsLogs, Enabled: true, Targets: []atriumconfig.TargetRuntimeConfig{target("db", "prod")}},
 	})
 	c := &Client{URL: server.URL, Token: token}
 	cancelled, cancel := context.WithCancel(context.Background())

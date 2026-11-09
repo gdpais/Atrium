@@ -9,11 +9,11 @@ The OTel gateway (`services/otel-gateway`) was planned as a thin Go service
 that parses what the stock OpenTelemetry Collector cannot, starting with
 OutSystems. It never got a caller:
 
-- `POST /v1/heartbeat/events` normalized one JSON event into the
+- `POST /v1/atrium/events` normalized one JSON event into the
   [application event contract](../../../packages/telemetry-contracts/src/application_event.schema.json)
   and returned it to the caller. Nothing was exported to the OTel Collector,
   and nothing sends those events.
-- `POST /v1/heartbeat/alerts` was Alertmanager's default receiver. It counted
+- `POST /v1/atrium/alerts` was Alertmanager's default receiver. It counted
   each delivery and discarded it, so every alert except `Watchdog` reached a
   sink that looked like delivery and was not.
 

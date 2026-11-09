@@ -17,15 +17,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/probedefs"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/apps/api/internal/users"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/testenv"
+	"atrium/apps/api/internal/users"
 )
 
 // harness is what an audited change runs against: PostgreSQL, and Redis

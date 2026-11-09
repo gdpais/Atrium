@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/users"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/users"
 )
 
 // createAdminCommand names the command in the audit records it writes.

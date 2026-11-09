@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 
-	"heartbeat/db/migrations"
-	"heartbeat/internal/credentials"
+	"atrium/db/migrations"
+	"atrium/internal/credentials"
 )
 
 // migrateLockTimeout bounds each wait for another replica's migrations:

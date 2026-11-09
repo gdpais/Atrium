@@ -3,7 +3,7 @@
 A scenario is one test with an exact expectation
 ([ADR 0010](../../../docs/architecture/decisions/0010-patientzero-test-application.md)):
 it injects a fault into the running system for a while and names the
-signals Heartbeat must show for it. PatientZero runs it, checks the signals
+signals Atrium must show for it. PatientZero runs it, checks the signals
 against Prometheus, Loki and Alertmanager, and writes everything that
 happened to a run journal, the known answer later investigations and
 reports are compared with.
@@ -35,19 +35,19 @@ scenario with cluster faults it is also the run's host agent, which needs
 
 | Scenario | Fault | Must show | Takes |
 | --- | --- | --- | --- |
-| [`checkout-errors`](checkout-errors.yaml) | Half of `PlaceOrder` calls fail for 3 minutes | The `PlaceOrder` error ratio in `heartbeat_outsystems_operations_total` above 0.3, the injected error rows in Loki, the ratio back below 0.2 after the fault | about 6 minutes |
-| [`orderlist-latency`](orderlist-latency.yaml) | `OrderList` takes 3 s longer for 3 minutes | The screen p95 from `heartbeat_outsystems_operation_duration_seconds` above the 2 s SLO threshold, then back below 1 s | about 7 minutes |
+| [`checkout-errors`](checkout-errors.yaml) | Half of `PlaceOrder` calls fail for 3 minutes | The `PlaceOrder` error ratio in `atrium_outsystems_operations_total` above 0.3, the injected error rows in Loki, the ratio back below 0.2 after the fault | about 6 minutes |
+| [`orderlist-latency`](orderlist-latency.yaml) | `OrderList` takes 3 s longer for 3 minutes | The screen p95 from `atrium_outsystems_operation_duration_seconds` above the 2 s SLO threshold, then back below 1 s | about 7 minutes |
 | [`bad-deploy`](bad-deploy.yaml) | A broken version of `PatientZero_App` fails every `PlaceOrder` with a new exception for 8 minutes, then is rolled back | The module's error rate and the exception in Loki; the error SLI past 1.44%; `OutSystemsErrorBudgetBurnFast` firing, then resolved; `OutSystemsErrorBudgetBurnSlow` firing | about 19 minutes |
-| [`slow-sql`](slow-sql.yaml) | The order list's query runs 2.5 to 3.5 s longer in SQL Server for 15 minutes | More running sessions on SQL Server; slow-SQL rows in Loki and `heartbeat_outsystems_slow_events_total`; the latency SLI past 14.4%; `OutSystemsLatencyBudgetBurnFast` firing, then resolved; `OutSystemsLatencyBudgetBurnSlow` firing | about 25 minutes |
+| [`slow-sql`](slow-sql.yaml) | The order list's query runs 2.5 to 3.5 s longer in SQL Server for 15 minutes | More running sessions on SQL Server; slow-SQL rows in Loki and `atrium_outsystems_slow_events_total`; the latency SLI past 14.4%; `OutSystemsLatencyBudgetBurnFast` firing, then resolved; `OutSystemsLatencyBudgetBurnSlow` firing | about 25 minutes |
 | [`rotation`](rotation.yaml) | The weekly rotation of the logging database's views, while the load runs | Extraction keeps up; Loki holds every row of the run, once | about 8 minutes |
 | [`log-backlog`](log-backlog.yaml) | Every request's log rows committed 10 s late for 4 minutes, within the collector's 15 s lag | Extraction keeps up; Loki holds every row of the run, once | about 8 minutes |
-| [`late-commits`](late-commits.yaml) | Every request's log rows committed 90 s late for 3 minutes, past every log type's lag | The extracted rows stop, then return; `OutSystemsLateLogRows` firing and nothing sent twice; Loki holds every row of the run but the late ones, once, and `heartbeat_outsystems_late_rows_total` counted exactly the late ones | about 9 minutes |
+| [`late-commits`](late-commits.yaml) | Every request's log rows committed 90 s late for 3 minutes, past every log type's lag | The extracted rows stop, then return; `OutSystemsLateLogRows` firing and nothing sent twice; Loki holds every row of the run but the late ones, once, and `atrium_outsystems_late_rows_total` counted exactly the late ones | about 9 minutes |
 | [`log-growth`](log-growth.yaml) | 20 extra general rows of 2,000 characters per request for 5 minutes, about 100 MB | The SQL Server storage probe sees `patientzero_log`'s data file grow; extraction keeps up; Loki discards nothing and holds every row, once | about 9 minutes |
-| [`restarts`](restarts.yaml) | The db-collector, the OTel Collector and Loki restarted one after the other | No `HeartbeatServiceDown`, `OutSystemsLogExportBlocked`, `OutSystemsLateLogRows` or `OutSystemsDuplicateLogRows`, no discarded rows; Loki holds every row of the run, once | about 9 minutes |
-| [`loki-outage`](loki-outage.yaml) | Loki down for 4 minutes | `heartbeat_outsystems_export_blocked` 1 while the target stays up; `OutSystemsLogExportBlocked` and `HeartbeatServiceDown` for Loki firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
-| [`otel-outage`](otel-outage.yaml) | The OTel Collector down for 4 minutes | `HeartbeatServiceDown` for it and `OutSystemsLogExportBlocked` firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
-| [`tempo-outage`](tempo-outage.yaml) | Tempo down for 4 minutes | `HeartbeatServiceDown` for it firing, then resolved; the target stays up, its export never blocks and extraction keeps up; Loki holds every row of the run, once | 8 min |
-| [`collector-outage`](collector-outage.yaml) | The db-collector down for 4 minutes | No collector target up and `HeartbeatServiceDown` for it firing, then both back; extraction catches up; Loki holds every row, once | about 8 minutes |
+| [`restarts`](restarts.yaml) | The db-collector, the OTel Collector and Loki restarted one after the other | No `AtriumServiceDown`, `OutSystemsLogExportBlocked`, `OutSystemsLateLogRows` or `OutSystemsDuplicateLogRows`, no discarded rows; Loki holds every row of the run, once | about 9 minutes |
+| [`loki-outage`](loki-outage.yaml) | Loki down for 4 minutes | `atrium_outsystems_export_blocked` 1 while the target stays up; `OutSystemsLogExportBlocked` and `AtriumServiceDown` for Loki firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
+| [`otel-outage`](otel-outage.yaml) | The OTel Collector down for 4 minutes | `AtriumServiceDown` for it and `OutSystemsLogExportBlocked` firing, then resolved; extraction catches up; Loki holds every row, once | about 8 minutes |
+| [`tempo-outage`](tempo-outage.yaml) | Tempo down for 4 minutes | `AtriumServiceDown` for it firing, then resolved; the target stays up, its export never blocks and extraction keeps up; Loki holds every row of the run, once | 8 min |
+| [`collector-outage`](collector-outage.yaml) | The db-collector down for 4 minutes | No collector target up and `AtriumServiceDown` for it firing, then both back; extraction catches up; Loki holds every row, once | about 8 minutes |
 | [`sqlserver-outage`](sqlserver-outage.yaml) | The sandbox SQL Server stopped for 2 minutes | Both collector targets down, then up again; Loki holds every row PatientZero could write, once | about 7 minutes |
 
 The last six have cluster faults: `make patientzero-scenario` applies them
@@ -91,7 +91,7 @@ about 0.07% of its requests fail (refused orders) and none take 2 s.
 ### Not covered
 
 No scenario fires these alerts from the chart's rules. The rules' unit tests
-([`heartbeat.rules.test.yml`](../../../infra/helm/heartbeat/files/prometheus/rules/tests/heartbeat.rules.test.yml),
+([`atrium.rules.test.yml`](../../../infra/helm/atrium/files/prometheus/rules/tests/atrium.rules.test.yml),
 `make rules-check`) check each one against made-up series; no run shows it
 firing from a real fault. A test keeps the table in step with the rules and
 the scenarios.
@@ -99,28 +99,28 @@ the scenarios.
 | Alert | Fires when | Why no scenario fires it |
 | --- | --- | --- |
 | `Watchdog` | Always: it is the dead-man's switch | It fires through every run, but no check reads it |
-| `HeartbeatCollectorConfigReloadFailed` | The db-collector rejects a config reload | No fault changes the collector's config |
-| `HeartbeatCollectorLoginElevated` | A collector login is in `sysadmin` or holds `CONTROL SERVER` | No fault changes the login's grants |
+| `AtriumCollectorConfigReloadFailed` | The db-collector rejects a config reload | No fault changes the collector's config |
+| `AtriumCollectorLoginElevated` | A collector login is in `sysadmin` or holds `CONTROL SERVER` | No fault changes the login's grants |
 | `OutSystemsDerivedSeriesOverflow` | A row needs a new derived series and the collector already holds `max_derived_series` | PatientZero's applications, modules and operations stay far below the budget |
 | `OutSystemsLogExtractionBehind` | A log type has not been extracted for about 40 minutes (30, then its `for: 10m`) | The longest outage lasts 4 minutes |
 | `OutSystemsLogRecountFailing` | Most recounts of a log type fail for 15 minutes | No fault breaks the recount for that long |
 | `OutSystemsDuplicateLogRows` | A recount finds rows delivered twice | `late-commits` and `restarts` check that it stays quiet |
 | `LokiDiscardingLogs` | Loki discards rows, for any reason but rate limiting | `log-growth` and `restarts` check that it stays quiet |
-| `HeartbeatAPIErrorBudgetBurnFast` | The API fails over 1.44% of its requests over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatAPIErrorBudgetBurnSlow` | The API fails over 0.6% of its requests over 6 hours and 30 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatAPISlow` | Over 72% of the API's requests take more than 250 ms over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
-| `HeartbeatCollectorCyclesLateFast` | Over 7.2% of a collector's cycles use their whole interval over 1 hour and 5 minutes, with at least 30 cycles an hour | No fault slows a probe past the interval that long |
-| `HeartbeatCollectorCyclesLate` | Over 3% of them do over 6 hours and 30 minutes | As above, and no scenario lasts 6 hours |
-| `HeartbeatExtractionFreshnessBurn` | A log type's lag stays more than 5 minutes past its setting, or its target down, for over 14.4% of an hour and of 5 minutes | The longest outage lasts 4 minutes |
-| `HeartbeatExtractionFreshnessBurnSlow` | The same for over 6% of 6 hours and of 30 minutes | No scenario lasts 6 hours |
-| `HeartbeatServiceRestarting` | A service starts more than 3 times in an hour | `restarts` restarts it once |
-| `HeartbeatServiceMemoryHigh` | Resident memory stays above `GOMEMLIMIT` for 15 minutes | No fault grows the collector's memory that far |
-| `HeartbeatGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |
-| `HeartbeatOTLPExportRejected` | The OTel Collector rejects a request for good | No fault misconfigures the endpoint |
-| `HeartbeatOTLPRecordsRejected` | The OTel Collector accepts a request but refuses some of its records (OTLP partial success) | The bundled Collector's receiver never answers with a partial success |
-| `HeartbeatAuditDeliveryStalled` | The oldest audit record waits in the API's outbox for over 4 minutes (2, then its `for: 2m`) | The API is not deployed yet [4.1], and no scenario makes audited changes |
+| `AtriumAPIErrorBudgetBurnFast` | The API fails over 1.44% of its requests over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
+| `AtriumAPIErrorBudgetBurnSlow` | The API fails over 0.6% of its requests over 6 hours and 30 minutes | The API is not deployed yet [4.1] |
+| `AtriumAPISlow` | Over 72% of the API's requests take more than 250 ms over 1 hour and 5 minutes | The API is not deployed yet [4.1] |
+| `AtriumCollectorCyclesLateFast` | Over 7.2% of a collector's cycles use their whole interval over 1 hour and 5 minutes, with at least 30 cycles an hour | No fault slows a probe past the interval that long |
+| `AtriumCollectorCyclesLate` | Over 3% of them do over 6 hours and 30 minutes | As above, and no scenario lasts 6 hours |
+| `AtriumExtractionFreshnessBurn` | A log type's lag stays more than 5 minutes past its setting, or its target down, for over 14.4% of an hour and of 5 minutes | The longest outage lasts 4 minutes |
+| `AtriumExtractionFreshnessBurnSlow` | The same for over 6% of 6 hours and of 30 minutes | No scenario lasts 6 hours |
+| `AtriumServiceRestarting` | A service starts more than 3 times in an hour | `restarts` restarts it once |
+| `AtriumServiceMemoryHigh` | Resident memory stays above `GOMEMLIMIT` for 15 minutes | No fault grows the collector's memory that far |
+| `AtriumGoroutinesGrowing` | Over 200 goroutines, growing by more than 20 an hour over 6 hours | No fault leaks goroutines |
+| `AtriumOTLPExportRejected` | The OTel Collector rejects a request for good | No fault misconfigures the endpoint |
+| `AtriumOTLPRecordsRejected` | The OTel Collector accepts a request but refuses some of its records (OTLP partial success) | The bundled Collector's receiver never answers with a partial success |
+| `AtriumAuditDeliveryStalled` | The oldest audit record waits in the API's outbox for over 4 minutes (2, then its `for: 2m`) | The API is not deployed yet [4.1], and no scenario makes audited changes |
 
-`HeartbeatServiceDown` is covered, but only one of its two rules fires for
+`AtriumServiceDown` is covered, but only one of its two rules fires for
 the db-collector in a given cluster: `collector-outage` fires the `absent()`
 rule where every name on Prometheus' DNS search path answers NXDOMAIN, as on
 local kind, and the `up == 0` rule on GitHub's runners (the scenario's
@@ -241,7 +241,7 @@ stored twice) and no fewer (a row lost).
   not others. A check also fails when no row was written in its window, and
   its mode is always `eventually`.
 - **`late_rows`.** With `lost_after`, a counter selector such as
-  `heartbeat_outsystems_late_rows_total{collector="patientzero"}`: per log
+  `atrium_outsystems_late_rows_total{collector="patientzero"}`: per log
   type (its `log_type` label), the counter must also have grown by exactly
   the rows lost, from the window's start to the evaluation. The collector's
   recount counts the late rows, so this checks it finds each one, once.
@@ -266,7 +266,7 @@ PatientZero's runner applies `in-process` faults itself, and hands
 | `commit-delay` | in-process | `delay` (required, at most 10m) | Holds every request's log rows back for `delay` after the request, which answers at once, as a log service that has fallen behind commits them late. Rows held when the step ends are still committed `delay` after their request |
 | `log-flood` | in-process | `rows` (required, 1 to 200), `bytes` (1 to 2,000, default 1,000), `entry_points` | Each request logs `rows` more `general` rows of its module, under its `Request_Key`, each with a `Message` of `bytes` characters, as verbose logging left on does |
 
-`entry_points` names entry points as Heartbeat's `operation` label does:
+`entry_points` names entry points as Atrium's `operation` label does:
 `OrderList`, `PlaceOrder`, `GetOrders`; empty or absent for all three.
 `module` names a module (eSpace): `PatientZero_Web` (`OrderList`),
 `PatientZero_App` (`PlaceOrder`) or `PatientZero_API` (`GetOrders`). Two
@@ -287,7 +287,7 @@ waits probe leaves out. Lock waits come with the `blocking` scenario
 than 200 ms as the platform logs a slow query: a `general` row under the
 request's `Request_Key` with `Module_Name` `SLOWSQL` and the `Message`
 `<statement> took <n> ms`, which the collector counts in
-`heartbeat_outsystems_slow_events_total` and reads as the row's `Duration`.
+`atrium_outsystems_slow_events_total` and reads as the row's `Duration`.
 It times the statement as it runs, so anything that slows it writes one,
 not only a `sql-latency` fault.
 
@@ -311,7 +311,7 @@ any cluster it is installed on.
 | `restart` | cluster | `workload` (required): `db-collector`, `otel-collector`, `loki` or `sqlserver` | When its step starts: deletes the workload's pod and waits until its StatefulSet's new pod is Ready, or restarts SQL Server's container and waits until it is healthy. The end of the step changes nothing |
 | `outage` | cluster | `workload` (required), as for `restart` | For its step: scales the StatefulSet to 0 and waits until its pod is gone, or stops SQL Server's container; at the end, scales it back to 1 and waits until it is ready, or starts the container and waits until it is healthy |
 
-The workloads are the Heartbeat chart's StatefulSets in the Heartbeat
+The workloads are the Atrium chart's StatefulSets in the Atrium
 namespace, one pod each, and the sandbox SQL Server container
 (`SQLSERVER_CONTAINER`).
 
@@ -335,8 +335,8 @@ run it started. Interrupted, it stops the run detached (`POST
 /admin/run/stop?detach=1`: PatientZero fails the pending and later requests
 at once instead of waiting), then ends the outages it started. Killed
 outright, it cannot: scale the StatefulSet back to 1 (`kubectl --context
-kind-heartbeat -n heartbeat scale statefulset/<name> --replicas=1`) or start
-the container (`docker start heartbeat-sqlserver-dev`) by hand.
+kind-atrium -n atrium scale statefulset/<name> --replicas=1`) or start
+the container (`docker start atrium-sqlserver-dev`) by hand.
 
 A host-side runner, the same runner code on the host with the faults
 applied directly, was the plan before this. It would have had to read the
@@ -373,8 +373,8 @@ only from the files built into the image; a request can only name one.
 By hand, through a port-forward:
 
 ```bash
-kubectl --context kind-heartbeat -n patientzero port-forward svc/patientzero 8080 &
-TOKEN=$(kubectl --context kind-heartbeat -n patientzero get secret patientzero-admin -o jsonpath='{.data.admin-token}' | base64 -d)
+kubectl --context kind-atrium -n patientzero port-forward svc/patientzero 8080 &
+TOKEN=$(kubectl --context kind-atrium -n patientzero get secret patientzero-admin -o jsonpath='{.data.admin-token}' | base64 -d)
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/admin/scenarios | jq '.scenarios[] | {name, runnable}'
 curl -s -X POST -H "Authorization: Bearer $TOKEN" localhost:8080/admin/scenarios/checkout-errors/start
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/admin/run | jq
@@ -382,7 +382,7 @@ curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/admin/run | jq
 
 PatientZero reads the signals at `PATIENTZERO_PROMETHEUS_URL`,
 `PATIENTZERO_LOKI_URL` and `PATIENTZERO_ALERTMANAGER_URL`, which `make
-patientzero-up` points at the Heartbeat namespace's services (chart values
+patientzero-up` points at the Atrium namespace's services (chart values
 `signals.*`). A scenario whose signals need a source with no URL is not
 runnable.
 
@@ -432,7 +432,7 @@ interleave with the steps):
 
 Traffic is counted as PatientZero serves it, from the request's start to
 its response, by the same handlers that write the log rows: the known
-answer for what Heartbeat should report. It is counted only while a run is
+answer for what Atrium should report. It is counted only while a run is
 active.
 
 ```bash
@@ -449,7 +449,7 @@ jq -c 'select(.event == "traffic" and .data.scope == "interval") | .data | {to, 
    [`internal/cluster`](../internal/cluster/cluster.go) and the host agent
    (`cluster_fault` in [`scripts/patientzero.sh`](../scripts/patientzero.sh)),
    with its parameters in the schema's `fault` section.
-3. Read the expected signals from metrics and logs Heartbeat already
+3. Read the expected signals from metrics and logs Atrium already
    produces; leave room for the collector's lag (about a minute; screen rows
    another minute) and the query's own range. A query's range also reaches
    back before the run: two runs back to back can see each other's rows, so

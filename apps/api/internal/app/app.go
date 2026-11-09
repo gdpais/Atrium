@@ -22,20 +22,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/collectors"
-	"heartbeat/apps/api/internal/httpapi"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/links"
-	"heartbeat/apps/api/internal/password"
-	"heartbeat/apps/api/internal/probedefs"
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/users"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/otlp"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/collectors"
+	"atrium/apps/api/internal/httpapi"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/links"
+	"atrium/apps/api/internal/password"
+	"atrium/apps/api/internal/probedefs"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/users"
+	"atrium/internal/credentials"
+	"atrium/internal/otlp"
+	"atrium/internal/telemetry"
 )
 
 // Config holds the top-level runtime parameters for the API service.
@@ -52,7 +52,7 @@ type Config struct {
 	// http://otel-collector:4318. Empty leaves them in the outbox.
 	AuditEndpoint string
 	// Site is the origin unsafe methods must come from, such as
-	// https://heartbeat.example.com. Empty refuses every unsafe method, so
+	// https://atrium.example.com. Empty refuses every unsafe method, so
 	// nobody can log in.
 	Site string
 	// SessionIdleTimeout and SessionMaxAge are the session lifetimes; zero
@@ -75,7 +75,7 @@ type Config struct {
 	CollectorCAFile string
 	// IntegrationsPath is the integrations.yaml links into the platform's
 	// UI are rendered from (TODO 4.9): the file the DB collector reads, the
-	// heartbeat-integrations ConfigMap. Empty renders no links.
+	// atrium-integrations ConfigMap. Empty renders no links.
 	IntegrationsPath string
 	// InventoryPath is the environment's inventory file (ADR 0021), mounted
 	// from a ConfigMap: the API applies it to PostgreSQL at start and when

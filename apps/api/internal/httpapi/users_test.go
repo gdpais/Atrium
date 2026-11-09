@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/users"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/users"
 )
 
 // fakeUsers is a Users that records its calls and answers with one user.

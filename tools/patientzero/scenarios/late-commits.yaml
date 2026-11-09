@@ -7,7 +7,7 @@ description: >-
   That is past the collector's lag (15 seconds; 1 minute for screens), and
   the collector never reads behind its watermark, so those rows never reach
   Loki: the loss ADR 0008 accepts for rows committed past the lag. Its
-  recount finds them: heartbeat_outsystems_late_rows_total grows by exactly
+  recount finds them: atrium_outsystems_late_rows_total grows by exactly
   the rows held back, OutSystemsLateLogRows fires, and nothing is counted
   or sent twice. PatientZero's extracted rows stop while its users are
   still served. Rows committed on time again, after the fault, all arrive.
@@ -27,12 +27,12 @@ signals:
   # Within about 2 minutes of the fault, the last on-time rows have been
   # read and left the 1-minute rate; the rows committed late are never read.
   - name: extracted-rows-stop
-    promql: sum(rate(heartbeat_outsystems_extract_rows_total{collector="patientzero"}[1m]))
+    promql: sum(rate(atrium_outsystems_extract_rows_total{collector="patientzero"}[1m]))
     condition: "< 0.1"
     step: behind
     within: 3m
   - name: extracted-rows-return
-    promql: sum(rate(heartbeat_outsystems_extract_rows_total{collector="patientzero"}[1m]))
+    promql: sum(rate(atrium_outsystems_extract_rows_total{collector="patientzero"}[1m]))
     condition: "> 2"
     step: behind
     from: end
@@ -59,7 +59,7 @@ signals:
     delivery:
       log_types: [screen, mobile_request, integration, general, error]
       lost_after: 30s
-      late_rows: heartbeat_outsystems_late_rows_total{collector="patientzero"}
+      late_rows: atrium_outsystems_late_rows_total{collector="patientzero"}
     step: after
     from: end
     within: 4m

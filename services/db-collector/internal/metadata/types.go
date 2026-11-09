@@ -10,7 +10,7 @@ package metadata
 import (
 	"time"
 
-	collectorconfig "heartbeat/internal/config"
+	collectorconfig "atrium/internal/config"
 )
 
 // QueryFilter constrains which scheduled probes are returned by

@@ -1,4 +1,4 @@
-// Package main is the entry point for the API service, Heartbeat's control
+// Package main is the entry point for the API service, Atrium's control
 // plane (ADR 0013).
 //
 // Usage:
@@ -20,36 +20,36 @@
 //
 // Environment variables:
 //
-//	HEARTBEAT_API_LISTEN_ADDR              HTTP listen address, host:port (default ":8081")
-//	HEARTBEAT_API_POSTGRES_HOST            PostgreSQL host (required)
-//	HEARTBEAT_API_POSTGRES_PORT            PostgreSQL port (default 5432)
-//	HEARTBEAT_API_POSTGRES_DATABASE        database name (default "heartbeat")
-//	HEARTBEAT_API_POSTGRES_SSLMODE         disable, require, verify-ca or verify-full (default verify-full)
-//	HEARTBEAT_API_POSTGRES_SSLROOTCERT     PEM CA bundle for verify-ca and verify-full (default: the system's)
-//	HEARTBEAT_API_POSTGRES_CREDENTIAL_REF  credential reference of the login (default "secret/api-postgres")
-//	HEARTBEAT_API_REDIS_ADDR               Redis (Valkey) host:port (required)
-//	HEARTBEAT_API_REDIS_TLS                true or false (default true)
-//	HEARTBEAT_API_REDIS_CREDENTIAL_REF     credential reference of the login (default "secret/api-redis")
-//	HEARTBEAT_API_AUDIT_ENDPOINT           OTLP/HTTP base URL audit records are sent to, such as
+//	ATRIUM_API_LISTEN_ADDR              HTTP listen address, host:port (default ":8081")
+//	ATRIUM_API_POSTGRES_HOST            PostgreSQL host (required)
+//	ATRIUM_API_POSTGRES_PORT            PostgreSQL port (default 5432)
+//	ATRIUM_API_POSTGRES_DATABASE        database name (default "atrium")
+//	ATRIUM_API_POSTGRES_SSLMODE         disable, require, verify-ca or verify-full (default verify-full)
+//	ATRIUM_API_POSTGRES_SSLROOTCERT     PEM CA bundle for verify-ca and verify-full (default: the system's)
+//	ATRIUM_API_POSTGRES_CREDENTIAL_REF  credential reference of the login (default "secret/api-postgres")
+//	ATRIUM_API_REDIS_ADDR               Redis (Valkey) host:port (required)
+//	ATRIUM_API_REDIS_TLS                true or false (default true)
+//	ATRIUM_API_REDIS_CREDENTIAL_REF     credential reference of the login (default "secret/api-redis")
+//	ATRIUM_API_AUDIT_ENDPOINT           OTLP/HTTP base URL audit records are sent to, such as
 //	                                       http://otel-collector:4318 (default: none; they wait in the outbox)
-//	HEARTBEAT_API_SITE_ORIGIN              origin unsafe requests must come from, such as
-//	                                       https://heartbeat.example.com (default: none; they are all refused)
-//	HEARTBEAT_API_SESSION_IDLE_TIMEOUT     a session ends after this long without a request (default 8h)
-//	HEARTBEAT_API_SESSION_MAX_AGE          a session ends this long after login however active (default 168h)
-//	HEARTBEAT_API_TRUSTED_PROXIES          comma-separated addresses or CIDRs of proxies whose
+//	ATRIUM_API_SITE_ORIGIN              origin unsafe requests must come from, such as
+//	                                       https://atrium.example.com (default: none; they are all refused)
+//	ATRIUM_API_SESSION_IDLE_TIMEOUT     a session ends after this long without a request (default 8h)
+//	ATRIUM_API_SESSION_MAX_AGE          a session ends this long after login however active (default 168h)
+//	ATRIUM_API_TRUSTED_PROXIES          comma-separated addresses or CIDRs of proxies whose
 //	                                       X-Forwarded-For names the client (default: none)
-//	HEARTBEAT_API_SHUTDOWN_DELAY           how long to serve, unready, before draining at shutdown (default 5s)
-//	HEARTBEAT_API_COLLECTOR_URL            the DB collector's base URL, such as http://db-collector:8082, read for
+//	ATRIUM_API_SHUTDOWN_DELAY           how long to serve, unready, before draining at shutdown (default 5s)
+//	ATRIUM_API_COLLECTOR_URL            the DB collector's base URL, such as http://db-collector:8082, read for
 //	                                       whether telemetry sources are observed (default: none; unknown)
-//	HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN    the collector's admin token, for its GET /admin/config
-//	HEARTBEAT_API_COLLECTOR_CA_FILE        PEM certificates that verify an https collector URL instead of the
+//	ATRIUM_API_COLLECTOR_ADMIN_TOKEN    the collector's admin token, for its GET /admin/config
+//	ATRIUM_API_COLLECTOR_CA_FILE        PEM certificates that verify an https collector URL instead of the
 //	                                       system roots (default: none)
-//	HEARTBEAT_API_INTEGRATIONS_PATH        the integrations.yaml links to Grafana are rendered from, the file the
+//	ATRIUM_API_INTEGRATIONS_PATH        the integrations.yaml links to Grafana are rendered from, the file the
 //	                                       collector reads (default: none; no links)
-//	HEARTBEAT_API_INVENTORY_PATH           the environment's inventory file (ADR 0021), applied to PostgreSQL at start
+//	ATRIUM_API_INVENTORY_PATH           the environment's inventory file (ADR 0021), applied to PostgreSQL at start
 //	                                       and when it changes (default: none)
-//	HEARTBEAT_CREDENTIALS_DIR              directory of HEARTBEAT_CREDENTIAL_<REF> files (default: none)
-//	HEARTBEAT_CREDENTIAL_<REF>             "username:password" for a reference without a file
+//	ATRIUM_CREDENTIALS_DIR              directory of ATRIUM_CREDENTIAL_<REF> files (default: none)
+//	ATRIUM_CREDENTIAL_<REF>             "username:password" for a reference without a file
 //
 // Its own telemetry reads the variables package telemetry lists; the migrate
 // and users commands send none.
@@ -72,12 +72,12 @@ import (
 	"syscall"
 	"time"
 
-	"heartbeat/apps/api/internal/app"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/credentials"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/app"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/credentials"
+	"atrium/internal/telemetry"
 )
 
 // telemetryFlush bounds sending the last logs when the process stops.
@@ -85,31 +85,31 @@ const telemetryFlush = 3 * time.Second
 
 // Environment variables.
 const (
-	envListenAddr            = "HEARTBEAT_API_LISTEN_ADDR"
-	envPostgresHost          = "HEARTBEAT_API_POSTGRES_HOST"
-	envPostgresPort          = "HEARTBEAT_API_POSTGRES_PORT"
-	envPostgresDatabase      = "HEARTBEAT_API_POSTGRES_DATABASE"
-	envPostgresSSLMode       = "HEARTBEAT_API_POSTGRES_SSLMODE"
-	envPostgresSSLRootCert   = "HEARTBEAT_API_POSTGRES_SSLROOTCERT"
-	envPostgresCredentialRef = "HEARTBEAT_API_POSTGRES_CREDENTIAL_REF"
-	envRedisAddr             = "HEARTBEAT_API_REDIS_ADDR"
-	envRedisTLS              = "HEARTBEAT_API_REDIS_TLS"
-	envRedisCredentialRef    = "HEARTBEAT_API_REDIS_CREDENTIAL_REF"
-	envAuditEndpoint         = "HEARTBEAT_API_AUDIT_ENDPOINT"
-	envSiteOrigin            = "HEARTBEAT_API_SITE_ORIGIN"
-	envSessionIdleTimeout    = "HEARTBEAT_API_SESSION_IDLE_TIMEOUT"
-	envSessionMaxAge         = "HEARTBEAT_API_SESSION_MAX_AGE"
-	envTrustedProxies        = "HEARTBEAT_API_TRUSTED_PROXIES"
-	envShutdownDelay         = "HEARTBEAT_API_SHUTDOWN_DELAY"
-	envCollectorURL          = "HEARTBEAT_API_COLLECTOR_URL"
-	envCollectorAdminToken   = "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"
-	envCollectorCAFile       = "HEARTBEAT_API_COLLECTOR_CA_FILE"
-	envIntegrationsPath      = "HEARTBEAT_API_INTEGRATIONS_PATH"
-	envInventoryPath         = "HEARTBEAT_API_INVENTORY_PATH"
-	envCredentialsDir        = "HEARTBEAT_CREDENTIALS_DIR"
+	envListenAddr            = "ATRIUM_API_LISTEN_ADDR"
+	envPostgresHost          = "ATRIUM_API_POSTGRES_HOST"
+	envPostgresPort          = "ATRIUM_API_POSTGRES_PORT"
+	envPostgresDatabase      = "ATRIUM_API_POSTGRES_DATABASE"
+	envPostgresSSLMode       = "ATRIUM_API_POSTGRES_SSLMODE"
+	envPostgresSSLRootCert   = "ATRIUM_API_POSTGRES_SSLROOTCERT"
+	envPostgresCredentialRef = "ATRIUM_API_POSTGRES_CREDENTIAL_REF"
+	envRedisAddr             = "ATRIUM_API_REDIS_ADDR"
+	envRedisTLS              = "ATRIUM_API_REDIS_TLS"
+	envRedisCredentialRef    = "ATRIUM_API_REDIS_CREDENTIAL_REF"
+	envAuditEndpoint         = "ATRIUM_API_AUDIT_ENDPOINT"
+	envSiteOrigin            = "ATRIUM_API_SITE_ORIGIN"
+	envSessionIdleTimeout    = "ATRIUM_API_SESSION_IDLE_TIMEOUT"
+	envSessionMaxAge         = "ATRIUM_API_SESSION_MAX_AGE"
+	envTrustedProxies        = "ATRIUM_API_TRUSTED_PROXIES"
+	envShutdownDelay         = "ATRIUM_API_SHUTDOWN_DELAY"
+	envCollectorURL          = "ATRIUM_API_COLLECTOR_URL"
+	envCollectorAdminToken   = "ATRIUM_API_COLLECTOR_ADMIN_TOKEN"
+	envCollectorCAFile       = "ATRIUM_API_COLLECTOR_CA_FILE"
+	envIntegrationsPath      = "ATRIUM_API_INTEGRATIONS_PATH"
+	envInventoryPath         = "ATRIUM_API_INVENTORY_PATH"
+	envCredentialsDir        = "ATRIUM_CREDENTIALS_DIR"
 )
 
-// maxShutdownDelay bounds HEARTBEAT_API_SHUTDOWN_DELAY: the pod's
+// maxShutdownDelay bounds ATRIUM_API_SHUTDOWN_DELAY: the pod's
 // termination grace period must cover it and the drain after it.
 const maxShutdownDelay = time.Minute
 
@@ -261,7 +261,7 @@ func siteOrigin(value string) (string, error) {
 	u, err := url.Parse(value)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
 		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
-		return "", fmt.Errorf("%q: want the site's origin, such as https://heartbeat.example.com, without a path", value)
+		return "", fmt.Errorf("%q: want the site's origin, such as https://atrium.example.com, without a path", value)
 	}
 	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
 	if port := u.Port(); (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
@@ -348,7 +348,7 @@ func loadMigrateConfig() (store.Config, credentials.Resolver, error) {
 func loadPostgresConfig() (store.Config, error) {
 	cfg := store.Config{
 		Host:          os.Getenv(envPostgresHost),
-		Database:      env(envPostgresDatabase, "heartbeat"),
+		Database:      env(envPostgresDatabase, "atrium"),
 		SSLMode:       env(envPostgresSSLMode, "verify-full"),
 		SSLRootCert:   os.Getenv(envPostgresSSLRootCert),
 		CredentialRef: env(envPostgresCredentialRef, "secret/api-postgres"),
@@ -371,7 +371,7 @@ func loadPostgresConfig() (store.Config, error) {
 		return store.Config{}, fmt.Errorf("%s: %w", envPostgresCredentialRef, err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return store.Config{}, fmt.Errorf("PostgreSQL settings (HEARTBEAT_API_POSTGRES_*): %w", err)
+		return store.Config{}, fmt.Errorf("PostgreSQL settings (ATRIUM_API_POSTGRES_*): %w", err)
 	}
 	return cfg, nil
 }

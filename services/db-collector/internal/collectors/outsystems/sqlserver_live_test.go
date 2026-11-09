@@ -27,26 +27,26 @@ import (
 	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
 	"google.golang.org/protobuf/proto"
 
-	collectorconfig "heartbeat/internal/config"
-	"heartbeat/internal/otlp"
-	"heartbeat/services/db-collector/internal/collectors"
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
+	collectorconfig "atrium/internal/config"
+	"atrium/internal/otlp"
+	"atrium/services/db-collector/internal/collectors"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
 )
 
 // Credential references resolved through EnvCredentialResolver (see
 // scripts/sqlserver-test.sh).
 const (
-	// liveOSLogCredentialRef is HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_OSLOG, a
+	// liveOSLogCredentialRef is ATRIUM_CREDENTIAL_SQLSERVER_TEST_OSLOG, a
 	// login with no server permissions.  setupFixtures maps it to a user of
 	// the fixture database with SELECT on the fixture tables only.
 	liveOSLogCredentialRef = "sqlserver-test-oslog"
-	// liveSACredentialRef is HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_SA, used only
+	// liveSACredentialRef is ATRIUM_CREDENTIAL_SQLSERVER_TEST_SA, used only
 	// to create the fixtures and insert rows.
 	liveSACredentialRef = "sqlserver-test-sa"
 	// fixtureDatabase is created, and dropped first, by setupFixtures.
-	fixtureDatabase = "heartbeat_oslog_test"
+	fixtureDatabase = "atrium_oslog_test"
 )
 
 // liveServer is the disposable test server.
@@ -60,22 +60,22 @@ type liveServer struct {
 // test-sqlserver.
 func newLiveServer(t *testing.T) liveServer {
 	t.Helper()
-	addr := os.Getenv("HEARTBEAT_TEST_SQLSERVER_ADDR")
+	addr := os.Getenv("ATRIUM_TEST_SQLSERVER_ADDR")
 	if addr == "" {
-		t.Skip("HEARTBEAT_TEST_SQLSERVER_ADDR is not set; run make test-sqlserver")
+		t.Skip("ATRIUM_TEST_SQLSERVER_ADDR is not set; run make test-sqlserver")
 	}
-	for _, env := range []string{"HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_SA", "HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_OSLOG"} {
+	for _, env := range []string{"ATRIUM_CREDENTIAL_SQLSERVER_TEST_SA", "ATRIUM_CREDENTIAL_SQLSERVER_TEST_OSLOG"} {
 		if os.Getenv(env) == "" {
 			t.Fatalf("%s is not set; run make test-sqlserver", env)
 		}
 	}
 	host, portText, err := net.SplitHostPort(addr)
 	if err != nil {
-		t.Fatalf("HEARTBEAT_TEST_SQLSERVER_ADDR: %v", err)
+		t.Fatalf("ATRIUM_TEST_SQLSERVER_ADDR: %v", err)
 	}
 	port, err := strconv.Atoi(portText)
 	if err != nil {
-		t.Fatalf("HEARTBEAT_TEST_SQLSERVER_ADDR port: %v", err)
+		t.Fatalf("ATRIUM_TEST_SQLSERVER_ADDR port: %v", err)
 	}
 	manager := connector.NewManager(connector.EnvCredentialResolver{})
 	// The disposable test server uses a self-signed certificate.
@@ -132,7 +132,7 @@ CREATE DATABASE [%[1]s];`, fixtureDatabase))
 		}
 		exec(t, db, string(ddl))
 	}
-	login, _, _ := strings.Cut(os.Getenv("HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_OSLOG"), ":")
+	login, _, _ := strings.Cut(os.Getenv("ATRIUM_CREDENTIAL_SQLSERVER_TEST_OSLOG"), ":")
 	exec(t, db, `DECLARE @sql nvarchar(max) = N'CREATE USER ' + QUOTENAME(@login) + N' FOR LOGIN ' + QUOTENAME(@login) + N';';
 SELECT @sql += N'GRANT SELECT ON ' + QUOTENAME(SCHEMA_NAME(schema_id)) + N'.' + QUOTENAME(name) + N' TO ' + QUOTENAME(@login) + N';'
 FROM sys.objects WHERE type IN ('U', 'V');
@@ -713,7 +713,7 @@ VALUES ('held-1', DATEADD(MINUTE, -5, SYSUTCDATETIME()), '', 7, 1, 0, 'Order fai
 		t.Fatalf("RunProbe: %v, want the export waiting", err)
 	}
 
-	login, _, _ := strings.Cut(os.Getenv("HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_OSLOG"), ":")
+	login, _, _ := strings.Cut(os.Getenv("ATRIUM_CREDENTIAL_SQLSERVER_TEST_OSLOG"), ":")
 	var sessions, busy, locks int
 	row := sa.QueryRowContext(context.Background(), `SELECT
     (SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE login_name = @login),

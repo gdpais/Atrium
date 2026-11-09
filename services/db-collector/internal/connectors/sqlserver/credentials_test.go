@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/internal/credentials/credentialstest"
+	"atrium/internal/credentials/credentialstest"
 )
 
 // The resolvers themselves are tested in package credentials.
@@ -15,7 +15,7 @@ import (
 func TestOpenUsesRotatedCredentialFile(t *testing.T) {
 	dir := t.TempDir()
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A": "collector:" + testPassword + "\n",
+		"ATRIUM_CREDENTIAL_ENV_SQLSERVER_A": "collector:" + testPassword + "\n",
 	})
 	d, name := newFakeDriver(t)
 	m := NewManager(FileCredentialResolver{Dir: dir})
@@ -31,7 +31,7 @@ func TestOpenUsesRotatedCredentialFile(t *testing.T) {
 
 	rotated := testPassword + "-rotated"
 	credentialstest.WriteSecretVolume(t, dir, map[string]string{
-		"HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_A": "collector:" + rotated + "\n",
+		"ATRIUM_CREDENTIAL_ENV_SQLSERVER_A": "collector:" + rotated + "\n",
 	})
 	db2, c2 := mustOpen(t, m, tg)
 	defer c2()

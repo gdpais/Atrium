@@ -8,8 +8,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	api "heartbeat/apps/api"
-	"heartbeat/internal/config"
+	api "atrium/apps/api"
+	"atrium/internal/config"
 )
 
 // valid is content every check accepts.

@@ -36,7 +36,7 @@
 // for its output to be accepted downstream.  That is backpressure, not a
 // failure: it is not counted as a probe error, its target does not back off,
 // and the target's state is [TargetBlocked] with
-// heartbeat_collector_target_up at 1.
+// atrium_collector_target_up at 1.
 //
 // Every probe failure, recovered panic, backoff transition, recovery, and
 // exporter or sink error is logged synchronously through the Runner's
@@ -67,11 +67,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	collectorconfig "heartbeat/internal/config"
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	collectorconfig "atrium/internal/config"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // DefaultMaxConcurrentTargets bounds how many targets of one collector are
@@ -107,30 +107,30 @@ const (
 	// ([TargetBlocked]) or degraded ([TargetDegraded]) one included, and 0
 	// when it failed or is backing off.  Labels: collector, environment,
 	// target.
-	MetricTargetUp = "heartbeat_collector_target_up"
+	MetricTargetUp = "atrium_collector_target_up"
 	// MetricTargetLastSuccess is the Unix time of the target's last
 	// successful cycle, a blocked or degraded one included: the last time
 	// MetricTargetUp was 1.  Absent until the first success.  Labels:
 	// collector, environment, target.
-	MetricTargetLastSuccess = "heartbeat_collector_target_last_success_timestamp_seconds"
+	MetricTargetLastSuccess = "atrium_collector_target_last_success_timestamp_seconds"
 	// MetricTargetConsecutiveFailures counts failed cycles since the target's
 	// last success.  Labels: collector, environment, target.
-	MetricTargetConsecutiveFailures = "heartbeat_collector_target_consecutive_failures"
+	MetricTargetConsecutiveFailures = "atrium_collector_target_consecutive_failures"
 	// MetricCycleDuration is the wall time of the collector's last cycle.
 	// Labels: collector.
-	MetricCycleDuration = "heartbeat_collector_cycle_duration_seconds"
+	MetricCycleDuration = "atrium_collector_cycle_duration_seconds"
 	// MetricProbeUp is 1 when the probe's last execution succeeded, waiting
 	// downstream included, and 0 when it failed, backs off on its own, or its
 	// target failed or backs off.  Labels: collector, environment, target,
 	// probe.
-	MetricProbeUp = "heartbeat_collector_probe_up"
+	MetricProbeUp = "atrium_collector_probe_up"
 	// MetricTargetLoginSysadmin is 1 when the collector's login for the target
 	// is sysadmin-equivalent (a member of the sysadmin server role, or holding
 	// CONTROL SERVER) and 0 when it is not, as of the last check, which runs
 	// when the target's connection pool is created and about every 10
 	// minutes after.  Absent while unknown, or when the executor is not a
 	// [SysadminReporter].  Labels: collector, environment, target.
-	MetricTargetLoginSysadmin = "heartbeat_collector_target_login_sysadmin"
+	MetricTargetLoginSysadmin = "atrium_collector_target_login_sysadmin"
 )
 
 // fallbackSinkMu serialises evidence publishing, and fallbackProbeCalls
@@ -358,7 +358,7 @@ type targetTracker struct {
 	// all of a target's probes does not starve the same ones every time.
 	startAt map[string]string
 	// lastUp is, per probe, whether its last run succeeded (or waits
-	// downstream): the heartbeat_collector_probe_up a skipped probe keeps.
+	// downstream): the atrium_collector_probe_up a skipped probe keeps.
 	lastUp map[probeKey]bool
 }
 
@@ -522,7 +522,7 @@ func (r Runner) runCycle(ctx context.Context, collector collectorconfig.Collecto
 		result.Finished = started
 		return result
 	}
-	spanCtx, span := tracer.Start(ctx, "collector.cycle", trace.WithAttributes(attribute.String("heartbeat.collector", collector.ID), attribute.String("heartbeat.collector.kind", string(collector.Kind))))
+	spanCtx, span := tracer.Start(ctx, "collector.cycle", trace.WithAttributes(attribute.String("atrium.collector", collector.ID), attribute.String("atrium.collector.kind", string(collector.Kind))))
 	defer span.End()
 	cycleCtx, cancel := cycleContext(spanCtx, collector.ScrapeInterval)
 	defer cancel()
@@ -657,9 +657,9 @@ func runOrder(items []collectormetadata.ScheduledProbe, first string) []int {
 // leaves no time for are skipped, not failed, and the next cycle starts with
 // the first of them.  It never panics.
 func (r Runner) runTarget(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, group targetGroup, tracker *targetTracker, cycleStart time.Time) (result TargetResult) {
-	ctx, span := tracer.Start(ctx, "collector.target", trace.WithAttributes(attribute.String("heartbeat.target", group.name)))
+	ctx, span := tracer.Start(ctx, "collector.target", trace.WithAttributes(attribute.String("atrium.target", group.name)))
 	defer func() {
-		span.SetAttributes(attribute.String("heartbeat.target.state", string(result.State)))
+		span.SetAttributes(attribute.String("atrium.target.state", string(result.State)))
 		if result.State == TargetFailed {
 			span.SetStatus(codes.Error, "target failed")
 		}
@@ -729,16 +729,16 @@ func acquire(ctx context.Context, sem chan struct{}) bool {
 // starts and ends.
 func (r Runner) runScopedProbe(ctx context.Context, collector collectorconfig.CollectorRuntimeConfig, item collectormetadata.ScheduledProbe) ([]collectormetadata.Evidence, error) {
 	scope := collectorexport.Scope{Collector: collector.ID, Target: item.Target.Name, Probe: item.Definition.Name}
-	ctx, span := tracer.Start(ctx, "collector.probe", trace.WithAttributes(attribute.String("heartbeat.probe", item.Definition.Name)))
+	ctx, span := tracer.Start(ctx, "collector.probe", trace.WithAttributes(attribute.String("atrium.probe", item.Definition.Name)))
 	defer span.End()
 	samples, evidence, err := r.executeProbe(ctx, item, collector.ScrapeInterval)
 	if errors.Is(err, errProbeSkipped) {
 		// Keep the series of its last run: it did not fail.
-		span.SetAttributes(attribute.Bool("heartbeat.probe.skipped", true))
+		span.SetAttributes(attribute.Bool("atrium.probe.skipped", true))
 		return nil, err
 	}
 	if errors.Is(err, ErrBlocked) {
-		span.SetAttributes(attribute.Bool("heartbeat.probe.blocked", true))
+		span.SetAttributes(attribute.Bool("atrium.probe.blocked", true))
 		r.log().DebugContext(ctx, "probe blocked",
 			"collector", scope.Collector,
 			"target", scope.Target,

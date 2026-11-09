@@ -30,9 +30,9 @@ var bundledEngineObjects = []string{
 	"StatefulSet/valkey", "Service/valkey", "NetworkPolicy/valkey",
 }
 
-// heartbeatPolicies are the NetworkPolicies of Heartbeat's own workloads,
+// atriumPolicies are the NetworkPolicies of Atrium's own workloads,
 // which checkBackendNetworkPolicies leaves to their own checks.
-var heartbeatPolicies = map[string]bool{"db-collector": true, "api": true, "postgresql": true, "valkey": true}
+var atriumPolicies = map[string]bool{"db-collector": true, "api": true, "postgresql": true, "valkey": true}
 
 // apiDependencies is what the API is told about PostgreSQL and Redis, as
 // the values of its environment variables; empty sslRootCert means unset.
@@ -43,7 +43,7 @@ type apiDependencies struct {
 
 // bundledDependencies are the bundled postgresql and valkey, without TLS.
 var bundledDependencies = apiDependencies{
-	postgresHost: "postgresql", postgresPort: "5432", postgresDatabase: "heartbeat",
+	postgresHost: "postgresql", postgresPort: "5432", postgresDatabase: "atrium",
 	sslMode: "disable", redisAddr: "valkey:6379", redisTLS: "false",
 }
 
@@ -158,8 +158,8 @@ func (c container) mountedAt(path string) (name string, wholeDir bool) {
 // postgresVariables are what both `api migrate up` and the API read about
 // PostgreSQL and the credentials.
 var postgresVariables = []string{
-	"HEARTBEAT_API_POSTGRES_HOST", "HEARTBEAT_API_POSTGRES_PORT", "HEARTBEAT_API_POSTGRES_DATABASE",
-	"HEARTBEAT_API_POSTGRES_SSLMODE", "HEARTBEAT_API_POSTGRES_SSLROOTCERT", "HEARTBEAT_CREDENTIALS_DIR",
+	"ATRIUM_API_POSTGRES_HOST", "ATRIUM_API_POSTGRES_PORT", "ATRIUM_API_POSTGRES_DATABASE",
+	"ATRIUM_API_POSTGRES_SSLMODE", "ATRIUM_API_POSTGRES_SSLROOTCERT", "ATRIUM_CREDENTIALS_DIR",
 }
 
 // The API's Deployment: an init container runs `api migrate up` with the
@@ -208,7 +208,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 		}
 	}
 	for name := range migrateEnv {
-		if strings.HasPrefix(name, "OTEL_") || strings.HasPrefix(name, "HEARTBEAT_API_REDIS_") || name == "HEARTBEAT_API_AUDIT_ENDPOINT" {
+		if strings.HasPrefix(name, "OTEL_") || strings.HasPrefix(name, "ATRIUM_API_REDIS_") || name == "ATRIUM_API_AUDIT_ENDPOINT" {
 			t.Errorf("migrate sets %s; `api migrate up` reads only PostgreSQL's settings and sends no telemetry", name)
 		}
 	}
@@ -232,28 +232,28 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 		_, port, _ := strings.Cut(relay.Receivers.OTLP.Protocols.HTTP.Endpoint, "}:")
 		wantAudit = "http://otel-collector:" + port
 	}
-	if got := apiEnv["HEARTBEAT_API_AUDIT_ENDPOINT"]; got != wantAudit {
-		t.Errorf("HEARTBEAT_API_AUDIT_ENDPOINT = %q, want %q: the Collector's OTLP/HTTP logs receiver while it is on", got, wantAudit)
+	if got := apiEnv["ATRIUM_API_AUDIT_ENDPOINT"]; got != wantAudit {
+		t.Errorf("ATRIUM_API_AUDIT_ENDPOINT = %q, want %q: the Collector's OTLP/HTTP logs receiver while it is on", got, wantAudit)
 	}
 	checkAPICollectorAccess(t, objects, api)
 	checkAPIIntegrations(t, objects, spec, migrate, api)
 	checkAPIInventory(t, objects, spec, migrate, api)
 	got := apiDependencies{
-		postgresHost: apiEnv["HEARTBEAT_API_POSTGRES_HOST"], postgresPort: apiEnv["HEARTBEAT_API_POSTGRES_PORT"],
-		postgresDatabase: apiEnv["HEARTBEAT_API_POSTGRES_DATABASE"], sslMode: apiEnv["HEARTBEAT_API_POSTGRES_SSLMODE"],
-		sslRootCert: apiEnv["HEARTBEAT_API_POSTGRES_SSLROOTCERT"],
-		redisAddr:   apiEnv["HEARTBEAT_API_REDIS_ADDR"], redisTLS: apiEnv["HEARTBEAT_API_REDIS_TLS"],
+		postgresHost: apiEnv["ATRIUM_API_POSTGRES_HOST"], postgresPort: apiEnv["ATRIUM_API_POSTGRES_PORT"],
+		postgresDatabase: apiEnv["ATRIUM_API_POSTGRES_DATABASE"], sslMode: apiEnv["ATRIUM_API_POSTGRES_SSLMODE"],
+		sslRootCert: apiEnv["ATRIUM_API_POSTGRES_SSLROOTCERT"],
+		redisAddr:   apiEnv["ATRIUM_API_REDIS_ADDR"], redisTLS: apiEnv["ATRIUM_API_REDIS_TLS"],
 	}
 	if got != *want {
 		t.Errorf("API dependencies = %+v, want %+v", got, *want)
 	}
 	if got.sslRootCert != "" {
 		if _, ok := api.mountedAt(path(got.sslRootCert)); !ok {
-			t.Errorf("HEARTBEAT_API_POSTGRES_SSLROOTCERT %s is in no read-only directory mount", got.sslRootCert)
+			t.Errorf("ATRIUM_API_POSTGRES_SSLROOTCERT %s is in no read-only directory mount", got.sslRootCert)
 		}
 	}
-	if apiEnv["HEARTBEAT_API_LISTEN_ADDR"] != ":8081" {
-		t.Errorf("HEARTBEAT_API_LISTEN_ADDR = %q, want :8081", apiEnv["HEARTBEAT_API_LISTEN_ADDR"])
+	if apiEnv["ATRIUM_API_LISTEN_ADDR"] != ":8081" {
+		t.Errorf("ATRIUM_API_LISTEN_ADDR = %q, want :8081", apiEnv["ATRIUM_API_LISTEN_ADDR"])
 	}
 	if api.Resources.Limits["memory"] != "" && apiEnv["GOMEMLIMIT"] == "" {
 		t.Error("the API has a memory limit and no GOMEMLIMIT")
@@ -261,7 +261,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 
 	// Credentials: a directory of files read on every connection, in both
 	// containers, never variables.
-	dir := apiEnv["HEARTBEAT_CREDENTIALS_DIR"]
+	dir := apiEnv["ATRIUM_CREDENTIALS_DIR"]
 	var secret string
 	for _, v := range pod.Volumes {
 		if v.Name == "credentials" && v.Secret != nil {
@@ -269,14 +269,14 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 		}
 	}
 	if (dir == "") != (secret == "") {
-		t.Errorf("HEARTBEAT_CREDENTIALS_DIR %q with credentials Secret %q", dir, secret)
+		t.Errorf("ATRIUM_CREDENTIALS_DIR %q with credentials Secret %q", dir, secret)
 	}
 	for _, c := range []container{migrate, api} {
 		if len(c.EnvFrom) > 0 {
 			t.Errorf("%s uses envFrom; credentials must stay files", c.Name)
 		}
 		for _, e := range c.Env {
-			if strings.HasPrefix(e.Name, "HEARTBEAT_CREDENTIAL_") {
+			if strings.HasPrefix(e.Name, "ATRIUM_CREDENTIAL_") {
 				t.Errorf("%s sets %s; credentials must stay files", c.Name, e.Name)
 			}
 		}
@@ -345,7 +345,7 @@ func checkAPI(t *testing.T, objects map[string]object, want *apiDependencies) {
 }
 
 // The API's shutdown, after SIGTERM: it serves unready for
-// HEARTBEAT_API_SHUTDOWN_DELAY (5s unless set) while its Service drops it,
+// ATRIUM_API_SHUTDOWN_DELAY (5s unless set) while its Service drops it,
 // drains HTTP for up to 10s and waits for the audit drainer's last delete,
 // up to 5s (apps/api/internal/app), then sends its last logs, about 3s.
 const apiShutdownAfterDelay = 18 * time.Second
@@ -364,17 +364,17 @@ func checkAPISessions(t *testing.T, objects map[string]object, wantSite string) 
 	spec := decodePodSpec(t, deployment)
 	pod := spec.Template.Spec
 	api, migrate := pod.Containers[0].env(), pod.InitContainers[0].env()
-	if got, set := api["HEARTBEAT_API_SITE_ORIGIN"]; got != wantSite || set != (wantSite != "") {
-		t.Errorf("HEARTBEAT_API_SITE_ORIGIN = %q (set %t), want %q", got, set, wantSite)
+	if got, set := api["ATRIUM_API_SITE_ORIGIN"]; got != wantSite || set != (wantSite != "") {
+		t.Errorf("ATRIUM_API_SITE_ORIGIN = %q (set %t), want %q", got, set, wantSite)
 	}
-	if _, set := migrate["HEARTBEAT_API_SITE_ORIGIN"]; set {
-		t.Error("migrate sets HEARTBEAT_API_SITE_ORIGIN; `api migrate up` serves no requests")
+	if _, set := migrate["ATRIUM_API_SITE_ORIGIN"]; set {
+		t.Error("migrate sets ATRIUM_API_SITE_ORIGIN; `api migrate up` serves no requests")
 	}
 	delay := 5 * time.Second
-	if value, set := api["HEARTBEAT_API_SHUTDOWN_DELAY"]; set {
+	if value, set := api["ATRIUM_API_SHUTDOWN_DELAY"]; set {
 		d, err := time.ParseDuration(value)
 		if err != nil {
-			t.Fatalf("HEARTBEAT_API_SHUTDOWN_DELAY %q: %v", value, err)
+			t.Fatalf("ATRIUM_API_SHUTDOWN_DELAY %q: %v", value, err)
 		}
 		delay = d
 	}
@@ -581,8 +581,8 @@ func checkBundledEngines(t *testing.T, objects map[string]object, extraPeers map
 // Anywhere else it would fire for good.
 func checkAPIMissingAlert(t *testing.T, objects map[string]object) {
 	t.Helper()
-	const file = "heartbeat-api-missing.rules.yml"
-	rules, ok := objects["ConfigMap/heartbeat-prometheus-rules"]
+	const file = "atrium-api-missing.rules.yml"
+	rules, ok := objects["ConfigMap/atrium-prometheus-rules"]
 	if !ok {
 		return
 	}
@@ -611,64 +611,64 @@ func checkAPIMissingAlert(t *testing.T, objects map[string]object) {
 
 // checkAPIIntegrations checks that the API renders its links into the
 // platform's UI from the integrations.yaml the collector reads (TODO 4.9):
-// the heartbeat-integrations ConfigMap, rendered whenever the API is,
+// the atrium-integrations ConfigMap, rendered whenever the API is,
 // mounted as a whole directory so its updates reach the pod. migrate reads
 // no such file.
 func checkAPIIntegrations(t *testing.T, objects map[string]object, spec podSpec, migrate, api container) {
 	t.Helper()
-	if _, ok := objects["ConfigMap/heartbeat-integrations"]; !ok {
-		t.Error("the API is rendered without ConfigMap/heartbeat-integrations")
+	if _, ok := objects["ConfigMap/atrium-integrations"]; !ok {
+		t.Error("the API is rendered without ConfigMap/atrium-integrations")
 	}
 	const dir = "/app/config"
-	if got := api.env()["HEARTBEAT_API_INTEGRATIONS_PATH"]; got != dir+"/integrations.yaml" {
-		t.Errorf("HEARTBEAT_API_INTEGRATIONS_PATH = %q, want %s/integrations.yaml", got, dir)
+	if got := api.env()["ATRIUM_API_INTEGRATIONS_PATH"]; got != dir+"/integrations.yaml" {
+		t.Errorf("ATRIUM_API_INTEGRATIONS_PATH = %q, want %s/integrations.yaml", got, dir)
 	}
 	volume, whole := api.mountedAt(dir)
 	if !whole {
 		t.Fatalf("the API mounts %q at %s, want a whole read-only directory", volume, dir)
 	}
 	for _, v := range spec.Template.Spec.Volumes {
-		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "heartbeat-integrations") {
-			t.Errorf("volume %s at %s is not ConfigMap heartbeat-integrations", volume, dir)
+		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "atrium-integrations") {
+			t.Errorf("volume %s at %s is not ConfigMap atrium-integrations", volume, dir)
 		}
 	}
-	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["HEARTBEAT_API_INTEGRATIONS_PATH"] != "" {
+	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["ATRIUM_API_INTEGRATIONS_PATH"] != "" {
 		t.Error("migrate mounts or names the integrations config; `api migrate up` reads only PostgreSQL's settings")
 	}
 }
 
 // checkAPIInventory checks that the environment's inventory file
-// (ADR 0021), when api.inventory holds one, is the heartbeat-inventory
+// (ADR 0021), when api.inventory holds one, is the atrium-inventory
 // ConfigMap, mounted in the API alone as a whole directory so that its
-// updates reach the pod, and named by HEARTBEAT_API_INVENTORY_PATH; without
+// updates reach the pod, and named by ATRIUM_API_INVENTORY_PATH; without
 // one, the API names no file.
 func checkAPIInventory(t *testing.T, objects map[string]object, spec podSpec, migrate, api container) {
 	t.Helper()
 	const dir = "/app/inventory"
-	cm, ok := objects["ConfigMap/heartbeat-inventory"]
-	path := api.env()["HEARTBEAT_API_INVENTORY_PATH"]
+	cm, ok := objects["ConfigMap/atrium-inventory"]
+	path := api.env()["ATRIUM_API_INVENTORY_PATH"]
 	if !ok {
 		if path != "" {
-			t.Errorf("HEARTBEAT_API_INVENTORY_PATH = %q without ConfigMap/heartbeat-inventory", path)
+			t.Errorf("ATRIUM_API_INVENTORY_PATH = %q without ConfigMap/atrium-inventory", path)
 		}
 		return
 	}
 	if strings.TrimSpace(cm.Data["inventory.yaml"]) == "" {
-		t.Error("ConfigMap/heartbeat-inventory holds no inventory.yaml")
+		t.Error("ConfigMap/atrium-inventory holds no inventory.yaml")
 	}
 	if path != dir+"/inventory.yaml" {
-		t.Errorf("HEARTBEAT_API_INVENTORY_PATH = %q, want %s/inventory.yaml", path, dir)
+		t.Errorf("ATRIUM_API_INVENTORY_PATH = %q, want %s/inventory.yaml", path, dir)
 	}
 	volume, whole := api.mountedAt(dir)
 	if !whole {
 		t.Fatalf("the API mounts %q at %s, want a whole read-only directory", volume, dir)
 	}
 	for _, v := range spec.Template.Spec.Volumes {
-		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "heartbeat-inventory") {
-			t.Errorf("volume %s at %s is not ConfigMap heartbeat-inventory", volume, dir)
+		if v.Name == volume && (v.ConfigMap == nil || v.ConfigMap.Name != "atrium-inventory") {
+			t.Errorf("volume %s at %s is not ConfigMap atrium-inventory", volume, dir)
 		}
 	}
-	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["HEARTBEAT_API_INVENTORY_PATH"] != "" {
+	if name, _ := migrate.mountedAt(dir); name != "" || migrate.env()["ATRIUM_API_INVENTORY_PATH"] != "" {
 		t.Error("migrate mounts or names the inventory file; `api migrate up` reads only PostgreSQL's settings")
 	}
 }
@@ -680,10 +680,10 @@ func checkAPIInventory(t *testing.T, objects map[string]object, spec podSpec, mi
 func checkAPICollectorAccess(t *testing.T, objects map[string]object, api container) {
 	t.Helper()
 	sts, collector := objects["StatefulSet/db-collector"]
-	url := api.env()["HEARTBEAT_API_COLLECTOR_URL"]
+	url := api.env()["ATRIUM_API_COLLECTOR_URL"]
 	if !collector {
 		if url != "" {
-			t.Errorf("HEARTBEAT_API_COLLECTOR_URL = %q without a db-collector", url)
+			t.Errorf("ATRIUM_API_COLLECTOR_URL = %q without a db-collector", url)
 		}
 		return
 	}
@@ -691,16 +691,16 @@ func checkAPICollectorAccess(t *testing.T, objects map[string]object, api contai
 	// With dbCollector.adminTLS the admin endpoints are on their own HTTPS
 	// port, and only the CA reaches the API's pod.
 	want := "http://db-collector:8082"
-	if addr := pod.Containers[0].env()["HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"]; addr != "" {
+	if addr := pod.Containers[0].env()["ATRIUM_DB_COLLECTOR_ADMIN_LISTEN_ADDR"]; addr != "" {
 		want = "https://db-collector" + addr
-		if ca := api.env()["HEARTBEAT_API_COLLECTOR_CA_FILE"]; ca != "" {
+		if ca := api.env()["ATRIUM_API_COLLECTOR_CA_FILE"]; ca != "" {
 			if name, wholeDir := api.mountedAt(filepath.Dir(ca)); name != "collector-ca" || !wholeDir {
-				t.Errorf("HEARTBEAT_API_COLLECTOR_CA_FILE %q is in volume %q; want the collector-ca directory mount", ca, name)
+				t.Errorf("ATRIUM_API_COLLECTOR_CA_FILE %q is in volume %q; want the collector-ca directory mount", ca, name)
 			}
 		}
 	}
 	if url != want {
-		t.Errorf("HEARTBEAT_API_COLLECTOR_URL = %q, want %q", url, want)
+		t.Errorf("ATRIUM_API_COLLECTOR_URL = %q, want %q", url, want)
 	}
 	tokenRef := func(c container, name string) string {
 		for _, e := range c.Env {
@@ -715,7 +715,7 @@ func checkAPICollectorAccess(t *testing.T, objects map[string]object, api contai
 		}
 		return ""
 	}
-	if got, want := tokenRef(api, "HEARTBEAT_API_COLLECTOR_ADMIN_TOKEN"), tokenRef(pod.Containers[0], "HEARTBEAT_ADMIN_TOKEN"); got != want {
+	if got, want := tokenRef(api, "ATRIUM_API_COLLECTOR_ADMIN_TOKEN"), tokenRef(pod.Containers[0], "ATRIUM_ADMIN_TOKEN"); got != want {
 		t.Errorf("the API's collector token comes from %q, the collector's from %q", got, want)
 	}
 }

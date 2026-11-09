@@ -33,7 +33,7 @@ collectors:
         - name: core-db
           host: sql.prod.local
           port: 1433
-          database_name: Heartbeat
+          database_name: Atrium
           credential_ref: kv/core-db
   - id: otel-sidecar
     kind: otel

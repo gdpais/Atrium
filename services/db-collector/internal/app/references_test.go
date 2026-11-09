@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"heartbeat/services/db-collector/internal/collectors"
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
+	"atrium/services/db-collector/internal/collectors"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
 )
 
 // repoRoot is the repository root relative to this package's directory.
@@ -18,9 +18,9 @@ const repoRoot = "../../../.."
 // the Prometheus rules and their tests, the Grafana dashboards, the
 // end-to-end checks and the docs.
 var collectorReferenceFiles = []string{
-	"infra/helm/heartbeat/files/prometheus/rules/*.yml",
-	"infra/helm/heartbeat/files/prometheus/rules/tests/*.yml",
-	"infra/helm/heartbeat/files/grafana/dashboards/*.json",
+	"infra/helm/atrium/files/prometheus/rules/*.yml",
+	"infra/helm/atrium/files/prometheus/rules/tests/*.yml",
+	"infra/helm/atrium/files/grafana/dashboards/*.json",
 	"scripts/*.sh",
 	"docs/reference/*.md",
 	"docs/architecture/*.md",
@@ -30,7 +30,7 @@ var collectorReferenceFiles = []string{
 
 // collectorMetricRef matches a collector self-metric name. A name preceded
 // by ^ (a grep pattern) or followed by * (a glob) is a pattern, not a name.
-var collectorMetricRef = regexp.MustCompile(`(\^)?\bheartbeat_collector_[a-z0-9_]+(\*)?`)
+var collectorMetricRef = regexp.MustCompile(`(\^)?\batrium_collector_[a-z0-9_]+(\*)?`)
 
 // collectorMetrics returns every collector self-metric name, with _bucket,
 // _sum and _count for the histogram.
@@ -57,7 +57,7 @@ func collectorMetrics() map[string]bool {
 // Rules, alerts, dashboards, the end-to-end checks and the docs name
 // collector self-metrics, so a renamed or misspelled one leaves an alert
 // that never fires or a doc that sends operators to nothing. Every
-// heartbeat_collector_* name they reference must be one the collector
+// atrium_collector_* name they reference must be one the collector
 // exports.
 func TestReferencesNameCollectorMetrics(t *testing.T) {
 	known := collectorMetrics()

@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/config"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/config"
 )
 
 // DatabaseTarget is a monitored database as the API shows it, and as its
@@ -94,7 +94,7 @@ var defaultPorts = map[string]int{config.KindSQLServer: 1433}
 // collector's own check (config.ValidSecretRef), which the API runs too.
 // The collector reads the key credentials.Key(ref), the reference
 // upper-cased with '/', '-' and '.' as '_' (env/finance-prod is
-// HEARTBEAT_CREDENTIAL_ENV_FINANCE_PROD), so this form gives every key one
+// ATRIUM_CREDENTIAL_ENV_FINANCE_PROD), so this form gives every key one
 // spelling: env/Finance.Prod cannot reach env/finance-prod's credential
 // while looking like another reference. The key is a valid Kubernetes
 // Secret key and environment variable name, and the form leaves no room

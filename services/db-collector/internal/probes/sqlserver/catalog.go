@@ -32,8 +32,8 @@ import (
 	"slices"
 	"strings"
 
-	heartbeatconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
+	atriumconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
 )
 
 // Probe describes a named SQL Server probe: the SQL to execute and the metrics
@@ -58,7 +58,7 @@ type Probe struct {
 // of a probe's SQL result set.
 type Metric struct {
 	// Name is the fully-qualified Prometheus metric name
-	// (e.g. "heartbeat_sqlserver_sessions").
+	// (e.g. "atrium_sqlserver_sessions").
 	Name string
 	// Help is the human-readable description registered with Prometheus.
 	Help string
@@ -179,7 +179,7 @@ func DefaultCatalog() Catalog {
 			// dominate top-N wait panels.  A read of the DMV takes no locks.
 			QueryTemplate: "SELECT wait_type, wait_time_ms FROM sys.dm_os_wait_stats WHERE wait_time_ms > 0 AND wait_type NOT IN (" + sqlStringList(benignWaitTypes) + ")",
 			Metrics: []Metric{{
-				Name:         "heartbeat_sqlserver_wait_seconds_total",
+				Name:         "atrium_sqlserver_wait_seconds_total",
 				Help:         "Cumulative SQL Server wait time in seconds by wait type since SQL Server started or wait statistics were cleared.",
 				Type:         collectorexport.Counter,
 				ValueColumn:  "wait_time_ms",
@@ -192,7 +192,7 @@ func DefaultCatalog() Catalog {
 			Category:      "blocking",
 			QueryTemplate: "SELECT blocking_session_id, COUNT(*) AS blocked_count FROM sys.dm_exec_requests WHERE blocking_session_id <> 0 GROUP BY blocking_session_id",
 			Metrics: []Metric{{
-				Name:         "heartbeat_sqlserver_blocked_requests",
+				Name:         "atrium_sqlserver_blocked_requests",
 				Help:         "Current blocked SQL Server request count by blocking session.",
 				ValueColumn:  "blocked_count",
 				LabelColumns: []string{"blocking_session_id"},
@@ -203,7 +203,7 @@ func DefaultCatalog() Catalog {
 			Category:      "sessions",
 			QueryTemplate: "SELECT status, COUNT(*) AS session_count FROM sys.dm_exec_sessions GROUP BY status",
 			Metrics: []Metric{{
-				Name:         "heartbeat_sqlserver_sessions",
+				Name:         "atrium_sqlserver_sessions",
 				Help:         "Current SQL Server session count by status.",
 				ValueColumn:  "session_count",
 				LabelColumns: []string{"status"},
@@ -214,7 +214,7 @@ func DefaultCatalog() Catalog {
 			Category:      "memory_pressure",
 			QueryTemplate: "SELECT cntr_value AS total_server_memory_kb FROM sys.dm_os_performance_counters WHERE counter_name = 'Total Server Memory (KB)'",
 			Metrics: []Metric{{
-				Name:        "heartbeat_sqlserver_total_server_memory_bytes",
+				Name:        "atrium_sqlserver_total_server_memory_bytes",
 				Help:        "Memory SQL Server has committed (Total Server Memory) in bytes.",
 				ValueColumn: "total_server_memory_kb",
 				Scale:       1024,
@@ -232,7 +232,7 @@ func DefaultCatalog() Catalog {
 			// apart.  file_io uses the same expression.
 			QueryTemplate: "SELECT COALESCE(DB_NAME(database_id), CONCAT(N'database_id:', database_id)) AS database_name, name AS file_name, type_desc AS file_type, size AS size_pages FROM sys.master_files",
 			Metrics: []Metric{{
-				Name:         "heartbeat_sqlserver_database_file_size_bytes",
+				Name:         "atrium_sqlserver_database_file_size_bytes",
 				Help:         "SQL Server database file size in bytes, one series per file.",
 				ValueColumn:  "size_pages",
 				Scale:        8192,
@@ -254,13 +254,13 @@ func DefaultCatalog() Catalog {
 				"FROM sys.dm_os_performance_counters WHERE counter_name IN ('Batch Requests/sec', 'Transactions/sec')",
 			Metrics: []Metric{
 				{
-					Name:        "heartbeat_sqlserver_batch_requests_total",
+					Name:        "atrium_sqlserver_batch_requests_total",
 					Help:        "Cumulative SQL Server batch requests (Batch Requests/sec counter) since SQL Server started.",
 					Type:        collectorexport.Counter,
 					ValueColumn: "batch_requests",
 				},
 				{
-					Name:        "heartbeat_sqlserver_transactions_total",
+					Name:        "atrium_sqlserver_transactions_total",
 					Help:        "Cumulative SQL Server transactions across all databases (Transactions/sec counter, _Total) since SQL Server started.",
 					Type:        collectorexport.Counter,
 					ValueColumn: "transactions",
@@ -307,13 +307,13 @@ func DefaultCatalog() Catalog {
 				"WHERE si.ms_ticks - latest.timestamp < 180000",
 			Metrics: []Metric{
 				{
-					Name:        "heartbeat_sqlserver_cpu_sql_process_ratio",
+					Name:        "atrium_sqlserver_cpu_sql_process_ratio",
 					Help:        "Share of the host's CPU used by the SQL Server process over the last scheduler monitor minute (0-1).",
 					ValueColumn: "sql_process_percent",
 					Scale:       0.01,
 				},
 				{
-					Name:        "heartbeat_sqlserver_cpu_other_process_ratio",
+					Name:        "atrium_sqlserver_cpu_other_process_ratio",
 					Help:        "Share of the host's CPU used by processes other than SQL Server over the last scheduler monitor minute (0-1). Windows only.",
 					ValueColumn: "other_process_percent",
 					Scale:       0.01,
@@ -338,12 +338,12 @@ func DefaultCatalog() Catalog {
 				"AND counter_name IN (N'Page life expectancy', N'Buffer cache hit ratio', N'Buffer cache hit ratio base')",
 			Metrics: []Metric{
 				{
-					Name:        "heartbeat_sqlserver_page_life_expectancy_seconds",
+					Name:        "atrium_sqlserver_page_life_expectancy_seconds",
 					Help:        "Seconds a page is expected to stay in the SQL Server buffer pool without references (Buffer Manager Page life expectancy).",
 					ValueColumn: "page_life_expectancy_seconds",
 				},
 				{
-					Name:        "heartbeat_sqlserver_buffer_cache_hit_ratio",
+					Name:        "atrium_sqlserver_buffer_cache_hit_ratio",
 					Help:        "Share of page requests served from the SQL Server buffer pool without a disk read (Buffer Manager Buffer cache hit ratio, 0-1).",
 					ValueColumn: "buffer_cache_hit_ratio",
 				},
@@ -364,12 +364,12 @@ func DefaultCatalog() Catalog {
 				"FROM sys.dm_io_virtual_file_stats(NULL, NULL) AS vfs " +
 				"JOIN sys.master_files AS mf ON mf.database_id = vfs.database_id AND mf.file_id = vfs.file_id",
 			Metrics: fileIOMetrics([]fileIOColumn{
-				{"heartbeat_sqlserver_database_file_reads_total", "Cumulative read operations on a SQL Server database file.", "num_of_reads", 0},
-				{"heartbeat_sqlserver_database_file_writes_total", "Cumulative write operations on a SQL Server database file.", "num_of_writes", 0},
-				{"heartbeat_sqlserver_database_file_read_bytes_total", "Cumulative bytes read from a SQL Server database file.", "num_of_bytes_read", 0},
-				{"heartbeat_sqlserver_database_file_written_bytes_total", "Cumulative bytes written to a SQL Server database file.", "num_of_bytes_written", 0},
-				{"heartbeat_sqlserver_database_file_read_stall_seconds_total", "Cumulative seconds SQL Server waited for reads from a database file to complete.", "io_stall_read_ms", 0.001},
-				{"heartbeat_sqlserver_database_file_write_stall_seconds_total", "Cumulative seconds SQL Server waited for writes to a database file to complete.", "io_stall_write_ms", 0.001},
+				{"atrium_sqlserver_database_file_reads_total", "Cumulative read operations on a SQL Server database file.", "num_of_reads", 0},
+				{"atrium_sqlserver_database_file_writes_total", "Cumulative write operations on a SQL Server database file.", "num_of_writes", 0},
+				{"atrium_sqlserver_database_file_read_bytes_total", "Cumulative bytes read from a SQL Server database file.", "num_of_bytes_read", 0},
+				{"atrium_sqlserver_database_file_written_bytes_total", "Cumulative bytes written to a SQL Server database file.", "num_of_bytes_written", 0},
+				{"atrium_sqlserver_database_file_read_stall_seconds_total", "Cumulative seconds SQL Server waited for reads from a database file to complete.", "io_stall_read_ms", 0.001},
+				{"atrium_sqlserver_database_file_write_stall_seconds_total", "Cumulative seconds SQL Server waited for writes to a database file to complete.", "io_stall_write_ms", 0.001},
 			}),
 		},
 	}
@@ -396,11 +396,11 @@ func (c Catalog) Names() []string {
 // the catalog does not have, in its default probes or a target's own.  A
 // query_template override replaces the query of a probe; it cannot add one,
 // because the catalog also holds the probe's metric descriptors.  The
-// db-collector registers it with [heartbeatconfig.WithValidator], so a typo
+// db-collector registers it with [atriumconfig.WithValidator], so a typo
 // is a rejected config instead of a target that fails every cycle.
-func (c Catalog) Validate(cfg heartbeatconfig.RuntimeConfig) error {
+func (c Catalog) Validate(cfg atriumconfig.RuntimeConfig) error {
 	for _, collector := range cfg.Collectors {
-		if collector.Kind != heartbeatconfig.KindSQLServer {
+		if collector.Kind != atriumconfig.KindSQLServer {
 			continue
 		}
 		if err := c.validateProbes("collector "+collector.ID, collector.Probes); err != nil {
@@ -416,7 +416,7 @@ func (c Catalog) Validate(cfg heartbeatconfig.RuntimeConfig) error {
 }
 
 // validateProbes checks the probes of one scope against the catalog.
-func (c Catalog) validateProbes(scope string, probes []heartbeatconfig.ProbeRuntimeConfig) error {
+func (c Catalog) validateProbes(scope string, probes []atriumconfig.ProbeRuntimeConfig) error {
 	for _, probe := range probes {
 		if _, ok := c.Get(probe.Name); !ok {
 			return fmt.Errorf("%s: unknown SQL Server probe %q; probes: %s", scope, probe.Name, strings.Join(c.Names(), ", "))

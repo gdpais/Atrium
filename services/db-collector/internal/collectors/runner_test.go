@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	collectorconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	collectorconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 type fakeExecutor struct{}
 
 func (fakeExecutor) RunProbe(context.Context, collectormetadata.ScheduledProbe) ([]collectorexport.Sample, []collectormetadata.Evidence, error) {
 	return []collectorexport.Sample{{
-		Metric: "heartbeat_sqlserver_wait_seconds_total",
+		Metric: "atrium_sqlserver_wait_seconds_total",
 		Type:   collectorexport.Counter,
 		Value:  12,
 		Labels: map[string]string{"environment": "prod", "target": "core-db", "wait_type": "LCK_M_X"},
@@ -64,7 +64,7 @@ func TestRunnerExecutesConfiguredCollector(t *testing.T) {
 		t.Fatalf("unexpected cycle result: %+v", result)
 	}
 
-	if got := exporter.LastValue("heartbeat_sqlserver_wait_seconds_total"); got != 12 {
+	if got := exporter.LastValue("atrium_sqlserver_wait_seconds_total"); got != 12 {
 		t.Fatalf("unexpected metric value: %v", got)
 	}
 	if len(sink.evidence) != 1 {
@@ -193,7 +193,7 @@ func TestDecodeRowsUsesExplicitMetricDescriptors(t *testing.T) {
 	}
 	probe := catalogsqlserver.Probe{
 		Metrics: []catalogsqlserver.Metric{{
-			Name:         "heartbeat_sqlserver_wait_seconds_total",
+			Name:         "atrium_sqlserver_wait_seconds_total",
 			Help:         "Wait time.",
 			Type:         collectorexport.Counter,
 			ValueColumn:  "wait_time_ms",
@@ -213,7 +213,7 @@ func TestDecodeRowsUsesExplicitMetricDescriptors(t *testing.T) {
 		t.Fatalf("expected 1 sample, got %d", len(samples))
 	}
 	sample := samples[0]
-	if sample.Metric != "heartbeat_sqlserver_wait_seconds_total" || sample.Type != collectorexport.Counter {
+	if sample.Metric != "atrium_sqlserver_wait_seconds_total" || sample.Type != collectorexport.Counter {
 		t.Fatalf("unexpected metric: %s (%s)", sample.Metric, sample.Type)
 	}
 	if sample.Value != 0.042 {
@@ -268,25 +268,25 @@ func TestCatalogProbesDecodeToBaseUnitsAndTypes(t *testing.T) {
 		{
 			probe: "waits",
 			rows:  []map[string]any{{"wait_type": "LCK_M_X", "wait_time_ms": int64(2500)}},
-			want:  []want{{"heartbeat_sqlserver_wait_seconds_total", collectorexport.Counter, 2.5, "wait_type=LCK_M_X"}},
+			want:  []want{{"atrium_sqlserver_wait_seconds_total", collectorexport.Counter, 2.5, "wait_type=LCK_M_X"}},
 		},
 		{
 			probe: "memory_pressure",
 			rows:  []map[string]any{{"total_server_memory_kb": int64(2048)}},
-			want:  []want{{"heartbeat_sqlserver_total_server_memory_bytes", collectorexport.Gauge, 2 << 20, ""}},
+			want:  []want{{"atrium_sqlserver_total_server_memory_bytes", collectorexport.Gauge, 2 << 20, ""}},
 		},
 		{
 			probe: "storage",
 			rows:  []map[string]any{{"database_name": "sales", "file_name": "sales", "file_type": "ROWS", "size_pages": int64(128)}},
-			want:  []want{{"heartbeat_sqlserver_database_file_size_bytes", collectorexport.Gauge, 1 << 20, "database_name=sales"}},
+			want:  []want{{"atrium_sqlserver_database_file_size_bytes", collectorexport.Gauge, 1 << 20, "database_name=sales"}},
 		},
 		{
 			// One pivoted row yields one counter per column.
 			probe: "throughput",
 			rows:  []map[string]any{{"batch_requests": int64(1200), "transactions": int64(300)}},
 			want: []want{
-				{"heartbeat_sqlserver_batch_requests_total", collectorexport.Counter, 1200, ""},
-				{"heartbeat_sqlserver_transactions_total", collectorexport.Counter, 300, ""},
+				{"atrium_sqlserver_batch_requests_total", collectorexport.Counter, 1200, ""},
+				{"atrium_sqlserver_transactions_total", collectorexport.Counter, 300, ""},
 			},
 		},
 		{
@@ -294,15 +294,15 @@ func TestCatalogProbesDecodeToBaseUnitsAndTypes(t *testing.T) {
 			// sample rather than a fake 0.
 			probe: "throughput",
 			rows:  []map[string]any{{"batch_requests": int64(1200), "transactions": nil}},
-			want:  []want{{"heartbeat_sqlserver_batch_requests_total", collectorexport.Counter, 1200, ""}},
+			want:  []want{{"atrium_sqlserver_batch_requests_total", collectorexport.Counter, 1200, ""}},
 		},
 		{
 			// Percent from the scheduler monitor record becomes a 0-1 ratio.
 			probe: "cpu",
 			rows:  []map[string]any{{"sql_process_percent": int64(25), "other_process_percent": int64(10)}},
 			want: []want{
-				{"heartbeat_sqlserver_cpu_sql_process_ratio", collectorexport.Gauge, 0.25, ""},
-				{"heartbeat_sqlserver_cpu_other_process_ratio", collectorexport.Gauge, 0.1, ""},
+				{"atrium_sqlserver_cpu_sql_process_ratio", collectorexport.Gauge, 0.25, ""},
+				{"atrium_sqlserver_cpu_other_process_ratio", collectorexport.Gauge, 0.1, ""},
 			},
 		},
 		{
@@ -310,8 +310,8 @@ func TestCatalogProbesDecodeToBaseUnitsAndTypes(t *testing.T) {
 			probe: "buffer_cache",
 			rows:  []map[string]any{{"page_life_expectancy_seconds": int64(3600), "buffer_cache_hit_ratio": 0.995}},
 			want: []want{
-				{"heartbeat_sqlserver_page_life_expectancy_seconds", collectorexport.Gauge, 3600, ""},
-				{"heartbeat_sqlserver_buffer_cache_hit_ratio", collectorexport.Gauge, 0.995, ""},
+				{"atrium_sqlserver_page_life_expectancy_seconds", collectorexport.Gauge, 3600, ""},
+				{"atrium_sqlserver_buffer_cache_hit_ratio", collectorexport.Gauge, 0.995, ""},
 			},
 		},
 		{
@@ -319,7 +319,7 @@ func TestCatalogProbesDecodeToBaseUnitsAndTypes(t *testing.T) {
 			// than a division by zero.
 			probe: "buffer_cache",
 			rows:  []map[string]any{{"page_life_expectancy_seconds": int64(3600), "buffer_cache_hit_ratio": nil}},
-			want:  []want{{"heartbeat_sqlserver_page_life_expectancy_seconds", collectorexport.Gauge, 3600, ""}},
+			want:  []want{{"atrium_sqlserver_page_life_expectancy_seconds", collectorexport.Gauge, 3600, ""}},
 		},
 		{
 			// One file row yields six counters, stall time in seconds.
@@ -331,12 +331,12 @@ func TestCatalogProbesDecodeToBaseUnitsAndTypes(t *testing.T) {
 				"io_stall_read_ms": int64(30), "io_stall_write_ms": int64(1500),
 			}},
 			want: []want{
-				{"heartbeat_sqlserver_database_file_reads_total", collectorexport.Counter, 10, "file_name=sales_log"},
-				{"heartbeat_sqlserver_database_file_writes_total", collectorexport.Counter, 400, "file_type=LOG"},
-				{"heartbeat_sqlserver_database_file_read_bytes_total", collectorexport.Counter, 81920, "database_name=sales"},
-				{"heartbeat_sqlserver_database_file_written_bytes_total", collectorexport.Counter, 1 << 20, "database_name=sales"},
-				{"heartbeat_sqlserver_database_file_read_stall_seconds_total", collectorexport.Counter, 0.03, "database_name=sales"},
-				{"heartbeat_sqlserver_database_file_write_stall_seconds_total", collectorexport.Counter, 1.5, "database_name=sales"},
+				{"atrium_sqlserver_database_file_reads_total", collectorexport.Counter, 10, "file_name=sales_log"},
+				{"atrium_sqlserver_database_file_writes_total", collectorexport.Counter, 400, "file_type=LOG"},
+				{"atrium_sqlserver_database_file_read_bytes_total", collectorexport.Counter, 81920, "database_name=sales"},
+				{"atrium_sqlserver_database_file_written_bytes_total", collectorexport.Counter, 1 << 20, "database_name=sales"},
+				{"atrium_sqlserver_database_file_read_stall_seconds_total", collectorexport.Counter, 0.03, "database_name=sales"},
+				{"atrium_sqlserver_database_file_write_stall_seconds_total", collectorexport.Counter, 1.5, "database_name=sales"},
 			},
 		},
 	}

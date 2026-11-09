@@ -7,7 +7,7 @@
 #
 # The probes run as a least-privilege login with only the documented grants
 # (scripts/sqlserver-login.sh), so a probe that needs more fails here. The log
-# queries run as heartbeat_oslog, a login with no server permissions that the
+# queries run as atrium_oslog, a login with no server permissions that the
 # tests give SELECT on their fixture tables only. sa is used for setup and by
 # PatientZero's live tests, which create and drop their own databases. sa and
 # a CONTROL SERVER login, under their own credential references, are used
@@ -20,7 +20,7 @@ set -eu
 
 SQLSERVER_IMAGE=${SQLSERVER_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}
 SQLSERVER_MEMORY_LIMIT_MB=${SQLSERVER_MEMORY_LIMIT_MB:-2048}
-CONTAINER=heartbeat-sqlserver-test-$$
+CONTAINER=atrium-sqlserver-test-$$
 
 log() { printf '%s\n' "$*" >&2; }
 die() { log "error: $*"; exit 1; }
@@ -35,7 +35,7 @@ esac
 [ "$SQLSERVER_MEMORY_LIMIT_MB" -ge 2048 ] || die "SQLSERVER_MEMORY_LIMIT_MB must be at least 2048 (SQL Server needs 2 GB), not $SQLSERVER_MEMORY_LIMIT_MB"
 
 password="Test-$(openssl rand -hex 16)"
-collector_login=heartbeat_collector
+collector_login=atrium_collector
 collector_password="Test-$(openssl rand -hex 16)"
 control_password="Test-$(openssl rand -hex 16)"
 oslog_password="Test-$(openssl rand -hex 16)"
@@ -69,23 +69,23 @@ memory_mb=$(printf '%s' "$memory_mb" | tr -d '[:space:]')
 log "SQL Server sees $memory_mb MB (cap $SQLSERVER_MEMORY_LIMIT_MB MB)"
 
 log "creating the least-privilege login $collector_login"
-MSSQL_SA_PASSWORD=$password HEARTBEAT_COLLECTOR_LOGIN=$collector_login HEARTBEAT_COLLECTOR_PASSWORD=$collector_password \
+MSSQL_SA_PASSWORD=$password ATRIUM_COLLECTOR_LOGIN=$collector_login ATRIUM_COLLECTOR_PASSWORD=$collector_password \
 	scripts/sqlserver-login.sh "$CONTAINER"
-log "creating heartbeat_control, a CONTROL SERVER login for the sysadmin check"
+log "creating atrium_control, a CONTROL SERVER login for the sysadmin check"
 # sqlcmd substitutes $(CONTROL_PASSWORD) from the environment; the password
 # is never on a command line.
 SQLCMDPASSWORD=$password CONTROL_PASSWORD=$control_password docker exec -i \
 	-e SQLCMDPASSWORD -e CONTROL_PASSWORD "$CONTAINER" \
 	/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b >/dev/null <<'SQL'
-CREATE LOGIN heartbeat_control WITH PASSWORD = N'$(CONTROL_PASSWORD)';
-GRANT CONTROL SERVER TO heartbeat_control;
+CREATE LOGIN atrium_control WITH PASSWORD = N'$(CONTROL_PASSWORD)';
+GRANT CONTROL SERVER TO atrium_control;
 GO
 SQL
-log "creating heartbeat_oslog, a login with no server permissions for the log queries"
+log "creating atrium_oslog, a login with no server permissions for the log queries"
 SQLCMDPASSWORD=$password OSLOG_PASSWORD=$oslog_password docker exec -i \
 	-e SQLCMDPASSWORD -e OSLOG_PASSWORD "$CONTAINER" \
 	/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b >/dev/null <<'SQL'
-CREATE LOGIN heartbeat_oslog WITH PASSWORD = N'$(OSLOG_PASSWORD)';
+CREATE LOGIN atrium_oslog WITH PASSWORD = N'$(OSLOG_PASSWORD)';
 GO
 SQL
 
@@ -94,11 +94,11 @@ port=$(docker port "$CONTAINER" 1433/tcp | head -n 1 | sed 's/.*://')
 
 gocache=${GOCACHE:-$(pwd)/.tmp/gocache}
 
-HEARTBEAT_TEST_SQLSERVER_ADDR="127.0.0.1:$port" \
-	HEARTBEAT_CREDENTIAL_SQLSERVER_TEST="$collector_login:$collector_password" \
-	HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_SA="sa:$password" \
-	HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_CONTROL="heartbeat_control:$control_password" \
-	HEARTBEAT_CREDENTIAL_SQLSERVER_TEST_OSLOG="heartbeat_oslog:$oslog_password" \
+ATRIUM_TEST_SQLSERVER_ADDR="127.0.0.1:$port" \
+	ATRIUM_CREDENTIAL_SQLSERVER_TEST="$collector_login:$collector_password" \
+	ATRIUM_CREDENTIAL_SQLSERVER_TEST_SA="sa:$password" \
+	ATRIUM_CREDENTIAL_SQLSERVER_TEST_CONTROL="atrium_control:$control_password" \
+	ATRIUM_CREDENTIAL_SQLSERVER_TEST_OSLOG="atrium_oslog:$oslog_password" \
 	GOCACHE=$gocache \
 	go test -tags=sqlserver -count=1 -timeout=5m -v \
 	-run 'AgainstSQLServer$' ./services/db-collector/internal/collectors/...

@@ -31,14 +31,14 @@ import (
 
 const (
 	// HostLabel holds the host of the test process ([Host]).
-	HostLabel = "heartbeat.test.host"
+	HostLabel = "atrium.test.host"
 	// PIDLabel holds its process ID.
-	PIDLabel = "heartbeat.test.pid"
+	PIDLabel = "atrium.test.pid"
 
 	// HostEnv and PIDEnv carry the labels' values into
 	// infra/docker-compose.test.yml.
-	HostEnv = "HEARTBEAT_TEST_HOST"
-	PIDEnv  = "HEARTBEAT_TEST_PID"
+	HostEnv = "ATRIUM_TEST_HOST"
+	PIDEnv  = "ATRIUM_TEST_PID"
 
 	composeProjectLabel = "com.docker.compose.project"
 )

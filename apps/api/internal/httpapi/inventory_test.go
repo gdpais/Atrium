@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	api "heartbeat/apps/api"
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/inventory"
+	api "atrium/apps/api"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/inventory"
 )
 
 // fakeInventory is an Inventory that records what it is asked and answers

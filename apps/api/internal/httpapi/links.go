@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/links"
-	"heartbeat/apps/api/internal/openapi"
-	"heartbeat/internal/config"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/links"
+	"atrium/apps/api/internal/openapi"
+	"atrium/internal/config"
 )
 
 // LinkConfig is the integrations config links are rendered from:

@@ -7,7 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/store"
 )
 
 // Info metrics: the inventory as Grafana reads it (ADR 0021 §6). Each is
@@ -15,25 +15,25 @@ import (
 const (
 	// MetricEnvironmentInfo is an environment. Labels: environment (its
 	// slug), type, status, managed_by.
-	MetricEnvironmentInfo = "heartbeat_api_inventory_environment_info"
+	MetricEnvironmentInfo = "atrium_api_inventory_environment_info"
 	// MetricApplicationInfo is an application. Labels: environment,
 	// application (its name), platform, criticality, status, managed_by.
-	MetricApplicationInfo = "heartbeat_api_inventory_application_info"
+	MetricApplicationInfo = "atrium_api_inventory_application_info"
 	// MetricSourceInfo is a telemetry source. Labels: environment,
 	// application, source_type, ingest_mode, application_name (its
 	// config's, as the collector and the links name it), status,
 	// managed_by, observation (whether the collector reads it: observed,
 	// not_observed, unknown or not_applicable).
-	MetricSourceInfo = "heartbeat_api_inventory_source_info"
+	MetricSourceInfo = "atrium_api_inventory_source_info"
 	// MetricDatabaseTargetInfo is a database target. Labels: environment,
 	// target (its name, the collector's target label), engine, status,
 	// managed_by.
-	MetricDatabaseTargetInfo = "heartbeat_api_inventory_database_target_info"
+	MetricDatabaseTargetInfo = "atrium_api_inventory_database_target_info"
 	// MetricInfoTruncated is 1 when a kind has more rows than
 	// MaxInfoSeries, so its info metric lists only the first ones, 0
 	// otherwise. Labels: kind (environment, application, source,
 	// database_target).
-	MetricInfoTruncated = "heartbeat_api_inventory_info_truncated"
+	MetricInfoTruncated = "atrium_api_inventory_info_truncated"
 )
 
 // MaxInfoSeries is the most series each info metric has: the first rows

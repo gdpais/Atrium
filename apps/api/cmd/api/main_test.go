@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/redis"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/redis"
+	"atrium/apps/api/internal/store"
 )
 
 // setRequired sets the variables without a default, so a test changes only
@@ -30,8 +30,8 @@ func setRequired(t *testing.T) {
 	} {
 		t.Setenv(key, "")
 	}
-	t.Setenv(envPostgresHost, "postgresql.heartbeat.svc")
-	t.Setenv(envRedisAddr, "valkey.heartbeat.svc:6379")
+	t.Setenv(envPostgresHost, "postgresql.atrium.svc")
+	t.Setenv(envRedisAddr, "valkey.atrium.svc:6379")
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
@@ -44,13 +44,13 @@ func TestLoadConfigDefaults(t *testing.T) {
 		t.Fatalf("ListenAddr = %q, want the default :8081", cfg.ListenAddr)
 	}
 	wantPostgres := store.Config{
-		Host: "postgresql.heartbeat.svc", Port: 5432, Database: "heartbeat",
+		Host: "postgresql.atrium.svc", Port: 5432, Database: "atrium",
 		SSLMode: "verify-full", CredentialRef: "secret/api-postgres",
 	}
 	if cfg.Postgres != wantPostgres {
 		t.Fatalf("Postgres = %+v, want %+v", cfg.Postgres, wantPostgres)
 	}
-	wantRedis := redis.Config{Addr: "valkey.heartbeat.svc:6379", TLS: true, CredentialRef: "secret/api-redis"}
+	wantRedis := redis.Config{Addr: "valkey.atrium.svc:6379", TLS: true, CredentialRef: "secret/api-redis"}
 	if cfg.Redis != wantRedis {
 		t.Fatalf("Redis = %+v, want %+v", cfg.Redis, wantRedis)
 	}
@@ -76,18 +76,18 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 	setRequired(t)
 	for key, value := range map[string]string{
 		envListenAddr:            "127.0.0.1:9000",
-		envPostgresHost:          "heartbeat.abc123.eu-west-1.rds.amazonaws.com",
+		envPostgresHost:          "atrium.abc123.eu-west-1.rds.amazonaws.com",
 		envPostgresPort:          "5433",
-		envPostgresDatabase:      "heartbeat_prod",
+		envPostgresDatabase:      "atrium_prod",
 		envPostgresSSLMode:       "verify-ca",
-		envPostgresSSLRootCert:   "/etc/heartbeat/rds-ca.pem",
+		envPostgresSSLRootCert:   "/etc/atrium/rds-ca.pem",
 		envPostgresCredentialRef: "kv/api-postgres-owner",
 		envRedisAddr:             "[::1]:6380",
 		envRedisTLS:              "false",
 		envRedisCredentialRef:    "env/redis.local",
-		envCredentialsDir:        "/var/run/secrets/heartbeat/credentials",
+		envCredentialsDir:        "/var/run/secrets/atrium/credentials",
 		envAuditEndpoint:         "https://otel-collector.observability.svc:4318/",
-		envSiteOrigin:            "HTTPS://Heartbeat.Example.com:443/",
+		envSiteOrigin:            "HTTPS://Atrium.Example.com:443/",
 		envSessionIdleTimeout:    "30m",
 		envSessionMaxAge:         "12h",
 		envTrustedProxies:        " 10.0.0.0/8, 192.168.1.7 ,fd00::/8",
@@ -101,12 +101,12 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ListenAddr != "127.0.0.1:9000" || cfg.CredentialsDir != "/var/run/secrets/heartbeat/credentials" {
+	if cfg.ListenAddr != "127.0.0.1:9000" || cfg.CredentialsDir != "/var/run/secrets/atrium/credentials" {
 		t.Fatalf("ListenAddr %q, CredentialsDir %q", cfg.ListenAddr, cfg.CredentialsDir)
 	}
 	wantPostgres := store.Config{
-		Host: "heartbeat.abc123.eu-west-1.rds.amazonaws.com", Port: 5433, Database: "heartbeat_prod",
-		SSLMode: "verify-ca", SSLRootCert: "/etc/heartbeat/rds-ca.pem", CredentialRef: "kv/api-postgres-owner",
+		Host: "atrium.abc123.eu-west-1.rds.amazonaws.com", Port: 5433, Database: "atrium_prod",
+		SSLMode: "verify-ca", SSLRootCert: "/etc/atrium/rds-ca.pem", CredentialRef: "kv/api-postgres-owner",
 	}
 	if cfg.Postgres != wantPostgres {
 		t.Fatalf("Postgres = %+v, want %+v", cfg.Postgres, wantPostgres)
@@ -120,7 +120,7 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 	if cfg.CollectorURL != "http://db-collector:8082" || cfg.CollectorAdminToken != "collector-token" {
 		t.Fatalf("CollectorURL %q, CollectorAdminToken of %d bytes", cfg.CollectorURL, len(cfg.CollectorAdminToken))
 	}
-	if want := "https://heartbeat.example.com"; cfg.Site != want {
+	if want := "https://atrium.example.com"; cfg.Site != want {
 		t.Fatalf("Site = %q, want %q, as a browser writes the Origin header", cfg.Site, want)
 	}
 	if cfg.SessionIdleTimeout != 30*time.Minute || cfg.SessionMaxAge != 12*time.Hour || cfg.ShutdownDelay != 0 {
@@ -136,15 +136,15 @@ func TestLoadConfigReadsEverySetting(t *testing.T) {
 // it.
 func TestLoadConfigWritesTheSiteAsAnOrigin(t *testing.T) {
 	for value, want := range map[string]string{
-		"https://heartbeat.example.com":       "https://heartbeat.example.com",
-		"https://heartbeat.example.com/":      "https://heartbeat.example.com",
-		"https://heartbeat.example.com:8443":  "https://heartbeat.example.com:8443",
-		"http://localhost:8081":               "http://localhost:8081",
-		"http://LOCALHOST:80":                 "http://localhost",
-		"https://[2001:db8::1]:443":           "https://[2001:db8::1]",
-		"http://heartbeat.example.com:443":    "http://heartbeat.example.com:443",
-		"https://heartbeat.example.com:80/":   "https://heartbeat.example.com:80",
-		"https://heartbeat.internal.corp.lan": "https://heartbeat.internal.corp.lan",
+		"https://atrium.example.com":       "https://atrium.example.com",
+		"https://atrium.example.com/":      "https://atrium.example.com",
+		"https://atrium.example.com:8443":  "https://atrium.example.com:8443",
+		"http://localhost:8081":            "http://localhost:8081",
+		"http://LOCALHOST:80":              "http://localhost",
+		"https://[2001:db8::1]:443":        "https://[2001:db8::1]",
+		"http://atrium.example.com:443":    "http://atrium.example.com:443",
+		"https://atrium.example.com:80/":   "https://atrium.example.com:80",
+		"https://atrium.internal.corp.lan": "https://atrium.internal.corp.lan",
 	} {
 		t.Run(value, func(t *testing.T) {
 			setRequired(t)
@@ -231,11 +231,11 @@ func TestLoadConfigRejectsValuesThatCannotWork(t *testing.T) {
 		{envCollectorURL, "http://db-collector:8082?x=1"},
 		{envCollectorURL, "http://db-collector:8082/?"},
 		{envCollectorURL, "http://db-collector:8082#admin"},
-		{envSiteOrigin, "heartbeat.example.com"},
-		{envSiteOrigin, "https://heartbeat.example.com/app"},
-		{envSiteOrigin, "https://user@heartbeat.example.com"},
-		{envSiteOrigin, "https://heartbeat.example.com?x=1"},
-		{envSiteOrigin, "ftp://heartbeat.example.com"},
+		{envSiteOrigin, "atrium.example.com"},
+		{envSiteOrigin, "https://atrium.example.com/app"},
+		{envSiteOrigin, "https://user@atrium.example.com"},
+		{envSiteOrigin, "https://atrium.example.com?x=1"},
+		{envSiteOrigin, "ftp://atrium.example.com"},
 		{envSiteOrigin, "https://"},
 		{envSessionIdleTimeout, "8"},
 		{envSessionIdleTimeout, "30s"},
@@ -274,7 +274,7 @@ func TestLoadMigrateConfigNeedsNoRedisSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Host != "postgresql.heartbeat.svc" || resolver == nil {
+	if cfg.Host != "postgresql.atrium.svc" || resolver == nil {
 		t.Fatalf("cfg = %+v, resolver = %v", cfg, resolver)
 	}
 	t.Setenv(envPostgresHost, "")

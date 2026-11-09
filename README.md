@@ -1,6 +1,6 @@
-# Heartbeat
+# Atrium
 
-Heartbeat is an SRE-focused monitoring platform. It covers deep SQL Server
+Atrium is an SRE-focused monitoring platform. It covers deep SQL Server
 observability, application telemetry (OutSystems first), session-centric
 investigation, adaptive alerting and operational reporting, built on Grafana,
 Prometheus, Loki and OpenTelemetry. It complements commercial APMs rather than
@@ -12,7 +12,7 @@ installed on monitored database hosts.**
 **Documentation: [docs/README.md](docs/README.md)**. Start with the
 [product overview](docs/product/overview.md) and the
 [architecture overview](docs/architecture/overview.md). The same docs are
-published as an HTML site at <https://gdpais.github.io/Heartbeat/>, rebuilt from `master`
+published as an HTML site at <https://gdpais.github.io/Atrium/>, rebuilt from `master`
 on every push; `make docs-site` builds it locally into `docs/site/`.
 
 ## Status
@@ -63,7 +63,7 @@ database, see [onboarding SQL Server targets](docs/guides/database-targets.md).
 
 ## Architecture at a glance
 
-Heartbeat has four planes: **telemetry** (collectors, Prometheus, Loki,
+Atrium has four planes: **telemetry** (collectors, Prometheus, Loki,
 Alertmanager), **analysis jobs** (session analyzer, reporting), the **control
 plane** (Go API, PostgreSQL, Redis, YAML config, the inventory as code) and
 **presentation** (Grafana). The [core systems](docs/architecture/overview.md#core-systems) table
@@ -90,14 +90,14 @@ services/
   session-analyzer/    investigation and baseline worker (scaffold)
   reporting/           report worker (scaffold)
 internal/config/       shared integrations config manager
-internal/credentials/  shared credential lookup (HEARTBEAT_CREDENTIAL_<REF>)
+internal/credentials/  shared credential lookup (ATRIUM_CREDENTIAL_<REF>)
 packages/
   config-schema/       JSON schemas: integrations, inventory file, telemetry sources
   telemetry-contracts/ shared payload contracts
 db/migrations/         PostgreSQL schema migrations, embedded in the API
 config/                integrations.yaml for running a service outside Kubernetes;
                        inventory.example.yaml, an example inventory file
-infra/helm/heartbeat/  Helm chart: workloads, engine config, rules, dashboards
+infra/helm/atrium/  Helm chart: workloads, engine config, rules, dashboards
 infra/helm/values/     values per environment (kind, minimal, SQL Server sandbox,
                        production example, external platform example)
 infra/kind/            local kind cluster config

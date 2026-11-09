@@ -2,7 +2,7 @@
 # chart into the patientzero namespace and sets the image tag and SQL host.
 
 image:
-  repository: heartbeat/patientzero
+  repository: atrium/patientzero
   # Set by the script to a content-derived tag; the image is loaded into the
   # kind node, never pulled.
   tag: ""
@@ -29,8 +29,8 @@ sql:
 maxInFlight: 64
 
 # Database role in the logging database that is granted SELECT on the log
-# views; the setup script adds the Heartbeat collector's login to it.
-logReaderRole: heartbeat_oslog_reader
+# views; the setup script adds the Atrium collector's login to it.
+logReaderRole: atrium_oslog_reader
 
 # Bearer token for the scenario admin endpoints (/admin/, see
 # scenarios/README.md): a Secret, never a value here. The setup script
@@ -40,8 +40,8 @@ admin:
   existingSecret: patientzero-admin
   key: admin-token
 
-# Where scenario signals are read: Heartbeat's Prometheus, Loki and
-# Alertmanager. The setup script points them at the Heartbeat namespace;
+# Where scenario signals are read: Atrium's Prometheus, Loki and
+# Alertmanager. The setup script points them at the Atrium namespace;
 # an empty URL makes the scenarios that need it not runnable.
 signals:
   prometheusURL: ""

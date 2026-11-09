@@ -27,7 +27,7 @@ concurrency:
 
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/heartbeat
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/atrium
   CHART_REPO: oci://ghcr.io/${{ github.repository_owner }}/charts
 
 jobs:
@@ -70,7 +70,7 @@ jobs:
           - service: api
             dockerfile: apps/api/Dockerfile
     env:
-      REF: ghcr.io/${{ github.repository_owner }}/heartbeat/${{ matrix.service }}:${{ needs.verify.outputs.version }}
+      REF: ghcr.io/${{ github.repository_owner }}/atrium/${{ matrix.service }}:${{ needs.verify.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -144,11 +144,11 @@ jobs:
         run: |
           printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
           mkdir -p .tmp/chart
-          if helm pull "$CHART_REPO/heartbeat" --version "$VERSION" --destination .tmp/chart >.tmp/chart/out.txt 2>&1; then
+          if helm pull "$CHART_REPO/atrium" --version "$VERSION" --destination .tmp/chart >.tmp/chart/out.txt 2>&1; then
             echo "chart $VERSION already exists; not pushing"
           else
-            helm package infra/helm/heartbeat --destination .tmp/chart
-            helm push ".tmp/chart/heartbeat-$VERSION.tgz" "$CHART_REPO" 2>&1 | tee .tmp/chart/out.txt
+            helm package infra/helm/atrium --destination .tmp/chart
+            helm push ".tmp/chart/atrium-$VERSION.tgz" "$CHART_REPO" 2>&1 | tee .tmp/chart/out.txt
           fi
           digest=$(sed -n 's/^Digest: *//p' .tmp/chart/out.txt)
           test -n "$digest"
@@ -190,7 +190,7 @@ jobs:
               echo "| \`$service\` image | \`$IMAGE_PREFIX/$service:$VERSION@$digest\` |"
             done
             digest=$(awk '$1 == "chart" {print $2}' digest-*.txt)
-            echo "| Helm chart | \`$CHART_REPO/heartbeat\` version \`$VERSION\` (\`$digest\`) |"
+            echo "| Helm chart | \`$CHART_REPO/atrium\` version \`$VERSION\` (\`$digest\`) |"
           } >artifacts.md
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             # 0.y.z releases are pre-releases (ADR 0006), as release-please makes them.

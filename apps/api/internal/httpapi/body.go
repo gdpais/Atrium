@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/openapi"
 )
 
 // requestError is a request the operation does not accept, found after the

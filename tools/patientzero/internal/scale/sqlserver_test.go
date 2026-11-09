@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/tools/patientzero/internal/logschema"
+	"atrium/tools/patientzero/internal/logschema"
 )
 
 const queriesDir = "../../../../services/db-collector/internal/probes/outsystems/queries"
@@ -49,7 +49,7 @@ func TestLiveScale(t *testing.T) {
 	if err := Create(ctx, master, name); err != nil {
 		t.Fatal(err)
 	}
-	if err := Schema(ctx, db, types, "heartbeat_oslog_reader", ""); err != nil {
+	if err := Schema(ctx, db, types, "atrium_oslog_reader", ""); err != nil {
 		t.Fatal(err)
 	}
 	sink := NewBulkSink(ctx, db, types)

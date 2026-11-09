@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const dashboardDir = "../../../../infra/helm/heartbeat/files/grafana/dashboards"
+const dashboardDir = "../../../../infra/helm/atrium/files/grafana/dashboards"
 
 func TestLoadPanelsResolvesTheChartsDashboards(t *testing.T) {
 	panels, err := LoadPanels(dashboardDir)

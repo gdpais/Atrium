@@ -1,6 +1,6 @@
 # Kubernetes Delivery (Helm on kind)
 
-Heartbeat is packaged as one Helm chart, used unchanged for kind, CI and
+Atrium is packaged as one Helm chart, used unchanged for kind, CI and
 production with environment-specific values
 ([ADR 0003](../architecture/decisions/0003-helm-on-kind-and-production.md),
 [ADR 0005](../architecture/decisions/0005-production-delivery-and-operations-defaults.md)).
@@ -11,8 +11,8 @@ explains what is deployed and how to work with it.
 
 | Path | Contents |
 | --- | --- |
-| `infra/helm/heartbeat/` | The chart: Heartbeat templates, `values.yaml` defaults, `values.schema.json`, `Chart.yaml`/`Chart.lock` |
-| `infra/helm/heartbeat/files/` | Prometheus rules (and their promtool tests) and Grafana dashboards, shipped as ConfigMaps |
+| `infra/helm/atrium/` | The chart: Atrium templates, `values.yaml` defaults, `values.schema.json`, `Chart.yaml`/`Chart.lock` |
+| `infra/helm/atrium/files/` | Prometheus rules (and their promtool tests) and Grafana dashboards, shipped as ConfigMaps |
 | `infra/helm/values/` | Environment values: `kind.yaml`, `minimal.yaml`, `sqlserver-dev.yaml`, `production.example.yaml`, and `external-platform.example.yaml` (no bundled engines; the OTel Collector sends everything as OTLP to another platform, [ADR 0011](../architecture/decisions/0011-platform-agnostic-telemetry-boundary.md)) |
 | `infra/kind/cluster.yaml` | kind cluster: one node, host port mappings on 127.0.0.1 |
 | `infra/kind/e2e.yaml` | The temporary cluster of `make kind-e2e`: no host ports, and a 10 s kubelet sync so changed ConfigMaps and Secrets arrive sooner |
@@ -21,7 +21,7 @@ explains what is deployed and how to work with it.
 
 ## What the chart deploys
 
-Heartbeat's own objects (fixed names; one release per namespace):
+Atrium's own objects (fixed names; one release per namespace):
 
 | Object | Notes |
 | --- | --- |
@@ -35,16 +35,16 @@ Heartbeat's own objects (fixed names; one release per namespace):
 | `StatefulSet/valkey`, `Service/valkey` | Redis, run as Valkey on `valkey/valkey`: one replica, an emptyDir (`valkey.persistence` puts an append-only file on a claim), `noeviction` below its memory limit, readiness `valkey-cli ping`. Its password reaches it on standard input, never a command line. Production turns it off for Amazon ElastiCache |
 | `NetworkPolicy/api`, `/postgresql`, `/valkey` | The API's 8081 from Prometheus and `api.networkPolicy.peers`; PostgreSQL's 5432 and Valkey's 6379 from the API and their `extraPeers` only |
 | `NetworkPolicy/otel-collector`, `/prometheus`, `/alertmanager`, `/loki`, `/tempo` | Ingress to each bundled engine only from the components that use it, on their ports; see [network access](#network-access). Rendered only for an engine that is on |
-| `ConfigMap/heartbeat-integrations` | `integrations.yaml`, rendered from the `integrations` values, with the `managedCollectors` list appended to its collectors ([collectors rendered by the API](../reference/configuration.md#collectors-rendered-by-the-api)) |
-| `ConfigMap/heartbeat-inventory` | The environment's [inventory file](../reference/configuration.md#inventory-file), from `api.inventory`, mounted in the API, which applies it to PostgreSQL. Only when `api.inventory` is set; kind's values declare `local-dev` and PatientZero ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)) |
-| `ConfigMap/heartbeat-prometheus-rules` | Rule files; Prometheus mounts them at `/etc/prometheus-rules` and its config reloader reloads on change. `prometheusRules.configReloadAlert.enabled: false` leaves out the config reload alert ([rules](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules)) |
-| `ConfigMap/heartbeat-dashboards` | Dashboards; label `grafana_dashboard: "1"` for shared Grafanas with a dashboard sidecar |
+| `ConfigMap/atrium-integrations` | `integrations.yaml`, rendered from the `integrations` values, with the `managedCollectors` list appended to its collectors ([collectors rendered by the API](../reference/configuration.md#collectors-rendered-by-the-api)) |
+| `ConfigMap/atrium-inventory` | The environment's [inventory file](../reference/configuration.md#inventory-file), from `api.inventory`, mounted in the API, which applies it to PostgreSQL. Only when `api.inventory` is set; kind's values declare `local-dev` and PatientZero ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)) |
+| `ConfigMap/atrium-prometheus-rules` | Rule files; Prometheus mounts them at `/etc/prometheus-rules` and its config reloader reloads on change. `prometheusRules.configReloadAlert.enabled: false` leaves out the config reload alert ([rules](../reference/metrics-and-endpoints.md#prometheus-scrape-jobs-and-rules)) |
+| `ConfigMap/atrium-dashboards` | Dashboards; label `grafana_dashboard: "1"` for shared Grafanas with a dashboard sidecar |
 | `PersistentVolumeClaim/otel-collector-queue` | The OTel Collector's logs export queue (`otelCollectorQueue.persistence`, 1 GiB): rows the Collector accepted survive its restart. Only with the Collector, so not in the `minimal` profile. kind uses its default `standard` (local-path) class, a directory on the node that lives as long as the cluster. Without persistence the queue is an emptyDir, which survives a container restart but not a new pod |
 
 Third-party engines are pinned chart dependencies, each turned off with
 `<name>.enabled=false` so an environment can use shared services instead.
 Their versions are pinned in
-[`Chart.yaml`](../../infra/helm/heartbeat/Chart.yaml) and `Chart.lock`, and
+[`Chart.yaml`](../../infra/helm/atrium/Chart.yaml) and `Chart.lock`, and
 Renovate proposes updates:
 
 | Dependency | Engine | Notes |
@@ -52,7 +52,7 @@ Renovate proposes updates:
 | `prometheus` (prometheus-community) | Prometheus, Alertmanager | Static and DNS discovery only, no cluster RBAC. Sends alerts to Alertmanager |
 | `grafana` (grafana-community) | Grafana | Stateless; datasources and dashboards from source |
 | `loki` (grafana-community) | Loki | Monolithic, filesystem storage locally |
-| `tempo` (grafana-community) | Tempo | Single binary, one replica, seven days of traces on a claim ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)); off in the `minimal` profile |
+| `tempo` (grafana-community) | Tempo | Single binary, one replica, seven days of traces on a claim ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)); off in the `minimal` profile |
 | `opentelemetry-collector` (alias `otelCollector`) | otelcol-contrib | One-replica StatefulSet (`otel-collector-0`), so only one pod at a time opens the export queue. Metrics to Prometheus, logs to Loki through a queue on disk, traces to Tempo |
 
 Rules the chart keeps (checked by `make chart-check`): only namespaced
@@ -64,7 +64,7 @@ renders with Helm 3 and Helm 4.
 
 ## Network access
 
-Every Heartbeat component and bundled engine except Grafana has an ingress
+Every Atrium component and bundled engine except Grafana has an ingress
 NetworkPolicy, so a pod in the namespace (or in another one) reaches only what
 the chart lists. Loki holds raw user IDs, session IDs and client IPs, so who
 reaches it is part of their protection
@@ -82,7 +82,7 @@ and PostgreSQL's and Valkey's their own `networkPolicy`.
 | `postgresql` | 5432 | API | Its database; the workers join when they exist |
 | `valkey` | 6379 | API | Sessions, jobs, locks; the workers join when they exist |
 | `otel-collector` | 4318 | db-collector, API | OTLP/HTTP: logs from `outsystems_logs` collectors, the API's audit records ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)), and both services' spans |
-| `otel-collector` | 4319 | db-collector, API, while `telemetry.enabled` | OTLP/HTTP: the services' own logs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
+| `otel-collector` | 4319 | db-collector, API, while `telemetry.enabled` | OTLP/HTTP: the services' own logs ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) |
 | | 8889 | Prometheus | Scrape of the Collector's Prometheus exporter (metrics pushed as OTLP) |
 | `prometheus` | 9090 | Grafana | Prometheus datasource |
 | `alertmanager` | 9093 | Prometheus | Alerts, and the `alertmanager` scrape job |
@@ -117,8 +117,8 @@ Not covered, by design:
   reloader's `:8080`, Loki's `:3100`, Tempo's `:3200` and Grafana's `:3000`.
 - **`kubectl port-forward`** connects from inside the pod, so NetworkPolicy
   never sees it. It is how operators reach Loki, and the others outside kind:
-  `kubectl -n heartbeat port-forward svc/loki 3100`. `kubectl exec` into
-  `postgresql-0` (`psql -U heartbeat`) is the operator's way into the
+  `kubectl -n atrium port-forward svc/loki 3100`. `kubectl exec` into
+  `postgresql-0` (`psql -U atrium`) is the operator's way into the
   database, unfiltered for the same reason.
 - **PatientZero** sends nothing to the engines: it writes its logs to SQL
   Server, and the db-collector reads them.
@@ -183,20 +183,20 @@ an install from a release creates its own
 
 | Secret | Keys | kind value | Production |
 | --- | --- | --- | --- |
-| `heartbeat-runtime` | `admin-token` | `local-admin-token` | External Secrets Operator |
+| `atrium-runtime` | `admin-token` | `local-admin-token` | External Secrets Operator |
 | `dbCollector.adminTLS.existingSecret` (`db-collector-admin-tls` in the production example) | `tls.crt`, `tls.key`, and `ca.crt` for the API (`adminTLS.ca`) | Not used: `adminTLS` is off | cert-manager Certificate for `db-collector` and `db-collector.<namespace>.svc` |
-| `heartbeat-postgresql` | `password` | Random, generated once per cluster and then kept: PostgreSQL reads it only when it creates its database | Not used: RDS |
-| `heartbeat-valkey` | `password` | Random, generated once per cluster and then kept | Not used: ElastiCache |
-| `heartbeat-api-credentials` | `HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES`, `HEARTBEAT_CREDENTIAL_SECRET_API_REDIS` | `heartbeat:` and `default:` with the two passwords above, rewritten on every deploy | External Secrets Operator: the RDS login and the ElastiCache user |
+| `atrium-postgresql` | `password` | Random, generated once per cluster and then kept: PostgreSQL reads it only when it creates its database | Not used: RDS |
+| `atrium-valkey` | `password` | Random, generated once per cluster and then kept | Not used: ElastiCache |
+| `atrium-api-credentials` | `ATRIUM_CREDENTIAL_SECRET_API_POSTGRES`, `ATRIUM_CREDENTIAL_SECRET_API_REDIS` | `atrium:` and `default:` with the two passwords above, rewritten on every deploy | External Secrets Operator: the RDS login and the ElastiCache user |
 | `grafana-admin` | `admin-user`, `admin-password` | `admin` / `admin` | Generated, External Secrets Operator |
-| `heartbeat-sqlserver-dev-credentials` | `HEARTBEAT_CREDENTIAL_ENV_SQLSERVER_DEV` | From `.env.sqlserver-dev` | Per-environment credential Secret |
+| `atrium-sqlserver-dev-credentials` | `ATRIUM_CREDENTIAL_ENV_SQLSERVER_DEV` | From `.env.sqlserver-dev` | Per-environment credential Secret |
 
 ## Images
 
 The chart's default images are the release's,
-`ghcr.io/gdpais/heartbeat/db-collector` and `ghcr.io/gdpais/heartbeat/api` at
+`ghcr.io/gdpais/atrium/db-collector` and `ghcr.io/gdpais/atrium/api` at
 the chart's `appVersion`. On kind, `kind.yaml` points them at the local
-`heartbeat/db-collector` and `heartbeat/api` instead: `make kind-images`
+`atrium/db-collector` and `atrium/api` instead: `make kind-images`
 builds each for the node's CPU architecture (it refuses a mismatch), tags it
 `dev-<first 12 hex of the image ID>` and loads it with `kind load`. The API's
 image embeds `db/migrations`, so its own `apps/api/Dockerfile.dockerignore`
@@ -216,11 +216,11 @@ from cache to the same tag, and nothing rolls out.
 
 ## The cluster
 
-`make kind-up` creates `heartbeat` from the node image pinned in the Makefile
+`make kind-up` creates `atrium` from the node image pinned in the Makefile
 (`KIND_NODE_IMAGE`, the newest Kubernetes minor EKS supports) and
 `infra/kind/cluster.yaml`. NodePorts map to the Compose-era host ports on
 127.0.0.1 only. Every `kubectl`/`helm` call in the scripts names the
-`kind-heartbeat` context, so they never act on another cluster.
+`kind-atrium` context, so they never act on another cluster.
 
 SQL Server is not in the cluster: `make sqlserver-dev-up` runs it as a Docker
 container on the `kind` network, and pods reach it by container name.
@@ -229,9 +229,9 @@ container on the `kind` network, and pods reach it by container name.
 
 ```bash
 make kind-status                                   # pods and services
-kubectl --context kind-heartbeat -n heartbeat logs statefulset/db-collector
-kubectl --context kind-heartbeat -n heartbeat port-forward svc/loki 3100
-helm --kube-context kind-heartbeat -n heartbeat get values heartbeat
+kubectl --context kind-atrium -n atrium logs statefulset/db-collector
+kubectl --context kind-atrium -n atrium port-forward svc/loki 3100
+helm --kube-context kind-atrium -n atrium get values atrium
 EXTRA_VALUES=my-values.yaml make kind-deploy        # layer your own values
 ```
 
@@ -244,7 +244,7 @@ and redeploy. In production Argo CD reverts such drift.
 
 ## Production
 
-Production values will live in the `heartbeat-deploy` config repository,
+Production values will live in the `atrium-deploy` config repository,
 beside each environment's inventory file, and Argo CD will render the chart
 from them (ADR 0005); neither exists yet (roadmap phase 5).
 [`production.example.yaml`](../../infra/helm/values/production.example.yaml)

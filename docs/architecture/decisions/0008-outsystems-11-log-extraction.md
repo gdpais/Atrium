@@ -12,7 +12,7 @@
 
 ## Context
 
-The first OutSystems deployment Heartbeat must observe is **OutSystems 11
+The first OutSystems deployment Atrium must observe is **OutSystems 11
 self-managed** (Traditional and Reactive apps). Unlike OutSystems 11 on
 OutSystems Cloud (log streaming add-on) and ODC (App Analytics Stream), it has
 no native telemetry export: the platform writes its logs to the `oslog_*`
@@ -21,7 +21,7 @@ has queries that read those tables well.
 
 The phase 2 plan assumed a push path: something sends JSON events to the OTel
 gateway, which normalizes them. Nothing in a self-managed installation sends
-those events, so that path does not apply. Heartbeat needs to poll the logging
+those events, so that path does not apply. Atrium needs to poll the logging
 database, under the same rules as the SQL Server collector: no agents on
 database hosts, a least-privilege login, bounded queries that never block the
 platform.
@@ -37,14 +37,14 @@ readiness and self-metrics.
 | Concern | Choice | Why |
 | --- | --- | --- |
 | Source | The `oslog_*` tables of the OutSystems 11 logging database, read with a login that has `SELECT` on them and nothing else | The only complete log source in a self-managed installation; no agent on the platform servers. |
-| Where the extractor runs | A new collector kind, `outsystems_logs`, in the **db-collector** | Reuses the SQL Server connector, safety settings, reload, backoff and readiness instead of copying them into another service. The logging database is a database; the collector already owns how Heartbeat reads databases. |
+| Where the extractor runs | A new collector kind, `outsystems_logs`, in the **db-collector** | Reuses the SQL Server connector, safety settings, reload, backoff and readiness instead of copying them into another service. The logging database is a database; the collector already owns how Atrium reads databases. |
 | Where the queries live | One `.sql` file per log type in [`services/db-collector/internal/probes/outsystems/queries/`](../../../services/db-collector/internal/probes/outsystems/queries/README.md), embedded in the binary. The file name is the log type (`error.sql` → `error`) | Queries are code: reviewed with the [probe review checklist](../database-observability.md#probe-review-checklist), tested in CI against SQL Server and versioned with the release. Not in Prometheus or OTel Collector config, which never talk to SQL Server. |
 | Choosing log types | `probes:` in the collector's YAML lists the log types to extract, as for the `sqlserver` kind. A `query_template` override per environment is allowed under the same contract and review | Same configuration model and hot reload as the SQL Server probes (ADR 0002). |
 | Query contract | Parameters `@from` (exclusive), `@to` (inclusive) and `@limit`; at most `@limit` rows ordered by an `Instant` column. Every other column becomes a log attribute **under its OutSystems name, or under one standard name where the views disagree** (entry point, operation, server, session, caller address, duration unit); `Message` becomes the log body; an optional `Severity` column sets the severity. Details in the [queries README](../../../services/db-collector/internal/probes/outsystems/queries/README.md) | OutSystems field names stay queryable where they are consistent, so SRE habits carry over; one name per concept lets the derived metrics, the request timeline and Loki searches work across log types. The query author, who knows the tables, controls joins, filters and severity. |
 | Incremental reads | A watermark per target and log type: read `Instant` in (`watermark`, `now − lag`], advance only after the batch is delivered. When a batch is full, rows sharing its last `Instant` are left for the next cycle. The watermark is stored in a file on the collector's volume; without one, start at `now − initial_lookback` | No gaps from rows the log service commits late (`lag`), none at batch boundaries, and a restart resumes where it stopped. |
 | Weekly rotation | Each query reads the current week's view (`oslog_<TYPE>`) and the previous week's (`oslog_<TYPE>_Previous`) with `UNION ALL`. The platform keeps ten weekly cycle tables per log type and switches the views every Friday at 23:45 | Rows logged just before the switch are committed into the old table after it; reading only the current view would lose them every Friday, and could never look back past the switch. |
 | Lag per log type | `lag` is set per collector and can be overridden per log type (`probes[].lag`) | A `screen` or `cyclic_job` row carries the start of the operation as `Instant` but is written when it ends, so its lag must cover the longest screen request or timer; the other log types keep the short default. |
-| Rows committed past the lag (2026-10-26) | Once a minute, each log type counts again, per minute of `Instant`, the rows its own query returns in the `recount_window` (default 10 minutes) behind its watermark, and compares them with the rows it delivered there. More rows in the database are late rows, counted in `heartbeat_outsystems_late_rows_total` with an alert; fewer are rows read twice, `heartbeat_outsystems_duplicate_rows_total`. Each minute's difference is counted once. Nothing is read again or sent | The extractor never reads behind its watermark, so a late row was lost silently: only the derived request rate dipped. Counting by minute finds each late row without a row identity, which the log tables do not have; wrapping the log type's own query counts exactly what extraction reads, overrides included, and SQL Server answers it from the `Instant` index (a few hundred logical reads for 100,000 rows). Sending the late rows too would need Loki to take rows out of order and a way to tell them from rows already sent; counting first shows whether it is needed. |
+| Rows committed past the lag (2026-10-26) | Once a minute, each log type counts again, per minute of `Instant`, the rows its own query returns in the `recount_window` (default 10 minutes) behind its watermark, and compares them with the rows it delivered there. More rows in the database are late rows, counted in `atrium_outsystems_late_rows_total` with an alert; fewer are rows read twice, `atrium_outsystems_duplicate_rows_total`. Each minute's difference is counted once. Nothing is read again or sent | The extractor never reads behind its watermark, so a late row was lost silently: only the derived request rate dipped. Counting by minute finds each late row without a row identity, which the log tables do not have; wrapping the log type's own query counts exactly what extraction reads, overrides included, and SQL Server answers it from the `Instant` index (a few hundred logical reads for 100,000 rows). Sending the late rows too would need Loki to take rows out of order and a way to tell them from rows already sent; counting first shows whether it is needed. |
 | Delivery (amended 2026-11-04) | OTLP/HTTP logs to the OTel Collector (`opentelemetry.endpoint`), then Loki. At least once: a failed export is retried from the same watermark, so a retried batch can appear twice in Loki. So can a request the OTel Collector kept though the db-collector did not see it accepted (an attempt that timed out, a Collector restart): Loki drops many of those copies, not all ([delivery](../application-observability.md)) | Keeps Loki behind the Collector like every other log source; the Collector stays the place for routing and processing. |
 | Loki labels | Resource attributes `service.name` (the application), `deployment.environment.name` and `outsystems.log_type`. User, session and request IDs, client IP, module, screen and the rest stay structured metadata | Few streams per application; high-cardinality fields stay filterable without becoming labels. |
 | Derived metrics | Computed by the extractor from the rows it reads and exposed on the collector's `/metrics`, scraped by Prometheus. The catalog is in [application observability](../application-observability.md#derived-metrics) | Exact counts and durations from every row, testable with fixtures, and the same Prometheus-scraped model as the SQL Server metrics. |
@@ -93,7 +93,7 @@ Considered and not chosen:
   fires) while they are within its window; rows committed later still go
   uncounted. For `screen` and `cyclic_job` the lag also delays every row by
   the longest operation it has to cover. The log delay metric
-  (`heartbeat_outsystems_log_delay_seconds`) measures the newest row read,
+  (`atrium_outsystems_log_delay_seconds`) measures the newest row read,
   which is never newer than the lag: it shows how fresh extraction is, not
   how far behind the log service is, so it cannot warn of late commits; the
   late-row counter does.

@@ -15,8 +15,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	heartbeatconfig "heartbeat/internal/config"
-	"heartbeat/services/db-collector/internal/collectors"
+	atriumconfig "atrium/internal/config"
+	"atrium/services/db-collector/internal/collectors"
 )
 
 func TestRoutesExposeHealthzAndCompatibilityHealthcheck(t *testing.T) {
@@ -34,11 +34,11 @@ func TestRoutesExposeHealthzAndCompatibilityHealthcheck(t *testing.T) {
 	}
 }
 
-func newTestConfigManager(t *testing.T) (*heartbeatconfig.Manager, string) {
+func newTestConfigManager(t *testing.T) (*atriumconfig.Manager, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "integrations.yaml")
 	writeTestConfig(t, path)
-	manager, err := heartbeatconfig.NewManager(path)
+	manager, err := atriumconfig.NewManager(path)
 	if err != nil {
 		t.Fatalf("NewManager returned error: %v", err)
 	}
@@ -78,7 +78,7 @@ func writeTestConfig(t *testing.T, path string, collectors ...testCollector) {
         - name: core-db-%s
           host: sql.example.internal
           port: 1433
-          database_name: Heartbeat
+          database_name: Atrium
 `, c.id, c.id, c.env, interval, c.id)
 	}
 	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
@@ -101,7 +101,7 @@ func testTimeouts() timeouts {
 
 // newTestService builds an initialised service whose pollers are driven by
 // run. The lifecycle is shut down at test cleanup.
-func newTestService(t *testing.T, configManager *heartbeatconfig.Manager, run pollerRunFunc) *service {
+func newTestService(t *testing.T, configManager *atriumconfig.Manager, run pollerRunFunc) *service {
 	t.Helper()
 	lifecycle := newPollerLifecycleWithRun(context.Background(), nil, run)
 	lifecycle.backoff = restartBackoff{initial: 10 * time.Millisecond, max: 40 * time.Millisecond}
@@ -127,7 +127,7 @@ type fakePollers struct {
 	behavior map[string]pollerBehavior
 	starts   map[string][]time.Time
 	ctxs     map[string][]context.Context
-	configs  map[string][]heartbeatconfig.CollectorRuntimeConfig
+	configs  map[string][]atriumconfig.CollectorRuntimeConfig
 }
 
 func newFakePollers() *fakePollers {
@@ -135,7 +135,7 @@ func newFakePollers() *fakePollers {
 		behavior: map[string]pollerBehavior{},
 		starts:   map[string][]time.Time{},
 		ctxs:     map[string][]context.Context{},
-		configs:  map[string][]heartbeatconfig.CollectorRuntimeConfig{},
+		configs:  map[string][]atriumconfig.CollectorRuntimeConfig{},
 	}
 }
 
@@ -145,7 +145,7 @@ func (f *fakePollers) set(id string, behavior pollerBehavior) {
 	f.behavior[id] = behavior
 }
 
-func (f *fakePollers) run(ctx context.Context, collector heartbeatconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error {
+func (f *fakePollers) run(ctx context.Context, collector atriumconfig.CollectorRuntimeConfig, report func(collectors.CycleResult)) error {
 	f.mu.Lock()
 	f.starts[collector.ID] = append(f.starts[collector.ID], time.Now())
 	f.ctxs[collector.ID] = append(f.ctxs[collector.ID], ctx)
@@ -183,7 +183,7 @@ func healthyPoller(id string, state collectors.TargetState) pollerBehavior {
 				target = collectors.TargetResult{
 					Target:              "core-db",
 					State:               state,
-					Err:                 fmt.Errorf("mssql: login failed for user 'heartbeat_svc' on sql.example.internal:1433"),
+					Err:                 fmt.Errorf("mssql: login failed for user 'atrium_svc' on sql.example.internal:1433"),
 					ConsecutiveFailures: 3,
 					NextAttempt:         now.Add(time.Minute),
 				}

@@ -1,5 +1,5 @@
 // Package inventory manages environments, their applications and the
-// applications' components: the inventory everything else Heartbeat knows
+// applications' components: the inventory everything else Atrium knows
 // belongs to (ADR 0001, ADR 0013 §2).
 //
 // There is one ownership path. An application belongs to the environment
@@ -30,8 +30,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
 )
 
 // Statuses of environments and applications.

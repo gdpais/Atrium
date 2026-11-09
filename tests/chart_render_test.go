@@ -22,10 +22,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/internal/config"
+	"atrium/internal/config"
 )
 
-// Renders the Heartbeat chart for every supported values combination and
+// Renders the Atrium chart for every supported values combination and
 // checks the rules from ADR 0003 and ADR 0005. Needs helm and the chart
 // dependencies (make chart-deps); run with `make chart-check`. HELM selects
 // the binary, so CI can repeat the run with Helm 3.
@@ -97,7 +97,7 @@ type chartProfile struct {
 	// apiDeps is where the API must find PostgreSQL and Redis; nil means the
 	// bundled postgresql and valkey, without TLS.
 	apiDeps *apiDependencies
-	// apiSite is the API's HEARTBEAT_API_SITE_ORIGIN; empty means unset.
+	// apiSite is the API's ATRIUM_API_SITE_ORIGIN; empty means unset.
 	apiSite string
 	// engineExtraPeers are the peers the bundled postgresql and valkey admit
 	// besides the API, by engine, in peerString form.
@@ -105,18 +105,18 @@ type chartProfile struct {
 }
 
 // bundledPrometheusPeer is the bundled Prometheus server as a NetworkPolicy
-// peer of the release "heartbeat".
-const bundledPrometheusPeer = "pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prometheus}"
+// peer of the release "atrium".
+const bundledPrometheusPeer = "pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prometheus}"
 
 // The other bundled components as NetworkPolicy peers, and the kind values'
 // operator range (the host through a loopback NodePort).
 const (
-	dbCollectorPeer   = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=db-collector}"
-	apiPeer           = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=api}"
-	grafanaPeer       = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=grafana}"
-	otelCollectorPeer = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=otelCollector}"
-	lokiPeer          = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=loki}"
-	alertmanagerPeer  = "pods{app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=alertmanager}"
+	dbCollectorPeer   = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=db-collector}"
+	apiPeer           = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=api}"
+	grafanaPeer       = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=grafana}"
+	otelCollectorPeer = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=otelCollector}"
+	lokiPeer          = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=loki}"
+	alertmanagerPeer  = "pods{app.kubernetes.io/instance=atrium,app.kubernetes.io/name=alertmanager}"
 	kindHostPeer      = "ip 0.0.0.0/0 except 10.244.0.0/16"
 	kubeDNSPeer       = "ns{kubernetes.io/metadata.name=kube-system} pods{k8s-app=kube-dns}"
 )
@@ -186,34 +186,34 @@ var chartProfiles = []chartProfile{
 	{
 		name:            "defaults",
 		present:         slices.Concat([]string{"StatefulSet/db-collector", "Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"}, apiObjects),
-		absent:          []string{"PersistentVolumeClaim/valkey-data", "ConfigMap/heartbeat-inventory"},
+		absent:          []string{"PersistentVolumeClaim/valkey-data", "ConfigMap/atrium-inventory"},
 		collectorPeers:  []string{bundledPrometheusPeer},
 		apiPeers:        []string{bundledPrometheusPeer},
 		backendPolicies: defaultBackendPolicies,
 		collectorIDs:    []string{"sqlserver-default"},
 		notes: []string{
-			"- heartbeat-runtime (key admin-token)",
+			"- atrium-runtime (key admin-token)",
 			"- grafana-admin (keys admin-user, admin-password)",
-			"- heartbeat-api-credentials (keys HEARTBEAT_CREDENTIAL_SECRET_API_POSTGRES, HEARTBEAT_CREDENTIAL_SECRET_API_REDIS)",
-			"- heartbeat-postgresql (key password)",
-			"- heartbeat-valkey (key password)",
-			"kubectl -n heartbeat get secret heartbeat-runtime heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey grafana-admin\n",
-			"kubectl -n heartbeat rollout status statefulset/db-collector",
-			"kubectl -n heartbeat rollout status deployment/api",
+			"- atrium-api-credentials (keys ATRIUM_CREDENTIAL_SECRET_API_POSTGRES, ATRIUM_CREDENTIAL_SECRET_API_REDIS)",
+			"- atrium-postgresql (key password)",
+			"- atrium-valkey (key password)",
+			"kubectl -n atrium get secret atrium-runtime atrium-api-credentials atrium-postgresql atrium-valkey grafana-admin\n",
+			"kubectl -n atrium rollout status statefulset/db-collector",
+			"kubectl -n atrium rollout status deployment/api",
 			"The bundled PostgreSQL and Valkey are for kind and CI",
-			"kubectl -n heartbeat port-forward svc/grafana 3000:3000",
+			"kubectl -n atrium port-forward svc/grafana 3000:3000",
 			"No SQL Server target is configured yet",
-			"https://github.com/gdpais/heartbeat/blob/v",
+			"https://github.com/gdpais/Atrium/blob/v",
 			"/docs/guides/install-from-release.md",
 		},
 		// The collector's SQL Server logins are not mounted by default.
-		notesAbsent: []string{"HEARTBEAT_CREDENTIAL_<REF>", "WARNING"},
+		notesAbsent: []string{"ATRIUM_CREDENTIAL_<REF>", "WARNING"},
 	},
 	{
 		name:     "kind",
 		values:   []string{"kind.yaml"},
 		apiSite:  "http://localhost:8081",
-		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector", "ConfigMap/heartbeat-inventory"}, apiObjects),
+		present:  slices.Concat([]string{"StatefulSet/db-collector", "StatefulSet/loki", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector", "ConfigMap/atrium-inventory"}, apiObjects),
 		apiPeers: []string{bundledPrometheusPeer},
 		// The host through the loopback NodePort; pods stay limited to Prometheus.
 		collectorPeers:  []string{bundledPrometheusPeer, kindHostPeer},
@@ -240,10 +240,10 @@ var chartProfiles = []chartProfile{
 		present:           []string{"StatefulSet/db-collector", "NetworkPolicy/db-collector"},
 		collectorPeers:    []string{bundledPrometheusPeer, "ip 0.0.0.0/0 except 10.244.0.0/16"},
 		collectorEgress:   kindCollectorEgress,
-		credentialsSecret: "heartbeat-sqlserver-dev-credentials",
+		credentialsSecret: "atrium-sqlserver-dev-credentials",
 		notes: []string{
-			"- heartbeat-sqlserver-dev-credentials (a HEARTBEAT_CREDENTIAL_<REF> key per credential_ref)",
-			"get secret heartbeat-runtime heartbeat-sqlserver-dev-credentials heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey grafana-admin\n",
+			"- atrium-sqlserver-dev-credentials (a ATRIUM_CREDENTIAL_<REF> key per credential_ref)",
+			"get secret atrium-runtime atrium-sqlserver-dev-credentials atrium-api-credentials atrium-postgresql atrium-valkey grafana-admin\n",
 			"WARNING: dbCollector.sqlserver.trustServerCertificate is true",
 		},
 		notesAbsent: []string{"No SQL Server target"},
@@ -251,20 +251,20 @@ var chartProfiles = []chartProfile{
 	{
 		name:    "production-example",
 		values:  []string{"production.example.yaml"},
-		apiSite: "https://heartbeat.example.internal",
+		apiSite: "https://atrium.example.internal",
 		present: []string{"StatefulSet/db-collector", "Ingress/grafana", "NetworkPolicy/db-collector", "Deployment/api", "NetworkPolicy/api"},
 		// RDS and ElastiCache instead of the bundled engines (ADR 0015).
 		absent:   bundledEngineObjects,
 		apiPeers: []string{bundledPrometheusPeer},
 		apiDeps: &apiDependencies{
-			postgresHost: "heartbeat.<id>.<region>.rds.amazonaws.com", postgresPort: "5432", postgresDatabase: "heartbeat",
-			sslMode: "verify-full", sslRootCert: "/etc/heartbeat/rds-ca/global-bundle.pem",
-			redisAddr: "master.heartbeat.<id>.<region>.cache.amazonaws.com:6379", redisTLS: "true",
+			postgresHost: "atrium.<id>.<region>.rds.amazonaws.com", postgresPort: "5432", postgresDatabase: "atrium",
+			sslMode: "verify-full", sslRootCert: "/etc/atrium/rds-ca/global-bundle.pem",
+			redisAddr: "master.atrium.<id>.<region>.cache.amazonaws.com:6379", redisTLS: "true",
 		},
 		collectorPeers:    []string{bundledPrometheusPeer, "ip 10.100.0.0/16"},
 		collectorEgress:   []string{"UDP/53 -> " + kubeDNSPeer, "TCP/53 -> " + kubeDNSPeer, "TCP/4318 -> " + otelCollectorPeer, "TCP/4319 -> " + otelCollectorPeer, "TCP/1433 -> ip 10.20.0.0/16"},
 		backendPolicies:   defaultBackendPolicies,
-		credentialsSecret: "heartbeat-sqlserver-credentials",
+		credentialsSecret: "atrium-sqlserver-credentials",
 	},
 	{
 		// A shared Prometheus in another namespace replaces the bundled one.
@@ -278,7 +278,7 @@ var chartProfiles = []chartProfile{
 		absent:         []string{"Deployment/prometheus", "Deployment/grafana"},
 		collectorPeers: []string{"ns{kubernetes.io/metadata.name=monitoring} pods{app.kubernetes.io/name=prometheus}"},
 		// Without the bundled Grafana its Secret and port-forward are not listed.
-		notes:       []string{"kubectl -n heartbeat get secret heartbeat-runtime heartbeat-api-credentials heartbeat-postgresql heartbeat-valkey\n"},
+		notes:       []string{"kubectl -n atrium get secret atrium-runtime atrium-api-credentials atrium-postgresql atrium-valkey\n"},
 		notesAbsent: []string{"grafana"},
 		backendPolicies: withPairs(withoutPeers(defaultBackendPolicies, bundledPrometheusPeer, grafanaPeer), nil,
 			"prometheus", "alertmanager"),
@@ -293,7 +293,7 @@ var chartProfiles = []chartProfile{
 		name:               "external-platform-example",
 		values:             []string{"external-platform.example.yaml"},
 		present:            []string{"StatefulSet/db-collector", "StatefulSet/otel-collector", "PersistentVolumeClaim/otel-collector-queue", "NetworkPolicy/db-collector"},
-		absent:             []string{"Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "ConfigMap/heartbeat-prometheus-rules", "ConfigMap/heartbeat-dashboards"},
+		absent:             []string{"Deployment/prometheus", "StatefulSet/alertmanager", "Deployment/grafana", "StatefulSet/loki", "ConfigMap/atrium-prometheus-rules", "ConfigMap/atrium-dashboards"},
 		collectorPeers:     []string{"pods{app.kubernetes.io/name=otelCollector,component=statefulset-collector}"},
 		collectorReceivers: []string{"otlp", "otlp/self", "prometheus"},
 		// Only the db-collector sends to the Collector; nothing scrapes it.
@@ -315,19 +315,19 @@ var chartProfiles = []chartProfile{
 		name:           "prometheus-name-override",
 		set:            []string{"prometheus.nameOverride=prom"},
 		present:        []string{"Deployment/prometheus", "NetworkPolicy/db-collector"},
-		collectorPeers: []string{"pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
+		collectorPeers: []string{"pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prom}"},
 		backendPolicies: map[string][]string{
-			"otel-collector": slices.Concat(otlpSenders, []string{"TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"}),
+			"otel-collector": slices.Concat(otlpSenders, []string{"TCP/8889 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prom}"}),
 			"prometheus":     {"TCP/9090 <- " + grafanaPeer},
-			"alertmanager":   {"TCP/9093 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}"},
+			"alertmanager":   {"TCP/9093 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prom}"},
 			"loki": {
 				"TCP/3100 <- " + otelCollectorPeer, "TCP/3100 <- " + grafanaPeer,
-				"TCP/3100 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
+				"TCP/3100 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prom}",
 				"TCP/9095 <- " + lokiPeer, "TCP/7946 <- " + lokiPeer,
 			},
 			"tempo": {
 				"TCP/4318 <- " + otelCollectorPeer, "TCP/3200 <- " + grafanaPeer,
-				"TCP/3200 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=heartbeat,app.kubernetes.io/name=prom}",
+				"TCP/3200 <- pods{app.kubernetes.io/component=server,app.kubernetes.io/instance=atrium,app.kubernetes.io/name=prom}",
 			},
 		},
 	},
@@ -456,18 +456,18 @@ var chartProfiles = []chartProfile{
 	{
 		// A longer shutdown delay, with the grace period raised to cover it.
 		name:           "api-longer-shutdown-delay",
-		inline:         "api:\n  extraEnv:\n    - name: HEARTBEAT_API_SHUTDOWN_DELAY\n      value: 20s\n  terminationGracePeriodSeconds: 38\n",
+		inline:         "api:\n  extraEnv:\n    - name: ATRIUM_API_SHUTDOWN_DELAY\n      value: 20s\n  terminationGracePeriodSeconds: 38\n",
 		present:        []string{"Deployment/api"},
 		collectorPeers: []string{bundledPrometheusPeer},
 	},
 	{
 		name:      "api-site-origin-with-path",
-		set:       []string{"api.siteOrigin=https://heartbeat.example.com/app"},
+		set:       []string{"api.siteOrigin=https://atrium.example.com/app"},
 		wantError: "values don't meet the specifications of the schema",
 	},
 	{
 		name:      "api-site-origin-without-scheme",
-		set:       []string{"api.siteOrigin=heartbeat.example.com"},
+		set:       []string{"api.siteOrigin=atrium.example.com"},
 		wantError: "values don't meet the specifications of the schema",
 	},
 	{
@@ -692,7 +692,7 @@ var chartProfiles = []chartProfile{
 		// files; every other rule stays.
 		name:                 "config-reload-alert-disabled",
 		set:                  []string{"prometheusRules.configReloadAlert.enabled=false"},
-		present:              []string{"ConfigMap/heartbeat-prometheus-rules"},
+		present:              []string{"ConfigMap/atrium-prometheus-rules"},
 		collectorPeers:       []string{bundledPrometheusPeer},
 		configReloadAlertOff: true,
 	},
@@ -702,15 +702,15 @@ var chartProfiles = []chartProfile{
 		// out instead of firing for good.
 		name:           "collector-scrape-disabled",
 		set:            []string{"prometheus.scrapeConfigs.db-collector.enabled=false"},
-		present:        []string{"StatefulSet/db-collector", "ConfigMap/heartbeat-prometheus-rules"},
+		present:        []string{"StatefulSet/db-collector", "ConfigMap/atrium-prometheus-rules"},
 		collectorPeers: []string{bundledPrometheusPeer},
 	},
 	{
 		// Under another job name absent(up{job="db-collector"}) matches
 		// nothing, so the rule is left out too.
 		name:           "collector-job-renamed",
-		set:            []string{"prometheus.scrapeConfigs.db-collector.job_name=heartbeat-collector"},
-		present:        []string{"StatefulSet/db-collector", "ConfigMap/heartbeat-prometheus-rules"},
+		set:            []string{"prometheus.scrapeConfigs.db-collector.job_name=atrium-collector"},
+		present:        []string{"StatefulSet/db-collector", "ConfigMap/atrium-prometheus-rules"},
 		collectorPeers: []string{bundledPrometheusPeer},
 	},
 	{
@@ -832,10 +832,10 @@ var chartProfiles = []chartProfile{
 		absent:   bundledEngineObjects,
 		apiPeers: []string{bundledPrometheusPeer},
 		apiDeps: &apiDependencies{
-			postgresHost: "db.example.internal", postgresPort: "5432", postgresDatabase: "heartbeat",
+			postgresHost: "db.example.internal", postgresPort: "5432", postgresDatabase: "atrium",
 			sslMode: "verify-full", redisAddr: "cache.example.internal:6380", redisTLS: "true",
 		},
-		notesAbsent: []string{"heartbeat-postgresql", "heartbeat-valkey", "The bundled"},
+		notesAbsent: []string{"atrium-postgresql", "atrium-valkey", "The bundled"},
 	},
 	{
 		// What the values say wins over the defaults, for either kind of
@@ -850,7 +850,7 @@ var chartProfiles = []chartProfile{
 		absent:  []string{"StatefulSet/valkey", "NetworkPolicy/valkey"},
 		// The bundled PostgreSQL listens on 5432 and has its own database.
 		apiDeps: &apiDependencies{
-			postgresHost: "postgresql", postgresPort: "5432", postgresDatabase: "heartbeat",
+			postgresHost: "postgresql", postgresPort: "5432", postgresDatabase: "atrium",
 			sslMode: "require", redisAddr: "cache.example.internal:6379", redisTLS: "false",
 		},
 		notes: []string{"The bundled PostgreSQL is for kind and CI"},
@@ -878,7 +878,7 @@ var chartProfiles = []chartProfile{
 		absent:          slices.Concat(apiObjects, []string{"Service/api", "Service/api-headless"}),
 		collectorPeers:  []string{bundledPrometheusPeer},
 		backendPolicies: withoutPeers(defaultBackendPolicies, apiPeer),
-		notesAbsent:     []string{"deployment/api", "heartbeat-api-credentials", "The bundled"},
+		notesAbsent:     []string{"deployment/api", "atrium-api-credentials", "The bundled"},
 	},
 	{
 		// The bundled engines without the API admit no one.
@@ -922,9 +922,9 @@ var chartProfiles = []chartProfile{
 	{
 		// Under another job name absent(up{job="api"}) matches nothing.
 		name:           "api-job-renamed",
-		set:            []string{"prometheus.scrapeConfigs.api.job_name=heartbeat-api"},
+		set:            []string{"prometheus.scrapeConfigs.api.job_name=atrium-api"},
 		collectorPeers: []string{bundledPrometheusPeer},
-		present:        []string{"Deployment/api", "ConfigMap/heartbeat-prometheus-rules"},
+		present:        []string{"Deployment/api", "ConfigMap/atrium-prometheus-rules"},
 	},
 	{
 		name:      "unknown-api-key",
@@ -1022,7 +1022,7 @@ var chartProfiles = []chartProfile{
 	},
 }
 
-// managedCollectorsValues is a managedCollectors list as the Heartbeat API
+// managedCollectorsValues is a managedCollectors list as the Atrium API
 // renders it from approved probe assignments (ADR 0014): one sqlserver
 // collector per target and interval, with the id api-<target>-<interval>s.
 const managedCollectorsValues = "managedCollectors:\n" +
@@ -1096,7 +1096,7 @@ func runHelm(t *testing.T, profile chartProfile, command ...string) ([]byte, str
 	if helm == "" {
 		helm = "helm"
 	}
-	args := slices.Concat(command, []string{"heartbeat", filepath.Join(root, "infra/helm/heartbeat"), "--namespace", "heartbeat"}, profile.flags)
+	args := slices.Concat(command, []string{"atrium", filepath.Join(root, "infra/helm/atrium"), "--namespace", "atrium"}, profile.flags)
 	for _, file := range profile.values {
 		args = append(args, "-f", filepath.Join(root, "infra/helm/values", file))
 	}
@@ -1247,7 +1247,7 @@ func TestChartProfiles(t *testing.T) {
 }
 
 // The credentials Secret must reach the collector as a directory of files
-// named by HEARTBEAT_CREDENTIALS_DIR, never as environment variables: the
+// named by ATRIUM_CREDENTIALS_DIR, never as environment variables: the
 // collector reads the files on every connection, so a rotated key needs no
 // restart (ADR 0002). A subPath mount would never see the kubelet's updates.
 func checkCollectorCredentials(t *testing.T, objects map[string]object, secret string) {
@@ -1292,7 +1292,7 @@ func checkCollectorCredentials(t *testing.T, objects map[string]object, secret s
 	}
 	var dir string
 	for _, env := range container.Env {
-		if env.Name == "HEARTBEAT_CREDENTIALS_DIR" {
+		if env.Name == "ATRIUM_CREDENTIALS_DIR" {
 			dir = env.Value
 		}
 	}
@@ -1301,7 +1301,7 @@ func checkCollectorCredentials(t *testing.T, objects map[string]object, secret s
 		if mount.Name == "credentials" {
 			mounts = append(mounts, mount.MountPath)
 			if mount.MountPath != dir || mount.SubPath != "" || !mount.ReadOnly {
-				t.Errorf("credentials mount at %q (subPath %q, readOnly %v); want a read-only directory at HEARTBEAT_CREDENTIALS_DIR (%q)",
+				t.Errorf("credentials mount at %q (subPath %q, readOnly %v); want a read-only directory at ATRIUM_CREDENTIALS_DIR (%q)",
 					mount.MountPath, mount.SubPath, mount.ReadOnly, dir)
 			}
 		}
@@ -1324,12 +1324,12 @@ func checkCollectorCredentials(t *testing.T, objects map[string]object, secret s
 	}
 	if secret == "" {
 		if dir != "" || len(mounts) > 0 || len(volumes) > 0 {
-			t.Errorf("no credentials Secret, but HEARTBEAT_CREDENTIALS_DIR %q, mounts %v, volumes %v", dir, mounts, volumes)
+			t.Errorf("no credentials Secret, but ATRIUM_CREDENTIALS_DIR %q, mounts %v, volumes %v", dir, mounts, volumes)
 		}
 		return
 	}
 	if dir == "" || len(mounts) != 1 || !slices.Equal(volumes, []string{secret}) {
-		t.Errorf("credentials: HEARTBEAT_CREDENTIALS_DIR %q, mounts %v, Secret volumes %v; want one directory mount of %s", dir, mounts, volumes, secret)
+		t.Errorf("credentials: ATRIUM_CREDENTIALS_DIR %q, mounts %v, Secret volumes %v; want one directory mount of %s", dir, mounts, volumes, secret)
 	}
 }
 
@@ -1370,11 +1370,11 @@ func checkNotes(t *testing.T, profile chartProfile) {
 }
 
 // checkConfigReloadAlert checks that the rules ConfigMap, when rendered,
-// holds HeartbeatCollectorConfigReloadFailed unless off, and the chart's
+// holds AtriumCollectorConfigReloadFailed unless off, and the chart's
 // other alerts either way.
 func checkConfigReloadAlert(t *testing.T, objects map[string]object, off bool) {
 	t.Helper()
-	rules, ok := objects["ConfigMap/heartbeat-prometheus-rules"]
+	rules, ok := objects["ConfigMap/atrium-prometheus-rules"]
 	if !ok {
 		return
 	}
@@ -1395,14 +1395,14 @@ func checkConfigReloadAlert(t *testing.T, objects map[string]object, off bool) {
 				}
 			}
 		}
-		if file == "heartbeat-config-reload.rules.yml" && off {
+		if file == "atrium-config-reload.rules.yml" && off {
 			t.Errorf("rules ConfigMap holds %s with prometheusRules.configReloadAlert.enabled=false", file)
 		}
 	}
-	if got := alerts["HeartbeatCollectorConfigReloadFailed"]; got == off {
-		t.Errorf("HeartbeatCollectorConfigReloadFailed in the rules ConfigMap: %v, want %v", got, !off)
+	if got := alerts["AtriumCollectorConfigReloadFailed"]; got == off {
+		t.Errorf("AtriumCollectorConfigReloadFailed in the rules ConfigMap: %v, want %v", got, !off)
 	}
-	if !alerts["HeartbeatServiceDown"] || !alerts["Watchdog"] {
+	if !alerts["AtriumServiceDown"] || !alerts["Watchdog"] {
 		t.Errorf("rules ConfigMap lost the chart's other alerts: %v", alerts)
 	}
 }
@@ -1413,8 +1413,8 @@ func checkConfigReloadAlert(t *testing.T, objects map[string]object, off bool) {
 // absent() fires for good wherever nothing matches.
 func checkCollectorMissingAlert(t *testing.T, objects map[string]object) {
 	t.Helper()
-	const file = "heartbeat-collector-missing.rules.yml"
-	rules, ok := objects["ConfigMap/heartbeat-prometheus-rules"]
+	const file = "atrium-collector-missing.rules.yml"
+	rules, ok := objects["ConfigMap/atrium-prometheus-rules"]
 	if !ok {
 		return
 	}
@@ -1470,9 +1470,9 @@ func checkNoSecretReaders(t *testing.T, objects map[string]object) {
 // services use.
 func checkIntegrations(t *testing.T, objects map[string]object) {
 	t.Helper()
-	cm, ok := objects["ConfigMap/heartbeat-integrations"]
+	cm, ok := objects["ConfigMap/atrium-integrations"]
 	if !ok {
-		t.Fatal("missing ConfigMap/heartbeat-integrations")
+		t.Fatal("missing ConfigMap/atrium-integrations")
 	}
 	path := filepath.Join(t.TempDir(), "integrations.yaml")
 	if err := os.WriteFile(path, []byte(cm.Data["integrations.yaml"]), 0o600); err != nil {
@@ -1502,7 +1502,7 @@ func checkCollectorIDs(t *testing.T, objects map[string]object, want []string) {
 			ID string `yaml:"id"`
 		} `yaml:"collectors"`
 	}
-	mustUnmarshal(t, objects["ConfigMap/heartbeat-integrations"].Data["integrations.yaml"], &doc)
+	mustUnmarshal(t, objects["ConfigMap/atrium-integrations"].Data["integrations.yaml"], &doc)
 	got := []string{}
 	for _, collector := range doc.Collectors {
 		got = append(got, collector.ID)
@@ -1728,9 +1728,9 @@ func checkInClusterEndpoints(t *testing.T, objects map[string]object) {
 	}
 }
 
-// The OTel Collector runs exactly Heartbeat's config in every profile: only
+// The OTel Collector runs exactly Atrium's config in every profile: only
 // the profile's receivers (the two OTLP receivers unless it says otherwise),
-// and the logs, Heartbeat's own logs, metrics and traces pipelines. Values merged over the
+// and the logs, Atrium's own logs, metrics and traces pipelines. Values merged over the
 // subchart's defaults once brought back its other receivers and a traces
 // pipeline in profiles that did not set otelCollector keys.
 func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers []string) {
@@ -1757,7 +1757,7 @@ func checkCollectorPipelines(t *testing.T, objects map[string]object, receivers 
 	}
 }
 
-// Heartbeat's own logs stay off the OutSystems delivery path: their own
+// Atrium's own logs stay off the OutSystems delivery path: their own
 // receiver, exporter and memory queue, so they neither wait for that path's
 // one-request queue nor take a place in it (ADR 0018). The services send them
 // to that receiver's port, never 4318, and the platform that gets the OutSystems
@@ -2595,7 +2595,7 @@ func checkBackendNetworkPolicies(t *testing.T, objects map[string]object, want m
 		return
 	}
 	for id, obj := range objects {
-		if obj.Kind != "NetworkPolicy" || heartbeatPolicies[obj.Metadata.Name] {
+		if obj.Kind != "NetworkPolicy" || atriumPolicies[obj.Metadata.Name] {
 			continue
 		}
 		if _, ok := want[obj.Metadata.Name]; !ok {
@@ -2651,7 +2651,7 @@ func checkBackendNetworkPolicies(t *testing.T, objects map[string]object, want m
 				t.Errorf("%s NetworkPolicy has a rule without ports, which admits every port", name)
 			}
 			for _, peer := range *rule.From {
-				if peer.PodSelector != nil && peer.NamespaceSelector == nil && peer.PodSelector.MatchLabels["app.kubernetes.io/instance"] == "heartbeat" &&
+				if peer.PodSelector != nil && peer.NamespaceSelector == nil && peer.PodSelector.MatchLabels["app.kubernetes.io/instance"] == "atrium" &&
 					!slices.ContainsFunc(slices.Collect(maps.Values(workloads)), func(labels map[string]string) bool {
 						return selects(peer.PodSelector.MatchLabels, labels)
 					}) {
@@ -2693,7 +2693,7 @@ func checkCollectorSourceAddresses(t *testing.T, objects map[string]object, peer
 }
 
 // The collector keeps its outsystems_logs watermarks in a state volume at
-// HEARTBEAT_STATE_DIR, the only writable path of its read-only root
+// ATRIUM_STATE_DIR, the only writable path of its read-only root
 // filesystem: the db-collector-state claim, not a volumeClaimTemplate, which
 // could never change on an existing StatefulSet.
 func checkCollectorState(t *testing.T, objects map[string]object, emptyDir bool) {
@@ -2747,7 +2747,7 @@ func checkCollectorState(t *testing.T, objects map[string]object, emptyDir bool)
 	}
 	var stateDir string
 	for _, env := range container.Env {
-		if env.Name == "HEARTBEAT_STATE_DIR" {
+		if env.Name == "ATRIUM_STATE_DIR" {
 			stateDir = env.Value
 		}
 	}
@@ -2758,7 +2758,7 @@ func checkCollectorState(t *testing.T, objects map[string]object, emptyDir bool)
 		}
 	}
 	if !mounted {
-		t.Errorf("db-collector does not mount a writable state volume at HEARTBEAT_STATE_DIR (%q)", stateDir)
+		t.Errorf("db-collector does not mount a writable state volume at ATRIUM_STATE_DIR (%q)", stateDir)
 	}
 	if len(spec.VolumeClaimTemplates) > 0 {
 		t.Error("db-collector has volumeClaimTemplates; they can never change on an existing StatefulSet")
@@ -2800,12 +2800,12 @@ func TestChartCollectorAdminTLS(t *testing.T) {
 	}}))
 	collector := decodePodSpec(t, objects["StatefulSet/db-collector"]).Template.Spec
 	env := collector.Containers[0].env()
-	if env["HEARTBEAT_DB_COLLECTOR_ADMIN_LISTEN_ADDR"] != ":9443" ||
-		env["HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"] != "/var/run/secrets/heartbeat/admin-tls/tls.crt" ||
-		env["HEARTBEAT_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"] != "/var/run/secrets/heartbeat/admin-tls/tls.key" {
+	if env["ATRIUM_DB_COLLECTOR_ADMIN_LISTEN_ADDR"] != ":9443" ||
+		env["ATRIUM_DB_COLLECTOR_ADMIN_TLS_CERT_FILE"] != "/var/run/secrets/atrium/admin-tls/tls.crt" ||
+		env["ATRIUM_DB_COLLECTOR_ADMIN_TLS_KEY_FILE"] != "/var/run/secrets/atrium/admin-tls/tls.key" {
 		t.Errorf("collector admin TLS env = %v", env)
 	}
-	if name, wholeDir := collector.Containers[0].mountedAt("/var/run/secrets/heartbeat/admin-tls"); name != "admin-tls" || !wholeDir {
+	if name, wholeDir := collector.Containers[0].mountedAt("/var/run/secrets/atrium/admin-tls"); name != "admin-tls" || !wholeDir {
 		t.Errorf("admin certificate in volume %q (whole directory %v)", name, wholeDir)
 	}
 	api := decodePodSpec(t, objects["Deployment/api"]).Template.Spec
@@ -2816,7 +2816,7 @@ func TestChartCollectorAdminTLS(t *testing.T) {
 		}
 	}
 	apiEnv := apiContainer.env()
-	if apiEnv["HEARTBEAT_API_COLLECTOR_URL"] != "https://db-collector:9443" || apiEnv["HEARTBEAT_API_COLLECTOR_CA_FILE"] != "/var/run/secrets/heartbeat/collector-ca/ca.crt" {
+	if apiEnv["ATRIUM_API_COLLECTOR_URL"] != "https://db-collector:9443" || apiEnv["ATRIUM_API_COLLECTOR_CA_FILE"] != "/var/run/secrets/atrium/collector-ca/ca.crt" {
 		t.Errorf("API collector env = %v", apiEnv)
 	}
 	rendered := string(helmTemplate(t, chartProfile{set: []string{
@@ -2880,7 +2880,7 @@ func TestChartCollectorOTLPExporterSecrets(t *testing.T) {
 		mounts := map[string]mount{}
 		container := spec.Template.Spec.Containers[0]
 		for _, e := range container.Env {
-			if strings.HasPrefix(e.Name, "HEARTBEAT_OTLP_") {
+			if strings.HasPrefix(e.Name, "ATRIUM_OTLP_") {
 				env[e.Name] = e.Value
 			}
 		}
@@ -2916,18 +2916,18 @@ func TestChartCollectorOTLPExporterSecrets(t *testing.T) {
 		"dbCollector.otlpExporter.tls.clientCert.existingSecret=otlp-client-tls",
 	)
 	want := map[string]mount{
-		"otlp-headers": {"/var/run/secrets/heartbeat/otlp-headers", "otlp-auth"},
-		"otlp-ca":      {"/var/run/secrets/heartbeat/otlp-ca", "otlp-ca-bundle"},
-		"otlp-client":  {"/var/run/secrets/heartbeat/otlp-client", "otlp-client-tls"},
+		"otlp-headers": {"/var/run/secrets/atrium/otlp-headers", "otlp-auth"},
+		"otlp-ca":      {"/var/run/secrets/atrium/otlp-ca", "otlp-ca-bundle"},
+		"otlp-client":  {"/var/run/secrets/atrium/otlp-client", "otlp-client-tls"},
 	}
 	if !maps.Equal(mounts, want) {
 		t.Errorf("mounts %v, want %v", mounts, want)
 	}
 	wantEnv := map[string]string{
-		"HEARTBEAT_OTLP_HEADERS_DIR":      want["otlp-headers"].dir,
-		"HEARTBEAT_OTLP_CA_FILE":          want["otlp-ca"].dir + "/ca.crt",
-		"HEARTBEAT_OTLP_CLIENT_CERT_FILE": want["otlp-client"].dir + "/tls.crt",
-		"HEARTBEAT_OTLP_CLIENT_KEY_FILE":  want["otlp-client"].dir + "/tls.key",
+		"ATRIUM_OTLP_HEADERS_DIR":      want["otlp-headers"].dir,
+		"ATRIUM_OTLP_CA_FILE":          want["otlp-ca"].dir + "/ca.crt",
+		"ATRIUM_OTLP_CLIENT_CERT_FILE": want["otlp-client"].dir + "/tls.crt",
+		"ATRIUM_OTLP_CLIENT_KEY_FILE":  want["otlp-client"].dir + "/tls.key",
 	}
 	if !maps.Equal(env, wantEnv) {
 		t.Errorf("env %v, want %v", env, wantEnv)

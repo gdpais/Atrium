@@ -1,6 +1,6 @@
-# Heartbeat Product Overview
+# Atrium Product Overview
 
-Heartbeat is an SRE-focused monitoring platform. It covers deep database
+Atrium is an SRE-focused monitoring platform. It covers deep database
 observability, application telemetry, session-centric investigation, adaptive
 alerting and operational reporting, on top of Grafana, Prometheus and Loki.
 
@@ -20,12 +20,12 @@ How it is built is in the [architecture overview](../architecture/overview.md).
 
 ## Who it is for
 
-| Audience | Uses Heartbeat to |
+| Audience | Uses Atrium to |
 | --- | --- |
 | SREs and on-call engineers | Investigate incidents across application logs, metrics and database evidence; receive low-noise alerts |
 | Platform and DBA teams | Watch SQL Server health without installing agents on database hosts |
 | Application owners | Read application health, error and latency trends; receive scheduled reports |
-| Heartbeat operators | Manage environments, applications and monitored databases as code, reviewed in pull requests; later alert policies and report schedules |
+| Atrium operators | Manage environments, applications and monitored databases as code, reviewed in pull requests; later alert policies and report schedules |
 
 ## Principles
 
@@ -50,7 +50,7 @@ phase delivers each capability.
 | --- | --- | --- |
 | Application observability | OutSystems first (Traditional and Reactive): normalized logs in Loki, derived metrics in Prometheus, health/errors/latency dashboards, compatibility with default OutSystems log fields | 2 |
 | Database observability | SQL Server: waits, blocking, sessions, memory, storage, throughput, CPU, buffer cache and file I/O metrics, collector self-observability, dashboards ([signal coverage](../architecture/database-observability.md#sql-server-signal-coverage)) | 1; the remaining signals in 6 |
-| Telemetry ingestion | OTLP metrics, logs and traces through the OpenTelemetry Collector; traces in Grafana Tempo | 2; Tempo with Heartbeat's own telemetry ([TODO 3.6](../../TODO.md#36-otlp-trace-ingest)) |
+| Telemetry ingestion | OTLP metrics, logs and traces through the OpenTelemetry Collector; traces in Grafana Tempo | 2; Tempo with Atrium's own telemetry ([TODO 3.6](../../TODO.md#36-otlp-trace-ingest)) |
 | Session investigation | Query by application + user/IP/session/request + time range; timeline, anomaly windows and evidence links into Grafana/Loki | 7 |
 | Alerting | Static rules plus adaptive baselines, rendered to Prometheus and routed by Alertmanager | Static rules and SLO alerts in 2; adaptive baselines in 7 |
 | Reporting | Scheduled (weekly first) and on-demand reports, delivered by email | 7 |
@@ -70,10 +70,10 @@ phase delivers each capability.
 ### Non-goals
 
 - Parity across database engines. SQL Server first, Oracle next; PostgreSQL is
-  Heartbeat's metadata store, not a monitored engine.
+  Atrium's metadata store, not a monitored engine.
 - A code-level APM tracing agent ecosystem.
 - Autonomous root-cause analysis.
-- A custom dashboard engine, or a Web UI of Heartbeat's own: people read
+- A custom dashboard engine, or a Web UI of Atrium's own: people read
   Grafana, and operators change the inventory as code
   ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)).
 - File-based ingestion, except later as a last-resort fallback when direct
@@ -95,7 +95,7 @@ list.
 | SQL Server DB collector (probes, hot reload, failure isolation, readiness) | Done: secured endpoints, least-privilege login, counters and self-metrics, CPU, buffer cache and file I/O signals, per-probe failure isolation |
 | OTel Collector, Prometheus, Loki, Tempo, Grafana, Alertmanager | Provisioned by the chart; alerts reach Alertmanager (with a Watchdog) but notify no one until an environment configures a receiver; chat receivers only in the production example |
 | OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the release |
-| Heartbeat's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Heartbeat Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-heartbeats-own-telemetry.md)) |
+| Atrium's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Atrium Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) |
 | API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Left: the phase 3 validation |
 | Inventory as code (replaces the Web UI) | In progress: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health; next kind's inventory declares PatientZero's database target |
 | Session analyzer, reporting | Not started (phase 7) |

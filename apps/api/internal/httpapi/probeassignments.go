@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/inventory"
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/inventory"
+	"atrium/apps/api/internal/openapi"
 )
 
 // ProbeAssignments reads, changes and renders probe assignments:

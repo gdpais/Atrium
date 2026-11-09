@@ -6,9 +6,9 @@ import (
 	"maps"
 	"slices"
 
-	collectorconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // EngineExecutor is a [ProbeExecutor] that runs each probe with the executor

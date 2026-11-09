@@ -1,4 +1,4 @@
-# Walkthrough: Run and Test Heartbeat on kind
+# Walkthrough: Run and Test Atrium on kind
 
 A guided first run of the full stack on your machine, about 30 minutes.
 Each step says what to run and what you should see. The
@@ -39,7 +39,7 @@ change.
 
 ```bash
 make chart-deps   # downloads the pinned Prometheus, Grafana, Loki and OTel charts
-make kind-up      # creates the "heartbeat" cluster, builds and loads images, deploys
+make kind-up      # creates the "atrium" cluster, builds and loads images, deploys
 ```
 
 The first `make kind-up` takes several minutes while Docker pulls the node and
@@ -63,7 +63,7 @@ answer.
 
 | Open | What you should see |
 | --- | --- |
-| http://localhost:3001 (Grafana, `admin`/`admin`) | Dashboards → **Heartbeat** folder with *Heartbeat Inventory*, *Heartbeat Service*, *SQL Server Overview* and the four OutSystems dashboards (empty until an `outsystems_logs` collector runs, for example with PatientZero); Connections → Data sources lists Prometheus, Loki and Tempo |
+| http://localhost:3001 (Grafana, `admin`/`admin`) | Dashboards → **Atrium** folder with *Atrium Inventory*, *Atrium Service*, *SQL Server Overview* and the four OutSystems dashboards (empty until an `outsystems_logs` collector runs, for example with PatientZero); Connections → Data sources lists Prometheus, Loki and Tempo |
 | http://localhost:9090/targets (Prometheus) | Seven jobs, all **UP**: alertmanager, api, db-collector, loki, otel-collector, prometheus, tempo |
 | http://localhost:9090/alerts | **Watchdog** firing. It always fires; that is how a dead-man's switch knows alerting works |
 | http://localhost:9093 (Alertmanager) | The Watchdog alert, received from Prometheus |
@@ -80,7 +80,7 @@ make sqlserver-dev-up     # starts SQL Server in Docker, creates the collector l
 ```
 
 The first run pulls the SQL Server image (about 1.5 GB). The container,
-`heartbeat-sqlserver-dev`, runs next to the cluster, not in it, and the
+`atrium-sqlserver-dev`, runs next to the cluster, not in it, and the
 collector reaches it by name. Within a minute:
 
 ```bash
@@ -90,7 +90,7 @@ curl -s -H "Authorization: Bearer local-admin-token" localhost:8082/admin/config
 
 shows the target `sqlserver-dev` with `"state": "ok"`. Then:
 
-- In Prometheus, query `heartbeat_collector_target_up`: value `1` for
+- In Prometheus, query `atrium_collector_target_up`: value `1` for
   `target="sqlserver-dev"`.
 - In Grafana, open *SQL Server Overview* and pick `sqlserver-dev`. The panels
   fill in as samples arrive (15s scrape interval).
@@ -112,7 +112,7 @@ to 60 seconds: kubelet updates the mounted ConfigMap, then the collector polls
 it every 5s. Confirm the pod was not replaced: its AGE keeps counting.
 
 ```bash
-kubectl --context kind-heartbeat -n heartbeat get pod db-collector-0
+kubectl --context kind-atrium -n atrium get pod db-collector-0
 ```
 
 To apply a config change immediately instead of waiting:
@@ -126,17 +126,17 @@ curl -X POST -H "Authorization: Bearer local-admin-token" localhost:8082/admin/c
 ## 6. Break the database, not the collector
 
 ```bash
-docker stop heartbeat-sqlserver-dev
+docker stop atrium-sqlserver-dev
 ```
 
 Within about 20 seconds `GET /admin/config` shows the target as `"failed"`,
 with the driver's error, but the collector itself stays `ready` (`/readyz`
 answers 200), and Prometheus shows
-`heartbeat_collector_target_up` at `0`. The collector is not restarted: a
+`atrium_collector_target_up` at `0`. The collector is not restarted: a
 database outage must never take down monitoring.
 
 ```bash
-docker start heartbeat-sqlserver-dev
+docker start atrium-sqlserver-dev
 ```
 
 The target returns to `"ok"` within about 30 seconds of SQL Server accepting
@@ -148,11 +148,11 @@ Change something in `services/db-collector` (even a log message), then:
 
 ```bash
 make kind-images kind-deploy
-kubectl --context kind-heartbeat -n heartbeat get pod db-collector-0 \
+kubectl --context kind-atrium -n atrium get pod db-collector-0 \
   -o jsonpath='{.spec.containers[0].image}{"\n"}'
 ```
 
-The image tag (`heartbeat/db-collector:dev-<id>`) changes with the binary, and
+The image tag (`atrium/db-collector:dev-<id>`) changes with the binary, and
 the collector is replaced by a new pod. The old pod stops before the new one
 starts, so the database is never polled twice.
 
@@ -169,11 +169,11 @@ make kind-deploy                   # back to the full profile
 make kind-e2e
 ```
 
-This creates a second, temporary cluster (`heartbeat-e2e-<id>`) with its own
+This creates a second, temporary cluster (`atrium-e2e-<id>`) with its own
 SQL Server, runs every check above and more (invalid config, rollouts,
 persistence after pod replacement, an OTel Collector restart during two log
 backlogs of 45 minutes and three hours), prints measurements, and deletes
-what it created. Your `heartbeat` cluster is untouched. It takes about 10
+what it created. Your `atrium` cluster is untouched. It takes about 10
 minutes and ends with `All kind e2e checks passed`. CI runs the same script on every pull request.
 
 ## 10. Clean up

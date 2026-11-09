@@ -1,8 +1,8 @@
 // Package config is retained as a compatibility shim for db-collector callers.
-// New code should import heartbeat/internal/config directly.
+// New code should import atrium/internal/config directly.
 package config
 
-import shared "heartbeat/internal/config"
+import shared "atrium/internal/config"
 
 type Endpoint = shared.Endpoint
 type NotificationChannel = shared.NotificationChannel

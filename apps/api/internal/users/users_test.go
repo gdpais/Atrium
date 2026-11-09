@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/password"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/password"
 )
 
 func TestNormalizeEmail(t *testing.T) {

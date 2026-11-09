@@ -19,12 +19,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/audit/audittest"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/apps/api/internal/testenv"
-	"heartbeat/internal/otlp"
-	"heartbeat/internal/telemetry"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/audit/audittest"
+	"atrium/apps/api/internal/store"
+	"atrium/apps/api/internal/testenv"
+	"atrium/internal/otlp"
+	"atrium/internal/telemetry"
 )
 
 // write commits n records, one transaction each, and returns their ids in

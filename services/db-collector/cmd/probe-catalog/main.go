@@ -24,9 +24,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	connector "heartbeat/services/db-collector/internal/connectors/sqlserver"
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
-	catalogsqlserver "heartbeat/services/db-collector/internal/probes/sqlserver"
+	connector "atrium/services/db-collector/internal/connectors/sqlserver"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
+	catalogsqlserver "atrium/services/db-collector/internal/probes/sqlserver"
 )
 
 // logParameters declares the parameters the collector binds to a log-type

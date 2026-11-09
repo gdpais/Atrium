@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/auth"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/auth"
 )
 
 // SessionCookie is the session cookie's name. The __Host- prefix makes a
 // browser keep it only when it is Secure, set over HTTPS (or localhost),
 // with Path=/ and no Domain, so no other host can set or read it.
-const SessionCookie = "__Host-heartbeat_session"
+const SessionCookie = "__Host-atrium_session"
 
 // requestIDHeader carries the ID audit records and logs give a request.
 const requestIDHeader = "X-Request-Id"
@@ -129,7 +129,7 @@ func (s *Server) fromSite(r *http.Request) bool {
 
 func (s *Server) originProblem() string {
 	if s.site == "" {
-		return "the API refuses unsafe methods until its site is configured (HEARTBEAT_API_SITE_ORIGIN)"
+		return "the API refuses unsafe methods until its site is configured (ATRIUM_API_SITE_ORIGIN)"
 	}
 	return "the Origin header must be " + s.site
 }

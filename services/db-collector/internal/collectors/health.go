@@ -25,12 +25,12 @@ const (
 	// least one of them waits for its output to be accepted downstream (it
 	// returned [ErrBlocked]): an outsystems_logs log type whose batch the OTel
 	// Collector has not accepted yet.  It is backpressure, not a failure: the
-	// target does not back off and heartbeat_collector_target_up stays 1.
+	// target does not back off and atrium_collector_target_up stays 1.
 	TargetBlocked TargetState = "blocked"
 	// TargetDegraded is a target with probes that failed, back off on their
 	// own or were skipped while its other probes succeeded: only the failing
 	// probes are missing, and skipped ones keep their last series.  The
-	// target does not back off, heartbeat_collector_target_up stays 1 and its
+	// target does not back off, atrium_collector_target_up stays 1 and its
 	// last success advances; Probes lists the failing probes.
 	// A target is failed, and backs off as a whole, only when every probe
 	// that ran failed.
@@ -38,11 +38,11 @@ const (
 	// TargetSkipped is a target none of whose probes ran because the cycle
 	// reached its deadline first: the targets or probes before it used the
 	// whole scrape interval.  It is not a failure: the target does not back
-	// off, and its series, heartbeat_collector_target_up included, keep the
+	// off, and its series, atrium_collector_target_up included, keep the
 	// values of the last cycle that ran it.  Its last success does not
 	// advance, so its age shows how stale those series are; no alert watches
 	// it, but a collector whose cycles keep running out of time fires
-	// HeartbeatCollectorCyclesLate.
+	// AtriumCollectorCyclesLate.
 	TargetSkipped TargetState = "skipped"
 )
 

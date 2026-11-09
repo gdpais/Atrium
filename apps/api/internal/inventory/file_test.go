@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"heartbeat/internal/config"
-	configschema "heartbeat/packages/config-schema"
+	"atrium/internal/config"
+	configschema "atrium/packages/config-schema"
 )
 
 // exampleFile is config/inventory.example.yaml, which the reference docs
@@ -56,8 +56,8 @@ func TestKindsInventoryIsValid(t *testing.T) {
 		t.Fatalf("kind's inventory has %d database targets, want PatientZero's", len(f.DatabaseTargets))
 	}
 	target := f.DatabaseTargets[0]
-	if target.Name != "patientzero" || target.Host != "heartbeat-sqlserver-dev" || target.CredentialRef != "env/sqlserver-dev" || len(target.Probes) == 0 {
-		t.Fatalf("kind's database target = %+v, want patientzero on heartbeat-sqlserver-dev with env/sqlserver-dev and probes", target)
+	if target.Name != "patientzero" || target.Host != "atrium-sqlserver-dev" || target.CredentialRef != "env/sqlserver-dev" || len(target.Probes) == 0 {
+		t.Fatalf("kind's database target = %+v, want patientzero on atrium-sqlserver-dev with env/sqlserver-dev and probes", target)
 	}
 }
 

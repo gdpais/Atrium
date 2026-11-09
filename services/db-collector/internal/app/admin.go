@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	heartbeatconfig "heartbeat/internal/config"
+	atriumconfig "atrium/internal/config"
 )
 
 // adminAuth authorizes requests to the admin endpoints with the bearer token
-// from HEARTBEAT_ADMIN_TOKEN. It is the only authorization check: every
+// from ATRIUM_ADMIN_TOKEN. It is the only authorization check: every
 // admin route goes through service.requireAdmin.
 type adminAuth struct {
 	// enabled is false when no token is configured; every request is then
@@ -65,7 +65,7 @@ func (s *service) requireAdmin(method string, next http.HandlerFunc) http.Handle
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if !s.auth.authorized(r) {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="heartbeat-db-collector"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="atrium-db-collector"`)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -82,15 +82,15 @@ func (s *service) requireAdmin(method string, next http.HandlerFunc) http.Handle
 // config, reload status, startup warnings and the full readiness report,
 // including per-target error text. It is served only with the admin token.
 type adminConfigResponse struct {
-	Version         string                        `json:"version"`
-	LoadedAt        time.Time                     `json:"loaded_at"`
-	LastReloadAt    time.Time                     `json:"last_reload_at"`
-	LastReloadErr   string                        `json:"last_reload_err"`
-	RuntimeDiverged bool                          `json:"runtime_diverged"`
-	RollbackErr     string                        `json:"rollback_err,omitempty"`
-	Warnings        []startupWarning              `json:"warnings"`
-	Readiness       readinessReport               `json:"readiness"`
-	Config          heartbeatconfig.RuntimeConfig `json:"config"`
+	Version         string                     `json:"version"`
+	LoadedAt        time.Time                  `json:"loaded_at"`
+	LastReloadAt    time.Time                  `json:"last_reload_at"`
+	LastReloadErr   string                     `json:"last_reload_err"`
+	RuntimeDiverged bool                       `json:"runtime_diverged"`
+	RollbackErr     string                     `json:"rollback_err,omitempty"`
+	Warnings        []startupWarning           `json:"warnings"`
+	Readiness       readinessReport            `json:"readiness"`
+	Config          atriumconfig.RuntimeConfig `json:"config"`
 }
 
 // handleConfig serves GET /admin/config behind requireAdmin.
@@ -126,7 +126,7 @@ func startupWarnings(cfg Config, endpoint string, logger *slog.Logger) []startup
 		warnings = append(warnings, startupWarning{
 			Code: "sqlserver_trust_server_certificate",
 			Message: "SQL Server certificate verification is disabled for every target " +
-				"(HEARTBEAT_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE): TLS still encrypts the connection, " +
+				"(ATRIUM_DB_COLLECTOR_SQLSERVER_TRUST_SERVER_CERTIFICATE): TLS still encrypts the connection, " +
 				"but neither the certificate chain nor the host name is checked, so an attacker in the path " +
 				"can impersonate the server and capture the login. Use it only with throwaway local targets.",
 		})
@@ -134,7 +134,7 @@ func startupWarnings(cfg Config, endpoint string, logger *slog.Logger) []startup
 	if cfg.OTLPHeadersDir != "" && strings.HasPrefix(strings.ToLower(endpoint), "http://") {
 		warnings = append(warnings, startupWarning{
 			Code: "otlp_headers_over_http",
-			Message: "The OTLP exporter sends the headers in HEARTBEAT_OTLP_HEADERS_DIR, such as a token, to " +
+			Message: "The OTLP exporter sends the headers in ATRIUM_OTLP_HEADERS_DIR, such as a token, to " +
 				"opentelemetry.endpoint over plain HTTP: anyone in the path can read them. Use an https endpoint.",
 		})
 	}
@@ -142,7 +142,7 @@ func startupWarnings(cfg Config, endpoint string, logger *slog.Logger) []startup
 		logger.Warn(warning.Message, "warning", warning.Code)
 	}
 	if strings.TrimSpace(cfg.AdminToken) == "" {
-		logger.Warn("HEARTBEAT_ADMIN_TOKEN is not set: GET /admin/config and POST /admin/config/reload answer 401", "warning", "admin_token_unset")
+		logger.Warn("ATRIUM_ADMIN_TOKEN is not set: GET /admin/config and POST /admin/config/reload answer 401", "warning", "admin_token_unset")
 	}
 	return warnings
 }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	catalogoutsystems "heartbeat/services/db-collector/internal/probes/outsystems"
+	catalogoutsystems "atrium/services/db-collector/internal/probes/outsystems"
 )
 
 // fixtureDir holds the SQL Server fixtures, two files per log type: <log

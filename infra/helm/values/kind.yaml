@@ -1,5 +1,5 @@
 # kind (local development and CI). Layer over the chart defaults:
-#   helm upgrade --install heartbeat infra/helm/heartbeat -n heartbeat \
+#   helm upgrade --install atrium infra/helm/atrium -n atrium \
 #     -f infra/helm/values/kind.yaml [-f infra/helm/values/minimal.yaml] ...
 # scripts/kind.sh does this and sets the image tags.
 #
@@ -15,7 +15,7 @@ dbCollector:
     # defaults to. Loaded into the node with `kind load`; never pulled.
     # scripts/kind.sh sets a content-derived tag, so a stale image cannot hide
     # a code change.
-    repository: heartbeat/db-collector
+    repository: atrium/db-collector
     pullPolicy: Never
   service:
     type: NodePort
@@ -58,7 +58,7 @@ dbCollector:
 # that scripts/kind.sh generates once per cluster.
 api:
   image:
-    repository: heartbeat/api
+    repository: atrium/api
     pullPolicy: Never
   # `kubectl port-forward svc/api 8081` (docs/guides/local-development.md).
   # Browsers treat localhost as secure, so they keep the __Host- session
@@ -87,7 +87,7 @@ api:
     applications:
       - name: PatientZero
         platform: outsystems
-        owner_team: Heartbeat
+        owner_team: Atrium
         criticality: low
         components:
           - name: Shop
@@ -104,7 +104,7 @@ api:
       # server-wide views. The credential is the sandbox's collector login,
       # from the Secret make sqlserver-dev-up creates.
       - name: patientzero
-        host: heartbeat-sqlserver-dev
+        host: atrium-sqlserver-dev
         credential_ref: env/sqlserver-dev
         probes:
           - name: sessions

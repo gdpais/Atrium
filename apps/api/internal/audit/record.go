@@ -25,7 +25,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/store"
+	"atrium/apps/api/internal/store"
 )
 
 // Entity types: what a record is about. Write accepts no other, so a new

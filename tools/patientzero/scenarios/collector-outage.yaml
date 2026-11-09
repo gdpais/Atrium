@@ -4,7 +4,7 @@ name: collector-outage
 description: >-
   The db-collector is down for 4 minutes while the load runs (its StatefulSet
   scaled to 0). Prometheus finds it through DNS on its headless Service, so
-  with no pod it scrapes no collector, and HeartbeatServiceDown fires after
+  with no pod it scrapes no collector, and AtriumServiceDown fires after
   2 minutes. Once it is back the alert resolves, the collector reads the 4
   minutes it missed from the watermarks it saved, and Loki ends with every
   row PatientZero committed, once.
@@ -21,7 +21,7 @@ steps:
     duration: 2m
 signals:
   # No collector target up. With no pod the DNS lookup finds nothing and the
-  # target goes (no up series: HeartbeatServiceDown's absent() rule), unless
+  # target goes (no up series: AtriumServiceDown's absent() rule), unless
   # one of the names Prometheus tries on its DNS search path fails instead
   # of answering NXDOMAIN: then it keeps the target it had, which fails
   # (up == 0: the up == 0 rule). Which one depends on the cluster's DNS; on
@@ -32,13 +32,13 @@ signals:
     step: down
     within: 2m
   - name: collector-down-fires
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: db-collector}
     state: firing
     step: down
     within: 4m
   - name: collector-down-resolves
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: db-collector}
     state: resolved
     step: down
@@ -51,7 +51,7 @@ signals:
     from: end
     within: 2m
   - name: extraction-catches-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: down
     from: end

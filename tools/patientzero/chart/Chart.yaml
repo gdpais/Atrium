@@ -1,8 +1,8 @@
 apiVersion: v2
 name: patientzero
 description: >-
-  PatientZero, a synthetic OutSystems 11 application for Heartbeat's tests
-  and demos (ADR 0010). Test tooling only: never part of the Heartbeat chart
+  PatientZero, a synthetic OutSystems 11 application for Atrium's tests
+  and demos (ADR 0010). Test tooling only: never part of the Atrium chart
   or its releases.
 type: application
 version: 0.1.0

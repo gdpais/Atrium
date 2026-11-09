@@ -18,7 +18,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/redis/go-redis/v9/maintnotifications"
 
-	"heartbeat/internal/credentials"
+	"atrium/internal/credentials"
 )
 
 // Config says where Redis is and how to log in.

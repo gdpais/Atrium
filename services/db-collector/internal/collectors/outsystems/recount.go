@@ -36,8 +36,8 @@ import (
 	"sync"
 	"time"
 
-	collectorconfig "heartbeat/internal/config"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // recountEvery is how often a log type is recounted: once in each minute of

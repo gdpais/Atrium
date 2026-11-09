@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbeat.local/schemas/telemetry-sources/outsystems.schema.json",
+  "$id": "https://atrium.local/schemas/telemetry-sources/outsystems.schema.json",
   "title": "OutSystems telemetry source config",
   "description": "The config of a telemetry source of source_type outsystems (ADR 0017): which OutSystems application's telemetry is an application's own. OutSystems 11 self-managed is ingest_mode agentless, read from the logging database by an outsystems_logs collector configured in YAML; OutSystems Cloud and ODC are otlp. The source holds no credential: the collector's are in its YAML.",
   "type": "object",

@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-const testRepoURL = "https://example.test/heartbeat"
+const testRepoURL = "https://example.test/atrium"
 
 // fixtureRoot is a small documentation tree kept with the tests, so they
 // exercise the generator, not the repository's current docs. The real docs

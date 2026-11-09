@@ -31,9 +31,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"heartbeat/apps/api/internal/audit"
-	"heartbeat/apps/api/internal/store"
-	"heartbeat/internal/config"
+	"atrium/apps/api/internal/audit"
+	"atrium/apps/api/internal/store"
+	"atrium/internal/config"
 )
 
 // Limits on what a custom definition holds.

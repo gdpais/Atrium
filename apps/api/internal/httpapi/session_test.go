@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"heartbeat/apps/api/internal/auth"
+	"atrium/apps/api/internal/auth"
 )
 
-const site = "https://heartbeat.example.com"
+const site = "https://atrium.example.com"
 
 // fakeAuth is an Authenticator with one known session, under token.
 type fakeAuth struct {
@@ -188,7 +188,7 @@ func TestGuardChecksTheOriginOfUnsafeMethods(t *testing.T) {
 		"another site":     {"https://evil.example"},
 		"null":             {"null"},
 		"a trailing slash": {site + "/"},
-		"http":             {"http://heartbeat.example.com"},
+		"http":             {"http://atrium.example.com"},
 		"two":              {site, site},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -224,7 +224,7 @@ func TestGuardChecksTheOriginOfUnsafeMethods(t *testing.T) {
 	t.Run("no site configured", func(t *testing.T) {
 		fake := newFakeAuth("viewer")
 		rec := serveRequest(newServer(t, Options{Auth: fake}), browserRequest(http.MethodPost, "/api/v1/session", credentials, ""))
-		if detail := problemOf(t, rec, http.StatusForbidden); !strings.Contains(detail, "HEARTBEAT_API_SITE_ORIGIN") {
+		if detail := problemOf(t, rec, http.StatusForbidden); !strings.Contains(detail, "ATRIUM_API_SITE_ORIGIN") {
 			t.Fatalf("detail %q, want it to name the setting", detail)
 		}
 		if len(fake.logins) != 0 {
@@ -346,7 +346,7 @@ func TestCreateSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	maxAge := 7 * 24 * time.Hour / time.Second
-	if c.Name != "__Host-heartbeat_session" || c.Value != fake.token || c.Path != "/" || c.Domain != "" ||
+	if c.Name != "__Host-atrium_session" || c.Value != fake.token || c.Path != "/" || c.Domain != "" ||
 		!c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode || c.MaxAge < int(maxAge)-60 || c.MaxAge > int(maxAge) {
 		t.Fatalf("cookie %s", cookies[0])
 	}

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"heartbeat/apps/api/internal/openapi"
+	"atrium/apps/api/internal/openapi"
 )
 
 // A Check tells whether a dependency the API needs to serve requests works,

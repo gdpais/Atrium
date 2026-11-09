@@ -5,9 +5,9 @@ description: >-
   Loki is down for 4 minutes while the load runs (its StatefulSet scaled to
   0). The OTel Collector holds the one request it was sending and takes no
   more, so the db-collector waits for it: its PatientZero target stays up,
-  heartbeat_outsystems_export_blocked is 1 and the backlog grows in the
+  atrium_outsystems_export_blocked is 1 and the backlog grows in the
   logging database, not in memory. After 2 minutes OutSystemsLogExportBlocked
-  fires, and HeartbeatServiceDown for Loki, which Prometheus cannot scrape.
+  fires, and AtriumServiceDown for Loki, which Prometheus cannot scrape.
   Once Loki is back both resolve, the backlog drains and Loki ends with
   every row PatientZero committed, once.
 load: steady
@@ -23,12 +23,12 @@ steps:
     duration: 2m
 signals:
   - name: export-blocked
-    promql: max(heartbeat_outsystems_export_blocked{collector="patientzero"})
+    promql: max(atrium_outsystems_export_blocked{collector="patientzero"})
     condition: "== 1"
     step: down
     within: 2m
   - name: target-stays-up
-    promql: min(heartbeat_collector_target_up{collector="patientzero"})
+    promql: min(atrium_collector_target_up{collector="patientzero"})
     condition: "== 1"
     step: down
     mode: always
@@ -40,7 +40,7 @@ signals:
     step: down
     within: 4m
   - name: loki-down-fires
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: loki}
     state: firing
     step: down
@@ -53,14 +53,14 @@ signals:
     from: end
     within: 3m
   - name: loki-down-resolves
-    alert: HeartbeatServiceDown
+    alert: AtriumServiceDown
     labels: {job: loki}
     state: resolved
     step: down
     from: end
     within: 3m
   - name: extraction-catches-up
-    promql: max(heartbeat_outsystems_extract_lag_seconds{collector="patientzero"})
+    promql: max(atrium_outsystems_extract_lag_seconds{collector="patientzero"})
     condition: "< 120"
     step: down
     from: end

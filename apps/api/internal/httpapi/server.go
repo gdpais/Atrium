@@ -19,9 +19,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	api "heartbeat/apps/api"
-	"heartbeat/apps/api/internal/auth"
-	"heartbeat/apps/api/internal/openapi"
+	api "atrium/apps/api"
+	"atrium/apps/api/internal/auth"
+	"atrium/apps/api/internal/openapi"
 )
 
 // Server implements [openapi.StrictServerInterface].
@@ -81,7 +81,7 @@ type Options struct {
 	// operation that needs a session answers 503, and logging in fails.
 	Auth Authenticator
 	// Site is the origin unsafe methods must come from, such as
-	// https://heartbeat.example.com, as a browser writes it in the Origin
+	// https://atrium.example.com, as a browser writes it in the Origin
 	// header. Empty refuses every unsafe method.
 	Site string
 	// TrustedProxies are the peers whose X-Forwarded-For names the client.

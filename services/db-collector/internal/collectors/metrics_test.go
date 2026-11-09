@@ -13,9 +13,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	collectorconfig "heartbeat/internal/config"
-	collectorexport "heartbeat/services/db-collector/internal/export"
-	collectormetadata "heartbeat/services/db-collector/internal/metadata"
+	collectorconfig "atrium/internal/config"
+	collectorexport "atrium/services/db-collector/internal/export"
+	collectormetadata "atrium/services/db-collector/internal/metadata"
 )
 
 // newTestProbeMetrics returns probe metrics registered in a fresh registry.
@@ -272,11 +272,11 @@ func TestCycleMetrics(t *testing.T) {
 	metrics.observeStartDelay("c", -time.Millisecond) // timer jitter
 
 	want := `
-# HELP heartbeat_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
-# TYPE heartbeat_collector_cycles_total counter
-heartbeat_collector_cycles_total{collector="c",outcome="late"} 1
-heartbeat_collector_cycles_total{collector="c",outcome="on_time"} 2
-heartbeat_collector_cycles_total{collector="c",outcome="panic"} 1
+# HELP atrium_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
+# TYPE atrium_collector_cycles_total counter
+atrium_collector_cycles_total{collector="c",outcome="late"} 1
+atrium_collector_cycles_total{collector="c",outcome="on_time"} 2
+atrium_collector_cycles_total{collector="c",outcome="panic"} 1
 `
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), MetricCycles); err != nil {
 		t.Error(err)
@@ -313,9 +313,9 @@ func TestPollerRecordsCycles(t *testing.T) {
 	now = now.Add(time.Minute + 2*time.Second)
 	poller.cycle(context.Background(), tracker)
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(`
-# HELP heartbeat_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
-# TYPE heartbeat_collector_cycles_total counter
-heartbeat_collector_cycles_total{collector="c",outcome="on_time"} 2
+# HELP atrium_collector_cycles_total Collection cycles by outcome (on_time, late, panic).
+# TYPE atrium_collector_cycles_total counter
+atrium_collector_cycles_total{collector="c",outcome="on_time"} 2
 `), MetricCycles); err != nil {
 		t.Error(err)
 	}

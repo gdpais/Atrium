@@ -1,4 +1,4 @@
-// Package config loads, validates, versions, and redacts Heartbeat integration
+// Package config loads, validates, versions, and redacts Atrium integration
 // runtime configuration.
 package config
 
@@ -32,7 +32,7 @@ const (
 	KindOutSystemsLogs = "outsystems_logs"
 )
 
-// Observability platforms. Heartbeat writes telemetry only as OTLP to the
+// Observability platforms. Atrium writes telemetry only as OTLP to the
 // OpenTelemetry Collector and as Prometheus exposition on /metrics (ADR 0011),
 // so the platform that stores and shows it is the Collector's and the chart's
 // choice. platform names it for the parts that cannot be neutral: dashboard
@@ -42,7 +42,7 @@ const (
 	// platform the chart bundles.
 	PlatformGrafana = "grafana"
 	// PlatformGeneric is any other platform that takes OTLP, or scrapes
-	// /metrics, through the Collector. Heartbeat has no dashboards, links or
+	// /metrics, through the Collector. Atrium has no dashboards, links or
 	// queries for it.
 	PlatformGeneric = "generic"
 	// DefaultPlatform is the platform when the config names none.
@@ -258,7 +258,7 @@ type RuntimeConfig struct {
 	Logs Endpoint
 	// Alerting is the platform's alert API (Alertmanager).
 	Alerting Endpoint
-	// OpenTelemetry is the OTel Collector Heartbeat sends OTLP to.
+	// OpenTelemetry is the OTel Collector Atrium sends OTLP to.
 	OpenTelemetry        Endpoint
 	NotificationChannels []NotificationChannel
 	Collectors           []CollectorRuntimeConfig
@@ -596,13 +596,13 @@ func validate(cfg RuntimeConfig) error {
 	if cfg.Platform != "" && !slices.Contains(supportedPlatforms, cfg.Platform) {
 		return fmt.Errorf("platform %q is not supported (supported: %s)", cfg.Platform, strings.Join(supportedPlatforms, ", "))
 	}
-	// Heartbeat never writes to the platform directly: logs go through
+	// Atrium never writes to the platform directly: logs go through
 	// opentelemetry.endpoint, alerts through the platform's own rules.
 	if cfg.Logs.Endpoint != "" {
 		return fmt.Errorf("logs.endpoint is not supported: logs are sent to opentelemetry.endpoint")
 	}
 	if cfg.Alerting.Endpoint != "" {
-		return fmt.Errorf("alerting.endpoint is not supported: Heartbeat does not send alerts itself")
+		return fmt.Errorf("alerting.endpoint is not supported: Atrium does not send alerts itself")
 	}
 	if cfg.Platform == PlatformGeneric {
 		for _, section := range []struct {
@@ -610,7 +610,7 @@ func validate(cfg RuntimeConfig) error {
 			endpoint Endpoint
 		}{{"dashboards", cfg.Dashboards}, {"logs", cfg.Logs}, {"alerting", cfg.Alerting}} {
 			if !emptyEndpoint(section.endpoint) {
-				return fmt.Errorf("%s must be empty with platform %s: Heartbeat has no links or queries for it", section.name, PlatformGeneric)
+				return fmt.Errorf("%s must be empty with platform %s: Atrium has no links or queries for it", section.name, PlatformGeneric)
 			}
 		}
 	}

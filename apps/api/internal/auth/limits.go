@@ -26,8 +26,8 @@ const (
 // Redis key prefixes of the failure counters. An account's key ends in the
 // SHA-256 of its email, so Redis holds no email.
 const (
-	accountKeyPrefix = "heartbeat:login-failures:account:"
-	addressKeyPrefix = "heartbeat:login-failures:address:"
+	accountKeyPrefix = "atrium:login-failures:account:"
+	addressKeyPrefix = "atrium:login-failures:address:"
 )
 
 // Limits counts failed logins per account and per client address in Redis.
