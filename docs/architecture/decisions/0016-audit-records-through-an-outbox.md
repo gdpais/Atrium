@@ -78,6 +78,12 @@ to the OTel Collector, a persistent sending queue, Loki
    ([ADR 0012](0012-personal-data-in-telemetry.md), [9.2]); if it is longer,
    the Collector exports them to a SIEM or object storage as well.
 
+   Update 2026-11-09: the periods above were Prometheus's, not Loki's; Loki
+   had no retention then. Since 2026-10-28 the chart deletes Loki's logs,
+   audit records included, after 30 days in every profile
+   ([data retention](../../reference/configuration.md#data-retention)). The
+   compliance sign-off on that period is still open.
+
 Considered and not chosen:
 
 - **Dated JSONL files.** Not atomic with the change, one file per replica
