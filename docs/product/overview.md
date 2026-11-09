@@ -130,11 +130,11 @@ and the Grafana stack ([ADR 0019](../architecture/decisions/0019-keep-grafana-an
 - How often are user IDs, session IDs and client IPs filled in each
   OutSystems log type in real data? `Request_Key` is on all eight; the
   schema survey did not measure the others
-  ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)).
+  ([application observability](../architecture/application-observability.md#open-questions)).
 - Is a report download enough, or is email delivery required from the first
   reports?
-- Is multi-tenancy needed? OIDC/SSO is deferred until a deployment requires
-  it ([ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md)).
+- Is multi-tenancy needed? OIDC/SSO is deferred until corporate requirements
+  demand it ([ADR 0004](../architecture/decisions/0004-core-technology-choices.md)).
 - Expected scale: environments, applications, database instances and log
   volume.
 - Is a paging tool needed for escalation beyond the chat receivers? ADR 0005
