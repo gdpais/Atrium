@@ -224,7 +224,7 @@ waiting; the first release pull request covers every commit since `v0.1.0`.
    *Issues*: read and write. Before installing it, give it the Atrium badge:
    on the app's page, under *Display information*, upload
    [`docs/brand/app-badge.png`](docs/brand/app-badge.png) and set *Badge
-   background color* to `211e1a` (the field appears after the upload). Then
+   background color* to `1c1b18` (the field appears after the upload). Then
    install it on this repository only.
 2. In the repository's Settings → Secrets and variables → Actions, add the
    variable `RELEASE_APP_CLIENT_ID` (the app's client ID) and the secret
