@@ -31,6 +31,8 @@
   }
 
   // ---------------------------------------------------------------- drawer
+  // One menu button, two behaviours: on small screens it opens the sidebar as
+  // a drawer; on wide screens it folds the sidebar away and remembers that.
   function setupDrawer() {
     var button = document.querySelector(".menu-button");
     var sidebar = document.getElementById("sidebar");
@@ -45,7 +47,24 @@
         if (current) current.focus();
       }
     }
-    button.addEventListener("click", function () { setOpen(!sidebar.classList.contains("open")); });
+    var narrow = window.matchMedia ? window.matchMedia("(max-width: 880px)") : { matches: false };
+    function setFolded(folded) {
+      docEl.classList.toggle("nav-folded", folded);
+      button.setAttribute("aria-expanded", String(!folded));
+      save("atrium-docs-nav", folded ? "folded" : null);
+    }
+    // aria-expanded says whether the sidebar shows in the current layout.
+    function sync() {
+      setOpen(false);
+      if (!narrow.matches) button.setAttribute("aria-expanded", String(!docEl.classList.contains("nav-folded")));
+    }
+    sync();
+    if (narrow.addEventListener) narrow.addEventListener("change", sync);
+    else if (narrow.addListener) narrow.addListener(sync);
+    button.addEventListener("click", function () {
+      if (narrow.matches) setOpen(!sidebar.classList.contains("open"));
+      else setFolded(!docEl.classList.contains("nav-folded"));
+    });
     scrim.addEventListener("click", function () { setOpen(false); });
     sidebar.addEventListener("click", function (e) {
       if (e.target.closest("a")) setOpen(false);

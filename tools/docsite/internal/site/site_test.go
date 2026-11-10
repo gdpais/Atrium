@@ -167,6 +167,21 @@ func TestSiteContents(t *testing.T) {
 	if !regexp.MustCompile(`(?s)decisions/index\.html"[^<]*>Decisions</a>.*?<ul class="nav-list nav-children" id="[^"]+" data-collapsed>.*?0001-example\.html`).MatchString(home) {
 		t.Error("ADR pages must nest, collapsed, under the decisions index in the sidebar")
 	}
+	// The menu button folds the sidebar; the remembered choice must apply
+	// before first paint, from the same key site.js saves.
+	if !strings.Contains(home, `<button class="icon-button menu-button" type="button" aria-controls="sidebar"`) ||
+		!strings.Contains(home, `localStorage.getItem("atrium-docs-nav") === "folded"`) {
+		t.Error("pages must carry the menu button and restore a folded sidebar before first paint")
+	}
+	var script []byte
+	for name, content := range files {
+		if strings.HasPrefix(name, "assets/site") && strings.HasSuffix(name, ".js") {
+			script = content
+		}
+	}
+	if !bytes.Contains(script, []byte(`save("atrium-docs-nav", folded ? "folded" : null)`)) {
+		t.Error("site.js must save the folded sidebar under the key the page restores")
+	}
 	adr := string(files["architecture/decisions/0001-example.html"])
 	if !regexp.MustCompile(`<ul class="nav-list nav-children" id="[^"]+">`).MatchString(adr) {
 		t.Error("the ADR list must start open on an ADR page")
