@@ -4,13 +4,15 @@ The logo is a Roman stone arch with a terracotta keystone.
 
 | File | Use it for |
 |------|------------|
-| `mark.svg`, `mark-dark.svg` | The arch alone, with its inner ring and mortar joints, at 48 px and larger. The root `README.md` uses these. `-dark` is for dark backgrounds. |
+| `mark.svg`, `mark-dark.svg` | The arch alone, with its mortar joints and the shaded inside of the opening, at 48 px and larger. The root `README.md` uses these. `-dark` is for dark backgrounds. |
 | `logo.svg`, `logo-dark.svg` | The arch with the "Atrium" wordmark. The wordmark is Inter SemiBold (SIL Open Font License) converted to outlines, so it renders the same everywhere and needs no font. The docs site header shows this lockup. |
 | `icon.svg` | The detailed arch on a dark rounded tile, filling more of the tile than the badge does, for favicons and avatars. |
-| `app-badge.svg`, `app-badge.png` | The detailed arch on a square dark tile (`#211E1A`), 512 px, for places that show the image in a circle, such as the badge of the release GitHub App ([setup](../../CONTRIBUTING.md#releases)). The arch is small enough that a circle does not clip it. The PNG is `app-badge.svg` rendered at 512 px, for places that take no SVG. |
+| `app-badge.svg`, `app-badge.png` | The detailed arch on a square dark tile (`#1C1B18`), 512 px, for places that show the image in a circle, such as the badge of the release GitHub App ([setup](../../CONTRIBUTING.md#releases)). The arch is small enough that a circle does not clip it. The PNG is `app-badge.svg` rendered at 512 px, for places that take no SVG. |
 
-The arch is drawn on a 100-unit grid. `mark*.svg` is the arch group of
-`logo*.svg` without the `scale(.65)` that fits it to the 64-unit-high lockup.
+The arch is drawn on a 64-unit grid, the height of the lockup. `mark*.svg` is
+`logo*.svg` without the wordmark. Each pier is three equal courses between a
+slim cap at the spring line and one at the base; the caps project outward
+only, by less than a joint's width.
 
 ## Copies to keep in sync
 

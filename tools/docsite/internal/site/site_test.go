@@ -428,8 +428,9 @@ func TestHeaderLogoMatchesBrand(t *testing.T) {
 	// The tokens appear three times: the light theme, the dark media query
 	// and the explicit dark theme.
 	var themes []map[string]string
-	for i, m := range logoTokenPattern.FindAllStringSubmatch(read(filepath.Join("assets", "style.css")), -1) {
-		if i%8 == 0 {
+	for _, m := range logoTokenPattern.FindAllStringSubmatch(read(filepath.Join("assets", "style.css")), -1) {
+		// A token that repeats starts the next theme block.
+		if len(themes) == 0 || themes[len(themes)-1][m[1]] != "" {
 			themes = append(themes, map[string]string{})
 		}
 		themes[len(themes)-1][m[1]] = m[2]
