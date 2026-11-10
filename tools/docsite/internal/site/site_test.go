@@ -484,9 +484,8 @@ var (
 
 // TestBrandCopiesMatch keeps the other copies of the arch listed in
 // docs/brand/README.md in step: mark*.svg is logo*.svg and
-// logo-secondary*.svg without their wordmark,
-// icon.svg and app-badge.svg draw the arch of mark-dark.svg, and the favicon
-// inlined in page.html is icon.svg.
+// logo-secondary*.svg without their wordmark, icon.svg and app-badge.svg draw
+// the arch of mark-dark.svg, and the favicon inlined in page.html is icon.svg.
 func TestBrandCopiesMatch(t *testing.T) {
 	read := func(name string) string {
 		t.Helper()
@@ -517,7 +516,7 @@ func TestBrandCopiesMatch(t *testing.T) {
 		}
 	}
 
-	// The tiles have their own keystone colours, so only the shapes and the
+	// The tiles have their own terracotta colours, so only the shapes and the
 	// two tiles' fills are compared.
 	arch, icon, badge := paths("mark-dark.svg"), paths("icon.svg"), paths("app-badge.svg")
 	if len(icon) != len(arch) || len(badge) != len(arch) {

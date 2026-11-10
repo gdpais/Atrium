@@ -13,9 +13,9 @@ itself is a plain stone.
 | `app-badge.svg`, `app-badge.png` | The detailed arch on a square dark tile (`#1C1B18`), 512 px, for places that show the image in a circle, such as the badge of the release GitHub App ([setup](../../CONTRIBUTING.md#releases)). The arch is small enough that a circle does not clip it. The PNG is `app-badge.svg` rendered at 512 px, for places that take no SVG. |
 
 The arch is drawn on a 64-unit grid, the height of the lockup. `mark*.svg` is
-`logo*.svg` and `logo-secondary*.svg` without their wordmark. Each pier is three equal courses between a
-slim cap at the spring line and one at the base; the caps project outward
-only, by less than a joint's width.
+`logo*.svg` and `logo-secondary*.svg` without their wordmark. Each pier is
+three equal courses between a slim cap at the spring line and one at the
+base; the caps project outward only, by less than a joint's width.
 
 ## Copies to keep in sync
 
@@ -28,7 +28,7 @@ only, by less than a joint's width.
   colours of `logo.svg` in the light theme and of `logo-dark.svg` in the dark
   one.
 
-A change to the arch has to be made in `logo*.svg`, `logo-secondary*.svg`, `mark*.svg`,
-`app-badge.svg`, `icon.svg`, the inlined favicon and the header logo, and
-`app-badge.png` rendered again from `app-badge.svg`. A change to a logo colour
-also goes into the `--logo-*` tokens.
+A change to the arch has to be made in `logo*.svg`, `logo-secondary*.svg`,
+`mark*.svg`, `app-badge.svg`, `icon.svg`, the inlined favicon and the header
+logo, and `app-badge.png` rendered again from `app-badge.svg`. A change to a
+logo colour also goes into the `--logo-*` tokens.
