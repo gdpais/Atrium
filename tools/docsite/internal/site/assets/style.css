@@ -31,15 +31,15 @@
   /* Header logo: the fills of docs/brand/logo.svg, and of logo-dark.svg in dark. */
   --logo-soffit-a: #938e84;
   --logo-soffit-b: #878279;
-  --logo-soffit-c: #7a766c;
-  --logo-soffit-d: #6d6960;
+  --logo-key-in: #8a3d1f;
+  --logo-soffit-c: #6d6960;
+  --logo-soffit-d: #625e56;
   --logo-soffit-e: #5a564e;
   --logo-soffit-f: #57534b;
   --logo-soffit-g: #58544c;
   --logo-soffit-h: #5e5a52;
   --logo-reveal-r: #989388;
   --logo-reveal-l: #625e56;
-  --logo-key-in: #8a3d1f;
   --logo-stone: #1c1b18;
   --logo-key: #b0502a;
   --logo-ink: #1c1b18;
@@ -86,15 +86,15 @@
     --diagram-bg: #1f1e1b;
     --logo-soffit-a: #aeaa9f;
     --logo-soffit-b: #a19d92;
-    --logo-soffit-c: #938f84;
-    --logo-soffit-d: #858177;
+    --logo-key-in: #b9735a;
+    --logo-soffit-c: #858177;
+    --logo-soffit-d: #79756b;
     --logo-soffit-e: #716d63;
     --logo-soffit-f: #6d695f;
     --logo-soffit-g: #6e6a60;
     --logo-soffit-h: #747066;
     --logo-reveal-r: #b3afa4;
     --logo-reveal-l: #79756b;
-    --logo-key-in: #b9735a;
     --logo-stone: #ece9e1;
     --logo-key: #eb9a7d;
     --logo-ink: #ece9e1;
@@ -128,15 +128,15 @@
   --diagram-bg: #1f1e1b;
   --logo-soffit-a: #aeaa9f;
   --logo-soffit-b: #a19d92;
-  --logo-soffit-c: #938f84;
-  --logo-soffit-d: #858177;
+  --logo-key-in: #b9735a;
+  --logo-soffit-c: #858177;
+  --logo-soffit-d: #79756b;
   --logo-soffit-e: #716d63;
   --logo-soffit-f: #6d695f;
   --logo-soffit-g: #6e6a60;
   --logo-soffit-h: #747066;
   --logo-reveal-r: #b3afa4;
   --logo-reveal-l: #79756b;
-  --logo-key-in: #b9735a;
   --logo-stone: #ece9e1;
   --logo-key: #eb9a7d;
   --logo-ink: #ece9e1;
@@ -198,9 +198,10 @@ kbd {
   color: var(--fg); text-decoration: none; font-size: 1.02rem; line-height: 1;
 }
 .brand:hover { text-decoration: none; }
-.brand-logo { display: block; flex: none; height: 1.85rem; width: auto; }
+.brand-logo { display: block; flex: none; height: 1.4rem; width: auto; }
 .lg-soffit-a { fill: var(--logo-soffit-a); }
 .lg-soffit-b { fill: var(--logo-soffit-b); }
+.lg-key-in { fill: var(--logo-key-in); }
 .lg-soffit-c { fill: var(--logo-soffit-c); }
 .lg-soffit-d { fill: var(--logo-soffit-d); }
 .lg-soffit-e { fill: var(--logo-soffit-e); }
@@ -209,7 +210,6 @@ kbd {
 .lg-soffit-h { fill: var(--logo-soffit-h); }
 .lg-reveal-r { fill: var(--logo-reveal-r); }
 .lg-reveal-l { fill: var(--logo-reveal-l); }
-.lg-key-in { fill: var(--logo-key-in); }
 .lg-stone { fill: var(--logo-stone); }
 .lg-key { fill: var(--logo-key); }
 .lg-ink { fill: var(--logo-ink); }

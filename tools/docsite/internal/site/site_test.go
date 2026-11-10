@@ -483,7 +483,8 @@ var (
 )
 
 // TestBrandCopiesMatch keeps the other copies of the arch listed in
-// docs/brand/README.md in step: mark*.svg is logo*.svg without the wordmark,
+// docs/brand/README.md in step: mark*.svg is logo*.svg and
+// logo-secondary*.svg without their wordmark,
 // icon.svg and app-badge.svg draw the arch of mark-dark.svg, and the favicon
 // inlined in page.html is icon.svg.
 func TestBrandCopiesMatch(t *testing.T) {
@@ -500,7 +501,10 @@ func TestBrandCopiesMatch(t *testing.T) {
 		return logoPathPattern.FindAllStringSubmatch(read(filepath.Join(brand, name)), -1)
 	}
 
-	for _, pair := range [][2]string{{"mark.svg", "logo.svg"}, {"mark-dark.svg", "logo-dark.svg"}} {
+	for _, pair := range [][2]string{
+		{"mark.svg", "logo.svg"}, {"mark-dark.svg", "logo-dark.svg"},
+		{"mark.svg", "logo-secondary.svg"}, {"mark-dark.svg", "logo-secondary-dark.svg"},
+	} {
 		mark, logo := paths(pair[0]), paths(pair[1])
 		// The wordmark is the last path of the lockup.
 		if len(mark) == 0 || len(mark) != len(logo)-1 {
