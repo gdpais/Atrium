@@ -455,3 +455,68 @@ func TestHeaderLogoMatchesBrand(t *testing.T) {
 		}
 	}
 }
+
+var (
+	faviconPattern  = regexp.MustCompile(`<link rel="icon" href="data:image/svg\+xml,([^"]+)"`)
+	betweenTagsGaps = regexp.MustCompile(`>\s+<`)
+)
+
+// TestBrandCopiesMatch keeps the other copies of the arch listed in
+// docs/brand/README.md in step: mark*.svg is logo*.svg without the wordmark,
+// icon.svg and app-badge.svg draw the arch of mark-dark.svg, and the favicon
+// inlined in page.html is icon.svg.
+func TestBrandCopiesMatch(t *testing.T) {
+	read := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	brand := filepath.Join("..", "..", "..", "..", "docs", "brand")
+	paths := func(name string) [][]string {
+		return logoPathPattern.FindAllStringSubmatch(read(filepath.Join(brand, name)), -1)
+	}
+
+	for _, pair := range [][2]string{{"mark.svg", "logo.svg"}, {"mark-dark.svg", "logo-dark.svg"}} {
+		mark, logo := paths(pair[0]), paths(pair[1])
+		// The wordmark is the last path of the lockup.
+		if len(mark) == 0 || len(mark) != len(logo)-1 {
+			t.Fatalf("%s has %d paths, want those of %s (%d) without the wordmark", pair[0], len(mark), pair[1], len(logo))
+		}
+		for i := range mark {
+			if mark[i][1] != logo[i][1] || mark[i][3] != logo[i][3] {
+				t.Errorf("%s path %d differs from %s", pair[0], i, pair[1])
+			}
+		}
+	}
+
+	// The tiles have their own keystone colours, so only the shapes and the
+	// two tiles' fills are compared.
+	arch, icon, badge := paths("mark-dark.svg"), paths("icon.svg"), paths("app-badge.svg")
+	if len(icon) != len(arch) || len(badge) != len(arch) {
+		t.Fatalf("path counts differ: icon.svg %d, app-badge.svg %d, mark-dark.svg %d", len(icon), len(badge), len(arch))
+	}
+	for i := range arch {
+		if icon[i][3] != arch[i][3] {
+			t.Errorf("icon.svg path %d differs from mark-dark.svg", i)
+		}
+		if badge[i][3] != arch[i][3] || badge[i][1] != icon[i][1] {
+			t.Errorf("app-badge.svg path %d differs from icon.svg", i)
+		}
+	}
+
+	m := faviconPattern.FindStringSubmatch(read(filepath.Join("assets", "page.html")))
+	if m == nil {
+		t.Fatal("page.html has no inlined SVG favicon")
+	}
+	favicon, err := url.PathUnescape(m[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.ReplaceAll(betweenTagsGaps.ReplaceAllString(strings.TrimSpace(read(filepath.Join(brand, "icon.svg"))), "><"), `"`, "'")
+	if favicon != want {
+		t.Error("the favicon in page.html differs from docs/brand/icon.svg")
+	}
+}
