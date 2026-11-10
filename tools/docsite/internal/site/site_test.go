@@ -170,7 +170,7 @@ func TestSiteContents(t *testing.T) {
 	// The menu button folds the sidebar; the remembered choice must apply
 	// before first paint, from the same key site.js saves.
 	if !strings.Contains(home, `<button class="icon-button menu-button" type="button" aria-controls="sidebar"`) ||
-		!strings.Contains(home, `localStorage.getItem("atrium-docs-nav") === "folded"`) {
+		!strings.Contains(home, `localStorage.getItem("atrium-docs-sidebar") === "folded"`) {
 		t.Error("pages must carry the menu button and restore a folded sidebar before first paint")
 	}
 	var script []byte
@@ -179,8 +179,14 @@ func TestSiteContents(t *testing.T) {
 			script = content
 		}
 	}
-	if !bytes.Contains(script, []byte(`save("atrium-docs-nav", folded ? "folded" : null)`)) {
+	if !bytes.Contains(script, []byte(`var SIDEBAR_KEY = "atrium-docs-sidebar";`)) ||
+		!bytes.Contains(script, []byte(`save(SIDEBAR_KEY, folded ? "folded" : null)`)) {
 		t.Error("site.js must save the folded sidebar under the key the page restores")
+	}
+	// The collapsed menu groups are JSON under their own key; sharing it would
+	// make each choice erase the other.
+	if !bytes.Contains(script, []byte(`var NAV_KEY = "atrium-docs-nav";`)) {
+		t.Error("site.js must keep the menu groups under a key other than the folded sidebar's")
 	}
 	adr := string(files["architecture/decisions/0001-example.html"])
 	if !regexp.MustCompile(`<ul class="nav-list nav-children" id="[^"]+">`).MatchString(adr) {

@@ -13,7 +13,7 @@
   document.documentElement.classList.add("js");
   try { var t = localStorage.getItem("atrium-docs-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
   // And whether the reader folded the sidebar away on a wide screen.
-  try { if (localStorage.getItem("atrium-docs-nav") === "folded") document.documentElement.classList.add("nav-folded"); } catch (e) {}
+  try { if (localStorage.getItem("atrium-docs-sidebar") === "folded") document.documentElement.classList.add("nav-folded"); } catch (e) {}
 </script>
 <link rel="stylesheet" href="{{.Root}}{{index .Assets "assets/style.css"}}">
 <script defer src="{{.Root}}{{index .Assets "assets/site.js"}}"></script>

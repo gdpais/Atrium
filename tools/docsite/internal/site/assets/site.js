@@ -33,6 +33,8 @@
   // ---------------------------------------------------------------- drawer
   // One menu button, two behaviours: on small screens it opens the sidebar as
   // a drawer; on wide screens it folds the sidebar away and remembers that.
+  // Its own key: "atrium-docs-nav" holds the collapsed menu groups (below).
+  var SIDEBAR_KEY = "atrium-docs-sidebar";
   function setupDrawer() {
     var button = document.querySelector(".menu-button");
     var sidebar = document.getElementById("sidebar");
@@ -51,7 +53,7 @@
     function setFolded(folded) {
       docEl.classList.toggle("nav-folded", folded);
       button.setAttribute("aria-expanded", String(!folded));
-      save("atrium-docs-nav", folded ? "folded" : null);
+      save(SIDEBAR_KEY, folded ? "folded" : null);
     }
     // aria-expanded says whether the sidebar shows in the current layout.
     function sync() {
