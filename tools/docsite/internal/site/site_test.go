@@ -392,3 +392,65 @@ func TestWriteRemovesStaleFiles(t *testing.T) {
 		t.Error("Write must remove files and directories the build no longer produces")
 	}
 }
+
+var (
+	logoPathPattern  = regexp.MustCompile(`<path [^>]*?(?:fill="(#[0-9A-Fa-f]{6})"|class="lg-([a-z-]+)") d="([^"]+)"`)
+	logoTokenPattern = regexp.MustCompile(`--logo-([a-z-]+):\s*(#[0-9a-f]{6});`)
+)
+
+// TestHeaderLogoMatchesBrand keeps the header logo inlined in page.html in
+// step with its sources: the paths must be those of docs/brand/logo.svg, in
+// the same order, and the --logo-* tokens must carry the fills of logo.svg in
+// the light theme and of logo-dark.svg in both dark blocks of style.css.
+func TestHeaderLogoMatchesBrand(t *testing.T) {
+	read := func(name string) string {
+		t.Helper()
+		data, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	brand := filepath.Join("..", "..", "..", "..", "docs", "brand")
+	light := logoPathPattern.FindAllStringSubmatch(read(filepath.Join(brand, "logo.svg")), -1)
+	dark := logoPathPattern.FindAllStringSubmatch(read(filepath.Join(brand, "logo-dark.svg")), -1)
+
+	page := read(filepath.Join("assets", "page.html"))
+	start := strings.Index(page, `<svg class="brand-logo"`)
+	if start < 0 {
+		t.Fatal("page.html has no header logo (svg.brand-logo)")
+	}
+	header := logoPathPattern.FindAllStringSubmatch(page[start:start+strings.Index(page[start:], "</svg>")], -1)
+	if len(light) == 0 || len(header) != len(light) || len(dark) != len(light) {
+		t.Fatalf("path counts differ: header %d, logo.svg %d, logo-dark.svg %d", len(header), len(light), len(dark))
+	}
+
+	// The tokens appear three times: the light theme, the dark media query
+	// and the explicit dark theme.
+	var themes []map[string]string
+	for i, m := range logoTokenPattern.FindAllStringSubmatch(read(filepath.Join("assets", "style.css")), -1) {
+		if i%8 == 0 {
+			themes = append(themes, map[string]string{})
+		}
+		themes[len(themes)-1][m[1]] = m[2]
+	}
+	if len(themes) != 3 {
+		t.Fatalf("style.css defines the --logo-* tokens in %d blocks, want 3", len(themes))
+	}
+
+	for i, h := range header {
+		class := h[2]
+		if class == "" {
+			t.Errorf("header path %d has a fixed fill, want an lg-* class", i)
+			continue
+		}
+		if h[3] != light[i][3] {
+			t.Errorf("header path %d (lg-%s) differs from logo.svg", i, class)
+		}
+		for j, want := range []string{light[i][1], dark[i][1], dark[i][1]} {
+			if got := themes[j][class]; got != strings.ToLower(want) {
+				t.Errorf("--logo-%s in block %d of style.css is %q, want %q", class, j+1, got, strings.ToLower(want))
+			}
+		}
+	}
+}

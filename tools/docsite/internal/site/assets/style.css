@@ -28,6 +28,15 @@
   --shadow-lg: 0 28px 70px rgba(30, 20, 10, 0.28);
   --backdrop: rgba(28, 27, 24, 0.38);
   --diagram-bg: #ffffff;
+  /* Header logo: the fills of docs/brand/logo.svg, and of logo-dark.svg in dark. */
+  --logo-stone: #302b25;
+  --logo-joint: #60574b;
+  --logo-band: #51473d;
+  --logo-ring-l: #817568;
+  --logo-ring-r: #695f52;
+  --logo-key: #b85535;
+  --logo-key-in: #8f3c28;
+  --logo-ink: #25221d;
 
   --topbar-height: 3.5rem;
   --sidebar-width: 17.5rem;
@@ -69,6 +78,14 @@
     --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.6);
     --backdrop: rgba(0, 0, 0, 0.55);
     --diagram-bg: #1f1e1b;
+    --logo-stone: #ede6d9;
+    --logo-joint: #baae9c;
+    --logo-band: #cec3b1;
+    --logo-ring-l: #a69c8a;
+    --logo-ring-r: #b9af9c;
+    --logo-key: #d67b5a;
+    --logo-key-in: #a95238;
+    --logo-ink: #f0eae0;
     color-scheme: dark;
   }
 }
@@ -97,6 +114,14 @@
   --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.6);
   --backdrop: rgba(0, 0, 0, 0.55);
   --diagram-bg: #1f1e1b;
+  --logo-stone: #ede6d9;
+  --logo-joint: #baae9c;
+  --logo-band: #cec3b1;
+  --logo-ring-l: #a69c8a;
+  --logo-ring-r: #b9af9c;
+  --logo-key: #d67b5a;
+  --logo-key-in: #a95238;
+  --logo-ink: #f0eae0;
   color-scheme: dark;
 }
 
@@ -154,8 +179,17 @@ kbd {
   color: var(--fg); text-decoration: none; font-size: 1.02rem; line-height: 1;
 }
 .brand:hover { text-decoration: none; }
-.brand-mark { display: inline-grid; place-items: center; width: 1.85rem; height: 1.85rem; flex: none; }
-.brand-name { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.01em; }
+.brand-logo { display: block; flex: none; height: 1.85rem; width: auto; }
+.lg-stone { fill: var(--logo-stone); }
+.lg-joint { fill: var(--logo-joint); }
+.lg-band { fill: var(--logo-band); }
+.lg-ring-l { fill: var(--logo-ring-l); }
+.lg-ring-r { fill: var(--logo-ring-r); }
+.lg-key { fill: var(--logo-key); }
+.lg-key-in { fill: var(--logo-key-in); }
+.lg-ink { fill: var(--logo-ink); }
+/* Forced colours keep SVG fills, so a theme pinned against the system's would hide the logo. */
+@media (forced-colors: active) { .brand-logo path { fill: CanvasText; } }
 .brand-sub {
   margin-left: -0.1rem; padding: 0.2rem 0.45rem; border-radius: 999px;
   font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; color: var(--accent); background: var(--accent-soft);
