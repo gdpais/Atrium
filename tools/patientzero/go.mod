@@ -2,7 +2,7 @@
 // the product's module, images and releases (ADR 0010).
 module atrium/tools/patientzero
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
