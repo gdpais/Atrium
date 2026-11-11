@@ -10,8 +10,8 @@ shared validation inventory [16] throughout rather than as a final stage.
 | --- | --- | --- |
 | 0 | Foundations, including kind + Helm delivery | Done |
 | 1 | DB collector (SQL Server) | Done |
-| 2 | OutSystems ingest (OutSystems 11 log extraction) | At its exit: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. Left: the release, which waits for the owner to create the release app [0.5] |
-| 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `atrium-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); runs without waiting for phase 2's release |
+| 2 | OutSystems ingest (OutSystems 11 log extraction) | Done: everything it builds is done ([ADR 0008](../architecture/decisions/0008-outsystems-11-log-extraction.md)), and the stage validation passed on 2026-11-02: the nightly run of every scenario has been green since 2026-10-28, and the 48 hour backfill matched its known answer in that workflow on 2026-11-02. It ended with its release, [`v0.2.0`](https://github.com/gdpais/Atrium/releases/tag/v0.2.0), on 2026-11-10 [0.5] |
+| 3 | API / control plane | At its exit: the service bootstrap is done [4.1]: the chart deploys the API with its PostgreSQL and Valkey, migrating in an init container, its logs, metrics and traces wired like the collector's; audit records reach Loki through an outbox [4.10]; login, sessions, users and roles [4.2]; the inventory of environments, applications and components [4.3]; telemetry sources, with whether the collector observes them [4.4]; database targets, probe definitions and probe assignments, approved into `managedCollectors` and applied on kind [4.5]; Grafana deep links [4.9]. The stage validation passed on 2026-11-08 on kind, on API-managed rows: PatientZero is managed by the inventory file since ADR 0021. Left: ADR 0014's pull requests to `atrium-deploy`, only if production needs probe assignments managed by the API [18]; investigation, alerting and reporting APIs move to phase 7 [4.6–4.8]. Planned into pull-request-sized slices [4]; decisions recorded in ADRs [0013](../architecture/decisions/0013-api-design-and-subsystem-boundaries.md)–[0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md); started before phase 2's release |
 | 4 | Inventory as code | At its exit: [ADR 0021](../architecture/decisions/0021-inventory-as-code-and-no-web-ui.md) replaces the Web UI, whose first screens were built and removed. The inventory file has a schema and an offline check, `api inventory check` [5.1]; one writer per row, and the API applies the file it is given [5.2]; the chart mounts it and kind onboards PatientZero from it [5.2]; `api inventory render` renders its probes to `managedCollectors` offline [5.2]; Grafana lists the inventory beside its health, from the API's info metrics [5.3]; kind's inventory declares PatientZero's database target [5.2]; a guide onboards by pull request [5.3]. The stage validation passed on 2026-11-07 on kind. Deferred: custom probe definitions in the file, until a target needs one [17]. Left: tokens for machine clients when the first one needs them [5.3] |
 | 5 | Production delivery (EKS + Argo CD) | In progress: the platform is chosen ([ADR 0019](../architecture/decisions/0019-keep-grafana-and-share-telemetry-as-otlp.md)); the `atrium-deploy` config repository with its CI and Argo CD Application, and TLS on the collector's OTLP exporter and admin endpoints, are built [18]. Left: the **Owner**'s ruleset on `atrium-deploy`, the AWS infrastructure (EKS, RDS, ElastiCache, ECR, External Secrets), receivers and the dead-man's switch, Alertmanager's rollout policy [9.4], the compliance sign-off [9.2] |
 | 6 | Complete application and database product workflows | Triaged 2026-11-09: onboarding, the SQL Server signals and the overview dashboards already shipped in phases 1–4. Left: linking an application to its database targets with an application health dashboard [10.5], query and field checks on kind [10.2, 10.3], a safe reachability check [11.1], error events and per-NUMA page life expectancy [11.2], detail dashboards [11.3]. Runs while phase 5 waits on owner actions |
@@ -83,8 +83,8 @@ phases 3 and 4, investigations, alerts and reports in phase 7.
   and installs from the [install guide](../guides/install-from-release.md)
   ([ADR 0006](../architecture/decisions/0006-trunk-based-development-and-tagged-releases.md)) [0.5]
 
-Open housekeeping: the release GitHub App and the tag-creation ruleset wait for
-the end of phase 2
+The release GitHub App and the tag-creation ruleset were set up on 2026-11-09,
+at the end of phase 2
 ([ADR 0006](../architecture/decisions/0006-trunk-based-development-and-tagged-releases.md)) [0.5].
 
 ## Phase 1 — DB collector (done)
@@ -118,7 +118,7 @@ versioning with them [4.5], and evidence publication in phase 7 [12.4]. A
 failing probe fails only itself since 2026-10-27: its target stays up and
 keeps collecting while the probe backs off on its own [2.6].
 
-## Phase 2 — OutSystems ingest
+## Phase 2 — OutSystems ingest (done)
 
 OutSystems 11 self-managed first. Its logs are read from the logging database
 by a new db-collector kind
@@ -182,8 +182,9 @@ page to the failing request's timeline and its Loki message, and from a slow
 screen to its slow requests
 ([walk](../guides/live-demo.md#follow-a-broken-deploy-to-its-request)) [16.5].
 
-Left before the release: **Owner:** create the release GitHub App, needed since
-2026-10-05 [0.5].
+Released: the release GitHub App was created on 2026-11-09, and release-please
+cut [`v0.2.0`](https://github.com/gdpais/Atrium/releases/tag/v0.2.0) from the
+commits since `v0.1.0` on 2026-11-10 [0.5].
 
 Not in the exit, and done alongside phase 3: a series budget [2.6],
 collector egress and exposure [2.7], unknown keys in component values [0.4]
@@ -201,8 +202,7 @@ audit records through an outbox to Loki
 ([ADR 0016](../architecture/decisions/0016-audit-records-through-an-outbox.md)),
 OutSystems sources as application identity mappings
 ([ADR 0017](../architecture/decisions/0017-outsystems-sources-map-application-identity.md)).
-Its prerequisites are done, so it starts while phase 2's release waits for
-the release app.
+Its prerequisites were done, so it started before phase 2's release.
 
 In order, one pull request each:
 

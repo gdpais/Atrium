@@ -9,9 +9,9 @@ Core delivery order: **DB collector → OutSystems ingest → API/control plane 
 (sections 2–5), after foundations and schema prerequisites (sections 0–1). Later-service
 integrations are explicitly identified below; they do not block independent
 stage work, but they do block end-to-end completion of the dependent feature.
-Stage 3 does not wait for stage 2's release: its decisions are recorded
-(ADRs 0013–0017) and its prerequisites are done, so it starts while the
-release waits for the release app [0.5].
+Stage 2 ended with its release, `v0.2.0`, on 2026-11-10 [0.5]; stage 3 had
+started before it, since its decisions were recorded (ADRs 0013–0017) and its
+prerequisites were done.
 
 Test each implementation action as it lands. Section 16 is a shared validation
 inventory used throughout delivery, not a final testing stage. Remaining
@@ -89,10 +89,10 @@ the rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
 - [x] Change-based CI: slow jobs run only when a change can affect them, every job on `master`; one required check, `ci-ok` ([ADR 0007](docs/architecture/decisions/0007-change-based-ci-with-one-required-check.md))
 - [x] Switch the `master` ruleset's required checks from `test`, `Helm chart` and `kind end-to-end` to `ci-ok`
 - [x] Pin GitHub Actions by commit SHA, kept current by Renovate; `make test` fails on an unpinned `uses:` ([CONTRIBUTING.md](CONTRIBUTING.md#ci))
-- [ ] **Owner** (needed since 2026-10-05): create the release GitHub App; set `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY` ([setup](CONTRIBUTING.md#releases)). Until then the release-please job is skipped and no releases are cut, not even by hand; the first release pull request then covers every Conventional Commit since `v0.1.0`
+- [x] **Owner**: create the release GitHub App; set `RELEASE_APP_CLIENT_ID` and `RELEASE_APP_PRIVATE_KEY` ([setup](CONTRIBUTING.md#releases)). Done 2026-11-09; release-please's pull request covered every Conventional Commit since `v0.1.0` and cut [`v0.2.0`](https://github.com/gdpais/Atrium/releases/tag/v0.2.0) on 2026-11-10, its images and chart published with their digests by the `release` workflow
 - [ ] At `1.0.0`, the first production release: remove `"prerelease": true` from `release-please-config.json`
 - [x] Tag ruleset on all tags (not only `v*`, so later component tags are covered): no updates or deletions
-- [ ] **Owner**, right after the release app exists: add a second tag ruleset on all tags, `Atrium-tag-creation`, with only *Restrict creations* and the release app in its bypass list, so the app can create tags but not move or delete them ([setup](CONTRIBUTING.md#releases))
+- [x] **Owner**, right after the release app exists: add a second tag ruleset on all tags, `Atrium-tag-creation`, with only *Restrict creations* and the release app in its bypass list, so the app can create tags but not move or delete them ([setup](CONTRIBUTING.md#releases))
 - [x] First release, `v0.1.0`: tag the phase 1 merge commit `64ac1b6`, run the `release` workflow by hand for it, check the release notes list three digests
 - [x] Make the GHCR packages public: `heartbeat/db-collector`, `charts/heartbeat`, and `heartbeat/otel-gateway`, which only `v0.1.0` uses. Checked 2026-10-23 without credentials: an anonymous token from `ghcr.io/token` pulls each `0.1.0` manifest (HTTP 200; 403 for a package that does not exist)
 - [x] Make the published release installable (usability test of `v0.1.0`, 2026-10-22): the chart defaults to the GHCR image, kept in step with `release.yml` by a test; `NOTES.txt` names the Secrets the chart needs and how to check the install; a chart README for `helm show readme`; the [install guide](docs/guides/install-from-release.md) covers the Secrets, image digests, SQL Server targets through `helm upgrade`, upgrades and what `helm uninstall` leaves behind; T-SQL for the collector login
