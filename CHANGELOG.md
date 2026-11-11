@@ -12,6 +12,14 @@ messages written as [Conventional Commits](https://www.conventionalcommits.org/e
 request instead. See [CONTRIBUTING.md](CONTRIBUTING.md#releases) and
 [ADR 0006](docs/architecture/decisions/0006-trunk-based-development-and-tagged-releases.md).
 
+## [0.2.1](https://github.com/gdpais/Atrium/compare/v0.2.0...v0.2.1) (2026-11-11)
+
+
+### Fixed
+
+* **deps:** build with Go 1.27.4 for GO-2026-6859 ([e295984](https://github.com/gdpais/Atrium/commit/e2959846169d48db2ceab221f7275c1d11690596))
+* **deps:** build with Go 1.27.4 for GO-2026-6859 ([5acdb88](https://github.com/gdpais/Atrium/commit/5acdb88e2650da5af7618f62a7f988176c9fe229))
+
 ## [0.2.0](https://github.com/gdpais/Atrium/compare/v0.1.0...v0.2.0) (2026-11-10)
 
 
