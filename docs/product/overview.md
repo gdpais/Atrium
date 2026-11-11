@@ -93,10 +93,10 @@ list.
 | Area | Status |
 | --- | --- |
 | Shared contracts, PostgreSQL schema | Done |
-| Kubernetes delivery: one Helm chart for kind, CI and production; kind workflow and acceptance tests | Done for kind and CI; `v0.1.0` is published on GHCR and the next release waits for the release app [0.5]; production (EKS, Argo CD) is phase 5 |
+| Kubernetes delivery: one Helm chart for kind, CI and production; kind workflow and acceptance tests | Done for kind and CI; `v0.2.0` is published on GHCR, cut by release-please through the release app [0.5]; production (EKS, Argo CD) is phase 5 |
 | SQL Server DB collector (probes, hot reload, failure isolation, readiness) | Done: secured endpoints, least-privilege login, counters and self-metrics, CPU, buffer cache and file I/O signals, per-probe failure isolation |
 | OTel Collector, Prometheus, Loki, Tempo, Grafana, Alertmanager | Provisioned by the chart; alerts reach Alertmanager (with a Watchdog) but notify no one until an environment configures a receiver; chat receivers only in the production example |
-| OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; left: the release |
+| OutSystems 11 log extraction (`outsystems_logs` collector kind) | Built and validated: extraction to Loki, derived metrics, SLO burn-rate alerts and dashboards, each query reviewed against a real logging database's schema; released in `v0.2.0` |
 | Atrium's own telemetry | Done: metrics, logs over OTLP and traces in Tempo, with the *Atrium Service* dashboard and its SLOs ([ADR 0018](../architecture/decisions/0018-atriums-own-telemetry.md)) |
 | API | Deployed by the chart with PostgreSQL and Valkey: login, users and roles; environments, applications and components; telemetry sources; database targets, probe definitions and assignments rendered to `managedCollectors`; Grafana deep links; audit records in Loki. Validated on kind on 2026-11-08 |
 | Inventory as code (replaces the Web UI) | Done and validated on kind on 2026-11-07: the file's schema and `api inventory check`, one writer per row, the API applies the mounted file, kind declares PatientZero and its database target in it, `api inventory render` renders its probe assignments offline, and Grafana lists the inventory beside its health. Deferred: custom probe definitions in the file [17]; tokens for machine clients when the first one needs them |
