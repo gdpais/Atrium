@@ -5,7 +5,7 @@
 #   docker build -f tools/patientzero/Dockerfile .
 #
 # A test tool: never published, never part of a release.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine AS build
 
 WORKDIR /src/tools/patientzero
 

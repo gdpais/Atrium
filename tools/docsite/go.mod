@@ -2,6 +2,6 @@
 // ships) does not depend on its Markdown parser.
 module atrium/tools/docsite
 
-go 1.27.3
+go 1.27.4
 
 require github.com/yuin/goldmark v1.8.7
