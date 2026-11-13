@@ -292,7 +292,7 @@ postgresql:
     # (infra/docker-compose.test.yml), and the newest major Amazon RDS
     # supports (tests/chart_engines_test.go).
     repository: postgres
-    tag: "18.6"
+    tag: "18.7"
     pullPolicy: IfNotPresent
   auth:
     # The superuser the image creates on first start, and owner of the
