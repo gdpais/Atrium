@@ -7,11 +7,11 @@ CURL_CHECK := curl -sS --fail-with-body --connect-timeout 2 --max-time 5 -w '\n'
 # minor Amazon EKS supports; kubectl must stay within one minor of it.
 KIND_VERSION := v0.33.0
 KIND_NODE_IMAGE := kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
-HELM_MIN_VERSION := v4.3.1
+HELM_MIN_VERSION := v4.3.2
 # Exact versions CI installs (make install-tools). Helm 3 only checks that the
 # chart still renders with it (ADR 0005).
 KUBECTL_VERSION := v1.36.4
-HELM_VERSION := v4.3.1
+HELM_VERSION := v4.3.2
 HELM3_VERSION := v3.22.1
 # go run fetches this exact version and checks it against the Go checksum
 # database, so there is nothing to install.
@@ -33,7 +33,7 @@ CHART_DIR := infra/helm/atrium
 # full: every component. minimal: collector, Prometheus, Alertmanager, Grafana.
 PROFILE ?= full
 # promtool comes from the same image as the Prometheus server.
-PROMETHEUS_IMAGE := prom/prometheus:v3.15.1
+PROMETHEUS_IMAGE := prom/prometheus:v3.16.0
 # The HTML docs link source files (Go, YAML, SQL, ...) to this repository URL.
 DOCS_REPO_URL := https://github.com/gdpais/Atrium
 DOCS_REPO_REF := master
