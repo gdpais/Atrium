@@ -12,6 +12,14 @@ messages written as [Conventional Commits](https://www.conventionalcommits.org/e
 request instead. See [CONTRIBUTING.md](CONTRIBUTING.md#releases) and
 [ADR 0006](docs/architecture/decisions/0006-trunk-based-development-and-tagged-releases.md).
 
+## [0.2.2](https://github.com/gdpais/Atrium/compare/v0.2.1...v0.2.2) (2026-11-15)
+
+
+### Fixed
+
+* **deps:** update non-major dependencies ([0adcc32](https://github.com/gdpais/Atrium/commit/0adcc3202125612d90130129bc9b5beb5358edc0))
+* **deps:** update non-major dependencies ([c4587e1](https://github.com/gdpais/Atrium/commit/c4587e152373e9dba4cf0301196ade9cff628531))
+
 ## [0.2.1](https://github.com/gdpais/Atrium/compare/v0.2.0...v0.2.1) (2026-11-11)
 
 
