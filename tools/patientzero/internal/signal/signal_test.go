@@ -84,6 +84,35 @@ func TestPromQLScalarAndEmpty(t *testing.T) {
 	}
 }
 
+func TestPromQLNaNAndInfAreNoValue(t *testing.T) {
+	// histogram_quantile over a window with no traffic is NaN.
+	f := &fake{t: t, path: "/api/v1/query", body: `{"status":"success","data":{"resultType":"vector","result":[
+		{"metric":{"a":"1"},"value":[1761127200.5,"NaN"]},
+		{"metric":{"a":"2"},"value":[1761127200.5,"+Inf"]},
+		{"metric":{"a":"3"},"value":[1761127200.5,"-Inf"]}]}}`}
+	src := Sources{Prometheus: f.server().URL}
+	for _, cond := range []string{"> 1.5", "< 1.5", "!= 0", "present"} {
+		res, err := src.Evaluate(context.Background(), promSignal(cond), at)
+		if err != nil || res.Pass || res.Series != 0 || len(res.Values) != 0 {
+			t.Fatalf("NaN/Inf, %s: %+v, %v; want fail with no values", cond, res, err)
+		}
+	}
+	if res, err := src.Evaluate(context.Background(), promSignal("absent"), at); err != nil || !res.Pass {
+		t.Fatalf("NaN/Inf, absent: %+v, %v; want pass", res, err)
+	}
+	// A finite series next to a NaN one is checked alone.
+	f.body = `{"status":"success","data":{"resultType":"vector","result":[
+		{"metric":{"a":"1"},"value":[1761127200.5,"NaN"]},
+		{"metric":{"a":"2"},"value":[1761127200.5,"2"]}]}}`
+	if res, err := src.Evaluate(context.Background(), promSignal("> 1.5"), at); err != nil || !res.Pass || !slices.Equal(res.Values, []float64{2}) {
+		t.Fatalf("NaN and 2, > 1.5: %+v, %v; want pass on [2]", res, err)
+	}
+	f.body = `{"status":"success","data":{"resultType":"scalar","result":[1761127200,"NaN"]}}`
+	if res, err := src.Evaluate(context.Background(), promSignal("< 1"), at); err != nil || res.Pass || len(res.Values) != 0 {
+		t.Fatalf("NaN scalar: %+v, %v; want fail with no values", res, err)
+	}
+}
+
 func TestPromQLErrors(t *testing.T) {
 	f := &fake{t: t, path: "/api/v1/query", status: http.StatusBadRequest,
 		body: `{"status":"error","errorType":"bad_data","error":"parse error"}`}

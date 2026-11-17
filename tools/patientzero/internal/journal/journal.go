@@ -83,8 +83,10 @@ func Create(dir, id string) (*Journal, error) {
 func (j *Journal) Path() string { return j.path }
 
 // Write appends one event at time at with data, a value that marshals to a
-// JSON object. After a failed write every later write fails with the same
-// error, so a journal never has a gap in its sequence numbers.
+// JSON object. An event that does not encode (a NaN, say) is not written and
+// its error returned; it takes no sequence number, so later events are still
+// written. After a failed write to the file every later write fails with the
+// same error, so a journal never has a gap in its sequence numbers.
 func (j *Journal) Write(at time.Time, event string, data any) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -93,15 +95,13 @@ func (j *Journal) Write(at time.Time, event string, data any) error {
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {
-		j.err = fmt.Errorf("journal: %s: %w", event, err)
-		return j.err
+		return fmt.Errorf("journal: %s: %w", event, err)
+	}
+	line, err := json.Marshal(Line{V: Version, Seq: j.seq + 1, Time: at.UTC(), Run: j.run, Event: event, Data: raw})
+	if err != nil {
+		return fmt.Errorf("journal: %s: %w", event, err)
 	}
 	j.seq++
-	line, err := json.Marshal(Line{V: Version, Seq: j.seq, Time: at.UTC(), Run: j.run, Event: event, Data: raw})
-	if err != nil {
-		j.err = fmt.Errorf("journal: %s: %w", event, err)
-		return j.err
-	}
 	if _, err := j.f.Write(append(line, '\n')); err != nil {
 		j.err = fmt.Errorf("journal: %w", err)
 	}

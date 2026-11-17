@@ -831,8 +831,14 @@ cmd_scenario() {
 	seen=
 	while :; do
 		admin_retry status /admin/run --fail || die "GET /admin/run failed"
-		[ "$(printf '%s' "$status" | jq -r .run)" = "$run" ] || die "PatientZero reports another run; was it restarted?"
-		state=$(printf '%s' "$status" | jq -r .state)
+		state=$(printf '%s' "$status" | jq -r '.state // empty' 2>/dev/null) ||
+			die "PatientZero's status for run $run is not JSON: $(printf '%s' "$status" | head -c 300)"
+		reported=$(printf '%s' "$status" | jq -r '.run // empty')
+		if [ "$reported" != "$run" ]; then
+			[ "$state" != idle ] || die "PatientZero has no run, not $run; was it restarted?"
+			[ -n "$reported" ] || die "PatientZero's status has no run id (state ${state:-none}): $(printf '%s' "$status" | head -c 300)"
+			die "PatientZero reports run $reported, not $run; was it restarted?"
+		fi
 		# Each step once, then each check as it settles.
 		for line in $(printf '%s' "$status" | jq -r '(if .step then "step:" + .step else empty end),
 			(.checks[] | select(.result != "pending") | "check:" + .signal + ":" + .result)'); do

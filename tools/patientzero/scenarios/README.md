@@ -184,7 +184,10 @@ Each signal reads exactly one source:
 `condition` (query signals) is `present`, `absent`, or a comparison
 (`>`, `>=`, `<`, `<=`, `==`, `!=` and a number). A comparison must hold for
 every series the query returns, and never holds for none: write the query so
-it returns the series you mean (`sum(...)` for one). `state` (alert signals)
+it returns the series you mean (`sum(...)` for one). A series whose value is
+`NaN` or `±Inf` (`histogram_quantile` or a ratio over a window with no
+traffic yet) counts as no series: a comparison does not hold yet and the
+check keeps polling, and `absent` holds. `state` (alert signals)
 is `firing` (at least one such alert active) or `resolved` (none).
 
 A window opens at its planned time from the start of the run, but never

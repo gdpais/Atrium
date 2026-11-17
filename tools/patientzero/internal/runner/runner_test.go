@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -85,6 +86,9 @@ func newEnv(t *testing.T, files ...string) *env {
 		v := "0.03"
 		if active() {
 			v = "0.5"
+		} else if r.FormValue("query") == "p95_no_traffic" {
+			// A quantile over a window with no traffic.
+			v = "NaN"
 		}
 		fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[0,"%s"]}]}}`, v)
 	}))
@@ -378,6 +382,52 @@ func TestSignalThatNeverHoldsFailsTheRun(t *testing.T) {
 	}
 }
 
+// A NaN value (no traffic yet) is no value: the check keeps polling, and
+// the journal stays valid JSON.
+func TestNaNValueIsNoValueAndKeepsPolling(t *testing.T) {
+	e := newEnv(t, fmt.Sprintf(scenarioTemplate, "nan", "150ms", "errors", "{ratio: 1}", `
+  - name: p95-above-slo
+    promql: p95_no_traffic
+    condition: "> 0.3"
+    within: 400ms
+  - name: p95-nan-never-holds
+    promql: p95_no_traffic
+    condition: "> 0.3"
+    from: end
+    within: 60ms
+`))
+	st, err := e.runner.Start("nan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.runner.Wait()
+	st, _ = e.runner.Status()
+	if st.State != StateFailed || st.Error != "" {
+		t.Fatalf("state %s (%q), want failed with no error", st.State, st.Error)
+	}
+	checks := events(e.journal(st.Run), journal.Check)
+	if len(checks) != 2 {
+		t.Fatalf("%d check events, want 2", len(checks))
+	}
+	for _, c := range checks {
+		values := c.data["values"].([]any)
+		switch c.data["signal"] {
+		case "p95-above-slo":
+			// NaN during warm, 0.5 once the fault is on.
+			if c.data["result"] != ResultPass || len(values) != 1 || values[0] != 0.5 {
+				t.Errorf("p95-above-slo: %v", c.data)
+			}
+		case "p95-nan-never-holds":
+			if c.data["result"] != ResultFail || len(values) != 0 || c.data["attempts"].(float64) < 2 || c.data["error"] != nil {
+				t.Errorf("p95-nan-never-holds: %v", c.data)
+			}
+		}
+	}
+	if ends := events(e.journal(st.Run), journal.RunEnd); len(ends) != 1 || ends[0].data["state"] != StateFailed {
+		t.Fatalf("run_end %v", ends)
+	}
+}
+
 func TestStopEndsTheRun(t *testing.T) {
 	e := newEnv(t, fmt.Sprintf(scenarioTemplate, "long", "1h", "latency", "{delay: 1s}", passingSignals))
 	if _, err := e.runner.Start("long"); err != nil {
@@ -612,5 +662,16 @@ func TestDeliveryCheckCountsTheRowsOfItsSteps(t *testing.T) {
 	}
 	if first := delivery[0].(map[string]any); first["log_type"] != "screen" || first["loki"] != 7.0 || first["expected"] != 7.0 {
 		t.Errorf("screen count %v", first)
+	}
+}
+
+// A response that does not encode is a 500 with the reason, never a 200
+// with an empty body a caller would read as no run.
+func TestUnencodableResponseIsAnError(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeJSON(w, http.StatusOK, map[string]float64{"v": math.NaN()})
+	var body map[string]string
+	if w.Code != http.StatusInternalServerError || json.Unmarshal(w.Body.Bytes(), &body) != nil || !strings.Contains(body["error"], "NaN") {
+		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }

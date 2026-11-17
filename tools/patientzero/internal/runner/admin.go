@@ -94,10 +94,17 @@ func (r *Runner) Handler(token string) http.Handler {
 	})
 }
 
+// writeJSON encodes v before writing the status, so a value that cannot
+// be encoded is a 500 with the reason, not a 200 with an empty body.
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		status = http.StatusInternalServerError
+		b, _ = json.Marshal(map[string]string{"error": "encoding the response: " + err.Error()})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(append(b, '\n'))
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

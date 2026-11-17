@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -118,5 +119,32 @@ func TestListAndPrune(t *testing.T) {
 	}
 	if none, err := List(filepath.Join(dir, "missing")); err != nil || none != nil {
 		t.Fatalf("missing dir: %v, %v", none, err)
+	}
+}
+
+// An event that does not encode is not written and takes no sequence
+// number; the events after it still are.
+func TestUnencodableEventDoesNotBreakTheJournal(t *testing.T) {
+	dir := t.TempDir()
+	j, err := Create(dir, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Write(t0, Check, map[string]any{"values": []float64{math.NaN()}}); err == nil {
+		t.Fatal("NaN check: no error")
+	}
+	if err := j.Write(t0, RunEnd, map[string]string{"state": "error"}); err != nil {
+		t.Fatalf("run_end after a NaN: %v", err)
+	}
+	if err := j.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, run+Ext))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var l Line
+	if err := json.Unmarshal(b, &l); err != nil || l.Seq != 1 || l.Event != RunEnd {
+		t.Fatalf("journal %q (%v), want one run_end line with seq 1", b, err)
 	}
 }
