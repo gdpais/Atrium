@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -339,7 +340,10 @@ func (s Sources) lokiQuery(ctx context.Context, base, query string, at time.Time
 
 // values reads an instant query's result: the value of every series of a
 // vector, or a scalar. Loki answers a log query (no metric) on its instant
-// endpoint with an error; a signal counts lines with count_over_time.
+// endpoint with an error; a signal counts lines with count_over_time. A
+// sample that is NaN or ±Inf (histogram_quantile or a ratio over a window
+// with no traffic) is no value: it is left out, as if its series were
+// missing, so a comparison does not hold yet and the check keeps polling.
 func values(r queryResponse) ([]float64, error) {
 	if r.Status != "success" {
 		return nil, fmt.Errorf("query failed: %s", r.Error)
@@ -358,7 +362,9 @@ func values(r queryResponse) ([]float64, error) {
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, f)
+			if finite(f) {
+				out = append(out, f)
+			}
 		}
 		return out, nil
 	case "scalar":
@@ -370,6 +376,9 @@ func values(r queryResponse) ([]float64, error) {
 		if err != nil {
 			return nil, err
 		}
+		if !finite(f) {
+			return []float64{}, nil
+		}
 		return []float64{f}, nil
 	case "streams":
 		return nil, errors.New("the query returns log lines; a signal needs a metric query such as sum(count_over_time(...))")
@@ -378,6 +387,8 @@ func values(r queryResponse) ([]float64, error) {
 	}
 	return nil, fmt.Errorf("unknown result type %q", r.Data.ResultType)
 }
+
+func finite(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 
 func sampleValue(raw json.RawMessage) (float64, error) {
 	var s string
