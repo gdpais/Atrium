@@ -46,6 +46,11 @@ metadata:
     app.kubernetes.io/component: grafana-dashboards
     # Discovery label for Grafana's dashboard sidecar in shared Grafanas.
     grafana_dashboard: "1"
+  annotations:
+    # The dashboards are over 256 KiB, the most a client-side apply can keep
+    # in its last-applied-configuration annotation, so Argo CD's default
+    # sync would fail on this ConfigMap. Server-side apply keeps no copy.
+    argocd.argoproj.io/sync-options: ServerSideApply=true
 data:
   {{- range $path, $_ := .Files.Glob "files/grafana/dashboards/*.json" }}
   {{ base $path }}: |
