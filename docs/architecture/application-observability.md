@@ -289,8 +289,8 @@ Apdex: (satisfied + tolerating / 2) / requests, over screens and Reactive
 server calls (timers and exposed APIs are left out). A request is satisfied
 up to 3 s, tolerating up to 10 s and frustrated above. Both thresholds are
 edges of `atrium_outsystems_operation_duration_seconds`' buckets, so the
-module-level numbers are exact counts read from the buckets, not
-estimates, and the screen and action panels filter the log rows' `Duration`
+application and module Apdex is an exact count read from the buckets, not
+an estimate (their p95 still is one), and the screen and action panels filter the log rows' `Duration`
 at the same values, so the levels agree. The SQL dashboards these replace
 used 12 s for frustrated (4 × 3 s, Apdex's usual rule); 12 s is not a bucket
 edge, so it moved to 10 s, the planned edge below it. Adding a bucket would
