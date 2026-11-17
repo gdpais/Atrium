@@ -1,0 +1,326 @@
+<title>Atrium ROI Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>{{CSS}}</style>
+
+<div class="wrap" lang="en">
+  <header class="brand">
+    {{LOGO}}
+    <div>
+      <div class="brand-name">ATRIUM</div>
+      <div class="brand-sub">OutSystems performance analysis · ROI calculator</div>
+    </div>
+  </header>
+
+  <section class="intro">
+    <h1>An estimated drop from <span id="h-manual">6 h</span> to <span id="h-auto">1 h 15 min</span> per performance diagnosis</h1>
+    <p>Estimate what Atrium's automated performance analysis is worth to an OutSystems team in Portugal, and set it against what Atrium costs: developer hours on routine diagnoses, performance regressions caught right after each release, and, if you know it, the business cost of slow or failing apps. Change any figure to fit your team. All amounts are per year, in euros.</p>
+  </section>
+
+  <section aria-label="Annual result" style="display:grid; gap:12px">
+    <div class="seg-row">
+      <div class="seg" role="group" aria-label="Cost basis">
+        <button type="button" data-mode="simple" aria-pressed="true">Simplified</button>
+        <button type="button" data-mode="advanced" aria-pressed="false">Advanced</button>
+      </div>
+      <p class="mode-note" id="mode-note"></p>
+    </div>
+    <div class="headline">
+      <div>
+        <span class="eyebrow">Savings per year</span>
+        <span class="big accent num" id="o-total">€0</span>
+        <small id="o-total-sub">—</small>
+      </div>
+      <div>
+        <span class="eyebrow">Net after Atrium's cost</span>
+        <span class="big num" id="o-net">€0</span>
+        <small id="o-net-sub">—</small>
+      </div>
+      <div>
+        <span class="eyebrow">Break-even team size</span>
+        <span class="big num" id="o-be">—</span>
+        <small id="o-be-sub">—</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="main">
+    <form class="panel" id="inputs" autocomplete="off" novalidate>
+      <fieldset>
+        <legend><h2>Your team</h2></legend>
+        <div class="field">
+          <label for="devs">Developers<span>on OutSystems apps</span></label>
+          <div class="input"><input id="devs" type="number" min="0" step="1" inputmode="numeric"><span class="unit">devs</span></div>
+        </div>
+        <div class="field">
+          <label for="salary">Average gross salary<span>14 payments, per year</span></label>
+          <div class="input"><span class="pre">€</span><input id="salary" type="number" min="0" step="500" inputmode="numeric"></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="overhead">Employer social security<span>TSU, Portugal</span></label>
+          <div class="input"><input id="overhead" type="number" min="0" step="0.25" inputmode="decimal"><span class="unit">%</span></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="benefits">Other employer costs<span>meal allowance, insurance</span></label>
+          <div class="input"><span class="pre">€</span><input id="benefits" type="number" min="0" step="100" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="hours">Productive hours<span>per year, after leave, holidays and meetings</span></label>
+          <div class="input"><input id="hours" type="number" min="1" step="10" inputmode="numeric"><span class="unit">h</span></div>
+        </div>
+        <p class="derived" id="derived"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Diagnoses</h2></legend>
+        <div class="field">
+          <label for="perMonth">Diagnoses per developer<span>per month, reactive: incidents and complaints</span></label>
+          <div class="input"><input id="perMonth" type="number" min="0" step="0.05" inputmode="decimal"></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="valueAt">Value saved hours at<span>internal cost or billed rate</span></label>
+          <div class="input"><select id="valueAt"><option value="internal">Internal cost</option><option value="billed">Billed rate</option></select></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="billed">Billed rate<span>consultancy, per hour</span></label>
+          <div class="input"><span class="pre">€</span><input id="billed" type="number" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-diag"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Regressions from releases</h2></legend>
+        <div class="field">
+          <label for="releases">Releases to production<span>per year, from LifeTime</span></label>
+          <div class="input"><input id="releases" type="number" min="0" step="5" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="regShare">Releases with a regression<span>an action slower per execution</span></label>
+          <div class="input"><input id="regShare" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="detected">Caught by Atrium's release comparison<span>enough executions to be clear</span></label>
+          <div class="input"><input id="detected" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="baseline">Caught early today, without Atrium<span>tests, monitoring, a watchful developer</span></label>
+          <div class="input"><input id="baseline" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="lateH">Hours to fix when found late<span>diagnosis, hotfix, deploy</span></label>
+          <div class="input"><input id="lateH" type="number" min="0" step="1" inputmode="numeric"><span class="unit">h</span></div>
+        </div>
+        <div class="field">
+          <label for="earlyH">Hours to fix right after release<span>or a rollback</span></label>
+          <div class="input"><input id="earlyH" type="number" min="0" step="0.5" inputmode="decimal"><span class="unit">h</span></div>
+        </div>
+        <p class="derived" id="derived-debt"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Business impact <small>optional, your own figures</small></h2></legend>
+        <div class="field">
+          <label for="incidents">User-facing performance incidents<span>per year: slow or failing for users</span></label>
+          <div class="input"><input id="incidents" type="number" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="impactRate">Business cost per hour of an incident<span>from finance: lost sales, idle staff, SLA penalties</span></label>
+          <div class="input"><span class="pre">€</span><input id="impactRate" type="number" min="0" step="50" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-impact"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Investment</h2></legend>
+        <div class="field">
+          <label for="atriumCost">Atrium cost per year<span>licence, setup and support</span></label>
+          <div class="input"><span class="pre">€</span><input id="atriumCost" type="number" min="0" step="1000" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-cost"></p>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" class="btn" id="reset">Reset to defaults</button>
+      </div>
+    </form>
+
+    <div class="panel">
+      <section class="card" aria-labelledby="t-steps">
+        <div style="display:grid; gap:4px">
+          <h2 id="t-steps">Minutes per diagnosis</h2>
+          <p class="muted" style="font-size:0.88rem">One person, one slow screen or action, from symptom to written finding. Estimates until timed in a pilot. Edit any cell.</p>
+        </div>
+        <div class="chart" id="chart" aria-hidden="true"></div>
+        <div class="legend" id="legend"></div>
+        <div class="table-wrap">
+          <table id="steps">
+            <thead><tr><th scope="col">Step</th><th scope="col">Manual</th><th scope="col">Automated</th></tr></thead>
+            <tbody></tbody>
+            <tfoot><tr><td>Total</td><td id="tot-manual">0</td><td id="tot-auto">0</td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-annual">
+        <h2 id="t-annual">Per year</h2>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              <tr><td>Time saved per diagnosis</td><td class="mono" id="r-perdiag"></td></tr>
+              <tr><td>Hours saved on diagnoses</td><td class="mono" id="r-hours"></td></tr>
+              <tr><td class="sub">Value of those hours</td><td class="mono" id="r-time"></td></tr>
+              <tr><td>Extra regressions caught early</td><td class="mono" id="r-regs"></td></tr>
+              <tr><td>Hours saved on regressions</td><td class="mono" id="r-reghours"></td></tr>
+              <tr><td class="sub">Value of those hours</td><td class="mono" id="r-debt"></td></tr>
+              <tr><td>Business impact avoided</td><td class="mono" id="r-impact"></td></tr>
+              <tr class="total-row"><td>Total savings</td><td class="mono" id="r-total"></td></tr>
+              <tr><td>Atrium cost</td><td class="mono" id="r-cost"></td></tr>
+              <tr class="total-row"><td>Net</td><td class="mono" id="r-net"></td></tr>
+              <tr><td>Return on investment</td><td class="mono" id="r-roi"></td></tr>
+              <tr><td>Developer time freed</td><td class="mono" id="r-freed"></td></tr>
+              <tr><td id="r-pct-label">Share of team gross salaries</td><td class="mono" id="r-pct"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-scen">
+        <div style="display:grid; gap:4px">
+          <h2 id="t-scen">Conservative and expected</h2>
+          <p class="muted" style="font-size:0.88rem">Conservative halves the two figures that are still estimates: the minutes Atrium saves per diagnosis and the extra regressions it catches.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col"></th><th scope="col">Conservative</th><th scope="col">Expected</th></tr></thead>
+            <tbody>
+              <tr><td>Savings per year</td><td class="mono" id="sc-c-sav"></td><td class="mono" id="sc-e-sav"></td></tr>
+              <tr><td>Net after Atrium's cost</td><td class="mono" id="sc-c-net"></td><td class="mono" id="sc-e-net"></td></tr>
+              <tr><td>Savings cover Atrium's cost</td><td class="mono" id="sc-c-cov"></td><td class="mono" id="sc-e-cov"></td></tr>
+              <tr><td>Break-even team size</td><td class="mono" id="sc-c-be"></td><td class="mono" id="sc-e-be"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-share">
+        <h2 id="t-share">Summary for an email or proposal</h2>
+        <textarea id="summary-text" readonly aria-label="Summary text"></textarea>
+        <div class="actions">
+          <button type="button" class="btn primary" id="copy">Copy summary</button>
+          <span class="status" id="copy-status" role="status"></span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="notes" aria-labelledby="t-notes">
+    <h2 id="t-notes">How the numbers are worked out</h2>
+    <p class="callout">The step times, the share of releases with a regression and the hours to fix are estimates, not measurements. Before quoting a figure to a client, time two or three real diagnoses by hand and with Atrium, and run the release comparison over past releases in a pilot, then enter those numbers.</p>
+    <ul>
+      <li><strong>Manual diagnosis.</strong> A developer works through the Service Center reports (slow screens and actions, slow SQL, errors), exports them, links each slow query back to the action that ran it, checks the query plan, often with a DBA, and writes up the finding.</li>
+      <li><strong>Automated.</strong> Atrium's performance analysis opens on an action and lists the queries it ran with their cost, next to the application's latency, errors and logs. The slowest manual step takes minutes. Atrium also shows SQL Server waits, blocking, I/O and memory in the same time window, so it is clear whether the problem is the query or the server; the developer still reads the execution plan and writes the cause and the recommendation.</li>
+      <li><strong>Simplified and Advanced use the same model.</strong> They differ only in the cost of an hour. Simplified: gross salary ÷ productive hours, which leaves out what the company pays on top of the salary, so its savings are always a floor. Advanced: gross salary × (1 + employer social security) + other employer costs, the full cost to the company.</li>
+      <li><strong>Productive hours.</strong> In Portugal: 52 weeks × 40 h = 2,080 h, minus 22 days of annual leave (176 h), about 11 public holidays that fall on weekdays (88 h) and about 5 days of sick leave and training (40 h), leaves 1,776 h. Taking off about 10% for meetings and admin gives roughly 1,600 h.</li>
+      <li><strong>Diagnoses.</strong> (manual minutes − automated minutes) ÷ 60 × diagnoses per developer per month × developers × 12 × hourly value.</li>
+      <li><strong>Regressions.</strong> Releases per year × share with a regression × (share caught by Atrium − share caught early today) × (hours to fix late − hours to fix right after release). A regression found late surfaces as an incident, and its diagnosis is already one of the reactive diagnoses, so the diagnosis time saved is taken out once for each of them. No hour is counted twice.</li>
+      <li><strong>Caught early today.</strong> Teams with nightly performance tests or close monitoring already catch some regressions before they hurt. Only the extra ones Atrium catches count.</li>
+      <li><strong>Business impact.</strong> A user-facing incident lasts at least until it is diagnosed, so a shorter diagnosis shortens it by the same hours: incidents × hours saved per diagnosis × business cost per hour. Only incidents that are among the reactive diagnoses count. It stays at zero until the client enters its own cost per hour; there is no honest default for it.</li>
+      <li><strong>Investment.</strong> Net = savings − Atrium cost per year. Return on investment = net ÷ Atrium cost. Break-even team size is the smallest number of developers whose savings cover the cost, with every other figure unchanged.</li>
+      <li><strong>Developer time freed.</strong> Hours, and the same hours as full-time equivalents (hours ÷ productive hours). It is capacity handed back to delivery, spread across the team, not a cut in headcount or payroll.</li>
+      <li><strong>Billed rate.</strong> For a consultancy, saved hours valued at the billed rate are revenue it can bill for other work, not a cost saved, so the share of team cost is not shown in that case.</li>
+      <li><strong>Measuring the inputs.</strong> Releases come from the LifeTime deployment history. The regression share comes from running the release comparison over past releases in the pilot. Hours to fix late come from performance tickets traced back to a release. Compare cost per execution, not totals, so that changes in load don't look like regressions, and compare against the same weekday (7-day shift) as well as the day before.</li>
+      <li><strong>In production.</strong> Large companies usually run a commercial APM in production. There Atrium is the analysis and troubleshooting tool beside it: the APM shows that something is slow, Atrium shows which action and which query, and how each release changed them.</li>
+      <li><strong>Not counted.</strong> Regressions that never become incidents but pile up into refactoring projects, fewer front-end server scale-ups, and planned performance reviews outside releases.</li>
+      <li><strong>Salary sources (2026).</strong> <a href="https://pt.indeed.com/cmp/Outsystems/salaries" target="_blank" rel="noopener">Indeed</a> averages about €38.8k for OutSystems software engineers in Portugal; <a href="https://www.payscale.com/research/PT/Employer=OutSystems/Salary" target="_blank" rel="noopener">Payscale</a> tops out near €57k; <a href="https://nextleveljobs.eu/blog/software-engineer-salary/portugal" target="_blank" rel="noopener">NextLevelJobs</a> puts the national software median at €32k–40k.</li>
+    </ul>
+  </section>
+</div>
+
+<script>{{ENGINE}}</script>
+<script>
+var L = {
+  locale: "en-IE",
+  storeKey: "atrium-roi-v7",
+  steps: ["Find the slow screens and actions", "Link the slow queries to the action", "Read the query plan and find the cause", "Write up the finding"],
+  colAria: { manual: "manual, minutes", auto: "automated, minutes" },
+  chartRows: ["Manual", "Automated"],
+  fte: "FTE",
+  copied: "Copied",
+  copyFallback: "Text selected. Press Ctrl+C or ⌘C to copy.",
+  modeNote: function (x) {
+    return x.r.adv
+      ? "Full cost to the company: gross salary plus employer social security and other employer costs."
+      : "Gross salary only. It leaves out the employer's costs on top, so the savings are a floor.";
+  },
+  derivedTeam: function (x) {
+    var F = x.F, r = x.r;
+    return r.adv
+      ? "Cost per developer: <strong>" + F.eur(r.cost) + "</strong> a year, <strong>" + F.eur2(r.rate) + "</strong> an hour."
+      : "Hourly value: <strong>" + F.eur2(r.rate) + "</strong> (gross salary ÷ productive hours).";
+  },
+  derivedDiag: function (x) {
+    var F = x.F, r = x.r;
+    return "Team total: <strong>" + F.n1(r.perYear / 12) + "</strong> diagnoses a month, <strong>" + F.n0(r.perYear) + "</strong> a year.";
+  },
+  derivedReg: function (x) {
+    var F = x.F, r = x.r;
+    return "Extra regressions caught early: <strong>" + F.n1(r.regs) + "</strong> a year, saving <strong>" + F.n0(r.regHours) + " h</strong> after taking out <strong>" + F.n0(r.overlapH) + " h</strong> already counted in the diagnoses.";
+  },
+  derivedImpact: function (x) {
+    var F = x.F, r = x.r;
+    return x.s.impactRate > 0
+      ? "Incidents shortened by <strong>" + F.min(r.savedMin) + "</strong> each, <strong>" + F.n0(r.impactHours) + " h</strong> a year: <strong>" + F.eur(r.impact) + "</strong>."
+      : "Not counted until you enter a business cost per hour. Incidents would be <strong>" + F.n0(r.impactHours) + " h</strong> shorter a year.";
+  },
+  derivedCost: function (x) {
+    var F = x.F, r = x.r;
+    return r.cost > 0
+      ? "That is <strong>" + F.n2(x.s.atriumCost / r.cost) + "</strong> times the yearly " + (r.adv ? "cost to the company" : "gross salary") + " of one developer."
+      : "";
+  },
+  totalSub: function (x) {
+    var F = x.F, r = x.r;
+    return F.eur(r.time) + " diagnoses · " + F.eur(r.regValue) + " regressions · " + F.eur(r.impact) + " business impact";
+  },
+  netSub: function (x) {
+    var F = x.F, r = x.r;
+    return r.roi == null ? "No Atrium cost entered" : "Return " + F.sPct(r.roi) + " on " + F.eur(r.atriumCost) + " a year";
+  },
+  beValue: function (x) { return x.be == null ? "—" : x.F.n0(x.be) + (x.be === 1 ? " dev" : " devs"); },
+  beSub: function (x) {
+    var F = x.F, r = x.r;
+    if (x.be == null) return "Savings never cover the cost at these figures";
+    if (r.coverage == null) return "No Atrium cost entered";
+    return r.coverage >= 1
+      ? "Pays for itself in " + F.n1(r.paybackMonths) + " months at " + F.n0(x.s.devs) + " devs"
+      : "At " + F.n0(x.s.devs) + " devs, savings cover " + F.pct(r.coverage) + " of the cost";
+  },
+  pctLabel: function (x) { return x.r.adv ? "Share of team cost to the company" : "Share of team gross salaries"; },
+  summary: function (x) {
+    var F = x.F, r = x.r, c = x.c, s = x.s;
+    var valuedAt = r.billed
+      ? "a billed rate of " + F.eur(s.billed) + "/h"
+      : (r.adv ? "a full cost to the company of " : "a gross salary cost of ") + F.eur2(r.rate) + "/h";
+    var lines = [
+      "Atrium ROI estimate for an OutSystems team of " + F.n0(s.devs) + " developers in Portugal",
+      "",
+      "- A routine performance diagnosis is estimated at " + F.min(r.tot.manual) + " by hand and " + F.min(r.tot.auto) + " with Atrium's automated performance analysis.",
+      "- At " + F.n2(s.perMonth) + " diagnoses per developer a month (" + F.n1(r.perYear / 12) + " for the team), that frees " + F.n0(r.diagHours) + " developer hours a year, worth " + F.eur(r.time) + " at " + valuedAt + ".",
+      "- Across " + F.n0(s.releases) + " releases a year, the release comparison catches about " + F.n1(r.regs) + " more performance regressions right after the deploy than the team catches today, saving " + F.n0(r.regHours) + " h (" + F.eur(r.regValue) + ") beyond the diagnosis time already counted.",
+      s.impactRate > 0
+        ? "- Shorter diagnoses cut " + F.n0(r.impactHours) + " h a year off " + F.n0(r.impIncidents) + " user-facing incidents, worth " + F.eur(r.impact) + " at " + F.eur(s.impactRate) + " of business cost per hour."
+        : "- Business impact of shorter incidents: not counted (no business cost per hour entered).",
+      "- Total savings: " + F.eur(r.savings) + " a year (conservative: " + F.eur(c.savings) + "). Developer time freed: " + F.n0(r.freedHours) + " h, " + F.n2(r.fte) + " FTE of capacity.",
+      r.roi == null
+        ? "- No Atrium cost entered."
+        : "- Against an Atrium cost of " + F.eur(r.atriumCost) + " a year: net " + F.sEur(r.net) + " (conservative " + F.sEur(c.net) + "), return " + F.sPct(r.roi) + ". " + (x.be == null ? "The savings do not cover the cost at any team size with these figures." : "Break-even at " + F.n0(x.be) + (x.be === 1 ? " developer" : " developers") + (x.beC == null ? "." : " (conservative: " + F.n0(x.beC) + ")."))
+    ];
+    return lines.join("\n") + "\n\nAssumptions: average gross salary " + F.eur(s.salary) +
+      (r.adv ? ", employer social security " + F.n2(s.overhead) + "%, other employer costs " + F.eur(s.benefits) : " (employer costs not included, so savings are a floor)") +
+      ", " + F.n0(s.hours) + " productive hours a year, " + F.n0(s.regShare) + "% of releases with a regression, " + F.n0(s.detected) + "% caught by Atrium against " + F.n0(s.baseline) + "% today. Step times and regression figures are estimates to be confirmed in a pilot.";
+  }
+};
+</script>
+<script>{{APP}}</script>

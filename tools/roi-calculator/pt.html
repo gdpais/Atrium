@@ -1,0 +1,326 @@
+<title>Calculadora de ROI Atrium</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>{{CSS}}</style>
+
+<div class="wrap" lang="pt-PT">
+  <header class="brand">
+    {{LOGO}}
+    <div>
+      <div class="brand-name">ATRIUM</div>
+      <div class="brand-sub">Análise de desempenho OutSystems · calculadora de ROI</div>
+    </div>
+  </header>
+
+  <section class="intro">
+    <h1>Um diagnóstico de desempenho passa, segundo as estimativas, de <span id="h-manual">6 h</span> para <span id="h-auto">1 h 15 min</span></h1>
+    <p>Estime quanto vale a análise de desempenho automatizada do Atrium para uma equipa OutSystems em Portugal e compare com o que o Atrium custa: horas de programador em diagnósticos de rotina, regressões de desempenho detetadas logo após cada release e, se o souber, o custo para o negócio de aplicações lentas ou com falhas. Altere qualquer valor para o ajustar à sua equipa. Todos os montantes são anuais, em euros.</p>
+  </section>
+
+  <section aria-label="Resultado anual" style="display:grid; gap:12px">
+    <div class="seg-row">
+      <div class="seg" role="group" aria-label="Base de custo">
+        <button type="button" data-mode="simple" aria-pressed="true">Simplificado</button>
+        <button type="button" data-mode="advanced" aria-pressed="false">Avançado</button>
+      </div>
+      <p class="mode-note" id="mode-note"></p>
+    </div>
+    <div class="headline">
+      <div>
+        <span class="eyebrow">Poupança por ano</span>
+        <span class="big accent num" id="o-total">0 €</span>
+        <small id="o-total-sub">—</small>
+      </div>
+      <div>
+        <span class="eyebrow">Líquido após o custo do Atrium</span>
+        <span class="big num" id="o-net">0 €</span>
+        <small id="o-net-sub">—</small>
+      </div>
+      <div>
+        <span class="eyebrow">Equipa mínima para compensar</span>
+        <span class="big num" id="o-be">—</span>
+        <small id="o-be-sub">—</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="main">
+    <form class="panel" id="inputs" autocomplete="off" novalidate>
+      <fieldset>
+        <legend><h2>A sua equipa</h2></legend>
+        <div class="field">
+          <label for="devs">Programadores<span>em aplicações OutSystems</span></label>
+          <div class="input"><input id="devs" type="number" min="0" step="1" inputmode="numeric"><span class="unit">pessoas</span></div>
+        </div>
+        <div class="field">
+          <label for="salary">Salário bruto médio<span>14 meses, por ano</span></label>
+          <div class="input"><span class="pre">€</span><input id="salary" type="number" min="0" step="500" inputmode="numeric"></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="overhead">TSU da entidade patronal<span>Segurança Social</span></label>
+          <div class="input"><input id="overhead" type="number" min="0" step="0.25" inputmode="decimal"><span class="unit">%</span></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="benefits">Outros custos da empresa<span>subsídio de alimentação, seguros</span></label>
+          <div class="input"><span class="pre">€</span><input id="benefits" type="number" min="0" step="100" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="hours">Horas produtivas<span>por ano, sem férias, feriados e reuniões</span></label>
+          <div class="input"><input id="hours" type="number" min="1" step="10" inputmode="numeric"><span class="unit">h</span></div>
+        </div>
+        <p class="derived" id="derived"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Diagnósticos</h2></legend>
+        <div class="field">
+          <label for="perMonth">Diagnósticos por programador<span>por mês, reativos: incidentes e queixas</span></label>
+          <div class="input"><input id="perMonth" type="number" min="0" step="0.05" inputmode="decimal"></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="valueAt">Valorizar as horas ao<span>custo interno ou preço faturado</span></label>
+          <div class="input"><select id="valueAt"><option value="internal">Custo interno</option><option value="billed">Preço faturado</option></select></div>
+        </div>
+        <div class="field" data-advanced>
+          <label for="billed">Preço faturado<span>consultoria, por hora</span></label>
+          <div class="input"><span class="pre">€</span><input id="billed" type="number" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-diag"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Regressões das releases</h2></legend>
+        <div class="field">
+          <label for="releases">Releases para produção<span>por ano, a partir do LifeTime</span></label>
+          <div class="input"><input id="releases" type="number" min="0" step="5" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="regShare">Releases com regressão<span>uma ação mais lenta por execução</span></label>
+          <div class="input"><input id="regShare" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="detected">Detetadas pela comparação do Atrium<span>execuções suficientes para ser claro</span></label>
+          <div class="input"><input id="detected" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="baseline">Detetadas cedo hoje, sem o Atrium<span>testes, monitorização, um programador atento</span></label>
+          <div class="input"><input id="baseline" type="number" min="0" max="100" step="1" inputmode="numeric"><span class="unit">%</span></div>
+        </div>
+        <div class="field">
+          <label for="lateH">Horas para corrigir tarde<span>diagnóstico, hotfix, deploy</span></label>
+          <div class="input"><input id="lateH" type="number" min="0" step="1" inputmode="numeric"><span class="unit">h</span></div>
+        </div>
+        <div class="field">
+          <label for="earlyH">Horas para corrigir logo após a release<span>ou um rollback</span></label>
+          <div class="input"><input id="earlyH" type="number" min="0" step="0.5" inputmode="decimal"><span class="unit">h</span></div>
+        </div>
+        <p class="derived" id="derived-debt"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Impacto no negócio <small>opcional, com os seus valores</small></h2></legend>
+        <div class="field">
+          <label for="incidents">Incidentes de desempenho visíveis<span>por ano: lento ou com falhas para os utilizadores</span></label>
+          <div class="input"><input id="incidents" type="number" min="0" step="1" inputmode="numeric"></div>
+        </div>
+        <div class="field">
+          <label for="impactRate">Custo para o negócio por hora de incidente<span>da área financeira: vendas perdidas, pessoas paradas, penalizações de SLA</span></label>
+          <div class="input"><span class="pre">€</span><input id="impactRate" type="number" min="0" step="50" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-impact"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><h2>Investimento</h2></legend>
+        <div class="field">
+          <label for="atriumCost">Custo anual do Atrium<span>licença, implementação e suporte</span></label>
+          <div class="input"><span class="pre">€</span><input id="atriumCost" type="number" min="0" step="1000" inputmode="numeric"></div>
+        </div>
+        <p class="derived" id="derived-cost"></p>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" class="btn" id="reset">Repor valores iniciais</button>
+      </div>
+    </form>
+
+    <div class="panel">
+      <section class="card" aria-labelledby="t-steps">
+        <div style="display:grid; gap:4px">
+          <h2 id="t-steps">Minutos por diagnóstico</h2>
+          <p class="muted" style="font-size:0.88rem">Uma pessoa, um ecrã ou ação lenta, do sintoma à conclusão escrita. São estimativas até serem cronometradas num piloto. Pode editar qualquer célula.</p>
+        </div>
+        <div class="chart" id="chart" aria-hidden="true"></div>
+        <div class="legend" id="legend"></div>
+        <div class="table-wrap">
+          <table id="steps">
+            <thead><tr><th scope="col">Passo</th><th scope="col">Manual</th><th scope="col">Automatizado</th></tr></thead>
+            <tbody></tbody>
+            <tfoot><tr><td>Total</td><td id="tot-manual">0</td><td id="tot-auto">0</td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-annual">
+        <h2 id="t-annual">Por ano</h2>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              <tr><td>Tempo poupado por diagnóstico</td><td class="mono" id="r-perdiag"></td></tr>
+              <tr><td>Horas poupadas em diagnósticos</td><td class="mono" id="r-hours"></td></tr>
+              <tr><td class="sub">Valor dessas horas</td><td class="mono" id="r-time"></td></tr>
+              <tr><td>Regressões extra detetadas cedo</td><td class="mono" id="r-regs"></td></tr>
+              <tr><td>Horas poupadas em regressões</td><td class="mono" id="r-reghours"></td></tr>
+              <tr><td class="sub">Valor dessas horas</td><td class="mono" id="r-debt"></td></tr>
+              <tr><td>Impacto no negócio evitado</td><td class="mono" id="r-impact"></td></tr>
+              <tr class="total-row"><td>Poupança total</td><td class="mono" id="r-total"></td></tr>
+              <tr><td>Custo do Atrium</td><td class="mono" id="r-cost"></td></tr>
+              <tr class="total-row"><td>Líquido</td><td class="mono" id="r-net"></td></tr>
+              <tr><td>Retorno do investimento</td><td class="mono" id="r-roi"></td></tr>
+              <tr><td>Tempo de programador libertado</td><td class="mono" id="r-freed"></td></tr>
+              <tr><td id="r-pct-label">Peso no total de salários brutos da equipa</td><td class="mono" id="r-pct"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-scen">
+        <div style="display:grid; gap:4px">
+          <h2 id="t-scen">Conservador e esperado</h2>
+          <p class="muted" style="font-size:0.88rem">O cenário conservador corta para metade os dois valores que ainda são estimativas: os minutos que o Atrium poupa por diagnóstico e as regressões extra que deteta.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col"></th><th scope="col">Conservador</th><th scope="col">Esperado</th></tr></thead>
+            <tbody>
+              <tr><td>Poupança por ano</td><td class="mono" id="sc-c-sav"></td><td class="mono" id="sc-e-sav"></td></tr>
+              <tr><td>Líquido após o custo do Atrium</td><td class="mono" id="sc-c-net"></td><td class="mono" id="sc-e-net"></td></tr>
+              <tr><td>Parte do custo do Atrium coberta</td><td class="mono" id="sc-c-cov"></td><td class="mono" id="sc-e-cov"></td></tr>
+              <tr><td>Equipa mínima para compensar</td><td class="mono" id="sc-c-be"></td><td class="mono" id="sc-e-be"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="t-share">
+        <h2 id="t-share">Resumo para email ou proposta</h2>
+        <textarea id="summary-text" readonly aria-label="Texto do resumo"></textarea>
+        <div class="actions">
+          <button type="button" class="btn primary" id="copy">Copiar resumo</button>
+          <span class="status" id="copy-status" role="status"></span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="notes" aria-labelledby="t-notes">
+    <h2 id="t-notes">Como são feitas as contas</h2>
+    <p class="callout">Os tempos de cada passo, a parte das releases com regressão e as horas para corrigir são estimativas, não medições. Antes de apresentar um valor a um cliente, cronometre dois ou três diagnósticos reais, à mão e com o Atrium, e corra a comparação de releases sobre releases passadas num piloto; depois introduza esses valores.</p>
+    <ul>
+      <li><strong>Diagnóstico manual.</strong> Um programador percorre os relatórios do Service Center (ecrãs e ações lentas, SQL lento, erros), exporta-os, liga cada consulta lenta à ação que a executou, analisa o plano de execução, muitas vezes com um DBA, e escreve a conclusão.</li>
+      <li><strong>Automatizado.</strong> A análise de desempenho do Atrium abre numa ação e lista as consultas que ela executou, com o respetivo custo, ao lado da latência, dos erros e dos logs da aplicação. O passo manual mais lento passa a levar minutos. O Atrium mostra também, na mesma janela de tempo, as esperas, bloqueios, I/O e memória do SQL Server, por isso sabe-se logo se o problema é a consulta ou o servidor; o programador continua a ler o plano de execução e a escrever a causa e a recomendação.</li>
+      <li><strong>Simplificado e Avançado usam o mesmo modelo.</strong> Só muda o custo de uma hora. Simplificado: salário bruto ÷ horas produtivas, que deixa de fora o que a empresa paga além do salário, por isso a poupança é sempre um valor mínimo. Avançado: salário bruto × (1 + TSU da entidade patronal) + outros custos da empresa, ou seja, o custo total para a empresa.</li>
+      <li><strong>Horas produtivas.</strong> Em Portugal: 52 semanas × 40 h = 2080 h, menos 22 dias de férias (176 h), cerca de 11 feriados em dias úteis (88 h) e cerca de 5 dias de baixa e formação (40 h), dá 1776 h. Retirando cerca de 10% para reuniões e tarefas administrativas, ficam cerca de 1600 h.</li>
+      <li><strong>Diagnósticos.</strong> (minutos manuais − minutos automatizados) ÷ 60 × diagnósticos por programador por mês × programadores × 12 × valor por hora.</li>
+      <li><strong>Regressões.</strong> Releases por ano × parte com regressão × (parte detetada pelo Atrium − parte detetada cedo hoje) × (horas para corrigir tarde − horas para corrigir logo após a release). Uma regressão detetada tarde aparece como incidente, e o seu diagnóstico já é um dos diagnósticos reativos, por isso o tempo de diagnóstico poupado é retirado uma vez por cada uma. Nenhuma hora é contada duas vezes.</li>
+      <li><strong>Detetadas cedo hoje.</strong> Equipas com testes de desempenho noturnos ou boa monitorização já detetam algumas regressões antes de causarem problemas. Só contam as regressões extra que o Atrium deteta.</li>
+      <li><strong>Impacto no negócio.</strong> Um incidente visível para os utilizadores dura pelo menos até ser diagnosticado, por isso um diagnóstico mais curto encurta-o nas mesmas horas: incidentes × horas poupadas por diagnóstico × custo para o negócio por hora. Só contam os incidentes que fazem parte dos diagnósticos reativos. Fica a zero até o cliente introduzir o seu próprio custo por hora; não há um valor por omissão honesto.</li>
+      <li><strong>Investimento.</strong> Líquido = poupança − custo anual do Atrium. Retorno do investimento = líquido ÷ custo do Atrium. A equipa mínima para compensar é o menor número de programadores cuja poupança cobre o custo, com todos os outros valores iguais.</li>
+      <li><strong>Tempo de programador libertado.</strong> Em horas e nas mesmas horas em equivalentes a tempo inteiro (horas ÷ horas produtivas). É capacidade devolvida à entrega, repartida pela equipa, e não uma redução de pessoas ou de salários.</li>
+      <li><strong>Preço faturado.</strong> Para uma consultora, as horas poupadas valorizadas ao preço faturado são receita que pode faturar noutro trabalho, não um custo poupado, por isso nesse caso o peso no custo da equipa não é apresentado.</li>
+      <li><strong>Como medir os valores.</strong> As releases vêm do histórico de deployments do LifeTime. A parte com regressão obtém-se correndo a comparação de releases sobre releases passadas, no piloto. As horas para corrigir tarde vêm dos tickets de desempenho associados a uma release. Compare o custo por execução e não totais, para que variações de carga não pareçam regressões, e compare com o mesmo dia da semana (desvio de 7 dias) além do dia anterior.</li>
+      <li><strong>Em produção.</strong> As grandes empresas usam normalmente um APM comercial em produção. Aí o Atrium é a ferramenta de análise e troubleshooting ao lado dele: o APM mostra que algo está lento, o Atrium mostra que ação e que consulta, e como cada release as alterou.</li>
+      <li><strong>Não contabilizado.</strong> Regressões que nunca chegam a incidente mas se acumulam até exigirem refactoring, menos aumentos de servidores front-end e revisões de desempenho planeadas fora das releases.</li>
+      <li><strong>Fontes salariais (2026).</strong> O <a href="https://pt.indeed.com/cmp/Outsystems/salaries" target="_blank" rel="noopener">Indeed</a> indica uma média de cerca de 38,8 mil € para engenheiros de software OutSystems em Portugal; o <a href="https://www.payscale.com/research/PT/Employer=OutSystems/Salary" target="_blank" rel="noopener">Payscale</a> chega perto dos 57 mil €; o <a href="https://nextleveljobs.eu/blog/software-engineer-salary/portugal" target="_blank" rel="noopener">NextLevelJobs</a> situa a mediana nacional de software entre 32 mil € e 40 mil €.</li>
+    </ul>
+  </section>
+</div>
+
+<script>{{ENGINE}}</script>
+<script>
+var L = {
+  locale: "pt-PT",
+  storeKey: "atrium-roi-pt-v6",
+  steps: ["Encontrar os ecrãs e ações lentas", "Ligar as consultas lentas à ação", "Ler o plano de execução e encontrar a causa", "Escrever a conclusão"],
+  colAria: { manual: "manual, minutos", auto: "automatizado, minutos" },
+  chartRows: ["Manual", "Automatizado"],
+  fte: "ETI",
+  copied: "Copiado",
+  copyFallback: "Texto selecionado. Prima Ctrl+C ou ⌘C para copiar.",
+  modeNote: function (x) {
+    return x.r.adv
+      ? "Custo total para a empresa: salário bruto mais TSU da entidade patronal e outros custos."
+      : "Só o salário bruto. Deixa de fora os custos da empresa além do salário, por isso a poupança é um valor mínimo.";
+  },
+  derivedTeam: function (x) {
+    var F = x.F, r = x.r;
+    return r.adv
+      ? "Custo por programador: <strong>" + F.eur(r.cost) + "</strong> por ano, <strong>" + F.eur2(r.rate) + "</strong> por hora."
+      : "Valor por hora: <strong>" + F.eur2(r.rate) + "</strong> (salário bruto ÷ horas produtivas).";
+  },
+  derivedDiag: function (x) {
+    var F = x.F, r = x.r;
+    return "Total da equipa: <strong>" + F.n1(r.perYear / 12) + "</strong> diagnósticos por mês, <strong>" + F.n0(r.perYear) + "</strong> por ano.";
+  },
+  derivedReg: function (x) {
+    var F = x.F, r = x.r;
+    return "Regressões extra detetadas cedo: <strong>" + F.n1(r.regs) + "</strong> por ano, poupando <strong>" + F.n0(r.regHours) + " h</strong> depois de retirar <strong>" + F.n0(r.overlapH) + " h</strong> já contadas nos diagnósticos.";
+  },
+  derivedImpact: function (x) {
+    var F = x.F, r = x.r;
+    return x.s.impactRate > 0
+      ? "Incidentes encurtados em <strong>" + F.min(r.savedMin) + "</strong> cada, <strong>" + F.n0(r.impactHours) + " h</strong> por ano: <strong>" + F.eur(r.impact) + "</strong>."
+      : "Não contabilizado até introduzir um custo para o negócio por hora. Os incidentes seriam <strong>" + F.n0(r.impactHours) + " h</strong> mais curtos por ano.";
+  },
+  derivedCost: function (x) {
+    var F = x.F, r = x.r;
+    return r.cost > 0
+      ? "Equivale a <strong>" + F.n2(x.s.atriumCost / r.cost) + "</strong> vezes o " + (r.adv ? "custo anual para a empresa" : "salário bruto anual") + " de um programador."
+      : "";
+  },
+  totalSub: function (x) {
+    var F = x.F, r = x.r;
+    return F.eur(r.time) + " diagnósticos · " + F.eur(r.regValue) + " regressões · " + F.eur(r.impact) + " impacto no negócio";
+  },
+  netSub: function (x) {
+    var F = x.F, r = x.r;
+    return r.roi == null ? "Sem custo do Atrium introduzido" : "Retorno de " + F.sPct(r.roi) + " sobre " + F.eur(r.atriumCost) + " por ano";
+  },
+  beValue: function (x) { return x.be == null ? "—" : x.F.n0(x.be) + (x.be === 1 ? " pessoa" : " pessoas"); },
+  beSub: function (x) {
+    var F = x.F, r = x.r;
+    if (x.be == null) return "Com estes valores a poupança nunca cobre o custo";
+    if (r.coverage == null) return "Sem custo do Atrium introduzido";
+    return r.coverage >= 1
+      ? "Paga-se em " + F.n1(r.paybackMonths) + " meses com " + F.n0(x.s.devs) + " programadores"
+      : "Com " + F.n0(x.s.devs) + " programadores, a poupança cobre " + F.pct(r.coverage) + " do custo";
+  },
+  pctLabel: function (x) { return x.r.adv ? "Peso no custo total da equipa" : "Peso no total de salários brutos da equipa"; },
+  summary: function (x) {
+    var F = x.F, r = x.r, c = x.c, s = x.s;
+    var valuedAt = r.billed
+      ? "um preço faturado de " + F.eur(s.billed) + "/h"
+      : (r.adv ? "um custo total para a empresa de " : "um custo em salário bruto de ") + F.eur2(r.rate) + "/h";
+    var lines = [
+      "Estimativa de ROI do Atrium para uma equipa OutSystems de " + F.n0(s.devs) + " programadores em Portugal",
+      "",
+      "- Estima-se que um diagnóstico de desempenho de rotina leve cerca de " + F.min(r.tot.manual) + " à mão e " + F.min(r.tot.auto) + " com a análise de desempenho automatizada do Atrium.",
+      "- Com " + F.n2(s.perMonth) + " diagnósticos por programador por mês (" + F.n1(r.perYear / 12) + " para a equipa), isso liberta " + F.n0(r.diagHours) + " horas de programador por ano, no valor de " + F.eur(r.time) + " a " + valuedAt + ".",
+      "- Em " + F.n0(s.releases) + " releases por ano, a comparação de releases deteta logo após o deploy cerca de " + F.n1(r.regs) + " regressões de desempenho a mais do que a equipa deteta hoje, poupando " + F.n0(r.regHours) + " h (" + F.eur(r.regValue) + ") além do tempo de diagnóstico já contado.",
+      s.impactRate > 0
+        ? "- Diagnósticos mais curtos retiram " + F.n0(r.impactHours) + " h por ano a " + F.n0(r.impIncidents) + " incidentes visíveis para os utilizadores, no valor de " + F.eur(r.impact) + " a " + F.eur(s.impactRate) + " de custo para o negócio por hora."
+        : "- Impacto no negócio de incidentes mais curtos: não contabilizado (sem custo para o negócio por hora).",
+      "- Poupança total: " + F.eur(r.savings) + " por ano (conservador: " + F.eur(c.savings) + "). Tempo de programador libertado: " + F.n0(r.freedHours) + " h, " + F.n2(r.fte) + " ETI de capacidade.",
+      r.roi == null
+        ? "- Sem custo do Atrium introduzido."
+        : "- Face a um custo do Atrium de " + F.eur(r.atriumCost) + " por ano: líquido de " + F.sEur(r.net) + " (conservador " + F.sEur(c.net) + "), retorno de " + F.sPct(r.roi) + ". " + (x.be == null ? "Com estes valores a poupança não cobre o custo para nenhum tamanho de equipa." : "Compensa a partir de " + F.n0(x.be) + (x.be === 1 ? " programador" : " programadores") + (x.beC == null ? "." : " (conservador: " + F.n0(x.beC) + ")."))
+    ];
+    return lines.join("\n") + "\n\nPressupostos: salário bruto médio de " + F.eur(s.salary) +
+      (r.adv ? ", TSU da entidade patronal de " + F.n2(s.overhead) + "%, outros custos de " + F.eur(s.benefits) : " (sem os custos da empresa além do salário, por isso a poupança é um valor mínimo)") +
+      ", " + F.n0(s.hours) + " horas produtivas por ano, " + F.n0(s.regShare) + "% das releases com regressão, " + F.n0(s.detected) + "% detetadas pelo Atrium face a " + F.n0(s.baseline) + "% hoje. Os tempos de cada passo e os valores das regressões são estimativas a confirmar num piloto.";
+  }
+};
+</script>
+<script>{{APP}}</script>
