@@ -89,7 +89,7 @@ func grafanaDatasources(t *testing.T) map[string]string {
 // Grafana's own variables, which dashboards use without defining them.
 var grafanaBuiltins = map[string]bool{
 	"__rate_interval": true, "__range": true, "__interval": true, "__url_time_range": true,
-	"__value": true, "__data": true, "__from": true, "__to": true, "__all": true,
+	"__value": true, "__data": true, "__field": true, "__from": true, "__to": true, "__all": true,
 }
 
 var dashboardVariableRef = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
@@ -301,4 +301,75 @@ func TestInventoryDashboardLinksAreTheLinkTemplates(t *testing.T) {
 				name, template, column, links[column])
 		}
 	}
+}
+
+var lokiRangeCall = regexp.MustCompile(`\b(count|sum|avg|max|min|first|last|stddev|stdvar|quantile|rate|bytes|bytes_rate|absent)_over_time\(|\b(rate|bytes_rate)\(`)
+var lokiAggregationOpen = regexp.MustCompile(`(sum|count|avg|max|min|stddev|stdvar)\s*(by\s*\([^)]*\)\s*)?\($`)
+var lokiGroupingAfter = regexp.MustCompile(`^\s*(by|without)\s*\(`)
+
+// A Loki metric query that does not aggregate returns one series per stream
+// and structured-metadata set, which for OutSystems rows is one per request:
+// on 2026-11-17 an ungrouped quantile_over_time over a day of PatientZero rows
+// OOM-killed the kind Grafana. Every range aggregation must be grouped, by a
+// clause after it or by the aggregation it is inside.
+func TestDashboardLokiMetricQueriesAggregate(t *testing.T) {
+	root := repoRoot(t)
+	files, err := filepath.Glob(filepath.Join(root, dashboardDir, "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var d dashboard
+		if err := json.Unmarshal(content, &d); err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range d.Panels {
+			for _, target := range p.Targets {
+				if target.Datasource.Type != "loki" && (p.Datasource == nil || p.Datasource.Type != "loki") {
+					continue
+				}
+				expr := target.Expr
+				for _, loc := range lokiRangeCall.FindAllStringIndex(expr, -1) {
+					end := matchingParen(expr, loc[1]-1)
+					if end < 0 {
+						t.Errorf("%s: panel %q query %s has unbalanced parentheses", d.UID, p.Title, target.RefID)
+						break
+					}
+					if lokiGroupingAfter.MatchString(expr[end+1:]) || lokiAggregationOpen.MatchString(strings.TrimRight(expr[:loc[0]], " ")) {
+						continue
+					}
+					t.Errorf("%s: panel %q query %s does not aggregate %s: group it (sum by, or by after the call)",
+						d.UID, p.Title, target.RefID, expr[loc[0]:loc[1]])
+				}
+			}
+		}
+	}
+}
+
+// matchingParen returns the index of the parenthesis that closes the one at
+// open, or -1.
+func matchingParen(s string, open int) int {
+	depth := 0
+	quoted := false
+	for i := open; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '\\' && quoted:
+			i++
+		case c == '"':
+			quoted = !quoted
+		case quoted:
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }

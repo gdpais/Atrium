@@ -260,7 +260,7 @@ phase 7.
 
 ### Dashboards
 
-Four dashboards in Grafana's **Atrium** folder read these metrics and the
+Six dashboards in Grafana's **Atrium** folder read these metrics and the
 log records
 ([`files/grafana/dashboards/`](../../infra/helm/atrium/files/grafana/dashboards/)).
 Each one filters by environment and application. A header link opens the
@@ -273,9 +273,40 @@ Overview for the same time.
 | *OutSystems Errors* (`outsystems-errors`) | What fails, where and for whom: errors by module and front-end, failed operations, the top fingerprints, users affected, and the error log | Metrics and Loki |
 | *OutSystems Latency* (`outsystems-latency`) | Where time goes: percentiles and the duration distribution, slowest operations by mean, p95 by module, integrations, screen state size, and the requests over 2 s | Metrics and Loki |
 | *OutSystems Request Timeline* (`outsystems-request`) | Everything one request logged, by `Request_Key`; the requests of a user or session; how many rows of each log type carry a `Request_Key` ([step A](#step-a-request-timeline-from-logs-with-phase-2)) | Loki |
+| *OutSystems Performance Analysis* (`outsystems-performance`) | Where Apdex is lost and where fixing pays most: the application's Apdex and its distribution, then module, screen and action, each ranked by the Apdex points the application would gain if its requests were all satisfied; an action's percentiles and slow requests, its slow SQL, and the time spent in integrations, extensions and slow SQL | Metrics for the application and its modules; Loki for screens, actions and dependencies |
+| *OutSystems Release Comparison* (`outsystems-release-comparison`) | Whether a release made a module faster or slower: Apdex, p95, requests and failed share in the time range against the same range a chosen time earlier, the two periods overlaid, and every screen and action with its change in p95 | Metrics and Loki |
 
 Drill-down goes from the overview's top operations to a module's latency
 or errors, then from any `Request_Key` in a table to the request timeline.
+In the performance analysis, a module, screen or action in a table or bar
+opens the next level down; in the release comparison, a screen or action
+opens its own comparison.
+
+#### Apdex
+
+The performance analysis and the release comparison score requests with
+Apdex: (satisfied + tolerating / 2) / requests, over screens and Reactive
+server calls (timers and exposed APIs are left out). A request is satisfied
+up to 3 s, tolerating up to 10 s and frustrated above. Both thresholds are
+edges of `atrium_outsystems_operation_duration_seconds`' buckets, so the
+application and module Apdex is an exact count read from the buckets, not
+an estimate (their p95 still is one), and the screen and action panels filter the log rows' `Duration`
+at the same values, so the levels agree. The SQL dashboards these replace
+used 12 s for frustrated (4 × 3 s, Apdex's usual rule); 12 s is not a bucket
+edge, so it moved to 10 s, the planned edge below it. Adding a bucket would
+cost every label set of the latency histograms one more series. A test
+fails when a dashboard reads a threshold that is not a bucket edge
+([`dashboard_thresholds_test.go`](../../services/db-collector/internal/collectors/outsystems/dashboard_thresholds_test.go)).
+
+The histogram has no `operation` label, so per-screen and per-action Apdex,
+p95 and totals come from the log rows in Loki, with `Screen` and
+`Action_Name` as structured metadata: `Action_Name` is the screen action
+of a Traditional screen and the server or data action (the endpoint) of a
+Reactive call. These queries read every row in the time range, so they are
+slower than the metric panels over long ranges. A Loki metric query must
+group its result (`sum by`, or `by` after the call): without it, Loki
+returns one series per row's structured metadata, which for these rows is
+one per request; a test checks every dashboard for it.
 A fingerprint in the top errors filters the error log to that error. The
 metric panels trail real time by the extraction delay (about a minute); the
 Loki panels show rows as soon as they are in Loki. A Go test checks every

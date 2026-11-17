@@ -5,6 +5,7 @@ package tests
 import (
 	"bytes"
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1234,6 +1235,7 @@ func TestChartProfiles(t *testing.T) {
 			checkLokiRetention(t, objects)
 			checkTempoWAL(t, objects)
 			checkGrafanaGzip(t, objects)
+			checkClientSideApplySize(t, objects)
 			checkNotes(t, profile)
 			checkConfigReloadAlert(t, objects, profile.configReloadAlertOff)
 			checkCollectorMissingAlert(t, objects)
@@ -2350,6 +2352,32 @@ func checkGrafanaGzip(t *testing.T, objects map[string]object) {
 		}
 	}
 	t.Error("Grafana grafana.ini does not set server.enable_gzip = false; Grafana 13 gzips by default")
+}
+
+// A client-side apply (kubectl, and Argo CD's default sync) stores the whole
+// object in the last-applied-configuration annotation, and an object's
+// annotations may hold at most 256 KiB. An object whose data comes near that
+// must ask Argo CD for a server-side apply, which keeps no copy.
+func checkClientSideApplySize(t *testing.T, objects map[string]object) {
+	t.Helper()
+	const annotationLimit = 256 << 10
+	const metadataMargin = 8 << 10
+	for id, obj := range objects {
+		if len(obj.Data) == 0 {
+			continue
+		}
+		data, err := json.Marshal(obj.Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(data)+metadataMargin <= annotationLimit {
+			continue
+		}
+		if !strings.Contains(obj.Metadata.Annotations["argocd.argoproj.io/sync-options"], "ServerSideApply=true") {
+			t.Errorf("%s holds %d bytes of data, too much for a client-side apply's %d-byte annotation; annotate it argocd.argoproj.io/sync-options: ServerSideApply=true",
+				id, len(data), annotationLimit)
+		}
+	}
 }
 
 // checkCollectorEgress checks what the db-collector NetworkPolicy lets the

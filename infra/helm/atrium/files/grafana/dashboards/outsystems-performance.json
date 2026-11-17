@@ -1,0 +1,2941 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Where Apdex is lost and where fixing pays most: application, module, screen, action, then the dependencies. Apdex = (satisfied + tolerating / 2) / requests, over screens and Reactive server calls: satisfied up to 3 s, tolerating up to 10 s, frustrated above. Both thresholds are bucket edges of atrium_outsystems_operation_duration_seconds.",
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "outsystems"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "OutSystems",
+      "icon": "external link",
+      "targetBlank": false
+    },
+    {
+      "type": "link",
+      "title": "SQL Server Overview",
+      "url": "/d/sqlserver-overview/sql-server-overview",
+      "keepTime": true,
+      "icon": "dashboard",
+      "tooltip": "The databases at the same time"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview: every module",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Apdex",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) + sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / (2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Apdex"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "orientation": "auto"
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 0,
+        "y": 1
+      },
+      "description": "Apdex = (satisfied + tolerating / 2) / requests, over screens and Reactive server calls: satisfied up to 3 s, tolerating up to 10 s, frustrated above. Both thresholds are bucket edges of atrium_outsystems_operation_duration_seconds. Every module of the selected applications, over the time range."
+    },
+    {
+      "type": "piechart",
+      "title": "Apdex distribution",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range]))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Satisfied"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range]))",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Tolerating"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))",
+          "refId": "C",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Frustrated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Satisfied"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tolerating"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Frustrated"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "values": [
+            "value",
+            "percent"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": []
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 5,
+        "y": 1
+      },
+      "description": "Requests answered within 3 s (satisfied), within 10 s (tolerating) and slower (frustrated)."
+    },
+    {
+      "type": "stat",
+      "title": "Requests",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range]))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Requests"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      },
+      "description": "Estimated from the duration histogram's buckets."
+    },
+    {
+      "type": "bargauge",
+      "title": "Modules costing the most Apdex",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, (2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / scalar(2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range]))) > 0)",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{module}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "min": 0,
+          "color": {
+            "mode": "continuous-YlRd"
+          },
+          "links": [
+            {
+              "title": "Drill down into ${__field.labels.module}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.module}"
+            }
+          ],
+          "displayName": "${__field.labels.module}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "description": "Apdex points the application would gain if every request of the module were satisfied. Click a module to drill down."
+    },
+    {
+      "type": "timeseries",
+      "title": "Apdex by module",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__rate_interval])) + sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__rate_interval]))) / (2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__rate_interval])))",
+          "refId": "A",
+          "range": true,
+          "legendFormat": "{{module}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "description": "Apdex = (satisfied + tolerating / 2) / requests, over screens and Reactive server calls: satisfied up to 3 s, tolerating up to 10 s, frustrated above. Both thresholds are bucket edges of atrium_outsystems_operation_duration_seconds."
+    },
+    {
+      "type": "timeseries",
+      "title": "Mean duration and requests by module",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (module) (increase(atrium_outsystems_operation_duration_seconds_sum{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__rate_interval])) / sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__rate_interval]))",
+          "refId": "A",
+          "range": true,
+          "legendFormat": "{{module}} mean"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (module) (rate(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__rate_interval]))",
+          "refId": "B",
+          "range": true,
+          "legendFormat": "{{module}} requests"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 40
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "description": "Lines: mean duration (left axis). Bars: requests per second (right axis)."
+    },
+    {
+      "type": "table",
+      "title": "Modules: where Apdex improves most",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range]))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) + sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / (2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (module, le) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "C",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (module) (increase(atrium_outsystems_operation_duration_seconds_sum{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) / sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range]))",
+          "refId": "D",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range]))",
+          "refId": "E",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / scalar(2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "F",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Over 3 s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mean"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex gained if fixed"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 0.1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Module"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Drill down into ${__value.raw}",
+                    "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Apdex gained if fixed",
+            "desc": true
+          }
+        ]
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "description": "Apdex gained if fixed: the application's Apdex points if every request of the module were satisfied. Click a module to drill down.",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true
+            },
+            "indexByName": {
+              "module": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6
+            },
+            "renameByName": {
+              "module": "Module",
+              "Value #A": "Requests",
+              "Value #B": "Apdex",
+              "Value #C": "p95",
+              "Value #D": "Mean",
+              "Value #E": "Over 3 s",
+              "Value #F": "Apdex gained if fixed"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Apdex gained if fixed",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Module: $module",
+      "collapsed": false,
+      "panels": [],
+      "id": 10,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Apdex of $module",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) + sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / (2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\"}[$__range])))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Apdex"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "green",
+                "value": 0.85
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "orientation": "auto"
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 0,
+        "y": 27
+      },
+      "description": "Apdex = (satisfied + tolerating / 2) / requests, over screens and Reactive server calls: satisfied up to 3 s, tolerating up to 10 s, frustrated above. Both thresholds are bucket edges of atrium_outsystems_operation_duration_seconds."
+    },
+    {
+      "type": "piechart",
+      "title": "Apdex distribution of $module",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range]))",
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Satisfied"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range]))",
+          "refId": "B",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Tolerating"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",module=~\"$module\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))",
+          "refId": "C",
+          "instant": true,
+          "range": false,
+          "legendFormat": "Frustrated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Satisfied"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tolerating"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Frustrated"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "values": [
+            "value",
+            "percent"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": []
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 5,
+        "y": 27
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Screens costing the most Apdex",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, ((sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range]))) > 0)",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{Screen}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "min": 0,
+          "color": {
+            "mode": "continuous-YlRd"
+          },
+          "links": [
+            {
+              "title": "Drill down into ${__field.labels.Screen}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.Espace_Name}&var-screen=${__field.labels.Screen}"
+            }
+          ],
+          "displayName": "${__data.fields.Screen}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 27
+      },
+      "description": "Apdex points the application would gain if every request of the screen were satisfied, from the log rows."
+    },
+    {
+      "type": "bargauge",
+      "title": "Screens by total time",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range])) / 1000)",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{Screen}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "displayName": "${__data.fields.Screen}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 27
+      },
+      "description": "Request time summed per screen: where the users' time goes."
+    },
+    {
+      "type": "timeseries",
+      "title": "Screens: mean duration of requests over 3 s",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, avg_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration > 3000 | Duration >= 0 | unwrap Duration [$__interval]) by (Espace_Name, Screen) / 1000)",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{Screen}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 6,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "description": "Only the requests that left the satisfied zone, per screen."
+    },
+    {
+      "type": "table",
+      "title": "Screens: where Apdex improves most",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range]))",
+          "refId": "A",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "1 - ((sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))) / (2 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))",
+          "refId": "B",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range]) by (Espace_Name, Screen) / 1000",
+          "refId": "C",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "avg_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range]) by (Espace_Name, Screen) / 1000",
+          "refId": "D",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range])) / 1000",
+          "refId": "E",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "(sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))",
+          "refId": "F",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "((sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range])))",
+          "refId": "G",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Over 3 s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mean"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex gained if fixed"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 0.1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Screen"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Drill down into ${__value.raw}",
+                    "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&${module:queryparam}&var-screen=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Apdex gained if fixed",
+            "desc": true
+          }
+        ]
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "description": "From the log rows, so p95 is exact. Apdex gained if fixed: the application's Apdex points if every request of the row were satisfied. Click a screen to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "Espace_Name": 0,
+              "Screen": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 6,
+              "Value #F": 7,
+              "Value #G": 8
+            },
+            "renameByName": {
+              "Espace_Name": "Module",
+              "Screen": "Screen",
+              "Action_Name": "Action",
+              "Value #A": "Requests",
+              "Value #B": "Apdex",
+              "Value #C": "p95",
+              "Value #D": "Mean",
+              "Value #E": "Total time",
+              "Value #F": "Over 3 s",
+              "Value #G": "Apdex gained if fixed"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Apdex gained if fixed",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Screen: $screen",
+      "collapsed": false,
+      "panels": [],
+      "id": 17,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Actions costing the most Apdex",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, ((sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range]))) > 0)",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{Screen}} · {{Action_Name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "min": 0,
+          "color": {
+            "mode": "continuous-YlRd"
+          },
+          "links": [
+            {
+              "title": "Drill down into ${__field.labels.Action_Name}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.Espace_Name}&var-screen=${__field.labels.Screen}&var-action_name=${__field.labels.Action_Name}"
+            }
+          ],
+          "displayName": "${__data.fields.Screen} · ${__data.fields.Action_Name}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 18,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 54
+      },
+      "description": "Apdex points the application would gain if every request of the action were satisfied."
+    },
+    {
+      "type": "bargauge",
+      "title": "Actions by total time",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range])) / 1000)",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{Screen}} · {{Action_Name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "displayName": "${__data.fields.Screen} · ${__data.fields.Action_Name}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 19,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 54
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Actions: mean duration of requests over 3 s",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, avg_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration > 3000 | Duration >= 0 | unwrap Duration [$__interval]) by (Screen, Action_Name) / 1000)",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{Screen}} · {{Action_Name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 6,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 54
+      }
+    },
+    {
+      "type": "table",
+      "title": "Actions: where Apdex improves most",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range]))",
+          "refId": "A",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "1 - ((sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))) / (2 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))",
+          "refId": "B",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range]) by (Espace_Name, Screen, Action_Name) / 1000",
+          "refId": "C",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "avg_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range]) by (Espace_Name, Screen, Action_Name) / 1000",
+          "refId": "D",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range])) / 1000",
+          "refId": "E",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "(sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))",
+          "refId": "F",
+          "queryType": "instant"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "((sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range])))",
+          "refId": "G",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Over 3 s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.85
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mean"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Apdex gained if fixed"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 0.1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Action"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Drill down into ${__value.raw}",
+                    "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&${module:queryparam}&${screen:queryparam}&var-action_name=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Apdex gained if fixed",
+            "desc": true
+          }
+        ]
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "description": "From the log rows, so p95 is exact. Apdex gained if fixed: the application's Apdex points if every request of the row were satisfied. Click a action to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "Espace_Name": 0,
+              "Screen": 1,
+              "Action_Name": 2,
+              "Value #A": 3,
+              "Value #B": 4,
+              "Value #C": 5,
+              "Value #D": 6,
+              "Value #E": 7,
+              "Value #F": 8,
+              "Value #G": 9
+            },
+            "renameByName": {
+              "Espace_Name": "Module",
+              "Screen": "Screen",
+              "Action_Name": "Action",
+              "Value #A": "Requests",
+              "Value #B": "Apdex",
+              "Value #C": "p95",
+              "Value #D": "Mean",
+              "Value #E": "Total time",
+              "Value #F": "Over 3 s",
+              "Value #G": "Apdex gained if fixed"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Apdex gained if fixed",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Action: $action_name",
+      "collapsed": false,
+      "panels": [],
+      "id": 22,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Duration of $action_name",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.5, {service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | unwrap Duration [$__interval]) by (Action_Name) / 1000",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{Action_Name}} p50"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "quantile_over_time(0.95, {service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | unwrap Duration [$__interval]) by (Action_Name) / 1000",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "{{Action_Name}} p95"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "max_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | unwrap Duration [$__interval]) by (Action_Name) / 1000",
+          "refId": "C",
+          "queryType": "range",
+          "legendFormat": "{{Action_Name}} max"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "description": "Exact percentiles from the log rows of the selected screen and action."
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests of $action_name by Apdex zone",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | Duration <= 3000 [$__interval]))",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "Satisfied"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | Duration > 3000 | Duration <= 10000 [$__interval]))",
+          "refId": "B",
+          "queryType": "range",
+          "legendFormat": "Tolerating"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | Duration > 10000 [$__interval]))",
+          "refId": "C",
+          "queryType": "range",
+          "legendFormat": "Frustrated"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Satisfied"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tolerating"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Frustrated"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      }
+    },
+    {
+      "type": "table",
+      "title": "Requests of $action_name over 3 s",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0 | Duration > 3000",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 200
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Request_Key"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Request timeline",
+                    "url": "/d/outsystems-request/outsystems-request-timeline?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-request_key=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Time",
+            "desc": true
+          }
+        ]
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 83
+      },
+      "description": "The action's slow requests, newest first. Click a Request_Key for everything the request logged: integrations, extensions, slow SQL and errors.",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "format": "auto",
+            "replace": false,
+            "keepTime": false
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Time",
+                "outsystems_log_type",
+                "Screen",
+                "Action_Name",
+                "Duration",
+                "Username",
+                "Server",
+                "Request_Key"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "Time": 0,
+              "outsystems_log_type": 1,
+              "Screen": 2,
+              "Action_Name": 3,
+              "Duration": 4,
+              "Username": 5,
+              "Server": 6,
+              "Request_Key": 7
+            },
+            "renameByName": {
+              "outsystems_log_type": "Log type",
+              "Screen": "Screen",
+              "Action_Name": "Action"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Slow SQL of $action_name",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"general\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Action_Name=~\"$action_name\" | Duration >= 0",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 200
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Request_Key"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Request timeline",
+                    "url": "/d/outsystems-request/outsystems-request-timeline?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-request_key=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Time",
+            "desc": true
+          }
+        ]
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 83
+      },
+      "description": "Slow-query rows (SLOWSQL) the platform logged inside the action, newest first.",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "format": "auto",
+            "replace": false,
+            "keepTime": false
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "Time",
+                "Duration",
+                "Line",
+                "Request_Key"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "Time": 0,
+              "Duration": 1,
+              "Line": 2,
+              "Request_Key": 3
+            },
+            "renameByName": {
+              "Line": "Message"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Dependencies of $module: $type",
+      "collapsed": false,
+      "panels": [],
+      "id": 27,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 93
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Time in dependencies by type",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "label_replace(sum by (outsystems_log_type) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"integration|extension|general\"} | Espace_Name=~\"$module\" | Is_Expose!=\"true\" | Duration >= 0 | unwrap Duration [$__range])) / 1000, \"outsystems_log_type\", \"slow SQL\", \"outsystems_log_type\", \"general\")",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{outsystems_log_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "displayName": "${__data.fields.outsystems_log_type}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "values": [
+            "value",
+            "percent"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "displayLabels": []
+      },
+      "id": 28,
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 0,
+        "y": 94
+      },
+      "description": "Time the module's requests spent calling integrations (consumed only), extensions, and in slow SQL (the SLOWSQL rows the platform logs)."
+    },
+    {
+      "type": "bargauge",
+      "title": "$type: most time",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(15, sum by (Espace_Name, Action_Name, Extension_Name, Endpoint) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"$type\"} | Espace_Name=~\"$module\" | Is_Expose!=\"true\" | Duration >= 0 | unwrap Duration [$__range])) / 1000)",
+          "refId": "A",
+          "queryType": "instant",
+          "legendFormat": "{{Extension_Name}} {{Action_Name}} {{Endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "displayName": "${__data.fields.Extension_Name} ${__data.fields.Action_Name} ${__data.fields.Endpoint}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
+        "minVizHeight": 22,
+        "maxVizHeight": 22
+      },
+      "id": 29,
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 6,
+        "y": 94
+      },
+      "description": "Integration methods, extension actions, or, for slow SQL, the actions that ran the slow queries."
+    },
+    {
+      "type": "timeseries",
+      "title": "$type: mean duration",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, avg_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"$type\"} | Espace_Name=~\"$module\" | Is_Expose!=\"true\" | Duration >= 0 | unwrap Duration [$__interval]) by (Espace_Name, Action_Name, Extension_Name, Endpoint) / 1000)",
+          "refId": "A",
+          "queryType": "range",
+          "legendFormat": "{{Extension_Name}} {{Action_Name}} {{Endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 5
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 30,
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 14,
+        "y": 94
+      }
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": [
+    "atrium",
+    "outsystems"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(atrium_outsystems_operations_total, environment)",
+          "refId": "environment-var"
+        },
+        "definition": "label_values(atrium_outsystems_operations_total, environment)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0,
+        "options": []
+      },
+      {
+        "name": "application",
+        "label": "Application",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(atrium_outsystems_operations_total{environment=~\"$environment\"}, application)",
+          "refId": "application-var"
+        },
+        "definition": "label_values(atrium_outsystems_operations_total{environment=~\"$environment\"}, application)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0,
+        "options": []
+      },
+      {
+        "name": "module",
+        "label": "Module",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(atrium_outsystems_operations_total{environment=~\"$environment\",application=~\"$application\"}, module)",
+          "refId": "module-var"
+        },
+        "definition": "label_values(atrium_outsystems_operations_total{environment=~\"$environment\",application=~\"$application\"}, module)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "hide": 0,
+        "options": []
+      },
+      {
+        "name": "screen",
+        "label": "Screen",
+        "type": "textbox",
+        "query": ".*",
+        "description": "A regular expression over the request's Screen; .* for every screen. A screen in a table sets it.",
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": ".*",
+            "value": ".*"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "action_name",
+        "label": "Action",
+        "type": "textbox",
+        "query": ".*",
+        "description": "A regular expression over the request's Action_Name (the screen action, or the Reactive server or data action); .* for every action. An action in a table sets it.",
+        "current": {
+          "selected": false,
+          "text": ".*",
+          "value": ".*"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": ".*",
+            "value": ".*"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "type",
+        "label": "Dependency",
+        "type": "custom",
+        "query": "Integration : integration, Extension : extension, Slow SQL : general",
+        "current": {
+          "selected": true,
+          "text": "Integration",
+          "value": "integration"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Integration",
+            "value": "integration"
+          },
+          {
+            "selected": false,
+            "text": "Extension",
+            "value": "extension"
+          },
+          {
+            "selected": false,
+            "text": "Slow SQL",
+            "value": "general"
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "OutSystems Performance Analysis",
+  "uid": "outsystems-performance",
+  "version": 1
+}
