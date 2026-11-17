@@ -62,7 +62,7 @@ help:
 		'Atrium developer commands:' \
 		'  make tools-check         Verify docker, kind, kubectl, helm and go against the pinned versions' \
 		'  make install-tools       Install the pinned kind, kubectl, helm and helm3 into $$TOOLS_DIR (CI)' \
-		'  make kind-up             Create the kind cluster, build and load images, deploy the chart (PROFILE=full|minimal)' \
+		'  make kind-up             Create the kind cluster, build and load images, deploy the chart and the approved probe assignments (PROFILE=full|minimal)' \
 		'  make kind-deploy         Redeploy the chart to the existing kind cluster (PROFILE=full|minimal)' \
 		'  make kind-assignments    Render the approved probe assignments in the API and deploy them as managedCollectors' \
 		'  make kind-images         Rebuild both images and load them into kind' \

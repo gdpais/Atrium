@@ -269,7 +269,9 @@ Released images are built by CI, not by hand: see
 Edit the `integrations` values and run `make kind-deploy`; for probe
 assignments, run `make kind-assignments`, which renders them in the API's
 pod into `.tmp/kind/atrium/managed-collectors.yaml` and deploys with it
-(later `make kind-deploy` runs keep it; delete the file to drop them). The
+(later `make kind-deploy` runs keep it; delete the file to drop them).
+`make kind-up` does the same after its deploy (full profile), and deploys
+again only when the render changed. The
 render holds the assignments approved through the API and those of kind's
 inventory file (`api.inventory` in `kind.yaml`): PatientZero's database
 target, `patientzero`, on the sandbox SQL Server with the `sessions`,

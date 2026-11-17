@@ -380,8 +380,8 @@
       "description": "Estimated from the duration histogram's buckets."
     },
     {
-      "type": "bargauge",
-      "title": "Modules costing the most Apdex",
+      "type": "barchart",
+      "title": "Where the Apdex is lost: modules",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -392,7 +392,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "topk(10, (2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))) / scalar(2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range]))) > 0)",
+          "expr": "topk(10, (2 * sum by (module) (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) - sum by (module) (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range])) > 0) / scalar(2 * sum (increase(atrium_outsystems_operation_duration_seconds_count{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"3(\\\\.0)?\"}[$__range])) - sum (increase(atrium_outsystems_operation_duration_seconds_bucket{environment=~\"$environment\",application=~\"$application\",log_type=~\"screen|mobile_request\",le=~\"10(\\\\.0)?\"}[$__range]))))",
           "refId": "A",
           "instant": true,
           "range": false,
@@ -401,37 +401,72 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 3,
+          "decimals": 0,
           "min": 0,
           "color": {
-            "mode": "continuous-YlRd"
+            "mode": "fixed",
+            "fixedColor": "orange"
           },
           "links": [
             {
-              "title": "Drill down into ${__field.labels.module}",
-              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.module}"
+              "title": "Drill down into ${__data.fields.module}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__data.fields.module}"
             }
           ],
-          "displayName": "${__field.labels.module}"
+          "unit": "percentunit",
+          "noValue": "No request over 3 s",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
         "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "xField": "module",
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelMaxLength": 40,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
       },
       "id": 6,
       "gridPos": {
@@ -440,7 +475,41 @@
         "x": 16,
         "y": 1
       },
-      "description": "Apdex points the application would gain if every request of the module were satisfied. Click a module to drill down."
+      "description": "Of the Apdex the application loses to requests slower than 3 s, the share each module causes. A module at 60 % holds 60 % of what there is to win back. Click a module to drill down.",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ],
+            "mode": "seriesToRows",
+            "labelsToFields": true
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": true
+            },
+            "renameByName": {
+              "Last *": "Share"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Share",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
@@ -1107,8 +1176,8 @@
       }
     },
     {
-      "type": "bargauge",
-      "title": "Screens costing the most Apdex",
+      "type": "barchart",
+      "title": "Where the Apdex is lost: screens",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1119,7 +1188,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, ((sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range]))) > 0)",
+          "expr": "topk(10, (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])) + (sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range])))) / on() group_left() (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 3000 [$__range])) + (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 10000 [$__range])) or vector(0))))",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}}"
@@ -1127,37 +1196,72 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 3,
+          "decimals": 0,
           "min": 0,
           "color": {
-            "mode": "continuous-YlRd"
+            "mode": "fixed",
+            "fixedColor": "orange"
           },
           "links": [
             {
-              "title": "Drill down into ${__field.labels.Screen}",
-              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.Espace_Name}&var-screen=${__field.labels.Screen}"
+              "title": "Drill down into ${__data.fields.Screen}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__data.fields.Espace_Name}&var-screen=${__data.fields.Screen}"
             }
           ],
-          "displayName": "${__data.fields.Screen}"
+          "unit": "percentunit",
+          "noValue": "No request over 3 s",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
         "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "xField": "Screen",
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelMaxLength": 40,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
       },
       "id": 13,
       "gridPos": {
@@ -1166,11 +1270,46 @@
         "x": 12,
         "y": 27
       },
-      "description": "Apdex points the application would gain if every request of the screen were satisfied, from the log rows."
+      "description": "Of the Apdex the application loses to requests slower than 3 s, the share each screen of $module causes. Fixing the top screen wins back that share. Click a screen to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Share",
+              "Value": "Share"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Share",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "bargauge",
-      "title": "Screens by total time",
+      "type": "barchart",
+      "title": "Screens: waiting over 3 s",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1181,7 +1320,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range])) / 1000)",
+          "expr": "topk(10, (sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000)",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}}"
@@ -1192,28 +1331,68 @@
           "unit": "s",
           "min": 0,
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
-          "displayName": "${__data.fields.Screen}"
+          "links": [
+            {
+              "title": "Drill down into ${__data.fields.Screen}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__data.fields.Espace_Name}&var-screen=${__data.fields.Screen}"
+            }
+          ],
+          "noValue": "No request over 3 s",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waiting"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
         "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "xField": "Screen",
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelMaxLength": 40,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
       },
       "id": 14,
       "gridPos": {
@@ -1222,7 +1401,42 @@
         "x": 18,
         "y": 27
       },
-      "description": "Request time summed per screen: where the users' time goes."
+      "description": "Time users waited beyond the 3 s target, summed per screen: a 5 s request counts 2 s. Total time would rank a fast screen called often above a slow one; this counts only the wait users notice. Click a screen to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Waiting",
+              "Value": "Waiting"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Waiting",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
@@ -1327,7 +1541,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | unwrap Duration [$__range])) / 1000",
+          "expr": "(sum by (Espace_Name, Screen) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000",
           "refId": "E",
           "queryType": "instant"
         },
@@ -1458,7 +1672,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Total time"
+              "options": "Waiting over 3 s"
             },
             "properties": [
               {
@@ -1580,7 +1794,7 @@
               "Value #B": "Apdex",
               "Value #C": "p95",
               "Value #D": "Mean",
-              "Value #E": "Total time",
+              "Value #E": "Waiting over 3 s",
               "Value #F": "Over 3 s",
               "Value #G": "Apdex gained if fixed"
             }
@@ -1613,8 +1827,8 @@
       }
     },
     {
-      "type": "bargauge",
-      "title": "Actions costing the most Apdex",
+      "type": "barchart",
+      "title": "Where the Apdex is lost: actions",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1625,7 +1839,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, ((sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range]))) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 [$__range])))) / on() group_left() (2 * sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 [$__range]))) > 0)",
+          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])))) / on() group_left() (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 3000 [$__range])) + (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 10000 [$__range])) or vector(0))))",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}} · {{Action_Name}}"
@@ -1633,37 +1847,72 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 3,
+          "decimals": 0,
           "min": 0,
           "color": {
-            "mode": "continuous-YlRd"
+            "mode": "fixed",
+            "fixedColor": "orange"
           },
           "links": [
             {
-              "title": "Drill down into ${__field.labels.Action_Name}",
-              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__field.labels.Espace_Name}&var-screen=${__field.labels.Screen}&var-action_name=${__field.labels.Action_Name}"
+              "title": "Drill down into ${__data.fields.Action_Name}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__data.fields.Espace_Name}&var-screen=${__data.fields.Screen}&var-action_name=${__data.fields.Action_Name}"
             }
           ],
-          "displayName": "${__data.fields.Screen} · ${__data.fields.Action_Name}"
+          "unit": "percentunit",
+          "noValue": "No request over 3 s",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Share"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
         "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "xField": "Action_Name",
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelMaxLength": 40,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
       },
       "id": 18,
       "gridPos": {
@@ -1672,11 +1921,46 @@
         "x": 0,
         "y": 54
       },
-      "description": "Apdex points the application would gain if every request of the action were satisfied."
+      "description": "Of the Apdex the application loses to requests slower than 3 s, the share each action of $screen causes. Click an action to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Share",
+              "Value": "Share"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Share",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
     },
     {
-      "type": "bargauge",
-      "title": "Actions by total time",
+      "type": "barchart",
+      "title": "Actions: waiting over 3 s",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1687,7 +1971,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range])) / 1000)",
+          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000)",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}} · {{Action_Name}}"
@@ -1698,28 +1982,68 @@
           "unit": "s",
           "min": 0,
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
-          "displayName": "${__data.fields.Screen} · ${__data.fields.Action_Name}"
+          "links": [
+            {
+              "title": "Drill down into ${__data.fields.Action_Name}",
+              "url": "/d/outsystems-performance/outsystems-performance-analysis?${__url_time_range}&${environment:queryparam}&${application:queryparam}&var-module=${__data.fields.Espace_Name}&var-screen=${__data.fields.Screen}&var-action_name=${__data.fields.Action_Name}"
+            }
+          ],
+          "noValue": "No request over 3 s",
+          "custom": {
+            "fillOpacity": 85,
+            "gradientMode": "none",
+            "lineWidth": 0,
+            "axisPlacement": "auto",
+            "axisSoftMin": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Waiting"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": true
-        },
         "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "valueMode": "color",
-        "namePlacement": "top",
-        "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "xField": "Action_Name",
+        "showValue": "always",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "barRadius": 0,
+        "fullHighlight": false,
+        "xTickLabelRotation": 0,
+        "xTickLabelMaxLength": 40,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "text": {
+          "valueSize": 16
+        }
       },
       "id": 19,
       "gridPos": {
@@ -1727,7 +2051,43 @@
         "w": 8,
         "x": 8,
         "y": 54
-      }
+      },
+      "description": "Time users waited beyond the 3 s target, summed per action: a 5 s request counts 2 s. Click an action to drill down.",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value #A": "Waiting",
+              "Value": "Waiting"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Waiting",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "type": "timeseries",
@@ -1827,7 +2187,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | unwrap Duration [$__range])) / 1000",
+          "expr": "(sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000",
           "refId": "E",
           "queryType": "instant"
         },
@@ -1958,7 +2318,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Total time"
+              "options": "Waiting over 3 s"
             },
             "properties": [
               {
@@ -2081,7 +2441,7 @@
               "Value #B": "Apdex",
               "Value #C": "p95",
               "Value #D": "Mean",
-              "Value #E": "Total time",
+              "Value #E": "Waiting over 3 s",
               "Value #F": "Over 3 s",
               "Value #G": "Apdex gained if fixed"
             }
@@ -2677,7 +3037,8 @@
           "unit": "s",
           "min": 0,
           "color": {
-            "mode": "continuous-BlPu"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
           "displayName": "${__data.fields.Extension_Name} ${__data.fields.Action_Name} ${__data.fields.Endpoint}"
         },
@@ -2692,13 +3053,17 @@
           "values": true
         },
         "orientation": "horizontal",
-        "displayMode": "gradient",
+        "displayMode": "basic",
         "showUnfilled": true,
-        "valueMode": "color",
+        "valueMode": "text",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 22,
-        "maxVizHeight": 22
+        "minVizHeight": 18,
+        "maxVizHeight": 18,
+        "text": {
+          "titleSize": 14,
+          "valueSize": 14
+        }
       },
       "id": 29,
       "gridPos": {

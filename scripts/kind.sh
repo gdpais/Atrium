@@ -6,7 +6,8 @@
 # never acts on whatever cluster your current context points at.
 #
 # Usage: scripts/kind.sh <command>
-#   up               create the cluster if needed, build and load images, deploy
+#   up               create the cluster if needed, build and load images, deploy,
+#                    then apply the approved probe assignments (full profile)
 #   down             delete the kind cluster (and only it)
 #   cluster          create the cluster if it does not exist
 #   images           build the service images, tag them by content, load them
@@ -282,23 +283,53 @@ cmd_status() {
 # runs the render in its pod, which reads PostgreSQL only, and deploys with
 # the file. The collector reloads the ConfigMap within about a minute, and
 # the API marks the assignments applied once the collector runs them.
-cmd_assignments() {
+#
+# render_assignments writes the render to the state file and sets
+# assignments_changed when deploying it would change the collector's config.
+render_assignments() {
 	cluster_exists || die "kind cluster $CLUSTER does not exist; run make kind-up"
 	pod=$(kubectl_ -n "$NAMESPACE" get pod -l app.kubernetes.io/name=api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) ||
 		die "no API pod in $CONTEXT/$NAMESPACE; deploy the full profile with make kind-deploy"
 	[ -n "$pod" ] || die "no API pod in $CONTEXT/$NAMESPACE; deploy the full profile with make kind-deploy"
 	mkdir -p "$STATE_DIR"
-	kubectl_ -n "$NAMESPACE" exec "$pod" -c api -- /app/api probe-assignments render >"$STATE_DIR/managed-collectors.yaml.new" ||
-		{ rm -f "$STATE_DIR/managed-collectors.yaml.new"; die "api probe-assignments render failed in $pod"; }
-	mv "$STATE_DIR/managed-collectors.yaml.new" "$STATE_DIR/managed-collectors.yaml"
-	log "rendered $(grep -c '^  - id: api-' "$STATE_DIR/managed-collectors.yaml" || true) managed collectors to $STATE_DIR/managed-collectors.yaml"
+	file=$STATE_DIR/managed-collectors.yaml
+	kubectl_ -n "$NAMESPACE" exec "$pod" -c api -- /app/api probe-assignments render >"$file.new" ||
+		{ rm -f "$file.new"; die "api probe-assignments render failed in $pod"; }
+	assignments_count=$(grep -c '^  - id: api-' "$file.new" || true)
+	assignments_changed=1
+	if [ -f "$file" ] && cmp -s "$file.new" "$file"; then
+		assignments_changed=
+	elif [ ! -f "$file" ] && [ "$assignments_count" -eq 0 ]; then
+		# Nothing approved yet deploys the same as no file.
+		assignments_changed=
+	fi
+	mv "$file.new" "$file"
+	log "rendered $assignments_count managed collectors to $file"
+}
+
+cmd_assignments() {
+	render_assignments
 	cmd_deploy
 }
 
+# up also applies the approved probe assignments (the inventory file's
+# database targets among them), so they are collected without a separate
+# make kind-assignments. The minimal profile has no API to render them.
 cmd_up() {
 	cmd_cluster
 	cmd_images
 	cmd_deploy
+	if [ "$PROFILE" = minimal ]; then
+		log "minimal profile: no API, so no probe assignments to apply"
+		return
+	fi
+	render_assignments
+	if [ -n "$assignments_changed" ]; then
+		log "deploying with the approved probe assignments"
+		cmd_deploy
+	else
+		log "probe assignments already deployed"
+	fi
 }
 
 cmd_down() {
