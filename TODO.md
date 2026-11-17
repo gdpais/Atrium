@@ -679,6 +679,7 @@ its databases' health together.
 - [x] Build OutSystems errors dashboard
 - [x] Build OutSystems latency dashboard
 - [x] Enable drill-down overview -> latency/errors -> Loki ([dashboards](docs/architecture/application-observability.md#dashboards))
+- [x] Bring the SRE team's SQL dashboards onto Atrium's signals: *OutSystems Performance Analysis* (Apdex by module, screen and action, ranked by what fixing each would gain; an action's slow requests and SQL; time in dependencies) and *OutSystems Release Comparison* (a time range against the same range earlier). Apdex reads the latency histogram's planned buckets, satisfied up to 3 s and frustrated above 10 s instead of the old 12 s; tests keep every dashboard threshold on a bucket edge and every Loki metric query grouped ([Apdex](docs/architecture/application-observability.md#apdex))
 - [x] Check the active users and sessions panels and the top fingerprints at production cardinality: `make patientzero-scale-collect` and `make patientzero-scale-check` compare Loki with `expected.json`. All 48 hours of a 48 h backlog match; the largest panel, *Users affected* over 47 h, holds 1,977 series, a tenth of `max_query_series` ([results](tools/patientzero/README.md#in-loki))
 
 ### 10.5 Application and database together
