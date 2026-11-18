@@ -12,6 +12,25 @@ messages written as [Conventional Commits](https://www.conventionalcommits.org/e
 request instead. See [CONTRIBUTING.md](CONTRIBUTING.md#releases) and
 [ADR 0006](docs/architecture/decisions/0006-trunk-based-development-and-tagged-releases.md).
 
+## [0.3.0](https://github.com/gdpais/Atrium/compare/v0.2.2...v0.3.0) (2026-11-18)
+
+
+### Added
+
+* **dashboards:** OutSystems performance analysis and release comparison [10.4] ([075c0a1](https://github.com/gdpais/Atrium/commit/075c0a1a2dfb3b7f9c03287dfafa850f34c5d8b7))
+* **dashboards:** OutSystems performance analysis and release comparison [10.4] ([3af538f](https://github.com/gdpais/Atrium/commit/3af538fbae8b44758c890f629e50a3ccfdeabffc))
+* **dashboards:** readable Apdex rankings; kind-up applies probe assignments ([ce3c74c](https://github.com/gdpais/Atrium/commit/ce3c74c8158f7b545238ed24debb849bf2a974d5))
+* **dashboards:** readable Apdex rankings; kind-up applies probe assignments ([69cedaf](https://github.com/gdpais/Atrium/commit/69cedaf25eb3a931b6a1e060e4853ca25b874991))
+* **tools:** add the executive ROI calculator source ([2da7b8d](https://github.com/gdpais/Atrium/commit/2da7b8dddaf3cb2f82954807a8f97ec38d5ed000))
+* **tools:** add the executive ROI calculator source ([fd33115](https://github.com/gdpais/Atrium/commit/fd33115eccf069c265ca0a264dc6c2d6cb9a92d4))
+
+
+### Fixed
+
+* **chart:** apply the dashboards ConfigMap server-side under Argo CD [10.4] ([270a06a](https://github.com/gdpais/Atrium/commit/270a06a3788234c760667b1ed40ac165f5294a78))
+* **dashboards:** name action bars by screen and action; render via a ready API pod ([2babd18](https://github.com/gdpais/Atrium/commit/2babd183fe7cffd05815a0e7fdb5ae7babcf067f))
+* **patientzero:** treat NaN and Inf query values as no value ([6c10b46](https://github.com/gdpais/Atrium/commit/6c10b466d2d37303a13a7644c1100210832f8cf9))
+
 ## [0.2.2](https://github.com/gdpais/Atrium/compare/v0.2.1...v0.2.2) (2026-11-15)
 
 
