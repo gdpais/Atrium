@@ -293,8 +293,9 @@ render_assignments() {
 	[ -n "$pod" ] || die "no API pod in $CONTEXT/$NAMESPACE; deploy the full profile with make kind-deploy"
 	mkdir -p "$STATE_DIR"
 	file=$STATE_DIR/managed-collectors.yaml
-	kubectl_ -n "$NAMESPACE" exec "$pod" -c api -- /app/api probe-assignments render >"$file.new" ||
-		{ rm -f "$file.new"; die "api probe-assignments render failed in $pod"; }
+	# deploy/api picks a ready pod, not one a rollout is terminating.
+	kubectl_ -n "$NAMESPACE" exec deploy/api -c api -- /app/api probe-assignments render >"$file.new" ||
+		{ rm -f "$file.new"; die "api probe-assignments render failed in $CONTEXT/$NAMESPACE deploy/api"; }
 	assignments_count=$(grep -c '^  - id: api-' "$file.new" || true)
 	assignments_changed=1
 	if [ -f "$file" ] && cmp -s "$file.new" "$file"; then

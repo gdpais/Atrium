@@ -1839,7 +1839,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])) + (sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range])))) / on() group_left() (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 3000 [$__range])) + (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 10000 [$__range])) or vector(0))))",
+          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name, Screen_Action) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | label_format Screen_Action=\"{{.Screen}} · {{.Action_Name}}\" | Duration >= 0 | Duration > 3000 [$__range])) + (sum by (Espace_Name, Screen, Action_Name, Screen_Action) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | label_format Screen_Action=\"{{.Screen}} · {{.Action_Name}}\" | Duration >= 0 | Duration > 10000 [$__range])) or 0 * sum by (Espace_Name, Screen, Action_Name, Screen_Action) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | label_format Screen_Action=\"{{.Screen}} · {{.Action_Name}}\" | Duration >= 0 | Duration > 3000 [$__range])))) / on() group_left() (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 3000 [$__range])) + (sum(count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Duration >= 0 | Duration > 10000 [$__range])) or vector(0))))",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}} · {{Action_Name}}"
@@ -1891,7 +1891,7 @@
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "Action_Name",
+        "xField": "Screen_Action",
         "showValue": "always",
         "stacking": "none",
         "groupWidth": 0.7,
@@ -1971,7 +1971,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen, Action_Name) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000)",
+          "expr": "topk(10, (sum by (Espace_Name, Screen, Action_Name, Screen_Action) (sum_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | label_format Screen_Action=\"{{.Screen}} · {{.Action_Name}}\" | Duration >= 0 | Duration > 3000 | unwrap Duration [$__range])) - 3000 * sum by (Espace_Name, Screen, Action_Name, Screen_Action) (count_over_time({service_name=~\"$application\",deployment_environment_name=~\"$environment\",outsystems_log_type=~\"screen|mobile_request\"} | Espace_Name=~\"$module\" | Screen=~\"$screen\" | label_format Screen_Action=\"{{.Screen}} · {{.Action_Name}}\" | Duration >= 0 | Duration > 3000 [$__range]))) / 1000)",
           "refId": "A",
           "queryType": "instant",
           "legendFormat": "{{Screen}} · {{Action_Name}}"
@@ -2022,7 +2022,7 @@
       },
       "options": {
         "orientation": "horizontal",
-        "xField": "Action_Name",
+        "xField": "Screen_Action",
         "showValue": "always",
         "stacking": "none",
         "groupWidth": 0.7,
