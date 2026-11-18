@@ -144,8 +144,8 @@ and have an admin approve each assignment
 ([ADR 0014](../architecture/decisions/0014-probe-assignments-to-runtime-config.md)).
 The API renders the approved ones into the chart's `managedCollectors`, one
 collector per target; all of a target's assignments run at one interval.
-On kind, `make kind-assignments` deploys the render, and later
-`make kind-deploy` runs keep it. In production, ADR 0014's pull request to
+On kind, `make kind-up` and `make kind-assignments` deploy the render,
+and later `make kind-deploy` runs keep it. In production, ADR 0014's pull request to
 `atrium-deploy` is built only if production needs assignments managed by
 the API [18]; use the inventory file, or add targets by hand. Provide the
 credential (step 3) before the deploy; an assignment shows `applied` once the
