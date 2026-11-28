@@ -42,7 +42,7 @@ import (
 // ValkeyImage is the Valkey server the tests run: the newest major Amazon
 // ElastiCache supports, pinned exactly (ADR 0015). The chart's Valkey moves
 // with it.
-const ValkeyImage = "valkey/valkey:9.1.3"
+const ValkeyImage = "valkey/valkey:9.2.1"
 
 // Credential references the containers' logins are stored under.
 const (
