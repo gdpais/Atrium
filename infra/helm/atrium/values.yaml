@@ -337,7 +337,7 @@ valkey:
     # The version of the API's integration tests (ValkeyImage in
     # apps/api/internal/testenv/testenv.go; tests/chart_engines_test.go).
     repository: valkey/valkey
-    tag: "9.1.3"
+    tag: "9.2.1"
     pullPolicy: IfNotPresent
   auth:
     # Secret with the default user's password: letters and digits only. Read

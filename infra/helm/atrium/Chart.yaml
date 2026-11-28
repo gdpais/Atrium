@@ -17,11 +17,11 @@ sources:
 # Versions are pinned exactly and updated by Renovate (ADR 0005).
 dependencies:
   - name: prometheus
-    version: 29.47.2
+    version: 29.49.0
     repository: https://prometheus-community.github.io/helm-charts
     condition: prometheus.enabled
   - name: grafana
-    version: 14.4.1
+    version: 14.6.1
     repository: https://grafana-community.github.io/helm-charts
     condition: grafana.enabled
   - name: loki
@@ -34,6 +34,6 @@ dependencies:
     condition: tempo.enabled
   - name: opentelemetry-collector
     alias: otelCollector
-    version: 0.178.3
+    version: 0.183.2
     repository: https://open-telemetry.github.io/opentelemetry-helm-charts
     condition: otelCollector.enabled

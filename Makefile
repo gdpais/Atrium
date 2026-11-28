@@ -25,7 +25,7 @@ SHELLCHECK_IMAGE := koalaman/shellcheck:v0.11.0
 # so their dependencies stay out of go.mod. sqlc builds with cgo (its
 # PostgreSQL parser is C), so it needs a C compiler; the first build takes
 # about half a minute.
-OAPI_CODEGEN_VERSION := v2.8.2
+OAPI_CODEGEN_VERSION := v2.9.0
 SQLC_VERSION := v1.31.1
 TOOLS_DIR ?= .tmp/bin
 HELM ?= helm
